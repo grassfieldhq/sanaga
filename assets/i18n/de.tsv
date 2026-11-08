@@ -1,0 +1,509 @@
+# Sanaga — de (généré depuis translations.txt)
+Mot de passe introuvable dans le trousseau.	Passwort im Schlüsselbund nicht gefunden.
+Ajoutez d'abord vos coordonnées dans Paramètres › Remplissage automatique.	Fügen Sie zuerst Ihre Daten unter Einstellungen › Automatisch ausfüllen hinzu.
+ de « {} »	 von „{}“
+Enregistrer le mot de passe{} pour {} dans votre trousseau ?	Passwort{} für {} im Schlüsselbund speichern?
+Pas maintenant	Nicht jetzt
+Enregistrer	Speichern
+Mot de passe enregistré dans le trousseau.	Passwort im Schlüsselbund gespeichert.
+Le trousseau du système n'est pas disponible.	Der Systemschlüsselbund ist nicht verfügbar.
+Mot de passe enregistré pour {}	Gespeichertes Passwort für {}
+Remplir	Ausfüllen
+Remplir : {}	Ausfüllen: {}
+Mots de passe	Passwörter
+Les mots de passe sont gardés dans le trousseau de votre système, pas dans les fichiers de Sanaga. Sanaga propose de les enregistrer quand vous vous connectez à un site, et de les remplir la fois suivante.	Passwörter liegen im Schlüsselbund Ihres Systems, nicht in den Dateien von Sanaga. Sanaga bietet an, sie bei der Anmeldung zu speichern und beim nächsten Mal auszufüllen.
+Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.	Der Systemschlüsselbund (Secret Service) wurde nicht gefunden: Passwörter können nicht gespeichert werden.
+Rechercher un site	Website suchen
+Aucun mot de passe enregistré pour l'instant.	Noch keine gespeicherten Passwörter.
+Supprimer	Löschen
+Copier	Kopieren
+Afficher	Anzeigen
+Mot de passe copié.	Passwort kopiert.
+Extensions	Erweiterungen
+Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent aux nouveaux onglets.	Erweiterungen fügen Webseiten Funktionen hinzu. Änderungen gelten für neue Tabs.
+Tous les sites	Alle Websites
+Activée	Aktiviert
+Désactivée	Deaktiviert
+Vos propres extensions : déposez des fichiers .js ou .css dans le dossier des extensions.	Eigene Erweiterungen: Legen Sie .js- oder .css-Dateien in den Erweiterungsordner.
+Ouvrir le dossier des extensions	Erweiterungsordner öffnen
+Chaque profil a ses propres favoris, historique, mots de passe, cookies et onglets — par exemple « Personnel » et « Travail ». Un profil s'ouvre dans sa propre fenêtre.	Jedes Profil hat eigene Favoriten, Verlauf, Passwörter, Cookies und Tabs – zum Beispiel „Privat“ und „Arbeit“. Ein Profil öffnet sich in einem eigenen Fenster.
+Profil de cette fenêtre	Profil dieses Fensters
+Ouvrir dans une nouvelle fenêtre	In neuem Fenster öffnen
+Nom du nouveau profil (ex. Travail)	Name des neuen Profils (z. B. Arbeit)
+Créer le profil	Profil erstellen
+= {}   (cliquer pour copier)	= {}   (zum Kopieren klicken)
+Rechercher « {} » sur {}	„{}“ auf {} suchen
+Passer à l'onglet : {}	Zum Tab wechseln: {}
+{} — Rechercher avec {}	{} — Mit {} suchen
+{} copié	{} kopiert
+Copier le lien	Link kopieren
+Envoyer par e-mail	Per E-Mail senden
+Imprimer…	Drucken…
+Retirer de la liste de lecture	Aus Leseliste entfernen
+Ajouter à la liste de lecture	Zur Leseliste hinzufügen
+Retirer des favoris	Aus Favoriten entfernen
+Ajouter aux favoris	Zu Favoriten hinzufügen
+Créer une application web	Web-App erstellen
+Masquer le code QR	QR-Code ausblenden
+Code QR de la page	QR-Code der Seite
+Scannez-le avec votre téléphone	Mit dem Handy scannen
+« {} » a été ajoutée au menu des applications.	„{}“ wurde dem Anwendungsmenü hinzugefügt.
+Masquer la barre des favoris (Ctrl+Maj+B)	Favoritenleiste ausblenden (Strg+Umschalt+B)
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B	Favoritenleiste ausblenden (Strg+Umschalt+B)\nWieder anzeigen: Menü ⋮ oder Strg+Umschalt+B
+Ajoutez des favoris avec l'étoile de la barre d'adresse.	Fügen Sie Favoriten mit dem Stern in der Adressleiste hinzu.
+Ouvrir dans un nouvel onglet	In neuem Tab öffnen
+Masquer la barre des favoris	Favoritenleiste ausblenden
+Nouvel onglet	Neuer Tab
+Ctrl+T	Strg+T
+Nouvel onglet privé	Neuer privater Tab
+Ctrl+Maj+N	Strg+Umschalt+N
+Nouveau groupe d'onglets	Neue Tabgruppe
+Aperçu des onglets	Tab-Übersicht
+Ctrl+Maj+O	Strg+Umschalt+O
+Rechercher dans les onglets	Tabs durchsuchen
+Ctrl+Maj+A	Strg+Umschalt+A
+Historique	Verlauf
+Ctrl+H	Strg+H
+Téléchargements	Downloads
+Ctrl+J	Strg+J
+Quitter le Lecteur	Reader beenden
+Afficher dans le Lecteur	Im Reader anzeigen
+Ctrl+Maj+R	Strg+Umschalt+R
+Ctrl+Maj+D	Strg+Umschalt+D
+Traduire la page en français	Seite ins Deutsche übersetzen
+Favoris	Favoriten
+Afficher la barre des favoris	Favoritenleiste anzeigen
+Ctrl+Maj+B	Strg+Umschalt+B
+Zoom	Zoom
+Rechercher dans la page	Auf Seite suchen
+Ctrl+F	Strg+F
+Ctrl+P	Strg+P
+Enregistrer la page	Seite speichern
+Ctrl+S	Strg+S
+Plein écran	Vollbild
+F11	F11
+Afficher le code source	Quelltext anzeigen
+Ctrl+U	Strg+U
+Inspecteur web	Web-Inspektor
+Ctrl+Alt+I	Strg+Alt+I
+Masquer les images	Bilder ausblenden
+Afficher les images	Bilder anzeigen
+Thème clair	Helles Design
+Thème sombre	Dunkles Design
+Remplir avec mes coordonnées	Mit meinen Daten ausfüllen
+Ctrl+Maj+F	Strg+Umschalt+F
+Paramètres des sites	Website-Einstellungen
+Effacer les données de navigation…	Browserdaten löschen…
+Ctrl+Maj+Suppr	Strg+Umschalt+Entf
+Paramètres	Einstellungen
+À propos de Sanaga	Über Sanaga
+Quitter	Beenden
+Ctrl+Q	Strg+Q
+Groupe {}	Gruppe {}
+Précédent (Maj+Entrée)	Zurück (Umschalt+Eingabe)
+Suivant (Entrée)	Weiter (Eingabe)
+Fermer (Échap)	Schließen (Esc)
+Échec : {}	Fehlgeschlagen: {}
+Tout afficher	Alle anzeigen
+Effacer les données	Daten löschen
+Onglets	Tabs
+Wikipédia, l'encyclopédie libre	Wikipedia, die freie Enzyklopädie
+Sanaga ne sait pas ouvrir ce type d'adresse : {}	Sanaga kann diese Art von Adresse nicht öffnen: {}
+Chargement interrompu.	Laden abgebrochen.
+Rechercher dans l'historique	Verlauf durchsuchen
+Effacer l'historique	Verlauf löschen
+Les pages que vous visitez apparaîtront ici.	Besuchte Seiten erscheinen hier.
+… affinez la recherche pour voir plus de résultats	… Suche verfeinern, um mehr Ergebnisse zu sehen
+Importer :	Importieren:
+un fichier HTML (Firefox, Safari…)	eine HTML-Datei (Firefox, Safari…)
+Cliquez sur l'étoile de la barre d'adresse pour ajouter une page.	Klicken Sie auf den Stern in der Adressleiste, um eine Seite hinzuzufügen.
+Importer des favoris (fichier HTML)	Favoriten importieren (HTML-Datei)
+Favoris importés : {}	Importierte Favoriten: {}
+Le sélecteur de fichiers n'est pas disponible ici.	Die Dateiauswahl ist hier nicht verfügbar.
+Importer	Importieren
+Annuler	Abbrechen
+Favoris (HTML)	Favoriten (HTML)
+Les fichiers que vous téléchargez apparaîtront ici. Ils sont enregistrés dans votre dossier Téléchargements.	Heruntergeladene Dateien erscheinen hier. Sie werden im Ordner Downloads gespeichert.
+Afficher dans le dossier	Im Ordner anzeigen
+Moteur d'affichage des pages	Seiten-Darstellungs-Engine
+WebKit — sites complets avec JavaScript, vidéos et applications (recommandé)	WebKit – vollständige Websites mit JavaScript, Videos und Apps (empfohlen)
+Sanaga Léger — pages simplifiées, très rapide et très économe en mémoire	Sanaga Leicht – vereinfachte Seiten, sehr schnell und sehr sparsam
+Le changement s'applique aux prochaines pages ouvertes.	Die Änderung gilt für die nächsten geöffneten Seiten.
+WebKit n'est pas disponible ici : Sanaga utilise le moteur léger.	WebKit ist hier nicht verfügbar: Sanaga nutzt die leichte Engine.
+Moteur de recherche	Suchmaschine
+Moteur utilisé dans la barre d'adresse	In der Adressleiste verwendete Suchmaschine
+La version légère de DuckDuckGo fonctionne le mieux avec Sanaga.	Die leichte Version von DuckDuckGo funktioniert am besten mit Sanaga.
+Démarrage	Start
+Page d'accueil	Startseite
+Rouvrir les onglets de la dernière session	Tabs der letzten Sitzung wieder öffnen
+Afficher la barre de favoris	Favoritenleiste anzeigen
+Zoom par défaut	Standard-Zoom
+Économie de données et de mémoire	Daten- und Speicher sparen
+Charger les images	Bilder laden
+Désactivées, les images s'affichent comme un bouton : cliquez pour charger seulement celles qui vous intéressent.	Ausgeschaltet erscheinen Bilder als Schaltfläche: Klicken Sie, um nur gewünschte zu laden.
+Économiseur de mémoire	Speicher sparen
+Un onglet ne charge sa page que quand vous l'ouvrez. Ensuite, les onglets que vous n'avez pas regardés depuis un moment sont mis en veille : leur page est fermée pour libérer la mémoire et se recharge quand vous y revenez. Les onglets qui jouent du son ne sont jamais mis en veille.	Ein Tab lädt seine Seite erst, wenn Sie ihn öffnen. Danach schlafen Tabs, die Sie eine Weile nicht angesehen haben, ein: Ihre Seite wird geschlossen, um Speicher freizugeben, und beim Zurückkehren neu geladen. Tabs mit Ton schlafen nie.
+Désactivé	Aus
+Modéré — veille après 1 heure, 12 pages actives au plus	Moderat – Ruhezustand nach 1 Stunde, höchstens 12 aktive Seiten
+Équilibré — veille après 20 minutes, 6 pages actives au plus (recommandé)	Ausgewogen – Ruhezustand nach 20 Minuten, höchstens 6 aktive Seiten (empfohlen)
+Maximal — veille après 5 minutes, 3 pages actives au plus	Maximal – Ruhezustand nach 5 Minuten, höchstens 3 aktive Seiten
+Mots de passe et remplissage automatique	Passwörter und automatisches Ausfüllen
+Proposer d'enregistrer et de remplir les mots de passe	Anbieten, Passwörter zu speichern und auszufüllen
+Gérer les mots de passe enregistrés	Gespeicherte Passwörter verwalten
+Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Ihre Daten zum Ausfüllen von Formularen (Menü ⋮ › Mit meinen Daten ausfüllen oder Strg+Umschalt+F):
+Téléphone	Telefon
+Adresse	Adresse
+Synchronisation	Synchronisierung
+Choisissez un dossier partagé entre vos ordinateurs (Syncthing, Nextcloud, Dropbox, clé USB…). Sanaga y garde vos favoris, votre liste de lecture et vos onglets ouverts, et montre sur la page d'accueil les onglets de vos autres appareils.	Wählen Sie einen zwischen Ihren Computern geteilten Ordner (Syncthing, Nextcloud, Dropbox, USB-Stick…). Sanaga legt dort Favoriten, Leseliste und offene Tabs ab und zeigt auf der Startseite die Tabs Ihrer anderen Geräte.
+Dossier	Ordner
+Synchroniser maintenant	Jetzt synchronisieren
+Dernière synchronisation {} · autres appareils : {} · cet ordinateur : {}	Zuletzt synchronisiert {} · andere Geräte: {} · dieser Computer: {}
+Profil de cette fenêtre : {}	Profil dieses Fensters: {}
+Gérer les profils	Profile verwalten
+Gérer les extensions (bloqueur de publicités, mode sombre…)	Erweiterungen verwalten (Werbeblocker, Dunkelmodus…)
+Confidentialité	Datenschutz
+Empêcher le suivi intersites	Websiteübergreifendes Tracking verhindern
+Les traceurs publicitaires ne peuvent plus vous suivre d'un site à l'autre (comme dans Safari). Le Rapport de confidentialité de la page d'accueil montre ceux qui ont été tenus à l'écart. S'applique aux nouveaux onglets.	Werbetracker können Ihnen nicht mehr von Website zu Website folgen (wie in Safari). Der Datenschutzbericht auf der Startseite zeigt die ferngehaltenen. Gilt für neue Tabs.
+Avec le moteur Sanaga Léger, aucun script n'est exécuté : pas de publicités, pas de traceurs.	Mit der Engine Sanaga Leicht laufen keine Skripte: keine Werbung, keine Tracker.
+Effacer l'historique de navigation	Browserverlauf löschen
+Mémoire utilisée	Belegter Speicher
+Onglets ouverts	Offene Tabs
+Pages gardées en mémoire	Im Speicher gehaltene Seiten
+Images en mémoire	Bilder im Speicher
+Pages chargées depuis le démarrage	Seit dem Start geladene Seiten
+Données téléchargées	Heruntergeladene Daten
+Version {} · navigateur léger	Version {} · leichter Browser
+Sanaga affiche les sites avec WebKit, un moteur web mature (celui de Safari et de GNOME Web). Pour économiser davantage, le moteur Sanaga Léger (dans les Paramètres) affiche l'essentiel des pages sans JavaScript, avec très peu de mémoire. La mémoire indiquée comprend les processus du moteur.	Sanaga zeigt Websites mit WebKit an, einer ausgereiften Web-Engine (der von Safari und GNOME Web). Um noch mehr zu sparen, zeigt die Engine Sanaga Leicht (in den Einstellungen) das Wesentliche der Seiten ohne JavaScript und mit sehr wenig Speicher. Der angezeigte Speicher umfasst die Prozesse der Engine.
+Revoir la page de bienvenue	Willkommensseite erneut anzeigen
+Page non chargée	Seite nicht geladen
+Impossible d'accéder à ce site	Diese Website ist nicht erreichbar
+Cliquez sur Actualiser pour ouvrir cette page.	Klicken Sie auf Neu laden, um diese Seite zu öffnen.
+Actualiser	Neu laden
+votre caméra	Ihre Kamera
+votre micro	Ihr Mikrofon
+votre caméra et votre micro	Ihre Kamera und Ihr Mikrofon
+votre position	Ihren Standort
+vous envoyer des notifications	Ihnen Benachrichtigungen senden
+un accès	einen Zugriff
+{} souhaite accéder à {}.	{} möchte auf {} zugreifen.
+Bloquer	Blockieren
+Autoriser cette fois	Dieses Mal erlauben
+Toujours autoriser	Immer erlauben
+Enregistrer la page fonctionne avec le moteur WebKit.	Seite speichern funktioniert mit der WebKit-Engine.
+Page enregistrée dans {}	Seite gespeichert in {}
+Données de navigation effacées.	Browserdaten gelöscht.
+La dernière heure	Letzte Stunde
+Les dernières 24 heures	Letzte 24 Stunden
+Les 7 derniers jours	Letzte 7 Tage
+Les 4 dernières semaines	Letzte 4 Wochen
+Depuis toujours	Gesamter Zeitraum
+Effacer les données de navigation	Browserdaten löschen
+Période	Zeitraum
+Historique de navigation et téléchargements	Browser- und Downloadverlauf
+Cookies et données des sites (vous serez déconnecté de la plupart des sites)	Cookies und Websitedaten (Sie werden von den meisten Websites abgemeldet)
+Images et fichiers en cache	Bilder und Dateien im Cache
+Les mots de passe, favoris et la liste de lecture ne sont pas touchés.	Passwörter, Favoriten und Leseliste bleiben erhalten.
+Quand un site demande votre caméra, votre micro, votre position ou des notifications, votre choix apparaît ici.	Wenn eine Website Kamera, Mikrofon, Standort oder Benachrichtigungen anfragt, erscheint Ihre Wahl hier.
+Oublier	Vergessen
+Zoom par site	Zoom pro Website
+Le zoom choisi sur un site (Ctrl + / Ctrl -) est retenu et apparaît ici.	Der auf einer Website gewählte Zoom (Strg + / Strg -) wird gemerkt und erscheint hier.
+Réinitialiser	Zurücksetzen
+Vue allégée : seul le contenu principal de la page est affiché.	Leichte Ansicht: Nur der Hauptinhalt der Seite wird angezeigt.
+Afficher toute la page	Ganze Seite anzeigen
+Cette page n'a pas de contenu lisible sans JavaScript.	Diese Seite hat ohne JavaScript keinen lesbaren Inhalt.
+Lecteur	Reader
+Revenir à la page normale (Ctrl+Maj+R)	Zurück zur normalen Seite (Strg+Umschalt+R)
+Sépia	Sepia
+Thème {}	Design {}
+Texte plus grand	Größerer Text
+Texte plus petit	Kleinerer Text
+Ouvrir dans un onglet privé	In privatem Tab öffnen
+Copier l'adresse du lien	Linkadresse kopieren
+Image	Bild
+Image : {}	Bild: {}
+Cliquer pour charger cette image	Klicken, um dieses Bild zu laden
+WebKit, sites complets	WebKit, vollständige Websites
+Sanaga Léger, pages simplifiées	Sanaga Leicht, vereinfachte Seiten
+{} de mémoire · pages actives : {} sur {} onglets	{} Speicher · aktive Seiten: {} von {} Tabs
+Moteur d'affichage : {}.	Darstellungs-Engine: {}.
+Pages chargées depuis le démarrage : {}	Seit dem Start geladene Seiten: {}
+Liste de lecture	Leseliste
+Consultés fréquemment	Häufig besucht
+Les sites que vous visitez souvent apparaîtront ici.	Häufig besuchte Websites erscheinen hier.
+Onglets sur vos autres appareils	Tabs auf Ihren anderen Geräten
+Rapport de confidentialité	Datenschutzbericht
+La protection contre le suivi intersites est désactivée.	Der Schutz vor websiteübergreifendem Tracking ist aus.
+Activez-la dans les Paramètres.	Schalten Sie ihn in den Einstellungen ein.
+Sanaga empêche les traceurs de vous suivre	Sanaga hindert Tracker daran, Ihnen
+d'un site à l'autre. Aucun repéré pour l'instant.	von Website zu Website zu folgen. Bisher keine entdeckt.
+Traceurs empêchés de vous profiler : {}	Am Profiling gehinderte Tracker: {}
+Le plus présent : {} (sites : {})	Am häufigsten: {} (Websites: {})
+Rapport de sobriété	Sparsamkeitsbericht
+Terminer	Fertig
+Personnaliser la page d'accueil	Startseite anpassen
+Barre des favoris	Favoritenleiste
+Navigation privée	Privates Surfen
+Sanaga ne garde ni l'historique, ni les cookies, ni les données de cet onglet : tout est effacé dès que vous le fermez. Les favoris et les téléchargements sont conservés.	Sanaga speichert weder Verlauf noch Cookies noch Daten dieses Tabs: Alles wird gelöscht, sobald Sie ihn schließen. Favoriten und Downloads bleiben erhalten.
+Désépingler l'onglet	Tab lösen
+Épingler l'onglet	Tab anheften
+Rétablir le son	Ton einschalten
+Couper le son de l'onglet	Tab stummschalten
+Déplacer vers le groupe	In Gruppe verschieben
+Nouveau groupe…	Neue Gruppe…
+Fermer l'onglet	Tab schließen
+Fermer les autres onglets	Andere Tabs schließen
+Fermer les onglets à droite	Tabs rechts schließen
+  {} onglet{}	  {} Tab{}
+En veille	Schlafend
+Groupes d'onglets (barre latérale)	Tabgruppen (Seitenleiste)
+Couper le son	Stummschalten
+Fermer l'onglet (Ctrl+W)	Tab schließen (Strg+W)
+Fermer	Schließen
+Réduire	Minimieren
+Agrandir	Maximieren
+Barre latérale	Seitenleiste
+Page précédente (Alt+←)	Zurück (Alt+←)
+Page suivante (Alt+→)	Vorwärts (Alt+→)
+Profil de cette fenêtre — cliquer pour gérer les profils	Profil dieses Fensters – klicken, um Profile zu verwalten
+Menu de Sanaga	Sanaga-Menü
+Aperçu des onglets (Ctrl+Maj+O)	Tab-Übersicht (Strg+Umschalt+O)
+Nouvel onglet (Ctrl+T)	Neuer Tab (Strg+T)
+Partager	Teilen
+Téléchargements (Ctrl+J)	Downloads (Strg+J)
+Mémoire utilisée par Sanaga et son moteur, en ce moment	Derzeit von Sanaga und seiner Engine belegter Speicher
+Retirer des favoris (Ctrl+D)	Aus Favoriten entfernen (Strg+D)
+Ajouter aux favoris (Ctrl+D)	Zu Favoriten hinzufügen (Strg+D)
+Arrêter (Échap)	Stopp (Esc)
+Actualiser (Ctrl+R)	Neu laden (Strg+R)
+Quitter le Lecteur (Ctrl+Maj+R)	Reader beenden (Strg+Umschalt+R)
+Afficher dans le Lecteur : la page seule, facile à lire (Ctrl+Maj+R)	Im Reader anzeigen: nur die Seite, leicht lesbar (Strg+Umschalt+R)
+Réinitialiser le zoom	Zoom zurücksetzen
+Rechercher ou saisir le nom d'un site	Suchen oder Websitenamen eingeben
+Rechercher avec {} ou saisir une adresse	Mit {} suchen oder Adresse eingeben
+LISTE DE LECTURE	LESELISTE
+Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).	Seite für später merken: Menü ⋮ › Zur Leseliste hinzufügen (Strg+Umschalt+D).
+GROUPES D'ONGLETS	TABGRUPPEN
+Renommer avec le nom saisi ci-dessous	Mit dem unten eingegebenen Namen umbenennen
+Fermer le groupe et ses onglets	Gruppe und ihre Tabs schließen
+Nom du nouveau groupe	Name der neuen Gruppe
+FAVORIS	FAVORITEN
+HISTORIQUE RÉCENT	LETZTER VERLAUF
+Aucune page visitée	Keine besuchten Seiten
+Tout l'historique	Gesamter Verlauf
+le téléchargement n'a pas abouti	der Download wurde nicht abgeschlossen
+Le moteur WebKit n'a pas pu démarrer : {}	Die WebKit-Engine konnte nicht starten: {}
+Bloqueur de publicités	Werbeblocker
+Masque les emplacements publicitaires les plus courants.	Blendet die häufigsten Werbeflächen aus.
+Pas de lecture automatique	Keine automatische Wiedergabe
+Empêche les vidéos et les sons de démarrer tout seuls.	Verhindert, dass Videos und Töne von selbst starten.
+Mode sombre pour tous les sites	Dunkelmodus für alle Websites
+Affiche les pages claires en sombre, plus reposant le soir.	Zeigt helle Seiten dunkel an, angenehmer am Abend.
+Fichier {}	Datei {}
+Fichier introuvable : {}	Datei nicht gefunden: {}
+Adresse introuvable (DNS). Vérifiez l'orthographe ou votre connexion.	Adresse nicht gefunden (DNS). Prüfen Sie die Schreibweise oder Ihre Verbindung.
+Le site met trop de temps à répondre.	Die Website antwortet zu langsam.
+Le site a refusé la connexion.	Die Website hat die Verbindung abgelehnt.
+Connexion sécurisée impossible : {}	Sichere Verbindung fehlgeschlagen: {}
+DuckDuckGo (version légère)	DuckDuckGo (leichte Version)
+à l'instant	gerade eben
+il y a {} min	vor {} Min.
+il y a {} h	vor {} Std.
+hier	gestern
+il y a {} jours	vor {} Tagen
+il y a {} mois	vor {} Monaten
+Aujourd'hui	Heute
+Hier	Gestern
+Cette semaine	Diese Woche
+Ce mois-ci	Diesen Monat
+Plus ancien	Älter
+Ignorer	Ignorieren
+Profils	Profile
+Personnel	Privat
+Toute l'interface de Sanaga change aussitôt ; les sites sont aussi demandés dans cette langue (pour les nouveaux onglets).	Die gesamte Oberfläche von Sanaga wechselt sofort; Websites werden ebenfalls in dieser Sprache angefragt (für neue Tabs).
+Apparence	Darstellung
+Nom	Name
+E-mail	E-Mail
+Traduction	Übersetzung
+Autorisations	Berechtigungen
+Nuit	Nacht
+Blanc	Weiß
+Rapports	Berichte
+Dupliquer	Duplizieren
+{} Go	{} GB
+{} Mo	{} MB
+{} Ko	{} KB
+{} o	{} B
+Import depuis {} en cours…	Import aus {} läuft…
+Import des mots de passe en cours…	Passwörter werden importiert…
+Importé depuis {} : {} favoris, {} pages d'historique, {} mots de passe.	Aus {} importiert: {} Favoriten, {} Verlaufseinträge, {} Passwörter.
+{} mots de passe n'ont pas pu aller dans le trousseau.	{} Passwörter konnten nicht im Schlüsselbund gespeichert werden.
+Importer depuis un autre navigateur	Aus einem anderen Browser importieren
+Reprenez vos favoris, votre historique et vos mots de passe. Rien n'est modifié dans l'autre navigateur ; les mots de passe vont dans le trousseau de votre système.	Übernehmen Sie Favoriten, Verlauf und Passwörter. Im anderen Browser wird nichts verändert; Passwörter kommen in den Schlüsselbund Ihres Systems.
+Aucun autre navigateur trouvé sur cet ordinateur.	Kein anderer Browser auf diesem Computer gefunden.
+Favoris, historique et mots de passe	Favoriten, Verlauf und Passwörter
+Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis importez le fichier ci-dessous)	Favoriten und Verlauf (Passwörter: in Firefox als CSV exportieren, dann die Datei unten importieren)
+Depuis un fichier	Aus einer Datei
+Mots de passe (fichier CSV)…	Passwörter (CSV-Datei)…
+Favoris (fichier HTML)…	Favoriten (HTML-Datei)…
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Einstellungen › Passwörter › Exportieren. Firefox: about:logins › ⋯ › Exportieren. Löschen Sie die exportierte Datei nach dem Import: Sie enthält Ihre Passwörter im Klartext.
+Importer des mots de passe (CSV)	Passwörter importieren (CSV)
+Mots de passe (CSV)	Passwörter (CSV)
+Importer depuis un autre navigateur…	Aus einem anderen Browser importieren…
+Importer depuis un autre navigateur (Chrome, Firefox…)	Aus einem anderen Browser importieren (Chrome, Firefox…)
+Favoris : {}	Favoriten: {}
+Historique : {}	Verlauf: {}
+Mots de passe illisibles : {}	Unlesbare Passwörter: {}
+Mots de passe : {}	Passwörter: {}
+Firefox : {}	Firefox: {}
+autorisé	erlaubt
+bloqué	blockiert
+téléchargement	Download
+La page n'a pas pu être lue : {}	Die Seite konnte nicht gelesen werden: {}
+Dossier de synchronisation introuvable.	Synchronisierungsordner nicht gefunden.
+Impossible d'écrire dans le dossier de synchronisation.	In den Synchronisierungsordner kann nicht geschrieben werden.
+{} de mémoire	{} Speicher
+Pages actives : {} sur {} onglets	Aktive Seiten: {} von {} Tabs
+depuis {}	aus {}
+Taille d'écran	Bildschirmgröße
+Tourner l'écran	Bildschirm drehen
+Astuce : l'inspecteur web (Ctrl+Maj+I) s'utilise avec ce mode.	Tipp: Der Web-Inspektor (Strg+Umschalt+I) funktioniert mit diesem Modus.
+Quitter le mode taille d'écran (Ctrl+Maj+M)	Bildschirmgrößen-Modus verlassen (Strg+Umschalt+M)
+{} × {} (réduit à {} × {} : fenêtre trop petite)	{} × {} (verkleinert auf {} × {}: Fenster zu klein)
+Ctrl+Maj+I	Strg+Umschalt+I
+Taille d'écran (téléphone, tablette…)	Bildschirmgröße (Telefon, Tablet…)
+Ctrl+Maj+M	Strg+Umschalt+M
+Personnaliser la barre d'outils…	Symbolleiste anpassen…
+Source de {}	Quelltext von {}
+Boutons de la barre d'outils (aussi : clic droit sur la barre d'outils)	Symbolleisten-Schaltflächen (auch: Rechtsklick auf die Symbolleiste)
+Retour à la ligne	Zeilenumbruch
+{} lignes · {}	{} Zeilen · {}
+Code source de	Quelltext von
+Onglets sans groupe	Tabs ohne Gruppe
+Nouvel onglet à droite	Neuer Tab rechts
+Ajouter l'onglet à un nouveau groupe	Tab zu neuer Gruppe hinzufügen
+Ajouter l'onglet au groupe	Tab zur Gruppe hinzufügen
+Nouveau groupe	Neue Gruppe
+Retirer du groupe	Aus Gruppe entfernen
+Désépingler	Loslösen
+Épingler	Anheften
+Réactiver le son du site	Website-Ton einschalten
+Couper le son du site	Website stummschalten
+Rouvrir l'onglet fermé (Ctrl+Maj+T)	Geschlossenen Tab wieder öffnen (Strg+Umschalt+T)
+Nommer ce groupe	Diese Gruppe benennen
+Nouvel onglet dans le groupe	Neuer Tab in Gruppe
+Dissocier	Gruppierung aufheben
+Fermer le groupe	Gruppe schließen
+Précédent	Zurück
+Suivant	Vorwärts
+Actualiser, à côté de Suivant (comme Chrome)	Neu laden, neben Vorwärts (wie Chrome)
+Accueil	Startseite
+Étoile des favoris, dans la barre d'adresse	Lesezeichen-Stern, in der Adressleiste
+Lecteur, dans la barre d'adresse	Leser, in der Adressleiste
+Actualiser, dans la barre d'adresse	Neu laden, in der Adressleiste
+Imprimer	Drucken
+Rétablir les boutons d'origine	Standard-Schaltflächen wiederherstellen
+Groupe replié ({} onglets) — cliquer pour l'ouvrir	Eingeklappte Gruppe ({} Tabs) — klicken zum Öffnen
+Cliquer pour replier le groupe ; clic droit pour le gérer	Klicken zum Einklappen; Rechtsklick zum Verwalten
+Boutons de la barre d'outils	Symbolleisten-Schaltflächen
+Imprimer… (Ctrl+P)	Drucken… (Strg+P)
+Taille libre	Freie Größe
+Ordinateur portable	Laptop
+Écran Full HD	Full-HD-Bildschirm
+Gris	Grau
+Bleu	Blau
+Rouge	Rot
+Jaune	Gelb
+Vert	Grün
+Rose	Rosa
+Violet	Lila
+Cyan	Cyan
+Orange	Orange
+Simulateur mobile	Mobil-Simulator
+Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Eine Website wie auf einem Telefon oder Tablet ansehen und testen: über 35 Geräte, Rahmen, Drehung, Zoom, mobile Version der Websites, Touchscreen und Screenshots. Telefon-Schaltfläche in der Symbolleiste oder Strg+Umschalt+M.
+Intégrée à Sanaga	In Sanaga integriert
+Téléphones iPhone	iPhone-Telefone
+Téléphones Android	Android-Telefone
+Tablettes	Tablets
+Ordinateurs	Computer
+Tourner l'appareil (portrait / paysage)	Gerät drehen (Hoch- / Querformat)
+Ajuster	Anpassen
+Cadre	Rahmen
+Dessiner l'appareil autour de l'écran	Das Gerät um den Bildschirm zeichnen
+Tactile	Touch
+Les pages voient un écran tactile	Seiten sehen einen Touchscreen
+Capture d'écran	Bildschirmfoto
+Capture avec l'appareil	Aufnahme mit dem Gerät
+Capture de l'écran seul	Nur den Bildschirm aufnehmen
+Capture de la page entière	Ganze Seite aufnehmen
+Quitter le simulateur (Ctrl+Maj+M)	Simulator verlassen (Strg+Umschalt+M)
+Capture enregistrée : {}	Bildschirmfoto gespeichert: {}
+Capture impossible : {}	Aufnahme fehlgeschlagen: {}
+Capture impossible.	Aufnahme fehlgeschlagen.
+Simulateur mobile (Ctrl+Maj+M)	Mobil-Simulator (Strg+Umschalt+M)
+Galaxy Z Fold (plié)	Galaxy Z Fold (zugeklappt)
+Galaxy Z Fold (déplié)	Galaxy Z Fold (aufgeklappt)
+Tecno / Infinix (6,8 pouces)	Tecno / Infinix (6,8 Zoll)
+iPad Pro 11 pouces	iPad Pro 11 Zoll
+iPad Pro 12,9 pouces	iPad Pro 12,9 Zoll
+Petit portable	Kleiner Laptop
+Portable 15 pouces	15-Zoll-Laptop
+Écran 2K	2K-Bildschirm
+Choisir l'appareil	Gerät auswählen
+Appareils	Geräte
+Masquer la liste	Liste ausblenden
+Rechercher un appareil	Gerät suchen
+Tous	Alle
+Autres	Andere
+Noir	Schwarz
+Argent	Silber
+Titane	Titan
+Mes cadres…	Meine Rahmen…
+Ajoutez vos propres images de cadre : PNG avec l'écran transparent, nommé comme l'appareil (ex. « iPhone 16.png »).	Eigene Rahmenbilder hinzufügen: PNG mit transparentem Bildschirm, benannt wie das Gerät (z. B. „iPhone 16.png“).
+Relire le dossier des cadres	Rahmenordner neu einlesen
+Cadres d'appareils pour le simulateur mobile de Sanaga.\n\nDéposez ici une image PNG (ou WebP) par appareil : l'appareil avec son écran transparent.\nNommez le fichier comme l'appareil dans la liste, par exemple « iPhone 16.png » ou « Galaxy S20 Ultra.png ».\nSanaga trouve l'écran tout seul et y place la page. Utilisez des images que vous avez le droit d'utiliser.\nCliquez ensuite sur « Actualiser » dans la liste des appareils.\n	Geräterahmen für den Mobil-Simulator von Sanaga.\n\nLegen Sie hier ein PNG- (oder WebP-)Bild pro Gerät ab: das Gerät mit transparentem Bildschirm.\nBenennen Sie die Datei wie das Gerät in der Liste, z. B. „iPhone 16.png“ oder „Galaxy S20 Ultra.png“.\nSanaga findet den Bildschirm selbst und setzt die Seite hinein. Verwenden Sie Bilder, die Sie verwenden dürfen.\nKlicken Sie dann in der Geräteliste auf „Aktualisieren“.\n
+iPhone 5 / SE (1re gén.)	iPhone 5 / SE (1. Gen.)
+iPhone SE (2e et 3e gén.)	iPhone SE (2. und 3. Gen.)
+Moto G (récents)	Moto G (neuere)
+iPad Mini (6e gén.)	iPad Mini (6. Gen.)
+iPad (9e gén.)	iPad (9. Gen.)
+iPad (10e gén.)	iPad (10. Gen.)
+iPad Air 11 pouces	iPad Air 11 Zoll
+iPad Air 13 pouces	iPad Air 13 Zoll
+iPad Pro 13 pouces	iPad Pro 13 Zoll
+Écran connecté (Nest Hub)	Smart Display (Nest Hub)
+Portable 1366 × 768	Laptop 1366 × 768
+Portable Windows courant	Üblicher Windows-Laptop
+MacBook Air 13 pouces	MacBook Air 13 Zoll
+MacBook Pro 14 pouces	MacBook Pro 14 Zoll
+MacBook Pro 16 pouces	MacBook Pro 16 Zoll
+Portable Full HD	Full-HD-Laptop
+iMac 24 pouces	iMac 24 Zoll
+Écran 4K	4K-Bildschirm
+Apparence : fond et couleur de l'appareil	Aussehen: Hintergrund und Gerätefarbe
+Fond	Hintergrund
+Couleur de l'appareil	Gerätefarbe
+Montrer l'appareil autour de l'écran	Gerät um den Bildschirm zeigen
+Écran tactile (les pages voient un écran tactile)	Touchscreen (Seiten sehen einen Touchscreen)
+Adapter l'appareil à la fenêtre	Gerät an das Fenster anpassen
+Studio sombre	Dunkles Studio
+Clair	Hell
+Bleu nuit	Nachtblau
+Océan	Ozean
+Aurore	Morgenrot
+Coucher de soleil	Sonnenuntergang
+Forêt	Wald
+Sable	Sand
+Montrer le navigateur de l'appareil (Safari sur Apple, Chrome sur Android et ordinateur)	Browser des Geräts zeigen (Safari auf Apple, Chrome auf Android und Computer)
+Page précédente	Vorherige Seite
+Page suivante	Nächste Seite
+Saisir une adresse	Adresse eingeben
+ffmpeg est nécessaire pour enregistrer des vidéos (paquet « ffmpeg »).	Zum Aufnehmen von Videos wird ffmpeg benötigt (Paket „ffmpeg“).
+Enregistrement vidéo commencé.	Videoaufnahme gestartet.
+Vidéo enregistrée : {}	Video gespeichert: {}
+Vidéo impossible : {}	Video fehlgeschlagen: {}
+Arrêter l'enregistrement vidéo	Videoaufnahme beenden
+Enregistrer une vidéo de l'appareil	Video des Geräts aufnehmen
+Finalisation de la vidéo…	Video wird fertiggestellt…
+Wikipédia	Wikipedia
+NPR Texte	NPR Text
+Bienvenue	Willkommen

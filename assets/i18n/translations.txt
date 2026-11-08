@@ -1,0 +1,512 @@
+# Sanaga interface translations. One text per line:
+# français ⟂ English ⟂ Español ⟂ Português ⟂ Deutsch
+# "{}" marks where a value goes (keep them in the same order). "\n" = line break.
+# The .tsv files next to this one are generated from it.
+Mot de passe introuvable dans le trousseau.⟂Password not found in the keyring.⟂Contraseña no encontrada en el llavero.⟂Palavra-passe não encontrada no porta-chaves.⟂Passwort im Schlüsselbund nicht gefunden.
+Ajoutez d'abord vos coordonnées dans Paramètres › Remplissage automatique.⟂First add your details in Settings › AutoFill.⟂Primero añade tus datos en Ajustes › Autorrelleno.⟂Primeiro adicione os seus dados em Definições › Preenchimento automático.⟂Fügen Sie zuerst Ihre Daten unter Einstellungen › Automatisch ausfüllen hinzu.
+ de « {} »⟂ for “{}”⟂ de «{}»⟂ de «{}»⟂ von „{}“
+Enregistrer le mot de passe{} pour {} dans votre trousseau ?⟂Save the password{} for {} in your keyring?⟂¿Guardar la contraseña{} para {} en tu llavero?⟂Guardar a palavra-passe{} para {} no seu porta-chaves?⟂Passwort{} für {} im Schlüsselbund speichern?
+Pas maintenant⟂Not now⟂Ahora no⟂Agora não⟂Nicht jetzt
+Enregistrer⟂Save⟂Guardar⟂Guardar⟂Speichern
+Mot de passe enregistré dans le trousseau.⟂Password saved in the keyring.⟂Contraseña guardada en el llavero.⟂Palavra-passe guardada no porta-chaves.⟂Passwort im Schlüsselbund gespeichert.
+Le trousseau du système n'est pas disponible.⟂The system keyring is not available.⟂El llavero del sistema no está disponible.⟂O porta-chaves do sistema não está disponível.⟂Der Systemschlüsselbund ist nicht verfügbar.
+Mot de passe enregistré pour {}⟂Saved password for {}⟂Contraseña guardada para {}⟂Palavra-passe guardada para {}⟂Gespeichertes Passwort für {}
+Remplir⟂Fill in⟂Rellenar⟂Preencher⟂Ausfüllen
+Remplir : {}⟂Fill in: {}⟂Rellenar: {}⟂Preencher: {}⟂Ausfüllen: {}
+Mots de passe⟂Passwords⟂Contraseñas⟂Palavras-passe⟂Passwörter
+Les mots de passe sont gardés dans le trousseau de votre système, pas dans les fichiers de Sanaga. Sanaga propose de les enregistrer quand vous vous connectez à un site, et de les remplir la fois suivante.⟂Passwords are kept in your system's keyring, not in Sanaga's files. Sanaga offers to save them when you sign in to a site, and to fill them in next time.⟂Las contraseñas se guardan en el llavero de tu sistema, no en los archivos de Sanaga. Sanaga ofrece guardarlas cuando inicias sesión en un sitio y rellenarlas la próxima vez.⟂As palavras-passe ficam no porta-chaves do sistema, não nos ficheiros do Sanaga. O Sanaga propõe guardá-las quando inicia sessão num site e preenchê-las da próxima vez.⟂Passwörter liegen im Schlüsselbund Ihres Systems, nicht in den Dateien von Sanaga. Sanaga bietet an, sie bei der Anmeldung zu speichern und beim nächsten Mal auszufüllen.
+Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.⟂The system keyring (Secret Service) was not found: passwords cannot be saved.⟂No se encontró el llavero del sistema (Secret Service): no se pueden guardar contraseñas.⟂O porta-chaves do sistema (Secret Service) não foi encontrado: não é possível guardar palavras-passe.⟂Der Systemschlüsselbund (Secret Service) wurde nicht gefunden: Passwörter können nicht gespeichert werden.
+Rechercher un site⟂Search for a site⟂Buscar un sitio⟂Procurar um site⟂Website suchen
+Aucun mot de passe enregistré pour l'instant.⟂No saved passwords yet.⟂Aún no hay contraseñas guardadas.⟂Ainda não há palavras-passe guardadas.⟂Noch keine gespeicherten Passwörter.
+Supprimer⟂Delete⟂Eliminar⟂Eliminar⟂Löschen
+Copier⟂Copy⟂Copiar⟂Copiar⟂Kopieren
+Afficher⟂Show⟂Mostrar⟂Mostrar⟂Anzeigen
+Mot de passe copié.⟂Password copied.⟂Contraseña copiada.⟂Palavra-passe copiada.⟂Passwort kopiert.
+Extensions⟂Extensions⟂Extensiones⟂Extensões⟂Erweiterungen
+Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent aux nouveaux onglets.⟂Extensions add features to web pages. Changes apply to new tabs.⟂Las extensiones añaden funciones a las páginas web. Los cambios se aplican a las pestañas nuevas.⟂As extensões acrescentam funções às páginas web. As alterações aplicam-se aos novos separadores.⟂Erweiterungen fügen Webseiten Funktionen hinzu. Änderungen gelten für neue Tabs.
+Tous les sites⟂All sites⟂Todos los sitios⟂Todos os sites⟂Alle Websites
+Activée⟂On⟂Activada⟂Ativada⟂Aktiviert
+Désactivée⟂Off⟂Desactivada⟂Desativada⟂Deaktiviert
+Vos propres extensions : déposez des fichiers .js ou .css dans le dossier des extensions.⟂Your own extensions: put .js or .css files in the extensions folder.⟂Tus propias extensiones: coloca archivos .js o .css en la carpeta de extensiones.⟂As suas próprias extensões: coloque ficheiros .js ou .css na pasta das extensões.⟂Eigene Erweiterungen: Legen Sie .js- oder .css-Dateien in den Erweiterungsordner.
+Ouvrir le dossier des extensions⟂Open the extensions folder⟂Abrir la carpeta de extensiones⟂Abrir a pasta das extensões⟂Erweiterungsordner öffnen
+Chaque profil a ses propres favoris, historique, mots de passe, cookies et onglets — par exemple « Personnel » et « Travail ». Un profil s'ouvre dans sa propre fenêtre.⟂Each profile has its own favourites, history, passwords, cookies and tabs — for example “Personal” and “Work”. A profile opens in its own window.⟂Cada perfil tiene sus propios favoritos, historial, contraseñas, cookies y pestañas, por ejemplo «Personal» y «Trabajo». Un perfil se abre en su propia ventana.⟂Cada perfil tem os seus favoritos, histórico, palavras-passe, cookies e separadores — por exemplo «Pessoal» e «Trabalho». Um perfil abre na sua própria janela.⟂Jedes Profil hat eigene Favoriten, Verlauf, Passwörter, Cookies und Tabs – zum Beispiel „Privat“ und „Arbeit“. Ein Profil öffnet sich in einem eigenen Fenster.
+Profil de cette fenêtre⟂This window's profile⟂Perfil de esta ventana⟂Perfil desta janela⟂Profil dieses Fensters
+Ouvrir dans une nouvelle fenêtre⟂Open in a new window⟂Abrir en una ventana nueva⟂Abrir numa nova janela⟂In neuem Fenster öffnen
+Nom du nouveau profil (ex. Travail)⟂New profile name (e.g. Work)⟂Nombre del perfil nuevo (p. ej. Trabajo)⟂Nome do novo perfil (ex. Trabalho)⟂Name des neuen Profils (z. B. Arbeit)
+Créer le profil⟂Create profile⟂Crear perfil⟂Criar perfil⟂Profil erstellen
+= {}   (cliquer pour copier)⟂= {}   (click to copy)⟂= {}   (clic para copiar)⟂= {}   (clique para copiar)⟂= {}   (zum Kopieren klicken)
+Rechercher « {} » sur {}⟂Search “{}” on {}⟂Buscar «{}» en {}⟂Procurar «{}» em {}⟂„{}“ auf {} suchen
+Passer à l'onglet : {}⟂Switch to tab: {}⟂Ir a la pestaña: {}⟂Mudar para o separador: {}⟂Zum Tab wechseln: {}
+{} — Rechercher avec {}⟂{} — Search with {}⟂{} — Buscar con {}⟂{} — Procurar com {}⟂{} — Mit {} suchen
+{} copié⟂{} copied⟂{} copiado⟂{} copiado⟂{} kopiert
+Copier le lien⟂Copy link⟂Copiar enlace⟂Copiar ligação⟂Link kopieren
+Envoyer par e-mail⟂Send by email⟂Enviar por correo⟂Enviar por e-mail⟂Per E-Mail senden
+Imprimer…⟂Print…⟂Imprimir…⟂Imprimir…⟂Drucken…
+Retirer de la liste de lecture⟂Remove from Reading List⟂Quitar de la lista de lectura⟂Remover da lista de leitura⟂Aus Leseliste entfernen
+Ajouter à la liste de lecture⟂Add to Reading List⟂Añadir a la lista de lectura⟂Adicionar à lista de leitura⟂Zur Leseliste hinzufügen
+Retirer des favoris⟂Remove from favourites⟂Quitar de favoritos⟂Remover dos favoritos⟂Aus Favoriten entfernen
+Ajouter aux favoris⟂Add to favourites⟂Añadir a favoritos⟂Adicionar aos favoritos⟂Zu Favoriten hinzufügen
+Créer une application web⟂Create a web app⟂Crear una aplicación web⟂Criar uma aplicação web⟂Web-App erstellen
+Masquer le code QR⟂Hide QR code⟂Ocultar código QR⟂Ocultar código QR⟂QR-Code ausblenden
+Code QR de la page⟂QR code for this page⟂Código QR de la página⟂Código QR da página⟂QR-Code der Seite
+Scannez-le avec votre téléphone⟂Scan it with your phone⟂Escanéalo con tu teléfono⟂Leia-o com o seu telemóvel⟂Mit dem Handy scannen
+« {} » a été ajoutée au menu des applications.⟂“{}” was added to the applications menu.⟂«{}» se añadió al menú de aplicaciones.⟂«{}» foi adicionada ao menu de aplicações.⟂„{}“ wurde dem Anwendungsmenü hinzugefügt.
+Masquer la barre des favoris (Ctrl+Maj+B)⟂Hide favourites bar (Ctrl+Shift+B)⟂Ocultar barra de favoritos (Ctrl+Mayús+B)⟂Ocultar barra de favoritos (Ctrl+Shift+B)⟂Favoritenleiste ausblenden (Strg+Umschalt+B)
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B⟂Hide favourites bar (Ctrl+Shift+B)\nTo show it again: menu ⋮ or Ctrl+Shift+B⟂Ocultar barra de favoritos (Ctrl+Mayús+B)\nPara volver a mostrarla: menú ⋮ o Ctrl+Mayús+B⟂Ocultar barra de favoritos (Ctrl+Shift+B)\nPara voltar a mostrar: menu ⋮ ou Ctrl+Shift+B⟂Favoritenleiste ausblenden (Strg+Umschalt+B)\nWieder anzeigen: Menü ⋮ oder Strg+Umschalt+B
+Ajoutez des favoris avec l'étoile de la barre d'adresse.⟂Add favourites with the star in the address bar.⟂Añade favoritos con la estrella de la barra de direcciones.⟂Adicione favoritos com a estrela da barra de endereço.⟂Fügen Sie Favoriten mit dem Stern in der Adressleiste hinzu.
+Ouvrir dans un nouvel onglet⟂Open in new tab⟂Abrir en una pestaña nueva⟂Abrir num novo separador⟂In neuem Tab öffnen
+Masquer la barre des favoris⟂Hide favourites bar⟂Ocultar barra de favoritos⟂Ocultar barra de favoritos⟂Favoritenleiste ausblenden
+Nouvel onglet⟂New tab⟂Nueva pestaña⟂Novo separador⟂Neuer Tab
+Ctrl+T⟂Ctrl+T⟂Ctrl+T⟂Ctrl+T⟂Strg+T
+Nouvel onglet privé⟂New private tab⟂Nueva pestaña privada⟂Novo separador privado⟂Neuer privater Tab
+Ctrl+Maj+N⟂Ctrl+Shift+N⟂Ctrl+Mayús+N⟂Ctrl+Shift+N⟂Strg+Umschalt+N
+Nouveau groupe d'onglets⟂New tab group⟂Nuevo grupo de pestañas⟂Novo grupo de separadores⟂Neue Tabgruppe
+Aperçu des onglets⟂Tab overview⟂Vista general de pestañas⟂Vista geral dos separadores⟂Tab-Übersicht
+Ctrl+Maj+O⟂Ctrl+Shift+O⟂Ctrl+Mayús+O⟂Ctrl+Shift+O⟂Strg+Umschalt+O
+Rechercher dans les onglets⟂Search tabs⟂Buscar en las pestañas⟂Procurar nos separadores⟂Tabs durchsuchen
+Ctrl+Maj+A⟂Ctrl+Shift+A⟂Ctrl+Mayús+A⟂Ctrl+Shift+A⟂Strg+Umschalt+A
+Historique⟂History⟂Historial⟂Histórico⟂Verlauf
+Ctrl+H⟂Ctrl+H⟂Ctrl+H⟂Ctrl+H⟂Strg+H
+Téléchargements⟂Downloads⟂Descargas⟂Transferências⟂Downloads
+Ctrl+J⟂Ctrl+J⟂Ctrl+J⟂Ctrl+J⟂Strg+J
+Quitter le Lecteur⟂Exit Reader⟂Salir del Lector⟂Sair do Leitor⟂Reader beenden
+Afficher dans le Lecteur⟂Show in Reader⟂Mostrar en el Lector⟂Mostrar no Leitor⟂Im Reader anzeigen
+Ctrl+Maj+R⟂Ctrl+Shift+R⟂Ctrl+Mayús+R⟂Ctrl+Shift+R⟂Strg+Umschalt+R
+Ctrl+Maj+D⟂Ctrl+Shift+D⟂Ctrl+Mayús+D⟂Ctrl+Shift+D⟂Strg+Umschalt+D
+Traduire la page en français⟂Translate page into English⟂Traducir la página al español⟂Traduzir a página para português⟂Seite ins Deutsche übersetzen
+Favoris⟂Favourites⟂Favoritos⟂Favoritos⟂Favoriten
+Afficher la barre des favoris⟂Show favourites bar⟂Mostrar barra de favoritos⟂Mostrar barra de favoritos⟂Favoritenleiste anzeigen
+Ctrl+Maj+B⟂Ctrl+Shift+B⟂Ctrl+Mayús+B⟂Ctrl+Shift+B⟂Strg+Umschalt+B
+Zoom⟂Zoom⟂Zoom⟂Zoom⟂Zoom
+Rechercher dans la page⟂Find in page⟂Buscar en la página⟂Procurar na página⟂Auf Seite suchen
+Ctrl+F⟂Ctrl+F⟂Ctrl+F⟂Ctrl+F⟂Strg+F
+Ctrl+P⟂Ctrl+P⟂Ctrl+P⟂Ctrl+P⟂Strg+P
+Enregistrer la page⟂Save page⟂Guardar página⟂Guardar página⟂Seite speichern
+Ctrl+S⟂Ctrl+S⟂Ctrl+S⟂Ctrl+S⟂Strg+S
+Plein écran⟂Full screen⟂Pantalla completa⟂Ecrã inteiro⟂Vollbild
+F11⟂F11⟂F11⟂F11⟂F11
+Afficher le code source⟂View page source⟂Ver código fuente⟂Ver código-fonte⟂Quelltext anzeigen
+Ctrl+U⟂Ctrl+U⟂Ctrl+U⟂Ctrl+U⟂Strg+U
+Inspecteur web⟂Web Inspector⟂Inspector web⟂Inspetor web⟂Web-Inspektor
+Ctrl+Alt+I⟂Ctrl+Alt+I⟂Ctrl+Alt+I⟂Ctrl+Alt+I⟂Strg+Alt+I
+Masquer les images⟂Hide images⟂Ocultar imágenes⟂Ocultar imagens⟂Bilder ausblenden
+Afficher les images⟂Show images⟂Mostrar imágenes⟂Mostrar imagens⟂Bilder anzeigen
+Thème clair⟂Light theme⟂Tema claro⟂Tema claro⟂Helles Design
+Thème sombre⟂Dark theme⟂Tema oscuro⟂Tema escuro⟂Dunkles Design
+Remplir avec mes coordonnées⟂Fill in my details⟂Rellenar con mis datos⟂Preencher com os meus dados⟂Mit meinen Daten ausfüllen
+Ctrl+Maj+F⟂Ctrl+Shift+F⟂Ctrl+Mayús+F⟂Ctrl+Shift+F⟂Strg+Umschalt+F
+Paramètres des sites⟂Site settings⟂Ajustes de sitios⟂Definições de sites⟂Website-Einstellungen
+Effacer les données de navigation…⟂Clear browsing data…⟂Borrar datos de navegación…⟂Limpar dados de navegação…⟂Browserdaten löschen…
+Ctrl+Maj+Suppr⟂Ctrl+Shift+Del⟂Ctrl+Mayús+Supr⟂Ctrl+Shift+Del⟂Strg+Umschalt+Entf
+Paramètres⟂Settings⟂Ajustes⟂Definições⟂Einstellungen
+À propos de Sanaga⟂About Sanaga⟂Acerca de Sanaga⟂Acerca do Sanaga⟂Über Sanaga
+Quitter⟂Quit⟂Salir⟂Sair⟂Beenden
+Ctrl+Q⟂Ctrl+Q⟂Ctrl+Q⟂Ctrl+Q⟂Strg+Q
+Groupe {}⟂Group {}⟂Grupo {}⟂Grupo {}⟂Gruppe {}
+Précédent (Maj+Entrée)⟂Previous (Shift+Enter)⟂Anterior (Mayús+Intro)⟂Anterior (Shift+Enter)⟂Zurück (Umschalt+Eingabe)
+Suivant (Entrée)⟂Next (Enter)⟂Siguiente (Intro)⟂Seguinte (Enter)⟂Weiter (Eingabe)
+Fermer (Échap)⟂Close (Esc)⟂Cerrar (Esc)⟂Fechar (Esc)⟂Schließen (Esc)
+Échec : {}⟂Failed: {}⟂Error: {}⟂Falhou: {}⟂Fehlgeschlagen: {}
+Tout afficher⟂Show all⟂Mostrar todo⟂Mostrar tudo⟂Alle anzeigen
+Effacer les données⟂Clear data⟂Borrar datos⟂Limpar dados⟂Daten löschen
+Onglets⟂Tabs⟂Pestañas⟂Separadores⟂Tabs
+Wikipédia, l'encyclopédie libre⟂Wikipedia, the free encyclopedia⟂Wikipedia, la enciclopedia libre⟂Wikipédia, a enciclopédia livre⟂Wikipedia, die freie Enzyklopädie
+Sanaga ne sait pas ouvrir ce type d'adresse : {}⟂Sanaga can't open this kind of address: {}⟂Sanaga no puede abrir este tipo de dirección: {}⟂O Sanaga não consegue abrir este tipo de endereço: {}⟂Sanaga kann diese Art von Adresse nicht öffnen: {}
+Chargement interrompu.⟂Loading stopped.⟂Carga interrumpida.⟂Carregamento interrompido.⟂Laden abgebrochen.
+Rechercher dans l'historique⟂Search history⟂Buscar en el historial⟂Procurar no histórico⟂Verlauf durchsuchen
+Effacer l'historique⟂Clear history⟂Borrar historial⟂Limpar histórico⟂Verlauf löschen
+Les pages que vous visitez apparaîtront ici.⟂Pages you visit will appear here.⟂Las páginas que visites aparecerán aquí.⟂As páginas que visitar aparecerão aqui.⟂Besuchte Seiten erscheinen hier.
+… affinez la recherche pour voir plus de résultats⟂… refine your search to see more results⟂… afina la búsqueda para ver más resultados⟂… refine a pesquisa para ver mais resultados⟂… Suche verfeinern, um mehr Ergebnisse zu sehen
+Importer :⟂Import:⟂Importar:⟂Importar:⟂Importieren:
+un fichier HTML (Firefox, Safari…)⟂an HTML file (Firefox, Safari…)⟂un archivo HTML (Firefox, Safari…)⟂um ficheiro HTML (Firefox, Safari…)⟂eine HTML-Datei (Firefox, Safari…)
+Cliquez sur l'étoile de la barre d'adresse pour ajouter une page.⟂Click the star in the address bar to add a page.⟂Haz clic en la estrella de la barra de direcciones para añadir una página.⟂Clique na estrela da barra de endereço para adicionar uma página.⟂Klicken Sie auf den Stern in der Adressleiste, um eine Seite hinzuzufügen.
+Importer des favoris (fichier HTML)⟂Import favourites (HTML file)⟂Importar favoritos (archivo HTML)⟂Importar favoritos (ficheiro HTML)⟂Favoriten importieren (HTML-Datei)
+Favoris importés : {}⟂Favourites imported: {}⟂Favoritos importados: {}⟂Favoritos importados: {}⟂Importierte Favoriten: {}
+Le sélecteur de fichiers n'est pas disponible ici.⟂The file picker isn't available here.⟂El selector de archivos no está disponible aquí.⟂O seletor de ficheiros não está disponível aqui.⟂Die Dateiauswahl ist hier nicht verfügbar.
+Importer⟂Import⟂Importar⟂Importar⟂Importieren
+Annuler⟂Cancel⟂Cancelar⟂Cancelar⟂Abbrechen
+Favoris (HTML)⟂Favourites (HTML)⟂Favoritos (HTML)⟂Favoritos (HTML)⟂Favoriten (HTML)
+Les fichiers que vous téléchargez apparaîtront ici. Ils sont enregistrés dans votre dossier Téléchargements.⟂Files you download will appear here. They are saved in your Downloads folder.⟂Los archivos que descargues aparecerán aquí. Se guardan en tu carpeta Descargas.⟂Os ficheiros que transferir aparecerão aqui. São guardados na pasta Transferências.⟂Heruntergeladene Dateien erscheinen hier. Sie werden im Ordner Downloads gespeichert.
+Afficher dans le dossier⟂Show in folder⟂Mostrar en la carpeta⟂Mostrar na pasta⟂Im Ordner anzeigen
+Moteur d'affichage des pages⟂Page rendering engine⟂Motor de visualización de páginas⟂Motor de apresentação das páginas⟂Seiten-Darstellungs-Engine
+WebKit — sites complets avec JavaScript, vidéos et applications (recommandé)⟂WebKit — full sites with JavaScript, videos and apps (recommended)⟂WebKit: sitios completos con JavaScript, vídeos y aplicaciones (recomendado)⟂WebKit — sites completos com JavaScript, vídeos e aplicações (recomendado)⟂WebKit – vollständige Websites mit JavaScript, Videos und Apps (empfohlen)
+Sanaga Léger — pages simplifiées, très rapide et très économe en mémoire⟂Sanaga Light — simplified pages, very fast and very light on memory⟂Sanaga Ligero: páginas simplificadas, muy rápido y con muy poca memoria⟂Sanaga Leve — páginas simplificadas, muito rápido e económico em memória⟂Sanaga Leicht – vereinfachte Seiten, sehr schnell und sehr sparsam
+Le changement s'applique aux prochaines pages ouvertes.⟂The change applies to the next pages you open.⟂El cambio se aplica a las próximas páginas que abras.⟂A alteração aplica-se às próximas páginas abertas.⟂Die Änderung gilt für die nächsten geöffneten Seiten.
+WebKit n'est pas disponible ici : Sanaga utilise le moteur léger.⟂WebKit isn't available here: Sanaga uses the light engine.⟂WebKit no está disponible aquí: Sanaga usa el motor ligero.⟂O WebKit não está disponível aqui: o Sanaga usa o motor leve.⟂WebKit ist hier nicht verfügbar: Sanaga nutzt die leichte Engine.
+Moteur de recherche⟂Search engine⟂Motor de búsqueda⟂Motor de pesquisa⟂Suchmaschine
+Moteur utilisé dans la barre d'adresse⟂Engine used in the address bar⟂Motor usado en la barra de direcciones⟂Motor usado na barra de endereço⟂In der Adressleiste verwendete Suchmaschine
+La version légère de DuckDuckGo fonctionne le mieux avec Sanaga.⟂DuckDuckGo's light version works best with Sanaga.⟂La versión ligera de DuckDuckGo funciona mejor con Sanaga.⟂A versão leve do DuckDuckGo funciona melhor com o Sanaga.⟂Die leichte Version von DuckDuckGo funktioniert am besten mit Sanaga.
+Démarrage⟂Startup⟂Inicio⟂Arranque⟂Start
+Page d'accueil⟂Home page⟂Página de inicio⟂Página inicial⟂Startseite
+Rouvrir les onglets de la dernière session⟂Reopen tabs from last session⟂Reabrir las pestañas de la última sesión⟂Reabrir os separadores da última sessão⟂Tabs der letzten Sitzung wieder öffnen
+Afficher la barre de favoris⟂Show favourites bar⟂Mostrar barra de favoritos⟂Mostrar barra de favoritos⟂Favoritenleiste anzeigen
+Zoom par défaut⟂Default zoom⟂Zoom predeterminado⟂Zoom predefinido⟂Standard-Zoom
+Économie de données et de mémoire⟂Data and memory saving⟂Ahorro de datos y memoria⟂Poupança de dados e memória⟂Daten- und Speicher sparen
+Charger les images⟂Load images⟂Cargar imágenes⟂Carregar imagens⟂Bilder laden
+Désactivées, les images s'affichent comme un bouton : cliquez pour charger seulement celles qui vous intéressent.⟂When off, images appear as a button: click to load only the ones you want.⟂Si se desactivan, las imágenes aparecen como un botón: haz clic para cargar solo las que te interesen.⟂Desativadas, as imagens aparecem como um botão: clique para carregar só as que lhe interessam.⟂Ausgeschaltet erscheinen Bilder als Schaltfläche: Klicken Sie, um nur gewünschte zu laden.
+Économiseur de mémoire⟂Memory Saver⟂Ahorro de memoria⟂Poupança de memória⟂Speicher sparen
+Un onglet ne charge sa page que quand vous l'ouvrez. Ensuite, les onglets que vous n'avez pas regardés depuis un moment sont mis en veille : leur page est fermée pour libérer la mémoire et se recharge quand vous y revenez. Les onglets qui jouent du son ne sont jamais mis en veille.⟂A tab only loads its page when you open it. After that, tabs you haven't looked at for a while go to sleep: their page is closed to free memory and reloads when you come back. Tabs playing sound never sleep.⟂Una pestaña solo carga su página cuando la abres. Después, las pestañas que no has mirado desde hace un rato se suspenden: su página se cierra para liberar memoria y se recarga al volver. Las pestañas que reproducen sonido nunca se suspenden.⟂Um separador só carrega a página quando o abre. Depois, os separadores que não vê há algum tempo entram em suspensão: a página é fechada para libertar memória e recarrega quando voltar. Separadores a reproduzir som nunca são suspensos.⟂Ein Tab lädt seine Seite erst, wenn Sie ihn öffnen. Danach schlafen Tabs, die Sie eine Weile nicht angesehen haben, ein: Ihre Seite wird geschlossen, um Speicher freizugeben, und beim Zurückkehren neu geladen. Tabs mit Ton schlafen nie.
+Désactivé⟂Off⟂Desactivado⟂Desativado⟂Aus
+Modéré — veille après 1 heure, 12 pages actives au plus⟂Moderate — sleep after 1 hour, at most 12 running pages⟂Moderado: suspensión tras 1 hora, 12 páginas activas como máximo⟂Moderado — suspensão após 1 hora, no máximo 12 páginas ativas⟂Moderat – Ruhezustand nach 1 Stunde, höchstens 12 aktive Seiten
+Équilibré — veille après 20 minutes, 6 pages actives au plus (recommandé)⟂Balanced — sleep after 20 minutes, at most 6 running pages (recommended)⟂Equilibrado: suspensión tras 20 minutos, 6 páginas activas como máximo (recomendado)⟂Equilibrado — suspensão após 20 minutos, no máximo 6 páginas ativas (recomendado)⟂Ausgewogen – Ruhezustand nach 20 Minuten, höchstens 6 aktive Seiten (empfohlen)
+Maximal — veille après 5 minutes, 3 pages actives au plus⟂Maximum — sleep after 5 minutes, at most 3 running pages⟂Máximo: suspensión tras 5 minutos, 3 páginas activas como máximo⟂Máximo — suspensão após 5 minutos, no máximo 3 páginas ativas⟂Maximal – Ruhezustand nach 5 Minuten, höchstens 3 aktive Seiten
+Mots de passe et remplissage automatique⟂Passwords and AutoFill⟂Contraseñas y autorrelleno⟂Palavras-passe e preenchimento automático⟂Passwörter und automatisches Ausfüllen
+Proposer d'enregistrer et de remplir les mots de passe⟂Offer to save and fill in passwords⟂Ofrecer guardar y rellenar contraseñas⟂Propor guardar e preencher palavras-passe⟂Anbieten, Passwörter zu speichern und auszufüllen
+Gérer les mots de passe enregistrés⟂Manage saved passwords⟂Gestionar contraseñas guardadas⟂Gerir palavras-passe guardadas⟂Gespeicherte Passwörter verwalten
+Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :⟂Your details, to fill in forms (menu ⋮ › Fill in my details, or Ctrl+Shift+F):⟂Tus datos, para rellenar formularios (menú ⋮ › Rellenar con mis datos, o Ctrl+Mayús+F):⟂Os seus dados, para preencher formulários (menu ⋮ › Preencher com os meus dados, ou Ctrl+Shift+F):⟂Ihre Daten zum Ausfüllen von Formularen (Menü ⋮ › Mit meinen Daten ausfüllen oder Strg+Umschalt+F):
+Téléphone⟂Phone⟂Teléfono⟂Telefone⟂Telefon
+Adresse⟂Address⟂Dirección⟂Morada⟂Adresse
+Synchronisation⟂Sync⟂Sincronización⟂Sincronização⟂Synchronisierung
+Choisissez un dossier partagé entre vos ordinateurs (Syncthing, Nextcloud, Dropbox, clé USB…). Sanaga y garde vos favoris, votre liste de lecture et vos onglets ouverts, et montre sur la page d'accueil les onglets de vos autres appareils.⟂Choose a folder shared between your computers (Syncthing, Nextcloud, Dropbox, USB stick…). Sanaga keeps your favourites, reading list and open tabs there, and shows your other devices' tabs on the start page.⟂Elige una carpeta compartida entre tus ordenadores (Syncthing, Nextcloud, Dropbox, memoria USB…). Sanaga guarda allí tus favoritos, tu lista de lectura y tus pestañas abiertas, y muestra en la página de inicio las pestañas de tus otros dispositivos.⟂Escolha uma pasta partilhada entre os seus computadores (Syncthing, Nextcloud, Dropbox, pen USB…). O Sanaga guarda lá os favoritos, a lista de leitura e os separadores abertos, e mostra na página inicial os separadores dos seus outros dispositivos.⟂Wählen Sie einen zwischen Ihren Computern geteilten Ordner (Syncthing, Nextcloud, Dropbox, USB-Stick…). Sanaga legt dort Favoriten, Leseliste und offene Tabs ab und zeigt auf der Startseite die Tabs Ihrer anderen Geräte.
+Dossier⟂Folder⟂Carpeta⟂Pasta⟂Ordner
+Synchroniser maintenant⟂Sync now⟂Sincronizar ahora⟂Sincronizar agora⟂Jetzt synchronisieren
+Dernière synchronisation {} · autres appareils : {} · cet ordinateur : {}⟂Last synced {} · other devices: {} · this computer: {}⟂Última sincronización {} · otros dispositivos: {} · este ordenador: {}⟂Última sincronização {} · outros dispositivos: {} · este computador: {}⟂Zuletzt synchronisiert {} · andere Geräte: {} · dieser Computer: {}
+Profil de cette fenêtre : {}⟂This window's profile: {}⟂Perfil de esta ventana: {}⟂Perfil desta janela: {}⟂Profil dieses Fensters: {}
+Gérer les profils⟂Manage profiles⟂Gestionar perfiles⟂Gerir perfis⟂Profile verwalten
+Gérer les extensions (bloqueur de publicités, mode sombre…)⟂Manage extensions (ad blocker, dark mode…)⟂Gestionar extensiones (bloqueador de anuncios, modo oscuro…)⟂Gerir extensões (bloqueador de anúncios, modo escuro…)⟂Erweiterungen verwalten (Werbeblocker, Dunkelmodus…)
+Confidentialité⟂Privacy⟂Privacidad⟂Privacidade⟂Datenschutz
+Empêcher le suivi intersites⟂Prevent cross-site tracking⟂Evitar el rastreo entre sitios⟂Impedir o rastreio entre sites⟂Websiteübergreifendes Tracking verhindern
+Les traceurs publicitaires ne peuvent plus vous suivre d'un site à l'autre (comme dans Safari). Le Rapport de confidentialité de la page d'accueil montre ceux qui ont été tenus à l'écart. S'applique aux nouveaux onglets.⟂Ad trackers can no longer follow you from site to site (as in Safari). The Privacy Report on the start page shows the ones kept away. Applies to new tabs.⟂Los rastreadores publicitarios ya no pueden seguirte de un sitio a otro (como en Safari). El Informe de privacidad de la página de inicio muestra los que se mantuvieron alejados. Se aplica a las pestañas nuevas.⟂Os rastreadores publicitários deixam de o seguir de site em site (como no Safari). O Relatório de privacidade da página inicial mostra os que foram afastados. Aplica-se aos novos separadores.⟂Werbetracker können Ihnen nicht mehr von Website zu Website folgen (wie in Safari). Der Datenschutzbericht auf der Startseite zeigt die ferngehaltenen. Gilt für neue Tabs.
+Avec le moteur Sanaga Léger, aucun script n'est exécuté : pas de publicités, pas de traceurs.⟂With the Sanaga Light engine, no scripts run: no ads, no trackers.⟂Con el motor Sanaga Ligero no se ejecuta ningún script: sin anuncios ni rastreadores.⟂Com o motor Sanaga Leve, nenhum script é executado: sem anúncios, sem rastreadores.⟂Mit der Engine Sanaga Leicht laufen keine Skripte: keine Werbung, keine Tracker.
+Effacer l'historique de navigation⟂Clear browsing history⟂Borrar historial de navegación⟂Limpar histórico de navegação⟂Browserverlauf löschen
+Mémoire utilisée⟂Memory used⟂Memoria usada⟂Memória usada⟂Belegter Speicher
+Onglets ouverts⟂Open tabs⟂Pestañas abiertas⟂Separadores abertos⟂Offene Tabs
+Pages gardées en mémoire⟂Pages kept in memory⟂Páginas guardadas en memoria⟂Páginas guardadas em memória⟂Im Speicher gehaltene Seiten
+Images en mémoire⟂Images in memory⟂Imágenes en memoria⟂Imagens em memória⟂Bilder im Speicher
+Pages chargées depuis le démarrage⟂Pages loaded since start⟂Páginas cargadas desde el inicio⟂Páginas carregadas desde o arranque⟂Seit dem Start geladene Seiten
+Données téléchargées⟂Data downloaded⟂Datos descargados⟂Dados transferidos⟂Heruntergeladene Daten
+Version {} · navigateur léger⟂Version {} · light browser⟂Versión {} · navegador ligero⟂Versão {} · navegador leve⟂Version {} · leichter Browser
+Sanaga affiche les sites avec WebKit, un moteur web mature (celui de Safari et de GNOME Web). Pour économiser davantage, le moteur Sanaga Léger (dans les Paramètres) affiche l'essentiel des pages sans JavaScript, avec très peu de mémoire. La mémoire indiquée comprend les processus du moteur.⟂Sanaga shows sites with WebKit, a mature web engine (the one in Safari and GNOME Web). To save even more, the Sanaga Light engine (in Settings) shows the essentials of pages without JavaScript, using very little memory. The memory shown includes the engine's processes.⟂Sanaga muestra los sitios con WebKit, un motor web maduro (el de Safari y GNOME Web). Para ahorrar más, el motor Sanaga Ligero (en Ajustes) muestra lo esencial de las páginas sin JavaScript y con muy poca memoria. La memoria indicada incluye los procesos del motor.⟂O Sanaga mostra os sites com o WebKit, um motor web maduro (o do Safari e do GNOME Web). Para poupar mais, o motor Sanaga Leve (nas Definições) mostra o essencial das páginas sem JavaScript, com muito pouca memória. A memória indicada inclui os processos do motor.⟂Sanaga zeigt Websites mit WebKit an, einer ausgereiften Web-Engine (der von Safari und GNOME Web). Um noch mehr zu sparen, zeigt die Engine Sanaga Leicht (in den Einstellungen) das Wesentliche der Seiten ohne JavaScript und mit sehr wenig Speicher. Der angezeigte Speicher umfasst die Prozesse der Engine.
+Revoir la page de bienvenue⟂See the welcome page again⟂Ver de nuevo la página de bienvenida⟂Rever a página de boas-vindas⟂Willkommensseite erneut anzeigen
+Page non chargée⟂Page not loaded⟂Página no cargada⟂Página não carregada⟂Seite nicht geladen
+Impossible d'accéder à ce site⟂This site can't be reached⟂No se puede acceder a este sitio⟂Não é possível aceder a este site⟂Diese Website ist nicht erreichbar
+Cliquez sur Actualiser pour ouvrir cette page.⟂Click Reload to open this page.⟂Haz clic en Recargar para abrir esta página.⟂Clique em Recarregar para abrir esta página.⟂Klicken Sie auf Neu laden, um diese Seite zu öffnen.
+Actualiser⟂Reload⟂Recargar⟂Recarregar⟂Neu laden
+votre caméra⟂your camera⟂tu cámara⟂a sua câmara⟂Ihre Kamera
+votre micro⟂your microphone⟂tu micrófono⟂o seu microfone⟂Ihr Mikrofon
+votre caméra et votre micro⟂your camera and microphone⟂tu cámara y tu micrófono⟂a sua câmara e o seu microfone⟂Ihre Kamera und Ihr Mikrofon
+votre position⟂your location⟂tu ubicación⟂a sua localização⟂Ihren Standort
+vous envoyer des notifications⟂send you notifications⟂enviarte notificaciones⟂enviar-lhe notificações⟂Ihnen Benachrichtigungen senden
+un accès⟂access⟂un acceso⟂um acesso⟂einen Zugriff
+{} souhaite accéder à {}.⟂{} wants to use {}.⟂{} quiere acceder a {}.⟂{} pretende aceder a {}.⟂{} möchte auf {} zugreifen.
+Bloquer⟂Block⟂Bloquear⟂Bloquear⟂Blockieren
+Autoriser cette fois⟂Allow this time⟂Permitir esta vez⟂Permitir desta vez⟂Dieses Mal erlauben
+Toujours autoriser⟂Always allow⟂Permitir siempre⟂Permitir sempre⟂Immer erlauben
+Enregistrer la page fonctionne avec le moteur WebKit.⟂Saving pages works with the WebKit engine.⟂Guardar la página funciona con el motor WebKit.⟂Guardar a página funciona com o motor WebKit.⟂Seite speichern funktioniert mit der WebKit-Engine.
+Page enregistrée dans {}⟂Page saved in {}⟂Página guardada en {}⟂Página guardada em {}⟂Seite gespeichert in {}
+Données de navigation effacées.⟂Browsing data cleared.⟂Datos de navegación borrados.⟂Dados de navegação limpos.⟂Browserdaten gelöscht.
+La dernière heure⟂The last hour⟂La última hora⟂A última hora⟂Letzte Stunde
+Les dernières 24 heures⟂The last 24 hours⟂Las últimas 24 horas⟂As últimas 24 horas⟂Letzte 24 Stunden
+Les 7 derniers jours⟂The last 7 days⟂Los últimos 7 días⟂Os últimos 7 dias⟂Letzte 7 Tage
+Les 4 dernières semaines⟂The last 4 weeks⟂Las últimas 4 semanas⟂As últimas 4 semanas⟂Letzte 4 Wochen
+Depuis toujours⟂All time⟂Desde siempre⟂Desde sempre⟂Gesamter Zeitraum
+Effacer les données de navigation⟂Clear browsing data⟂Borrar datos de navegación⟂Limpar dados de navegação⟂Browserdaten löschen
+Période⟂Time range⟂Periodo⟂Período⟂Zeitraum
+Historique de navigation et téléchargements⟂Browsing and download history⟂Historial de navegación y descargas⟂Histórico de navegação e transferências⟂Browser- und Downloadverlauf
+Cookies et données des sites (vous serez déconnecté de la plupart des sites)⟂Cookies and site data (you'll be signed out of most sites)⟂Cookies y datos de sitios (cerrarás sesión en la mayoría de los sitios)⟂Cookies e dados de sites (terminará a sessão na maioria dos sites)⟂Cookies und Websitedaten (Sie werden von den meisten Websites abgemeldet)
+Images et fichiers en cache⟂Cached images and files⟂Imágenes y archivos en caché⟂Imagens e ficheiros em cache⟂Bilder und Dateien im Cache
+Les mots de passe, favoris et la liste de lecture ne sont pas touchés.⟂Passwords, favourites and the reading list are not affected.⟂Las contraseñas, los favoritos y la lista de lectura no se tocan.⟂As palavras-passe, os favoritos e a lista de leitura não são afetados.⟂Passwörter, Favoriten und Leseliste bleiben erhalten.
+Quand un site demande votre caméra, votre micro, votre position ou des notifications, votre choix apparaît ici.⟂When a site asks for your camera, microphone, location or notifications, your choice appears here.⟂Cuando un sitio pide tu cámara, tu micrófono, tu ubicación o notificaciones, tu elección aparece aquí.⟂Quando um site pede a sua câmara, o microfone, a localização ou notificações, a sua escolha aparece aqui.⟂Wenn eine Website Kamera, Mikrofon, Standort oder Benachrichtigungen anfragt, erscheint Ihre Wahl hier.
+Oublier⟂Forget⟂Olvidar⟂Esquecer⟂Vergessen
+Zoom par site⟂Zoom per site⟂Zoom por sitio⟂Zoom por site⟂Zoom pro Website
+Le zoom choisi sur un site (Ctrl + / Ctrl -) est retenu et apparaît ici.⟂The zoom chosen on a site (Ctrl + / Ctrl -) is remembered and appears here.⟂El zoom elegido en un sitio (Ctrl + / Ctrl -) se recuerda y aparece aquí.⟂O zoom escolhido num site (Ctrl + / Ctrl -) é memorizado e aparece aqui.⟂Der auf einer Website gewählte Zoom (Strg + / Strg -) wird gemerkt und erscheint hier.
+Réinitialiser⟂Reset⟂Restablecer⟂Repor⟂Zurücksetzen
+Vue allégée : seul le contenu principal de la page est affiché.⟂Light view: only the page's main content is shown.⟂Vista ligera: solo se muestra el contenido principal de la página.⟂Vista leve: só é mostrado o conteúdo principal da página.⟂Leichte Ansicht: Nur der Hauptinhalt der Seite wird angezeigt.
+Afficher toute la page⟂Show the whole page⟂Mostrar toda la página⟂Mostrar a página inteira⟂Ganze Seite anzeigen
+Cette page n'a pas de contenu lisible sans JavaScript.⟂This page has no readable content without JavaScript.⟂Esta página no tiene contenido legible sin JavaScript.⟂Esta página não tem conteúdo legível sem JavaScript.⟂Diese Seite hat ohne JavaScript keinen lesbaren Inhalt.
+Lecteur⟂Reader⟂Lector⟂Leitor⟂Reader
+Revenir à la page normale (Ctrl+Maj+R)⟂Back to the normal page (Ctrl+Shift+R)⟂Volver a la página normal (Ctrl+Mayús+R)⟂Voltar à página normal (Ctrl+Shift+R)⟂Zurück zur normalen Seite (Strg+Umschalt+R)
+Sépia⟂Sepia⟂Sepia⟂Sépia⟂Sepia
+Thème {}⟂{} theme⟂Tema {}⟂Tema {}⟂Design {}
+Texte plus grand⟂Larger text⟂Texto más grande⟂Texto maior⟂Größerer Text
+Texte plus petit⟂Smaller text⟂Texto más pequeño⟂Texto menor⟂Kleinerer Text
+Ouvrir dans un onglet privé⟂Open in private tab⟂Abrir en una pestaña privada⟂Abrir num separador privado⟂In privatem Tab öffnen
+Copier l'adresse du lien⟂Copy link address⟂Copiar dirección del enlace⟂Copiar endereço da ligação⟂Linkadresse kopieren
+Image⟂Image⟂Imagen⟂Imagem⟂Bild
+Image : {}⟂Image: {}⟂Imagen: {}⟂Imagem: {}⟂Bild: {}
+Cliquer pour charger cette image⟂Click to load this image⟂Haz clic para cargar esta imagen⟂Clique para carregar esta imagem⟂Klicken, um dieses Bild zu laden
+WebKit, sites complets⟂WebKit, full sites⟂WebKit, sitios completos⟂WebKit, sites completos⟂WebKit, vollständige Websites
+Sanaga Léger, pages simplifiées⟂Sanaga Light, simplified pages⟂Sanaga Ligero, páginas simplificadas⟂Sanaga Leve, páginas simplificadas⟂Sanaga Leicht, vereinfachte Seiten
+{} de mémoire · pages actives : {} sur {} onglets⟂{} of memory · running pages: {} of {} tabs⟂{} de memoria · páginas activas: {} de {} pestañas⟂{} de memória · páginas ativas: {} de {} separadores⟂{} Speicher · aktive Seiten: {} von {} Tabs
+Moteur d'affichage : {}.⟂Rendering engine: {}.⟂Motor de visualización: {}.⟂Motor de apresentação: {}.⟂Darstellungs-Engine: {}.
+Pages chargées depuis le démarrage : {}⟂Pages loaded since start: {}⟂Páginas cargadas desde el inicio: {}⟂Páginas carregadas desde o arranque: {}⟂Seit dem Start geladene Seiten: {}
+Liste de lecture⟂Reading List⟂Lista de lectura⟂Lista de leitura⟂Leseliste
+Consultés fréquemment⟂Frequently visited⟂Visitados con frecuencia⟂Visitados frequentemente⟂Häufig besucht
+Les sites que vous visitez souvent apparaîtront ici.⟂Sites you visit often will appear here.⟂Los sitios que visitas a menudo aparecerán aquí.⟂Os sites que visita com frequência aparecerão aqui.⟂Häufig besuchte Websites erscheinen hier.
+Onglets sur vos autres appareils⟂Tabs on your other devices⟂Pestañas en tus otros dispositivos⟂Separadores nos seus outros dispositivos⟂Tabs auf Ihren anderen Geräten
+Rapport de confidentialité⟂Privacy Report⟂Informe de privacidad⟂Relatório de privacidade⟂Datenschutzbericht
+La protection contre le suivi intersites est désactivée.⟂Cross-site tracking protection is off.⟂La protección contra el rastreo entre sitios está desactivada.⟂A proteção contra o rastreio entre sites está desativada.⟂Der Schutz vor websiteübergreifendem Tracking ist aus.
+Activez-la dans les Paramètres.⟂Turn it on in Settings.⟂Actívala en Ajustes.⟂Ative-a nas Definições.⟂Schalten Sie ihn in den Einstellungen ein.
+Sanaga empêche les traceurs de vous suivre⟂Sanaga stops trackers from following you⟂Sanaga impide que los rastreadores te sigan⟂O Sanaga impede os rastreadores de o seguirem⟂Sanaga hindert Tracker daran, Ihnen
+d'un site à l'autre. Aucun repéré pour l'instant.⟂from site to site. None spotted so far.⟂de un sitio a otro. Ninguno detectado por ahora.⟂de site em site. Nenhum detetado até agora.⟂von Website zu Website zu folgen. Bisher keine entdeckt.
+Traceurs empêchés de vous profiler : {}⟂Trackers prevented from profiling you: {}⟂Rastreadores que no pudieron perfilarte: {}⟂Rastreadores impedidos de traçar o seu perfil: {}⟂Am Profiling gehinderte Tracker: {}
+Le plus présent : {} (sites : {})⟂Most seen: {} (sites: {})⟂El más presente: {} (sitios: {})⟂O mais presente: {} (sites: {})⟂Am häufigsten: {} (Websites: {})
+Rapport de sobriété⟂Sobriety Report⟂Informe de sobriedad⟂Relatório de sobriedade⟂Sparsamkeitsbericht
+Terminer⟂Done⟂Listo⟂Concluir⟂Fertig
+Personnaliser la page d'accueil⟂Customise start page⟂Personalizar la página de inicio⟂Personalizar a página inicial⟂Startseite anpassen
+Barre des favoris⟂Favourites bar⟂Barra de favoritos⟂Barra de favoritos⟂Favoritenleiste
+Navigation privée⟂Private browsing⟂Navegación privada⟂Navegação privada⟂Privates Surfen
+Sanaga ne garde ni l'historique, ni les cookies, ni les données de cet onglet : tout est effacé dès que vous le fermez. Les favoris et les téléchargements sont conservés.⟂Sanaga keeps neither the history, the cookies nor the data of this tab: everything is erased as soon as you close it. Favourites and downloads are kept.⟂Sanaga no guarda el historial, las cookies ni los datos de esta pestaña: todo se borra en cuanto la cierras. Los favoritos y las descargas se conservan.⟂O Sanaga não guarda o histórico, os cookies nem os dados deste separador: tudo é apagado assim que o fechar. Os favoritos e as transferências são mantidos.⟂Sanaga speichert weder Verlauf noch Cookies noch Daten dieses Tabs: Alles wird gelöscht, sobald Sie ihn schließen. Favoriten und Downloads bleiben erhalten.
+Désépingler l'onglet⟂Unpin tab⟂Desfijar pestaña⟂Desafixar separador⟂Tab lösen
+Épingler l'onglet⟂Pin tab⟂Fijar pestaña⟂Afixar separador⟂Tab anheften
+Rétablir le son⟂Unmute⟂Activar sonido⟂Reativar som⟂Ton einschalten
+Couper le son de l'onglet⟂Mute tab⟂Silenciar pestaña⟂Silenciar separador⟂Tab stummschalten
+Déplacer vers le groupe⟂Move to group⟂Mover al grupo⟂Mover para o grupo⟂In Gruppe verschieben
+Nouveau groupe…⟂New group…⟂Nuevo grupo…⟂Novo grupo…⟂Neue Gruppe…
+Fermer l'onglet⟂Close tab⟂Cerrar pestaña⟂Fechar separador⟂Tab schließen
+Fermer les autres onglets⟂Close other tabs⟂Cerrar las demás pestañas⟂Fechar os outros separadores⟂Andere Tabs schließen
+Fermer les onglets à droite⟂Close tabs to the right⟂Cerrar las pestañas a la derecha⟂Fechar separadores à direita⟂Tabs rechts schließen
+  {} onglet{}⟂  {} tab{}⟂  {} pestaña{}⟂  {} separador{}⟂  {} Tab{}
+En veille⟂Sleeping⟂Suspendida⟂Em suspensão⟂Schlafend
+Groupes d'onglets (barre latérale)⟂Tab groups (sidebar)⟂Grupos de pestañas (barra lateral)⟂Grupos de separadores (barra lateral)⟂Tabgruppen (Seitenleiste)
+Couper le son⟂Mute⟂Silenciar⟂Silenciar⟂Stummschalten
+Fermer l'onglet (Ctrl+W)⟂Close tab (Ctrl+W)⟂Cerrar pestaña (Ctrl+W)⟂Fechar separador (Ctrl+W)⟂Tab schließen (Strg+W)
+Fermer⟂Close⟂Cerrar⟂Fechar⟂Schließen
+Réduire⟂Minimise⟂Minimizar⟂Minimizar⟂Minimieren
+Agrandir⟂Zoom⟂Maximizar⟂Maximizar⟂Maximieren
+Barre latérale⟂Sidebar⟂Barra lateral⟂Barra lateral⟂Seitenleiste
+Page précédente (Alt+←)⟂Back (Alt+←)⟂Atrás (Alt+←)⟂Anterior (Alt+←)⟂Zurück (Alt+←)
+Page suivante (Alt+→)⟂Forward (Alt+→)⟂Adelante (Alt+→)⟂Seguinte (Alt+→)⟂Vorwärts (Alt+→)
+Profil de cette fenêtre — cliquer pour gérer les profils⟂This window's profile — click to manage profiles⟂Perfil de esta ventana: haz clic para gestionar los perfiles⟂Perfil desta janela — clique para gerir os perfis⟂Profil dieses Fensters – klicken, um Profile zu verwalten
+Menu de Sanaga⟂Sanaga menu⟂Menú de Sanaga⟂Menu do Sanaga⟂Sanaga-Menü
+Aperçu des onglets (Ctrl+Maj+O)⟂Tab overview (Ctrl+Shift+O)⟂Vista general de pestañas (Ctrl+Mayús+O)⟂Vista geral dos separadores (Ctrl+Shift+O)⟂Tab-Übersicht (Strg+Umschalt+O)
+Nouvel onglet (Ctrl+T)⟂New tab (Ctrl+T)⟂Nueva pestaña (Ctrl+T)⟂Novo separador (Ctrl+T)⟂Neuer Tab (Strg+T)
+Partager⟂Share⟂Compartir⟂Partilhar⟂Teilen
+Téléchargements (Ctrl+J)⟂Downloads (Ctrl+J)⟂Descargas (Ctrl+J)⟂Transferências (Ctrl+J)⟂Downloads (Strg+J)
+Mémoire utilisée par Sanaga et son moteur, en ce moment⟂Memory used by Sanaga and its engine right now⟂Memoria que usan ahora Sanaga y su motor⟂Memória usada neste momento pelo Sanaga e o seu motor⟂Derzeit von Sanaga und seiner Engine belegter Speicher
+Retirer des favoris (Ctrl+D)⟂Remove from favourites (Ctrl+D)⟂Quitar de favoritos (Ctrl+D)⟂Remover dos favoritos (Ctrl+D)⟂Aus Favoriten entfernen (Strg+D)
+Ajouter aux favoris (Ctrl+D)⟂Add to favourites (Ctrl+D)⟂Añadir a favoritos (Ctrl+D)⟂Adicionar aos favoritos (Ctrl+D)⟂Zu Favoriten hinzufügen (Strg+D)
+Arrêter (Échap)⟂Stop (Esc)⟂Detener (Esc)⟂Parar (Esc)⟂Stopp (Esc)
+Actualiser (Ctrl+R)⟂Reload (Ctrl+R)⟂Recargar (Ctrl+R)⟂Recarregar (Ctrl+R)⟂Neu laden (Strg+R)
+Quitter le Lecteur (Ctrl+Maj+R)⟂Exit Reader (Ctrl+Shift+R)⟂Salir del Lector (Ctrl+Mayús+R)⟂Sair do Leitor (Ctrl+Shift+R)⟂Reader beenden (Strg+Umschalt+R)
+Afficher dans le Lecteur : la page seule, facile à lire (Ctrl+Maj+R)⟂Show in Reader: just the page, easy to read (Ctrl+Shift+R)⟂Mostrar en el Lector: solo la página, fácil de leer (Ctrl+Mayús+R)⟂Mostrar no Leitor: só a página, fácil de ler (Ctrl+Shift+R)⟂Im Reader anzeigen: nur die Seite, leicht lesbar (Strg+Umschalt+R)
+Réinitialiser le zoom⟂Reset zoom⟂Restablecer zoom⟂Repor zoom⟂Zoom zurücksetzen
+Rechercher ou saisir le nom d'un site⟂Search or enter website name⟂Buscar o escribir el nombre de un sitio⟂Pesquisar ou escrever o nome de um site⟂Suchen oder Websitenamen eingeben
+Rechercher avec {} ou saisir une adresse⟂Search with {} or enter an address⟂Buscar con {} o escribir una dirección⟂Pesquisar com {} ou escrever um endereço⟂Mit {} suchen oder Adresse eingeben
+LISTE DE LECTURE⟂READING LIST⟂LISTA DE LECTURA⟂LISTA DE LEITURA⟂LESELISTE
+Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).⟂Keep a page for later: menu ⋮ › Add to Reading List (Ctrl+Shift+D).⟂Guarda una página para más tarde: menú ⋮ › Añadir a la lista de lectura (Ctrl+Mayús+D).⟂Guarde uma página para mais tarde: menu ⋮ › Adicionar à lista de leitura (Ctrl+Shift+D).⟂Seite für später merken: Menü ⋮ › Zur Leseliste hinzufügen (Strg+Umschalt+D).
+GROUPES D'ONGLETS⟂TAB GROUPS⟂GRUPOS DE PESTAÑAS⟂GRUPOS DE SEPARADORES⟂TABGRUPPEN
+Renommer avec le nom saisi ci-dessous⟂Rename with the name typed below⟂Renombrar con el nombre escrito abajo⟂Mudar o nome para o escrito abaixo⟂Mit dem unten eingegebenen Namen umbenennen
+Fermer le groupe et ses onglets⟂Close the group and its tabs⟂Cerrar el grupo y sus pestañas⟂Fechar o grupo e os seus separadores⟂Gruppe und ihre Tabs schließen
+Nom du nouveau groupe⟂New group name⟂Nombre del grupo nuevo⟂Nome do novo grupo⟂Name der neuen Gruppe
+FAVORIS⟂FAVOURITES⟂FAVORITOS⟂FAVORITOS⟂FAVORITEN
+HISTORIQUE RÉCENT⟂RECENT HISTORY⟂HISTORIAL RECIENTE⟂HISTÓRICO RECENTE⟂LETZTER VERLAUF
+Aucune page visitée⟂No pages visited⟂Ninguna página visitada⟂Nenhuma página visitada⟂Keine besuchten Seiten
+Tout l'historique⟂All history⟂Todo el historial⟂Todo o histórico⟂Gesamter Verlauf
+le téléchargement n'a pas abouti⟂the download didn't complete⟂la descarga no se completó⟂a transferência não foi concluída⟂der Download wurde nicht abgeschlossen
+Le moteur WebKit n'a pas pu démarrer : {}⟂The WebKit engine couldn't start: {}⟂El motor WebKit no pudo iniciarse: {}⟂O motor WebKit não conseguiu arrancar: {}⟂Die WebKit-Engine konnte nicht starten: {}
+Bloqueur de publicités⟂Ad blocker⟂Bloqueador de anuncios⟂Bloqueador de anúncios⟂Werbeblocker
+Masque les emplacements publicitaires les plus courants.⟂Hides the most common ad slots.⟂Oculta los espacios publicitarios más comunes.⟂Oculta os espaços publicitários mais comuns.⟂Blendet die häufigsten Werbeflächen aus.
+Pas de lecture automatique⟂No autoplay⟂Sin reproducción automática⟂Sem reprodução automática⟂Keine automatische Wiedergabe
+Empêche les vidéos et les sons de démarrer tout seuls.⟂Stops videos and sounds from starting on their own.⟂Impide que los vídeos y sonidos empiecen solos.⟂Impede que vídeos e sons comecem sozinhos.⟂Verhindert, dass Videos und Töne von selbst starten.
+Mode sombre pour tous les sites⟂Dark mode for every site⟂Modo oscuro para todos los sitios⟂Modo escuro para todos os sites⟂Dunkelmodus für alle Websites
+Affiche les pages claires en sombre, plus reposant le soir.⟂Shows light pages in dark colours, easier on the eyes at night.⟂Muestra las páginas claras en oscuro, más descansado por la noche.⟂Mostra as páginas claras em escuro, mais repousante à noite.⟂Zeigt helle Seiten dunkel an, angenehmer am Abend.
+Fichier {}⟂File {}⟂Archivo {}⟂Ficheiro {}⟂Datei {}
+Fichier introuvable : {}⟂File not found: {}⟂Archivo no encontrado: {}⟂Ficheiro não encontrado: {}⟂Datei nicht gefunden: {}
+Adresse introuvable (DNS). Vérifiez l'orthographe ou votre connexion.⟂Address not found (DNS). Check the spelling or your connection.⟂Dirección no encontrada (DNS). Comprueba la ortografía o tu conexión.⟂Endereço não encontrado (DNS). Verifique a ortografia ou a ligação.⟂Adresse nicht gefunden (DNS). Prüfen Sie die Schreibweise oder Ihre Verbindung.
+Le site met trop de temps à répondre.⟂The site is taking too long to respond.⟂El sitio tarda demasiado en responder.⟂O site está a demorar demasiado a responder.⟂Die Website antwortet zu langsam.
+Le site a refusé la connexion.⟂The site refused the connection.⟂El sitio rechazó la conexión.⟂O site recusou a ligação.⟂Die Website hat die Verbindung abgelehnt.
+Connexion sécurisée impossible : {}⟂Secure connection failed: {}⟂No se pudo establecer una conexión segura: {}⟂Ligação segura impossível: {}⟂Sichere Verbindung fehlgeschlagen: {}
+DuckDuckGo (version légère)⟂DuckDuckGo (light version)⟂DuckDuckGo (versión ligera)⟂DuckDuckGo (versão leve)⟂DuckDuckGo (leichte Version)
+à l'instant⟂just now⟂ahora mismo⟂agora mesmo⟂gerade eben
+il y a {} min⟂{} min ago⟂hace {} min⟂há {} min⟂vor {} Min.
+il y a {} h⟂{} h ago⟂hace {} h⟂há {} h⟂vor {} Std.
+hier⟂yesterday⟂ayer⟂ontem⟂gestern
+il y a {} jours⟂{} days ago⟂hace {} días⟂há {} dias⟂vor {} Tagen
+il y a {} mois⟂{} months ago⟂hace {} meses⟂há {} meses⟂vor {} Monaten
+Aujourd'hui⟂Today⟂Hoy⟂Hoje⟂Heute
+Hier⟂Yesterday⟂Ayer⟂Ontem⟂Gestern
+Cette semaine⟂This week⟂Esta semana⟂Esta semana⟂Diese Woche
+Ce mois-ci⟂This month⟂Este mes⟂Este mês⟂Diesen Monat
+Plus ancien⟂Older⟂Más antiguo⟂Mais antigo⟂Älter
+Ignorer⟂Ignore⟂Ignorar⟂Ignorar⟂Ignorieren
+Profils⟂Profiles⟂Perfiles⟂Perfis⟂Profile
+Personnel⟂Personal⟂Personal⟂Pessoal⟂Privat
+Toute l'interface de Sanaga change aussitôt ; les sites sont aussi demandés dans cette langue (pour les nouveaux onglets).⟂Sanaga's whole interface changes right away; sites are also requested in this language (for new tabs).⟂Toda la interfaz de Sanaga cambia al instante; los sitios también se piden en este idioma (para pestañas nuevas).⟂Toda a interface do Sanaga muda de imediato; os sites também são pedidos neste idioma (para novos separadores).⟂Die gesamte Oberfläche von Sanaga wechselt sofort; Websites werden ebenfalls in dieser Sprache angefragt (für neue Tabs).
+Apparence⟂Appearance⟂Apariencia⟂Aparência⟂Darstellung
+Nom⟂Name⟂Nombre⟂Nome⟂Name
+E-mail⟂Email⟂Correo⟂E-mail⟂E-Mail
+Traduction⟂Translation⟂Traducción⟂Tradução⟂Übersetzung
+Autorisations⟂Permissions⟂Permisos⟂Permissões⟂Berechtigungen
+Nuit⟂Night⟂Noche⟂Noite⟂Nacht
+Blanc⟂White⟂Blanco⟂Branco⟂Weiß
+Rapports⟂Reports⟂Informes⟂Relatórios⟂Berichte
+Dupliquer⟂Duplicate⟂Duplicar⟂Duplicar⟂Duplizieren
+{} Go⟂{} GB⟂{} GB⟂{} GB⟂{} GB
+{} Mo⟂{} MB⟂{} MB⟂{} MB⟂{} MB
+{} Ko⟂{} KB⟂{} KB⟂{} KB⟂{} KB
+{} o⟂{} B⟂{} B⟂{} B⟂{} B
+Import depuis {} en cours…⟂Importing from {}…⟂Importando desde {}…⟂A importar de {}…⟂Import aus {} läuft…
+Import des mots de passe en cours…⟂Importing passwords…⟂Importando contraseñas…⟂A importar palavras-passe…⟂Passwörter werden importiert…
+Importé depuis {} : {} favoris, {} pages d'historique, {} mots de passe.⟂Imported from {}: {} favourites, {} history pages, {} passwords.⟂Importado desde {}: {} favoritos, {} páginas de historial, {} contraseñas.⟂Importado de {}: {} favoritos, {} páginas de histórico, {} palavras-passe.⟂Aus {} importiert: {} Favoriten, {} Verlaufseinträge, {} Passwörter.
+{} mots de passe n'ont pas pu aller dans le trousseau.⟂{} passwords could not be put in the keyring.⟂{} contraseñas no se pudieron guardar en el llavero.⟂{} palavras-passe não puderam ir para o porta-chaves.⟂{} Passwörter konnten nicht im Schlüsselbund gespeichert werden.
+Importer depuis un autre navigateur⟂Import from another browser⟂Importar desde otro navegador⟂Importar de outro navegador⟂Aus einem anderen Browser importieren
+Reprenez vos favoris, votre historique et vos mots de passe. Rien n'est modifié dans l'autre navigateur ; les mots de passe vont dans le trousseau de votre système.⟂Bring over your favourites, history and passwords. Nothing is changed in the other browser; passwords go into your system's keyring.⟂Recupera tus favoritos, tu historial y tus contraseñas. No se cambia nada en el otro navegador; las contraseñas van al llavero de tu sistema.⟂Recupere os seus favoritos, histórico e palavras-passe. Nada é alterado no outro navegador; as palavras-passe vão para o porta-chaves do sistema.⟂Übernehmen Sie Favoriten, Verlauf und Passwörter. Im anderen Browser wird nichts verändert; Passwörter kommen in den Schlüsselbund Ihres Systems.
+Aucun autre navigateur trouvé sur cet ordinateur.⟂No other browser found on this computer.⟂No se encontró ningún otro navegador en este ordenador.⟂Nenhum outro navegador encontrado neste computador.⟂Kein anderer Browser auf diesem Computer gefunden.
+Favoris, historique et mots de passe⟂Favourites, history and passwords⟂Favoritos, historial y contraseñas⟂Favoritos, histórico e palavras-passe⟂Favoriten, Verlauf und Passwörter
+Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis importez le fichier ci-dessous)⟂Favourites and history (passwords: export them as CSV from Firefox, then import the file below)⟂Favoritos e historial (contraseñas: expórtalas en CSV desde Firefox y luego importa el archivo abajo)⟂Favoritos e histórico (palavras-passe: exporte-as em CSV no Firefox e importe o ficheiro abaixo)⟂Favoriten und Verlauf (Passwörter: in Firefox als CSV exportieren, dann die Datei unten importieren)
+Depuis un fichier⟂From a file⟂Desde un archivo⟂A partir de um ficheiro⟂Aus einer Datei
+Mots de passe (fichier CSV)…⟂Passwords (CSV file)…⟂Contraseñas (archivo CSV)…⟂Palavras-passe (ficheiro CSV)…⟂Passwörter (CSV-Datei)…
+Favoris (fichier HTML)…⟂Favourites (HTML file)…⟂Favoritos (archivo HTML)…⟂Favoritos (ficheiro HTML)…⟂Favoriten (HTML-Datei)…
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.⟂Chrome: Settings › Passwords › Export. Firefox: about:logins › ⋯ › Export. Remember to delete the exported file after importing: it contains your passwords in plain text.⟂Chrome: Configuración › Contraseñas › Exportar. Firefox: about:logins › ⋯ › Exportar. Recuerda borrar el archivo exportado después de importarlo: contiene tus contraseñas sin cifrar.⟂Chrome: Definições › Palavras-passe › Exportar. Firefox: about:logins › ⋯ › Exportar. Lembre-se de apagar o ficheiro exportado depois da importação: contém as palavras-passe em texto simples.⟂Chrome: Einstellungen › Passwörter › Exportieren. Firefox: about:logins › ⋯ › Exportieren. Löschen Sie die exportierte Datei nach dem Import: Sie enthält Ihre Passwörter im Klartext.
+Importer des mots de passe (CSV)⟂Import passwords (CSV)⟂Importar contraseñas (CSV)⟂Importar palavras-passe (CSV)⟂Passwörter importieren (CSV)
+Mots de passe (CSV)⟂Passwords (CSV)⟂Contraseñas (CSV)⟂Palavras-passe (CSV)⟂Passwörter (CSV)
+Importer depuis un autre navigateur…⟂Import from another browser…⟂Importar desde otro navegador…⟂Importar de outro navegador…⟂Aus einem anderen Browser importieren…
+Importer depuis un autre navigateur (Chrome, Firefox…)⟂Import from another browser (Chrome, Firefox…)⟂Importar desde otro navegador (Chrome, Firefox…)⟂Importar de outro navegador (Chrome, Firefox…)⟂Aus einem anderen Browser importieren (Chrome, Firefox…)
+Favoris : {}⟂Favourites: {}⟂Favoritos: {}⟂Favoritos: {}⟂Favoriten: {}
+Historique : {}⟂History: {}⟂Historial: {}⟂Histórico: {}⟂Verlauf: {}
+Mots de passe illisibles : {}⟂Unreadable passwords: {}⟂Contraseñas ilegibles: {}⟂Palavras-passe ilegíveis: {}⟂Unlesbare Passwörter: {}
+Mots de passe : {}⟂Passwords: {}⟂Contraseñas: {}⟂Palavras-passe: {}⟂Passwörter: {}
+Firefox : {}⟂Firefox: {}⟂Firefox: {}⟂Firefox: {}⟂Firefox: {}
+autorisé⟂allowed⟂permitido⟂permitido⟂erlaubt
+bloqué⟂blocked⟂bloqueado⟂bloqueado⟂blockiert
+téléchargement⟂download⟂descarga⟂transferência⟂Download
+La page n'a pas pu être lue : {}⟂The page couldn't be read: {}⟂No se pudo leer la página: {}⟂Não foi possível ler a página: {}⟂Die Seite konnte nicht gelesen werden: {}
+Dossier de synchronisation introuvable.⟂Sync folder not found.⟂No se encontró la carpeta de sincronización.⟂Pasta de sincronização não encontrada.⟂Synchronisierungsordner nicht gefunden.
+Impossible d'écrire dans le dossier de synchronisation.⟂Can't write to the sync folder.⟂No se puede escribir en la carpeta de sincronización.⟂Não é possível escrever na pasta de sincronização.⟂In den Synchronisierungsordner kann nicht geschrieben werden.
+{} de mémoire⟂{} of memory⟂{} de memoria⟂{} de memória⟂{} Speicher
+Pages actives : {} sur {} onglets⟂Running pages: {} of {} tabs⟂Páginas activas: {} de {} pestañas⟂Páginas ativas: {} de {} separadores⟂Aktive Seiten: {} von {} Tabs
+depuis {}⟂from {}⟂desde {}⟂de {}⟂aus {}
+Taille d'écran⟂Screen size⟂Tamaño de pantalla⟂Tamanho do ecrã⟂Bildschirmgröße
+Tourner l'écran⟂Rotate screen⟂Girar pantalla⟂Rodar ecrã⟂Bildschirm drehen
+Astuce : l'inspecteur web (Ctrl+Maj+I) s'utilise avec ce mode.⟂Tip: the web inspector (Ctrl+Shift+I) works with this mode.⟂Consejo: el inspector web (Ctrl+Mayús+I) funciona con este modo.⟂Dica: o inspetor web (Ctrl+Shift+I) funciona com este modo.⟂Tipp: Der Web-Inspektor (Strg+Umschalt+I) funktioniert mit diesem Modus.
+Quitter le mode taille d'écran (Ctrl+Maj+M)⟂Leave screen size mode (Ctrl+Shift+M)⟂Salir del modo tamaño de pantalla (Ctrl+Mayús+M)⟂Sair do modo tamanho do ecrã (Ctrl+Shift+M)⟂Bildschirmgrößen-Modus verlassen (Strg+Umschalt+M)
+{} × {} (réduit à {} × {} : fenêtre trop petite)⟂{} × {} (shrunk to {} × {}: window too small)⟂{} × {} (reducido a {} × {}: ventana demasiado pequeña)⟂{} × {} (reduzido para {} × {}: janela demasiado pequena)⟂{} × {} (verkleinert auf {} × {}: Fenster zu klein)
+Ctrl+Maj+I⟂Ctrl+Shift+I⟂Ctrl+Mayús+I⟂Ctrl+Shift+I⟂Strg+Umschalt+I
+Taille d'écran (téléphone, tablette…)⟂Screen size (phone, tablet…)⟂Tamaño de pantalla (teléfono, tableta…)⟂Tamanho do ecrã (telemóvel, tablet…)⟂Bildschirmgröße (Telefon, Tablet…)
+Ctrl+Maj+M⟂Ctrl+Shift+M⟂Ctrl+Mayús+M⟂Ctrl+Shift+M⟂Strg+Umschalt+M
+Personnaliser la barre d'outils…⟂Customize toolbar…⟂Personalizar la barra de herramientas…⟂Personalizar a barra de ferramentas…⟂Symbolleiste anpassen…
+Source de {}⟂Source of {}⟂Código fuente de {}⟂Código-fonte de {}⟂Quelltext von {}
+Boutons de la barre d'outils (aussi : clic droit sur la barre d'outils)⟂Toolbar buttons (also: right-click the toolbar)⟂Botones de la barra de herramientas (también: clic derecho en la barra)⟂Botões da barra de ferramentas (também: clique direito na barra)⟂Symbolleisten-Schaltflächen (auch: Rechtsklick auf die Symbolleiste)
+Retour à la ligne⟂Line wrap⟂Ajuste de línea⟂Quebra de linha⟂Zeilenumbruch
+{} lignes · {}⟂{} lines · {}⟂{} líneas · {}⟂{} linhas · {}⟂{} Zeilen · {}
+Code source de⟂Source of⟂Código fuente de⟂Código-fonte de⟂Quelltext von
+Onglets sans groupe⟂Ungrouped tabs⟂Pestañas sin grupo⟂Separadores sem grupo⟂Tabs ohne Gruppe
+Nouvel onglet à droite⟂New tab to the right⟂Nueva pestaña a la derecha⟂Novo separador à direita⟂Neuer Tab rechts
+Ajouter l'onglet à un nouveau groupe⟂Add tab to new group⟂Añadir pestaña a un grupo nuevo⟂Adicionar separador a um novo grupo⟂Tab zu neuer Gruppe hinzufügen
+Ajouter l'onglet au groupe⟂Add tab to group⟂Añadir pestaña al grupo⟂Adicionar separador ao grupo⟂Tab zur Gruppe hinzufügen
+Nouveau groupe⟂New group⟂Grupo nuevo⟂Novo grupo⟂Neue Gruppe
+Retirer du groupe⟂Remove from group⟂Quitar del grupo⟂Remover do grupo⟂Aus Gruppe entfernen
+Désépingler⟂Unpin⟂Desfijar⟂Desafixar⟂Loslösen
+Épingler⟂Pin⟂Fijar⟂Afixar⟂Anheften
+Réactiver le son du site⟂Unmute site⟂Activar sonido del sitio⟂Reativar som do site⟂Website-Ton einschalten
+Couper le son du site⟂Mute site⟂Silenciar sitio⟂Silenciar site⟂Website stummschalten
+Rouvrir l'onglet fermé (Ctrl+Maj+T)⟂Reopen closed tab (Ctrl+Shift+T)⟂Reabrir pestaña cerrada (Ctrl+Mayús+T)⟂Reabrir separador fechado (Ctrl+Shift+T)⟂Geschlossenen Tab wieder öffnen (Strg+Umschalt+T)
+Nommer ce groupe⟂Name this group⟂Nombrar este grupo⟂Dar nome a este grupo⟂Diese Gruppe benennen
+Nouvel onglet dans le groupe⟂New tab in group⟂Nueva pestaña en el grupo⟂Novo separador no grupo⟂Neuer Tab in Gruppe
+Dissocier⟂Ungroup⟂Desagrupar⟂Desagrupar⟂Gruppierung aufheben
+Fermer le groupe⟂Close group⟂Cerrar grupo⟂Fechar grupo⟂Gruppe schließen
+Précédent⟂Back⟂Atrás⟂Retroceder⟂Zurück
+Suivant⟂Forward⟂Adelante⟂Avançar⟂Vorwärts
+Actualiser, à côté de Suivant (comme Chrome)⟂Reload, next to Forward (like Chrome)⟂Recargar, junto a Adelante (como Chrome)⟂Recarregar, junto a Avançar (como o Chrome)⟂Neu laden, neben Vorwärts (wie Chrome)
+Accueil⟂Home⟂Inicio⟂Página inicial⟂Startseite
+Étoile des favoris, dans la barre d'adresse⟂Bookmark star, in the address bar⟂Estrella de marcadores, en la barra de direcciones⟂Estrela de favoritos, na barra de endereço⟂Lesezeichen-Stern, in der Adressleiste
+Lecteur, dans la barre d'adresse⟂Reader, in the address bar⟂Lector, en la barra de direcciones⟂Leitor, na barra de endereço⟂Leser, in der Adressleiste
+Actualiser, dans la barre d'adresse⟂Reload, in the address bar⟂Recargar, en la barra de direcciones⟂Recarregar, na barra de endereço⟂Neu laden, in der Adressleiste
+Imprimer⟂Print⟂Imprimir⟂Imprimir⟂Drucken
+Rétablir les boutons d'origine⟂Restore default buttons⟂Restablecer botones originales⟂Repor botões originais⟂Standard-Schaltflächen wiederherstellen
+Groupe replié ({} onglets) — cliquer pour l'ouvrir⟂Collapsed group ({} tabs) — click to open⟂Grupo contraído ({} pestañas): clic para abrirlo⟂Grupo recolhido ({} separadores) — clique para abrir⟂Eingeklappte Gruppe ({} Tabs) — klicken zum Öffnen
+Cliquer pour replier le groupe ; clic droit pour le gérer⟂Click to collapse the group; right-click to manage it⟂Clic para contraer el grupo; clic derecho para gestionarlo⟂Clique para recolher o grupo; clique direito para o gerir⟂Klicken zum Einklappen; Rechtsklick zum Verwalten
+Boutons de la barre d'outils⟂Toolbar buttons⟂Botones de la barra de herramientas⟂Botões da barra de ferramentas⟂Symbolleisten-Schaltflächen
+Imprimer… (Ctrl+P)⟂Print… (Ctrl+P)⟂Imprimir… (Ctrl+P)⟂Imprimir… (Ctrl+P)⟂Drucken… (Strg+P)
+Taille libre⟂Custom size⟂Tamaño libre⟂Tamanho livre⟂Freie Größe
+Ordinateur portable⟂Laptop⟂Portátil⟂Portátil⟂Laptop
+Écran Full HD⟂Full HD screen⟂Pantalla Full HD⟂Ecrã Full HD⟂Full-HD-Bildschirm
+Gris⟂Grey⟂Gris⟂Cinzento⟂Grau
+Bleu⟂Blue⟂Azul⟂Azul⟂Blau
+Rouge⟂Red⟂Rojo⟂Vermelho⟂Rot
+Jaune⟂Yellow⟂Amarillo⟂Amarelo⟂Gelb
+Vert⟂Green⟂Verde⟂Verde⟂Grün
+Rose⟂Pink⟂Rosa⟂Rosa⟂Rosa
+Violet⟂Purple⟂Morado⟂Roxo⟂Lila
+Cyan⟂Cyan⟂Cian⟂Ciano⟂Cyan
+Orange⟂Orange⟂Naranja⟂Laranja⟂Orange
+Simulateur mobile⟂Mobile simulator⟂Simulador móvil⟂Simulador móvel⟂Mobil-Simulator
+Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.⟂See and test a site as on a phone or tablet: 35+ devices, frame, rotation, zoom, mobile version of sites, touch screen and screenshots. Phone button in the toolbar or Ctrl+Shift+M.⟂Ver y probar un sitio como en un teléfono o una tableta: más de 35 dispositivos, marco, rotación, zoom, versión móvil de los sitios, pantalla táctil y capturas. Botón de teléfono de la barra o Ctrl+Mayús+M.⟂Ver e testar um site como num telemóvel ou tablet: mais de 35 dispositivos, moldura, rotação, zoom, versão móvel dos sites, ecrã tátil e capturas. Botão de telemóvel da barra ou Ctrl+Shift+M.⟂Eine Website wie auf einem Telefon oder Tablet ansehen und testen: über 35 Geräte, Rahmen, Drehung, Zoom, mobile Version der Websites, Touchscreen und Screenshots. Telefon-Schaltfläche in der Symbolleiste oder Strg+Umschalt+M.
+Intégrée à Sanaga⟂Built into Sanaga⟂Integrada en Sanaga⟂Integrada no Sanaga⟂In Sanaga integriert
+Téléphones iPhone⟂iPhone phones⟂Teléfonos iPhone⟂Telemóveis iPhone⟂iPhone-Telefone
+Téléphones Android⟂Android phones⟂Teléfonos Android⟂Telemóveis Android⟂Android-Telefone
+Tablettes⟂Tablets⟂Tabletas⟂Tablets⟂Tablets
+Ordinateurs⟂Computers⟂Ordenadores⟂Computadores⟂Computer
+Tourner l'appareil (portrait / paysage)⟂Rotate the device (portrait / landscape)⟂Girar el dispositivo (vertical / horizontal)⟂Rodar o dispositivo (retrato / paisagem)⟂Gerät drehen (Hoch- / Querformat)
+Ajuster⟂Fit⟂Ajustar⟂Ajustar⟂Anpassen
+Cadre⟂Frame⟂Marco⟂Moldura⟂Rahmen
+Dessiner l'appareil autour de l'écran⟂Draw the device around the screen⟂Dibujar el dispositivo alrededor de la pantalla⟂Desenhar o dispositivo à volta do ecrã⟂Das Gerät um den Bildschirm zeichnen
+Tactile⟂Touch⟂Táctil⟂Tátil⟂Touch
+Les pages voient un écran tactile⟂Pages see a touch screen⟂Las páginas ven una pantalla táctil⟂As páginas veem um ecrã tátil⟂Seiten sehen einen Touchscreen
+Capture d'écran⟂Screenshot⟂Captura de pantalla⟂Captura de ecrã⟂Bildschirmfoto
+Capture avec l'appareil⟂Capture with the device⟂Captura con el dispositivo⟂Captura com o dispositivo⟂Aufnahme mit dem Gerät
+Capture de l'écran seul⟂Capture the screen only⟂Captura solo de la pantalla⟂Captura só do ecrã⟂Nur den Bildschirm aufnehmen
+Capture de la page entière⟂Capture the whole page⟂Captura de la página entera⟂Captura da página inteira⟂Ganze Seite aufnehmen
+Quitter le simulateur (Ctrl+Maj+M)⟂Leave the simulator (Ctrl+Shift+M)⟂Salir del simulador (Ctrl+Mayús+M)⟂Sair do simulador (Ctrl+Shift+M)⟂Simulator verlassen (Strg+Umschalt+M)
+Capture enregistrée : {}⟂Screenshot saved: {}⟂Captura guardada: {}⟂Captura guardada: {}⟂Bildschirmfoto gespeichert: {}
+Capture impossible : {}⟂Screenshot failed: {}⟂No se pudo capturar: {}⟂Não foi possível capturar: {}⟂Aufnahme fehlgeschlagen: {}
+Capture impossible.⟂Screenshot failed.⟂No se pudo capturar.⟂Não foi possível capturar.⟂Aufnahme fehlgeschlagen.
+Simulateur mobile (Ctrl+Maj+M)⟂Mobile simulator (Ctrl+Shift+M)⟂Simulador móvil (Ctrl+Mayús+M)⟂Simulador móvel (Ctrl+Shift+M)⟂Mobil-Simulator (Strg+Umschalt+M)
+Galaxy Z Fold (plié)⟂Galaxy Z Fold (folded)⟂Galaxy Z Fold (plegado)⟂Galaxy Z Fold (dobrado)⟂Galaxy Z Fold (zugeklappt)
+Galaxy Z Fold (déplié)⟂Galaxy Z Fold (unfolded)⟂Galaxy Z Fold (desplegado)⟂Galaxy Z Fold (desdobrado)⟂Galaxy Z Fold (aufgeklappt)
+Tecno / Infinix (6,8 pouces)⟂Tecno / Infinix (6.8 inch)⟂Tecno / Infinix (6,8 pulgadas)⟂Tecno / Infinix (6,8 polegadas)⟂Tecno / Infinix (6,8 Zoll)
+iPad Pro 11 pouces⟂iPad Pro 11-inch⟂iPad Pro 11 pulgadas⟂iPad Pro 11 polegadas⟂iPad Pro 11 Zoll
+iPad Pro 12,9 pouces⟂iPad Pro 12.9-inch⟂iPad Pro 12,9 pulgadas⟂iPad Pro 12,9 polegadas⟂iPad Pro 12,9 Zoll
+Petit portable⟂Small laptop⟂Portátil pequeño⟂Portátil pequeno⟂Kleiner Laptop
+Portable 15 pouces⟂15-inch laptop⟂Portátil de 15 pulgadas⟂Portátil de 15 polegadas⟂15-Zoll-Laptop
+Écran 2K⟂2K screen⟂Pantalla 2K⟂Ecrã 2K⟂2K-Bildschirm
+Choisir l'appareil⟂Choose the device⟂Elegir el dispositivo⟂Escolher o dispositivo⟂Gerät auswählen
+Appareils⟂Devices⟂Dispositivos⟂Dispositivos⟂Geräte
+Masquer la liste⟂Hide the list⟂Ocultar la lista⟂Ocultar a lista⟂Liste ausblenden
+Rechercher un appareil⟂Search for a device⟂Buscar un dispositivo⟂Procurar um dispositivo⟂Gerät suchen
+Tous⟂All⟂Todos⟂Todos⟂Alle
+Autres⟂Others⟂Otros⟂Outros⟂Andere
+Noir⟂Black⟂Negro⟂Preto⟂Schwarz
+Argent⟂Silver⟂Plata⟂Prateado⟂Silber
+Titane⟂Titanium⟂Titanio⟂Titânio⟂Titan
+Mes cadres…⟂My frames…⟂Mis marcos…⟂As minhas molduras…⟂Meine Rahmen…
+Ajoutez vos propres images de cadre : PNG avec l'écran transparent, nommé comme l'appareil (ex. « iPhone 16.png »).⟂Add your own frame pictures: PNG with a transparent screen, named like the device (e.g. "iPhone 16.png").⟂Añada sus propias imágenes de marco: PNG con la pantalla transparente, con el nombre del dispositivo (p. ej. «iPhone 16.png»).⟂Adicione as suas próprias imagens de moldura: PNG com o ecrã transparente, com o nome do dispositivo (ex. «iPhone 16.png»).⟂Eigene Rahmenbilder hinzufügen: PNG mit transparentem Bildschirm, benannt wie das Gerät (z. B. „iPhone 16.png“).
+Relire le dossier des cadres⟂Read the frames folder again⟂Volver a leer la carpeta de marcos⟂Voltar a ler a pasta de molduras⟂Rahmenordner neu einlesen
+Cadres d'appareils pour le simulateur mobile de Sanaga.\n\nDéposez ici une image PNG (ou WebP) par appareil : l'appareil avec son écran transparent.\nNommez le fichier comme l'appareil dans la liste, par exemple « iPhone 16.png » ou « Galaxy S20 Ultra.png ».\nSanaga trouve l'écran tout seul et y place la page. Utilisez des images que vous avez le droit d'utiliser.\nCliquez ensuite sur « Actualiser » dans la liste des appareils.\n⟂Device frames for Sanaga's mobile simulator.\n\nPut one PNG (or WebP) picture per device here: the device with a transparent screen.\nName the file like the device in the list, for example "iPhone 16.png" or "Galaxy S20 Ultra.png".\nSanaga finds the screen by itself and puts the page there. Use pictures you have the right to use.\nThen click "Refresh" in the device list.\n⟂Marcos de dispositivos para el simulador móvil de Sanaga.\n\nColoque aquí una imagen PNG (o WebP) por dispositivo: el dispositivo con la pantalla transparente.\nNombre el archivo como el dispositivo en la lista, por ejemplo «iPhone 16.png» o «Galaxy S20 Ultra.png».\nSanaga encuentra la pantalla sola y coloca allí la página. Use imágenes que tenga derecho a usar.\nLuego haga clic en «Actualizar» en la lista de dispositivos.\n⟂Molduras de dispositivos para o simulador móvel do Sanaga.\n\nColoque aqui uma imagem PNG (ou WebP) por dispositivo: o dispositivo com o ecrã transparente.\nDê ao ficheiro o nome do dispositivo na lista, por exemplo «iPhone 16.png» ou «Galaxy S20 Ultra.png».\nO Sanaga encontra o ecrã sozinho e coloca lá a página. Use imagens que tenha o direito de usar.\nDepois clique em «Atualizar» na lista de dispositivos.\n⟂Geräterahmen für den Mobil-Simulator von Sanaga.\n\nLegen Sie hier ein PNG- (oder WebP-)Bild pro Gerät ab: das Gerät mit transparentem Bildschirm.\nBenennen Sie die Datei wie das Gerät in der Liste, z. B. „iPhone 16.png“ oder „Galaxy S20 Ultra.png“.\nSanaga findet den Bildschirm selbst und setzt die Seite hinein. Verwenden Sie Bilder, die Sie verwenden dürfen.\nKlicken Sie dann in der Geräteliste auf „Aktualisieren“.\n
+iPhone 5 / SE (1re gén.)⟂iPhone 5 / SE (1st gen.)⟂iPhone 5 / SE (1.ª gen.)⟂iPhone 5 / SE (1.ª ger.)⟂iPhone 5 / SE (1. Gen.)
+iPhone SE (2e et 3e gén.)⟂iPhone SE (2nd and 3rd gen.)⟂iPhone SE (2.ª y 3.ª gen.)⟂iPhone SE (2.ª e 3.ª ger.)⟂iPhone SE (2. und 3. Gen.)
+Moto G (récents)⟂Moto G (recent)⟂Moto G (recientes)⟂Moto G (recentes)⟂Moto G (neuere)
+iPad Mini (6e gén.)⟂iPad Mini (6th gen.)⟂iPad Mini (6.ª gen.)⟂iPad Mini (6.ª ger.)⟂iPad Mini (6. Gen.)
+iPad (9e gén.)⟂iPad (9th gen.)⟂iPad (9.ª gen.)⟂iPad (9.ª ger.)⟂iPad (9. Gen.)
+iPad (10e gén.)⟂iPad (10th gen.)⟂iPad (10.ª gen.)⟂iPad (10.ª ger.)⟂iPad (10. Gen.)
+iPad Air 11 pouces⟂iPad Air 11-inch⟂iPad Air 11 pulgadas⟂iPad Air 11 polegadas⟂iPad Air 11 Zoll
+iPad Air 13 pouces⟂iPad Air 13-inch⟂iPad Air 13 pulgadas⟂iPad Air 13 polegadas⟂iPad Air 13 Zoll
+iPad Pro 13 pouces⟂iPad Pro 13-inch⟂iPad Pro 13 pulgadas⟂iPad Pro 13 polegadas⟂iPad Pro 13 Zoll
+Écran connecté (Nest Hub)⟂Smart display (Nest Hub)⟂Pantalla inteligente (Nest Hub)⟂Ecrã inteligente (Nest Hub)⟂Smart Display (Nest Hub)
+Portable 1366 × 768⟂1366 × 768 laptop⟂Portátil 1366 × 768⟂Portátil 1366 × 768⟂Laptop 1366 × 768
+Portable Windows courant⟂Common Windows laptop⟂Portátil Windows habitual⟂Portátil Windows comum⟂Üblicher Windows-Laptop
+MacBook Air 13 pouces⟂MacBook Air 13-inch⟂MacBook Air 13 pulgadas⟂MacBook Air 13 polegadas⟂MacBook Air 13 Zoll
+MacBook Pro 14 pouces⟂MacBook Pro 14-inch⟂MacBook Pro 14 pulgadas⟂MacBook Pro 14 polegadas⟂MacBook Pro 14 Zoll
+MacBook Pro 16 pouces⟂MacBook Pro 16-inch⟂MacBook Pro 16 pulgadas⟂MacBook Pro 16 polegadas⟂MacBook Pro 16 Zoll
+Portable Full HD⟂Full HD laptop⟂Portátil Full HD⟂Portátil Full HD⟂Full-HD-Laptop
+iMac 24 pouces⟂iMac 24-inch⟂iMac 24 pulgadas⟂iMac 24 polegadas⟂iMac 24 Zoll
+Écran 4K⟂4K screen⟂Pantalla 4K⟂Ecrã 4K⟂4K-Bildschirm
+Apparence : fond et couleur de l'appareil⟂Look: backdrop and device colour⟂Apariencia: fondo y color del dispositivo⟂Aparência: fundo e cor do dispositivo⟂Aussehen: Hintergrund und Gerätefarbe
+Fond⟂Backdrop⟂Fondo⟂Fundo⟂Hintergrund
+Couleur de l'appareil⟂Device colour⟂Color del dispositivo⟂Cor do dispositivo⟂Gerätefarbe
+Montrer l'appareil autour de l'écran⟂Show the device around the screen⟂Mostrar el dispositivo alrededor de la pantalla⟂Mostrar o dispositivo à volta do ecrã⟂Gerät um den Bildschirm zeigen
+Écran tactile (les pages voient un écran tactile)⟂Touch screen (pages see a touch screen)⟂Pantalla táctil (las páginas ven una pantalla táctil)⟂Ecrã tátil (as páginas veem um ecrã tátil)⟂Touchscreen (Seiten sehen einen Touchscreen)
+Adapter l'appareil à la fenêtre⟂Fit the device to the window⟂Ajustar el dispositivo a la ventana⟂Ajustar o dispositivo à janela⟂Gerät an das Fenster anpassen
+Studio sombre⟂Dark studio⟂Estudio oscuro⟂Estúdio escuro⟂Dunkles Studio
+Clair⟂Light⟂Claro⟂Claro⟂Hell
+Bleu nuit⟂Midnight blue⟂Azul noche⟂Azul-noite⟂Nachtblau
+Océan⟂Ocean⟂Océano⟂Oceano⟂Ozean
+Aurore⟂Dawn⟂Aurora⟂Aurora⟂Morgenrot
+Coucher de soleil⟂Sunset⟂Atardecer⟂Pôr do sol⟂Sonnenuntergang
+Forêt⟂Forest⟂Bosque⟂Floresta⟂Wald
+Sable⟂Sand⟂Arena⟂Areia⟂Sand
+Montrer le navigateur de l'appareil (Safari sur Apple, Chrome sur Android et ordinateur)⟂Show the device's browser (Safari on Apple, Chrome on Android and computers)⟂Mostrar el navegador del dispositivo (Safari en Apple, Chrome en Android y ordenador)⟂Mostrar o navegador do dispositivo (Safari na Apple, Chrome no Android e computador)⟂Browser des Geräts zeigen (Safari auf Apple, Chrome auf Android und Computer)
+Page précédente⟂Previous page⟂Página anterior⟂Página anterior⟂Vorherige Seite
+Page suivante⟂Next page⟂Página siguiente⟂Página seguinte⟂Nächste Seite
+Saisir une adresse⟂Type an address⟂Escribir una dirección⟂Escrever um endereço⟂Adresse eingeben
+ffmpeg est nécessaire pour enregistrer des vidéos (paquet « ffmpeg »).⟂ffmpeg is needed to record videos (package "ffmpeg").⟂Se necesita ffmpeg para grabar vídeos (paquete «ffmpeg»).⟂O ffmpeg é necessário para gravar vídeos (pacote «ffmpeg»).⟂Zum Aufnehmen von Videos wird ffmpeg benötigt (Paket „ffmpeg“).
+Enregistrement vidéo commencé.⟂Video recording started.⟂Grabación de vídeo iniciada.⟂Gravação de vídeo iniciada.⟂Videoaufnahme gestartet.
+Vidéo enregistrée : {}⟂Video saved: {}⟂Vídeo guardado: {}⟂Vídeo guardado: {}⟂Video gespeichert: {}
+Vidéo impossible : {}⟂Video failed: {}⟂No se pudo grabar el vídeo: {}⟂Não foi possível gravar o vídeo: {}⟂Video fehlgeschlagen: {}
+Arrêter l'enregistrement vidéo⟂Stop video recording⟂Detener la grabación de vídeo⟂Parar a gravação de vídeo⟂Videoaufnahme beenden
+Enregistrer une vidéo de l'appareil⟂Record a video of the device⟂Grabar un vídeo del dispositivo⟂Gravar um vídeo do dispositivo⟂Video des Geräts aufnehmen
+Finalisation de la vidéo…⟂Finishing the video…⟂Terminando el vídeo…⟂A finalizar o vídeo…⟂Video wird fertiggestellt…
+Wikipédia⟂Wikipedia⟂Wikipedia⟂Wikipédia⟂Wikipedia
+NPR Texte⟂NPR Text⟂NPR Texto⟂NPR Texto⟂NPR Text
+Bienvenue⟂Welcome⟂Bienvenida⟂Boas-vindas⟂Willkommen

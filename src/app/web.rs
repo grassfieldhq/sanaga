@@ -1,0 +1,399 @@
+//! The full web engine: WebKit (the engine behind Safari and GNOME Web), shown
+//! inside Sanaga's window. Each tab with a web page owns one WebKit view.
+
+use super::*;
+use crate::page::{PageSignal, PageView};
+use crate::store;
+use webkit2gtk::{WebViewExt, WebsiteDataManagerExt};
+
+pub(super) enum WebEvent {
+    Load { tab: u64, finished: bool, url: String },
+    Title { tab: u64, title: String },
+    NewTab { tab: u64, url: String },
+    Shortcut(String),
+    /// A message for the person (e.g. a screenshot was saved).
+    Notice(String),
+    /// A link clicked in a source page: show that file's source.
+    ViewSource { tab: u64, url: String },
+    /// Login seen / login form found by the page script.
+    Password { tab: u64, msg: String },
+    DownloadDone { url: String, path: Option<std::path::PathBuf>, ok: bool },
+    /// Privacy report: trackers kept from following the person.
+    Privacy(Vec<(String, usize)>),
+}
+
+/// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
+const SHORTCUT_JS: &str = r#"
+window.addEventListener('keydown', function (e) {
+  var k = (e.key || '').toLowerCase();
+  var ctrl = e.ctrlKey || e.metaKey;
+  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m'].indexOf(k) >= 0)
+    || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
+    || k === 'f5' || k === 'f6' || k === 'f11' || k === 'f12';
+  if (!ours || !window.ipc) return;
+  e.preventDefault();
+  e.stopPropagation();
+  window.ipc.postMessage((ctrl ? 'c' : '') + (e.shiftKey ? 's' : '') + (e.altKey ? 'a' : '') + ':' + k);
+}, true);
+"#;
+
+fn shortcut_name(msg: &str) -> Option<&'static str> {
+    let (mods, key) = msg.split_once(':')?;
+    let c = mods.contains('c');
+    let s = mods.contains('s');
+    let a = mods.contains('a');
+    Some(match (c, s, a, key) {
+        (true, true, _, "n") => "private",
+        (true, true, _, "t") => "reopen",
+        (true, true, _, "b") => "bmbar",
+        (true, true, _, "r") => "reader",
+        (true, true, _, "\\") | (true, true, _, "|") => "overview",
+        (true, true, _, "l") => "sidebar",
+        (true, true, _, "o") => "overview",
+        (true, true, _, "f") => "contacts",
+        (true, true, _, "a") => "tabsearch",
+        (true, true, _, "delete") => "cleardata",
+        (true, false, false, "s") => "savepage",
+        (true, false, true, "i") => "inspector",
+        (true, true, _, "i") => "inspector",
+        (_, _, _, "f12") => "inspector",
+        (true, true, _, "m") => "devices",
+        (true, false, false, "p") => "print",
+        (true, false, false, "u") => "source",
+        (_, _, _, "f11") => "fullscreen",
+        (true, true, _, "d") => "readinglist",
+        (true, true, _, "tab") => "prev",
+        (true, false, _, "t") | (true, false, _, "n") => "new",
+        (true, _, _, "w") => "close",
+        (true, false, _, "tab") => "next",
+        (true, _, _, "l") | (_, _, _, "f6") => "addr",
+        (true, _, _, "r") | (_, _, _, "f5") => "reload",
+        (_, _, true, "arrowleft") => "back",
+        (_, _, true, "arrowright") => "fwd",
+        (_, _, true, "home") => "home",
+        (true, _, _, "d") => "bookmark",
+        (true, _, _, "h") => "history",
+        (true, _, _, "j") => "downloads",
+        (true, _, _, "f") => "find",
+        (true, _, _, "=") | (true, _, _, "+") => "zin",
+        (true, _, _, "-") => "zout",
+        (true, _, _, "0") => "zreset",
+        (true, _, _, "q") => "quit",
+        _ => return None,
+    })
+}
+
+static PAGE_INPUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Note mouse, wheel and keyboard use inside a page: Sanaga then ticks fast
+/// for a moment, and slowly the rest of the time (saves CPU when idle).
+pub(super) fn watch_page_input(w: &PageView) {
+    use gtk::prelude::WidgetExt;
+    w.webview().connect_event(|_, ev| {
+        use gtk::gdk::EventType as E;
+        if matches!(
+            ev.event_type(),
+            E::MotionNotify | E::ButtonPress | E::ButtonRelease | E::Scroll | E::KeyPress | E::KeyRelease | E::TouchBegin | E::TouchUpdate | E::TouchEnd | E::EnterNotify
+        ) {
+            PAGE_INPUT.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        gtk::glib::Propagation::Proceed
+    });
+}
+
+/// Load an address, or HTML made by Sanaga (e.g. a page's source).
+fn load_into(w: &PageView, url: &str) {
+    match url.strip_prefix(super::source::HTML_MARK) {
+        Some(html) => w.webview().load_html(html, None),
+        None => {
+            let _ = w.load_url(url);
+        }
+    }
+}
+
+/// Can WebKit be shown? Only inside Sanaga's GTK window (see shell.rs).
+pub fn web_engine_available() -> bool {
+    crate::shell::active()
+}
+
+impl Sanaga {
+    /// Let WebKit do its work (it runs inside the same loop as the window).
+    pub(super) fn pump_web(&mut self, ctx: &egui::Context) {
+        if !self.web_ok {
+            return;
+        }
+        let n = 0;
+        let mut got_event = false;
+        while let Ok(ev) = self.web_rx.try_recv() {
+            self.on_web_event(ev);
+            got_event = true;
+        }
+        if self.tabs.iter().any(|t| t.web.is_some()) {
+            // WebKit runs inside our loop: tick often while something happens
+            // (page loading, mouse or keys in the page), rarely when idle.
+            let now = ctx.input(|i| i.time);
+            let activity = PAGE_INPUT.swap(false, std::sync::atomic::Ordering::Relaxed);
+            if activity || got_event || self.tabs.iter().any(|t| t.loading || t.audio) {
+                self.web_busy_until = now + 1.5;
+            }
+            // (GTK runs WebKit on its own: these ticks only refresh Sanaga's
+            // own state, e.g. the loading bar and the sound icon)
+            let wait = if self.tabs.iter().any(|t| t.loading) { 100 } else if now < self.web_busy_until { 250 } else { 1000 };
+            if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
+                eprintln!("tick t={now:.2} gtk_events={n} x={activity} web_event={got_event} loading={}", self.tabs.iter().any(|t| t.loading));
+            }
+            ctx.request_repaint_after(std::time::Duration::from_millis(wait));
+        }
+    }
+
+    fn on_web_event(&mut self, ev: WebEvent) {
+        let addr_focused = self.ctx.memory(|m| m.has_focus(egui::Id::new("address-bar")));
+        match ev {
+            WebEvent::Load { tab, finished, url } => {
+                let active_id = self.tabs.get(self.active).map(|t| t.id);
+                let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
+                if !matches!(t.view, View::Web) {
+                    return;
+                }
+                t.loading = !finished;
+                if t.entries[t.idx].url.starts_with("view-source:") && url == "about:blank" {
+                    return; // Sanaga's own source page: the address stays
+                }
+                if !(addr_focused && active_id == Some(tab)) {
+                    t.address = url.clone();
+                }
+                let new_host = host_of(&url) != host_of(&t.entries[t.idx].url);
+                t.entries[t.idx].url = url.clone();
+                if new_host && !finished {
+                    let ti = self.tabs.iter().position(|x| x.id == tab).unwrap_or(0);
+                    self.apply_site_zoom(ti);
+                    return;
+                }
+                let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
+                if finished {
+                    self.pages_loaded += 1;
+                    let private = t.private;
+                    let title = t.entries[t.idx].title.clone();
+                    if !private && !url.starts_with("about:") {
+                        self.store.add_visit(&url, &title);
+                        self.visited.insert(url);
+                    }
+                    self.save_session();
+                }
+            }
+            WebEvent::Title { tab, title } => {
+                let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
+                if title.trim().is_empty() {
+                    return;
+                }
+                t.entries[t.idx].title = title.clone();
+                let url = t.entries[t.idx].url.clone();
+                if !t.private && !url.is_empty() {
+                    // updates the title of the visit just recorded
+                    self.store.add_visit(&url, &title);
+                }
+            }
+            WebEvent::NewTab { tab, url } => {
+                let private = self.tabs.iter().find(|t| t.id == tab).map(|t| t.private).unwrap_or(false);
+                self.open_tab(&url, private);
+            }
+            WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
+            WebEvent::Notice(msg) => self.notice = Some((msg, self.ctx.input(|i| i.time))),
+            WebEvent::ViewSource { tab, url } => {
+                if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
+                    self.navigate(i, format!("view-source:{url}"), None, true);
+                }
+            }
+            WebEvent::Shortcut(msg) => {
+                if let Some(name) = shortcut_name(&msg) {
+                    if name == "quit" {
+                        self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    } else {
+                        self.run_shortcut(name);
+                    }
+                }
+            }
+            WebEvent::Privacy(list) => self.privacy = list,
+            WebEvent::DownloadDone { url, path, ok } => {
+                let path = path.unwrap_or_else(|| net::download_path_for(&url));
+                let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| tr("téléchargement").into());
+                let error = if ok { String::new() } else { tr("le téléchargement n'a pas abouti").into() };
+                self.store.downloads.push(store::Download { name, path, bytes, ok, time: store::now(), error });
+                self.downloads_bar = true;
+            }
+        }
+    }
+
+    /// Create, place, show or hide the WebKit views to match the tabs.
+    pub(super) fn sync_web(&mut self, content: Rect) {
+        if !self.web_ok {
+            return;
+        }
+        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || egui::Popup::is_any_open(&self.ctx);
+        // A menu over a page: the page sits above Sanaga's drawing, so take a
+        // picture of it first and show that picture while the menu is open
+        // (instead of a blank page).
+        let active_id = self.tabs.get(self.active).map(|t| t.id).unwrap_or(0);
+        while let Ok((id, img)) = self.freeze_rx.try_recv() {
+            if overlay && id == active_id && self.freeze_asked.is_some() {
+                self.freeze = Some((id, self.ctx.load_texture("page-freeze", img, egui::TextureOptions::LINEAR)));
+            }
+        }
+        if overlay && !self.overview_open {
+            let tab = &self.tabs[self.active];
+            let has_freeze = self.freeze.as_ref().is_some_and(|f| f.0 == active_id);
+            if !has_freeze && matches!(tab.view, View::Web) && tab.web_shown {
+                let now = self.ctx.input(|i| i.time);
+                match self.freeze_asked {
+                    None => {
+                        if let Some(w) = &tab.web {
+                            let (tx, ctx) = (self.freeze_tx.clone(), self.ctx.clone());
+                            w.webview().snapshot(webkit2gtk::SnapshotRegion::Visible, webkit2gtk::SnapshotOptions::NONE, None::<&webkit2gtk::gio::Cancellable>, move |res| {
+                                if let Some(img) = res.ok().and_then(super::tabs::surface_to_full_image) {
+                                    let _ = tx.send((active_id, img));
+                                }
+                                ctx.request_repaint();
+                            });
+                            self.freeze_asked = Some(now);
+                            overlay = false;
+                        }
+                    }
+                    // keep the page for a moment while its picture is being taken
+                    Some(t) if now - t < 0.25 => {
+                        overlay = false;
+                        self.ctx.request_repaint_after(std::time::Duration::from_millis(16));
+                    }
+                    _ => {}
+                }
+            }
+        } else if !overlay {
+            self.freeze = None;
+            self.freeze_asked = None;
+        }
+        // The page area, as distances from the window's edges: GTK keeps the
+        // page there by itself while the window is resized (same frame).
+        // mobile simulator: the page takes the device's screen size (scaled to
+        // fit), with a mobile identity for phones and tablets
+        if self.device_identity_stale() {
+            self.apply_device_identity();
+        }
+        let dev_scale = self.device_scale(content);
+        // (typing an address in the device: its frame steps aside for the field)
+        self.device_overlay(content, overlay || self.device_url_edit.is_some());
+        let content = match self.device_viewport(content) {
+            Some(r) => r.translate(vec2(0.0, -1.0)),
+            None => content,
+        };
+        let zf = self.ctx.zoom_factor();
+        let win = self.ctx.content_rect();
+        let insets = [
+            (content.left() - win.left()) * zf,
+            (content.top() + 1.0 - win.top()) * zf,
+            (win.right() - content.right()) * zf,
+            (win.bottom() - content.bottom()) * zf,
+        ]
+        .map(|v| v.round().max(0.0) as i32);
+        crate::shell::set_page_area(insets);
+        let active = self.active;
+        for i in 0..self.tabs.len() {
+            let show = i == active && matches!(self.tabs[i].view, View::Web) && !overlay;
+            if self.tabs[i].web.is_none() {
+                // A tab's page only starts when the tab is shown (100 open tabs
+                // don't mean 100 running pages).
+                if i != active {
+                    if self.tabs[i].web_pending.is_some() {
+                        self.tabs[i].loading = false;
+                    }
+                    continue;
+                }
+                let Some(url) = self.tabs[i].web_pending.take() else { continue };
+                let w = self.build_webview(i);
+                let wk = w.webview();
+                crate::shell::attach(&wk);
+                let _ = w.set_visible(show);
+                // Safari's "Prevent cross-site tracking"
+                if let Some(dm) = wk.website_data_manager() {
+                    dm.set_itp_enabled(self.store.settings.itp);
+                }
+                wk.set_is_muted(self.tabs[i].muted);
+                if let Some(st) = WebViewExt::settings(&wk) {
+                    use webkit2gtk::{HardwareAccelerationPolicy as H, SettingsExt};
+                    // test aid: SANAGA_HWACCEL=never|always
+                    match std::env::var("SANAGA_HWACCEL").as_deref() {
+                        Ok("never") => st.set_hardware_acceleration_policy(H::Never),
+                        Ok("always") => st.set_hardware_acceleration_policy(H::Always),
+                        _ => {}
+                    }
+                }
+                // smaller caches: less memory per page
+                if let Some(c) = wk.context() {
+                    webkit2gtk::WebContextExt::set_cache_model(&c, webkit2gtk::CacheModel::DocumentBrowser);
+                }
+                super::plus::watch_permissions(&w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
+                watch_page_input(&w);
+                self.run_pending_clear(&w);
+                load_into(&w, &url);
+                if show {
+                    use gtk::prelude::WidgetExt;
+                    wk.grab_focus();
+                }
+                self.tabs[i].web = Some(w);
+                self.tabs[i].web_shown = show;
+                self.tabs[i].web_zoom = 1.0;
+                continue;
+            }
+            let tab = &mut self.tabs[i];
+            let Some(w) = &tab.web else { continue };
+            if let Some(url) = tab.web_pending.take() {
+                load_into(w, &url);
+            }
+            if show != tab.web_shown {
+                let _ = w.set_visible(show);
+                tab.web_shown = show;
+            }
+            // in the simulator the page is scaled with the drawn device
+            let want = tab.zoom * if i == active { dev_scale } else { 1.0 };
+            if (want - tab.web_zoom).abs() > 0.001 {
+                let _ = w.zoom(want as f64);
+                tab.web_zoom = want;
+            }
+        }
+    }
+
+    fn build_webview(&self, i: usize) -> PageView {
+        let extensions = crate::extensions::init_script(&self.store.extensions_on);
+        let tab = &self.tabs[i];
+        let id = tab.id;
+        let tx = self.web_tx.clone();
+        let repaint = self.ctx.clone();
+        let scripts = [SHORTCUT_JS, super::accounts::PASSWORD_JS, extensions.as_str()];
+        PageView::new(self.web_context.as_ref(), tab.private, &scripts, move |sig| {
+            let ev = match sig {
+                PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
+                PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
+                PageSignal::Title(title) => WebEvent::Title { tab: id, title },
+                PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
+                PageSignal::Message(body) => {
+                    if body.starts_with("pw:") {
+                        WebEvent::Password { tab: id, msg: body }
+                    } else if let Some(u) = body.strip_prefix("vs:") {
+                        WebEvent::ViewSource { tab: id, url: u.to_string() }
+                    } else {
+                        WebEvent::Shortcut(body)
+                    }
+                }
+            };
+            let _ = tx.send(ev);
+            repaint.request_repaint();
+        })
+    }
+
+    /// Find in a WebKit page (uses the page's own search).
+    pub(super) fn web_find(&self, backwards: bool) {
+        if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
+            let q = self.find_query.replace('\\', "\\\\").replace('\'', "\\'");
+            let _ = w.evaluate_script(&format!("window.find('{q}', false, {backwards}, true, false, false, false);"));
+        }
+    }
+}

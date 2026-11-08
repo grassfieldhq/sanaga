@@ -1,0 +1,186 @@
+//! The top of the window: tab strip, toolbar with the address bar, suggestions.
+
+use super::*;
+use crate::icons::{self, Icon};
+use crate::theme::badge_color;
+use eframe::egui::{Align2, Color32, Margin, Response, Sense, TextEdit};
+
+pub(super) fn icon_button_small(ui: &mut Ui, icon: Icon, th: &Theme) -> Response {
+    let (r, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().circle_filled(r.center(), 12.0, th.omnibox_hover);
+    }
+    icons::paint(ui.painter(), r.shrink(7.0), icon, th.text);
+    resp
+}
+
+/// Small round badge with the site's first letter (Sanaga loads no favicons: lighter).
+pub(super) fn site_badge(p: &egui::Painter, c: egui::Pos2, r: f32, url: &str, title: &str) {
+    if url.starts_with("sanaga://") {
+        icons::logo(p, c, r);
+    } else if let Some(tex) = crate::favicon::get(url) {
+        // the site's own icon, on a small rounded square like Safari
+        let rect = egui::Rect::from_center_size(c, egui::vec2(r * 2.0, r * 2.0));
+        let radius = (r * 0.35).min(255.0) as u8;
+        if r >= 10.0 {
+            p.rect_filled(rect.expand(r * 0.18), egui::CornerRadius::same(radius), Color32::WHITE);
+        }
+        let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+        p.add(egui::epaint::RectShape::filled(rect, egui::CornerRadius::same(radius), Color32::WHITE).with_texture(tex.id(), uv));
+    } else {
+        p.circle_filled(c, r, badge_color(&host_of(url)));
+        p.text(c, Align2::CENTER_CENTER, badge_letter(url, title), FontId::new(r * 1.2, bold()), Color32::WHITE);
+    }
+}
+
+pub(super) fn select_all(ctx: &egui::Context, id: egui::Id, len: usize) {
+    if let Some(mut state) = TextEdit::load_state(ctx, id) {
+        let range = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(len));
+        state.cursor.set_char_range(Some(range));
+        state.store(ctx, id);
+    }
+}
+
+impl Sanaga {
+    pub(super) fn address_suggestions(&mut self, ui: &mut Ui, addr: Rect, th: &Theme) {
+        let a = self.active;
+        let focused = ui.memory(|m| m.has_focus(egui::Id::new("address-bar")));
+        // while moving through the list with the arrows, the list stays the one
+        // for what was typed
+        let q = if self.suggest_sel.is_some() { self.suggest_typed.trim().to_string() } else { self.tabs[a].address.trim().to_string() };
+        if !self.suggest_open || q.is_empty() || addr == Rect::NOTHING {
+            self.suggest_items.clear();
+            self.suggest_sel = None;
+            return;
+        }
+        if !focused && !ui.rect_contains_pointer(self.suggest_rect) {
+            self.suggest_open = false;
+            self.suggest_items.clear();
+            self.suggest_sel = None;
+            return;
+        }
+        let ql = q.to_lowercase();
+        let engine = self.store.settings.engine;
+        let mut items: Vec<(String, String, bool)> = Vec::new(); // (url, label, is_search)
+        // calculator answer ("calc:" = copy the result)
+        if let Some(v) = super::plus::calculate(&q) {
+            let r = super::plus::format_number(v);
+            items.push((format!("calc:{r}"), tf("= {}   (cliquer pour copier)", &[&r]), true));
+        }
+        // search shortcut ("w ", "yt ", "m "...)
+        if let Some((u, site)) = super::plus::keyword_search(&q) {
+            let rest = q.split_once(' ').map(|x| x.1).unwrap_or("").trim().to_string();
+            items.push((u, tf("Rechercher « {} » sur {}", &[&rest, &site]), true));
+        }
+        // open tabs: switch to them instead of opening the page again
+        for (i, t) in self.tabs.iter().enumerate() {
+            if i == a || items.len() >= 4 {
+                continue;
+            }
+            let title = t.title();
+            if title.to_lowercase().contains(&ql) || t.url().to_lowercase().contains(&ql) {
+                items.push((format!("tab:{i}"), tf("Passer à l'onglet : {}", &[&title]), false));
+            }
+        }
+        let direct = input_to_url(&q, engine, "");
+        if direct != engine.search_url(&q) && super::plus::keyword_search(&q).is_none() {
+            items.push((direct.clone(), direct, false));
+        }
+        items.push((engine.search_url(&q), tf("{} — Rechercher avec {}", &[&q, &short_engine(engine)]), true));
+        let mut seen: HashSet<String> = HashSet::new();
+        let bm = self.store.bookmarks.iter().map(|b| (&b.url, &b.title));
+        let hist = self.store.history.iter().rev().map(|v| (&v.url, &v.title));
+        for (u, t) in bm.chain(hist) {
+            if items.len() >= 8 {
+                break;
+            }
+            if (u.to_lowercase().contains(&ql) || t.to_lowercase().contains(&ql)) && seen.insert(u.clone()) {
+                items.push((u.clone(), if t.is_empty() { u.clone() } else { t.clone() }, false));
+            }
+        }
+        self.suggest_items = items.clone();
+        if self.suggest_sel.is_some_and(|k| k >= items.len()) {
+            self.suggest_sel = None;
+        }
+        let sel = self.suggest_sel;
+        let mut go: Option<String> = None;
+        let area = egui::Area::new(egui::Id::new("suggestions"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(pos2(addr.left(), addr.bottom() + 4.0))
+            .show(ui.ctx(), |ui| {
+                Frame::new()
+                    .fill(th.page)
+                    .stroke(Stroke::new(1.0, th.border))
+                    .corner_radius(CornerRadius::same(14))
+                    .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(40) })
+                    .inner_margin(Margin::symmetric(0, 6))
+                    .show(ui, |ui| {
+                        ui.set_width(addr.width());
+                        for (k, (url, label, search)) in items.iter().enumerate() {
+                            let (r, resp) = ui.allocate_exact_size(vec2(addr.width(), 34.0), Sense::click());
+                            if sel == Some(k) {
+                                ui.painter().rect_filled(r, 0.0, th.accent.gamma_multiply(0.16));
+                                ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(3.0, r.height())), 0.0, th.accent);
+                            } else if resp.hovered() {
+                                ui.painter().rect_filled(r, 0.0, th.omnibox);
+                            }
+                            let ic = Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(15.0, 15.0));
+                            if *search {
+                                icons::paint(ui.painter(), ic, Icon::Search, th.sub);
+                            } else if url.starts_with("tab:") {
+                                icons::paint(ui.painter(), ic, Icon::Grid, th.accent);
+                            } else {
+                                site_badge(ui.painter(), ic.center(), 7.5, url, label);
+                            }
+                            let clip = Rect::from_min_max(pos2(ic.right() + 12.0, r.top()), pos2(r.right() - 12.0, r.bottom()));
+                            let p = ui.painter().with_clip_rect(clip);
+                            let g = p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
+                            if !*search && label != url && !url.starts_with("tab:") {
+                                p.text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {url}"), FontId::proportional(13.0), th.link);
+                            }
+                            if resp.clicked() {
+                                go = Some(url.clone());
+                            }
+                        }
+                    });
+            });
+        self.suggest_rect = area.response.rect;
+        if let Some(u) = go {
+            self.activate_suggestion(&u);
+        }
+    }
+
+    /// What the address field shows while a suggestion is picked with the arrows.
+    pub(super) fn suggestion_text(&self, k: usize) -> String {
+        let Some((url, _, search)) = self.suggest_items.get(k) else { return self.suggest_typed.clone() };
+        if let Some(i) = url.strip_prefix("tab:").and_then(|n| n.parse::<usize>().ok()) {
+            return self.tabs.get(i).map(|t| t.url().to_string()).unwrap_or_default();
+        }
+        if *search || url.starts_with("calc:") {
+            return self.suggest_typed.clone();
+        }
+        url.clone()
+    }
+
+    /// Open a suggestion (click, or Enter on the one picked with the arrows).
+    pub(super) fn activate_suggestion(&mut self, u: &str) {
+        let a = self.active;
+        let u = u.to_string();
+        {
+            self.suggest_open = false;
+            self.suggest_sel = None;
+            if let Some(i) = u.strip_prefix("tab:").and_then(|n| n.parse::<usize>().ok()) {
+                if i < self.tabs.len() {
+                    self.tabs[a].address = self.tabs[a].url().to_string();
+                    self.current_group = self.tabs[i].group;
+                    self.active = i;
+                }
+            } else if let Some(r) = u.strip_prefix("calc:") {
+                self.ctx.copy_text(r.to_string());
+                self.notice = Some((tf("{} copié", &[&r]), self.ctx.input(|i| i.time)));
+            } else {
+                self.navigate(a, u, None, true);
+            }
+        }
+    }
+}

@@ -1,0 +1,12 @@
+# build output
+/target/
+
+# local test pictures (not part of the project)
+/shots/
+
+# editors / systems
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/

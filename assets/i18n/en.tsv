@@ -1,0 +1,509 @@
+# Sanaga — en (généré depuis translations.txt)
+Mot de passe introuvable dans le trousseau.	Password not found in the keyring.
+Ajoutez d'abord vos coordonnées dans Paramètres › Remplissage automatique.	First add your details in Settings › AutoFill.
+ de « {} »	 for “{}”
+Enregistrer le mot de passe{} pour {} dans votre trousseau ?	Save the password{} for {} in your keyring?
+Pas maintenant	Not now
+Enregistrer	Save
+Mot de passe enregistré dans le trousseau.	Password saved in the keyring.
+Le trousseau du système n'est pas disponible.	The system keyring is not available.
+Mot de passe enregistré pour {}	Saved password for {}
+Remplir	Fill in
+Remplir : {}	Fill in: {}
+Mots de passe	Passwords
+Les mots de passe sont gardés dans le trousseau de votre système, pas dans les fichiers de Sanaga. Sanaga propose de les enregistrer quand vous vous connectez à un site, et de les remplir la fois suivante.	Passwords are kept in your system's keyring, not in Sanaga's files. Sanaga offers to save them when you sign in to a site, and to fill them in next time.
+Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.	The system keyring (Secret Service) was not found: passwords cannot be saved.
+Rechercher un site	Search for a site
+Aucun mot de passe enregistré pour l'instant.	No saved passwords yet.
+Supprimer	Delete
+Copier	Copy
+Afficher	Show
+Mot de passe copié.	Password copied.
+Extensions	Extensions
+Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent aux nouveaux onglets.	Extensions add features to web pages. Changes apply to new tabs.
+Tous les sites	All sites
+Activée	On
+Désactivée	Off
+Vos propres extensions : déposez des fichiers .js ou .css dans le dossier des extensions.	Your own extensions: put .js or .css files in the extensions folder.
+Ouvrir le dossier des extensions	Open the extensions folder
+Chaque profil a ses propres favoris, historique, mots de passe, cookies et onglets — par exemple « Personnel » et « Travail ». Un profil s'ouvre dans sa propre fenêtre.	Each profile has its own favourites, history, passwords, cookies and tabs — for example “Personal” and “Work”. A profile opens in its own window.
+Profil de cette fenêtre	This window's profile
+Ouvrir dans une nouvelle fenêtre	Open in a new window
+Nom du nouveau profil (ex. Travail)	New profile name (e.g. Work)
+Créer le profil	Create profile
+= {}   (cliquer pour copier)	= {}   (click to copy)
+Rechercher « {} » sur {}	Search “{}” on {}
+Passer à l'onglet : {}	Switch to tab: {}
+{} — Rechercher avec {}	{} — Search with {}
+{} copié	{} copied
+Copier le lien	Copy link
+Envoyer par e-mail	Send by email
+Imprimer…	Print…
+Retirer de la liste de lecture	Remove from Reading List
+Ajouter à la liste de lecture	Add to Reading List
+Retirer des favoris	Remove from favourites
+Ajouter aux favoris	Add to favourites
+Créer une application web	Create a web app
+Masquer le code QR	Hide QR code
+Code QR de la page	QR code for this page
+Scannez-le avec votre téléphone	Scan it with your phone
+« {} » a été ajoutée au menu des applications.	“{}” was added to the applications menu.
+Masquer la barre des favoris (Ctrl+Maj+B)	Hide favourites bar (Ctrl+Shift+B)
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B	Hide favourites bar (Ctrl+Shift+B)\nTo show it again: menu ⋮ or Ctrl+Shift+B
+Ajoutez des favoris avec l'étoile de la barre d'adresse.	Add favourites with the star in the address bar.
+Ouvrir dans un nouvel onglet	Open in new tab
+Masquer la barre des favoris	Hide favourites bar
+Nouvel onglet	New tab
+Ctrl+T	Ctrl+T
+Nouvel onglet privé	New private tab
+Ctrl+Maj+N	Ctrl+Shift+N
+Nouveau groupe d'onglets	New tab group
+Aperçu des onglets	Tab overview
+Ctrl+Maj+O	Ctrl+Shift+O
+Rechercher dans les onglets	Search tabs
+Ctrl+Maj+A	Ctrl+Shift+A
+Historique	History
+Ctrl+H	Ctrl+H
+Téléchargements	Downloads
+Ctrl+J	Ctrl+J
+Quitter le Lecteur	Exit Reader
+Afficher dans le Lecteur	Show in Reader
+Ctrl+Maj+R	Ctrl+Shift+R
+Ctrl+Maj+D	Ctrl+Shift+D
+Traduire la page en français	Translate page into English
+Favoris	Favourites
+Afficher la barre des favoris	Show favourites bar
+Ctrl+Maj+B	Ctrl+Shift+B
+Zoom	Zoom
+Rechercher dans la page	Find in page
+Ctrl+F	Ctrl+F
+Ctrl+P	Ctrl+P
+Enregistrer la page	Save page
+Ctrl+S	Ctrl+S
+Plein écran	Full screen
+F11	F11
+Afficher le code source	View page source
+Ctrl+U	Ctrl+U
+Inspecteur web	Web Inspector
+Ctrl+Alt+I	Ctrl+Alt+I
+Masquer les images	Hide images
+Afficher les images	Show images
+Thème clair	Light theme
+Thème sombre	Dark theme
+Remplir avec mes coordonnées	Fill in my details
+Ctrl+Maj+F	Ctrl+Shift+F
+Paramètres des sites	Site settings
+Effacer les données de navigation…	Clear browsing data…
+Ctrl+Maj+Suppr	Ctrl+Shift+Del
+Paramètres	Settings
+À propos de Sanaga	About Sanaga
+Quitter	Quit
+Ctrl+Q	Ctrl+Q
+Groupe {}	Group {}
+Précédent (Maj+Entrée)	Previous (Shift+Enter)
+Suivant (Entrée)	Next (Enter)
+Fermer (Échap)	Close (Esc)
+Échec : {}	Failed: {}
+Tout afficher	Show all
+Effacer les données	Clear data
+Onglets	Tabs
+Wikipédia, l'encyclopédie libre	Wikipedia, the free encyclopedia
+Sanaga ne sait pas ouvrir ce type d'adresse : {}	Sanaga can't open this kind of address: {}
+Chargement interrompu.	Loading stopped.
+Rechercher dans l'historique	Search history
+Effacer l'historique	Clear history
+Les pages que vous visitez apparaîtront ici.	Pages you visit will appear here.
+… affinez la recherche pour voir plus de résultats	… refine your search to see more results
+Importer :	Import:
+un fichier HTML (Firefox, Safari…)	an HTML file (Firefox, Safari…)
+Cliquez sur l'étoile de la barre d'adresse pour ajouter une page.	Click the star in the address bar to add a page.
+Importer des favoris (fichier HTML)	Import favourites (HTML file)
+Favoris importés : {}	Favourites imported: {}
+Le sélecteur de fichiers n'est pas disponible ici.	The file picker isn't available here.
+Importer	Import
+Annuler	Cancel
+Favoris (HTML)	Favourites (HTML)
+Les fichiers que vous téléchargez apparaîtront ici. Ils sont enregistrés dans votre dossier Téléchargements.	Files you download will appear here. They are saved in your Downloads folder.
+Afficher dans le dossier	Show in folder
+Moteur d'affichage des pages	Page rendering engine
+WebKit — sites complets avec JavaScript, vidéos et applications (recommandé)	WebKit — full sites with JavaScript, videos and apps (recommended)
+Sanaga Léger — pages simplifiées, très rapide et très économe en mémoire	Sanaga Light — simplified pages, very fast and very light on memory
+Le changement s'applique aux prochaines pages ouvertes.	The change applies to the next pages you open.
+WebKit n'est pas disponible ici : Sanaga utilise le moteur léger.	WebKit isn't available here: Sanaga uses the light engine.
+Moteur de recherche	Search engine
+Moteur utilisé dans la barre d'adresse	Engine used in the address bar
+La version légère de DuckDuckGo fonctionne le mieux avec Sanaga.	DuckDuckGo's light version works best with Sanaga.
+Démarrage	Startup
+Page d'accueil	Home page
+Rouvrir les onglets de la dernière session	Reopen tabs from last session
+Afficher la barre de favoris	Show favourites bar
+Zoom par défaut	Default zoom
+Économie de données et de mémoire	Data and memory saving
+Charger les images	Load images
+Désactivées, les images s'affichent comme un bouton : cliquez pour charger seulement celles qui vous intéressent.	When off, images appear as a button: click to load only the ones you want.
+Économiseur de mémoire	Memory Saver
+Un onglet ne charge sa page que quand vous l'ouvrez. Ensuite, les onglets que vous n'avez pas regardés depuis un moment sont mis en veille : leur page est fermée pour libérer la mémoire et se recharge quand vous y revenez. Les onglets qui jouent du son ne sont jamais mis en veille.	A tab only loads its page when you open it. After that, tabs you haven't looked at for a while go to sleep: their page is closed to free memory and reloads when you come back. Tabs playing sound never sleep.
+Désactivé	Off
+Modéré — veille après 1 heure, 12 pages actives au plus	Moderate — sleep after 1 hour, at most 12 running pages
+Équilibré — veille après 20 minutes, 6 pages actives au plus (recommandé)	Balanced — sleep after 20 minutes, at most 6 running pages (recommended)
+Maximal — veille après 5 minutes, 3 pages actives au plus	Maximum — sleep after 5 minutes, at most 3 running pages
+Mots de passe et remplissage automatique	Passwords and AutoFill
+Proposer d'enregistrer et de remplir les mots de passe	Offer to save and fill in passwords
+Gérer les mots de passe enregistrés	Manage saved passwords
+Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Your details, to fill in forms (menu ⋮ › Fill in my details, or Ctrl+Shift+F):
+Téléphone	Phone
+Adresse	Address
+Synchronisation	Sync
+Choisissez un dossier partagé entre vos ordinateurs (Syncthing, Nextcloud, Dropbox, clé USB…). Sanaga y garde vos favoris, votre liste de lecture et vos onglets ouverts, et montre sur la page d'accueil les onglets de vos autres appareils.	Choose a folder shared between your computers (Syncthing, Nextcloud, Dropbox, USB stick…). Sanaga keeps your favourites, reading list and open tabs there, and shows your other devices' tabs on the start page.
+Dossier	Folder
+Synchroniser maintenant	Sync now
+Dernière synchronisation {} · autres appareils : {} · cet ordinateur : {}	Last synced {} · other devices: {} · this computer: {}
+Profil de cette fenêtre : {}	This window's profile: {}
+Gérer les profils	Manage profiles
+Gérer les extensions (bloqueur de publicités, mode sombre…)	Manage extensions (ad blocker, dark mode…)
+Confidentialité	Privacy
+Empêcher le suivi intersites	Prevent cross-site tracking
+Les traceurs publicitaires ne peuvent plus vous suivre d'un site à l'autre (comme dans Safari). Le Rapport de confidentialité de la page d'accueil montre ceux qui ont été tenus à l'écart. S'applique aux nouveaux onglets.	Ad trackers can no longer follow you from site to site (as in Safari). The Privacy Report on the start page shows the ones kept away. Applies to new tabs.
+Avec le moteur Sanaga Léger, aucun script n'est exécuté : pas de publicités, pas de traceurs.	With the Sanaga Light engine, no scripts run: no ads, no trackers.
+Effacer l'historique de navigation	Clear browsing history
+Mémoire utilisée	Memory used
+Onglets ouverts	Open tabs
+Pages gardées en mémoire	Pages kept in memory
+Images en mémoire	Images in memory
+Pages chargées depuis le démarrage	Pages loaded since start
+Données téléchargées	Data downloaded
+Version {} · navigateur léger	Version {} · light browser
+Sanaga affiche les sites avec WebKit, un moteur web mature (celui de Safari et de GNOME Web). Pour économiser davantage, le moteur Sanaga Léger (dans les Paramètres) affiche l'essentiel des pages sans JavaScript, avec très peu de mémoire. La mémoire indiquée comprend les processus du moteur.	Sanaga shows sites with WebKit, a mature web engine (the one in Safari and GNOME Web). To save even more, the Sanaga Light engine (in Settings) shows the essentials of pages without JavaScript, using very little memory. The memory shown includes the engine's processes.
+Revoir la page de bienvenue	See the welcome page again
+Page non chargée	Page not loaded
+Impossible d'accéder à ce site	This site can't be reached
+Cliquez sur Actualiser pour ouvrir cette page.	Click Reload to open this page.
+Actualiser	Reload
+votre caméra	your camera
+votre micro	your microphone
+votre caméra et votre micro	your camera and microphone
+votre position	your location
+vous envoyer des notifications	send you notifications
+un accès	access
+{} souhaite accéder à {}.	{} wants to use {}.
+Bloquer	Block
+Autoriser cette fois	Allow this time
+Toujours autoriser	Always allow
+Enregistrer la page fonctionne avec le moteur WebKit.	Saving pages works with the WebKit engine.
+Page enregistrée dans {}	Page saved in {}
+Données de navigation effacées.	Browsing data cleared.
+La dernière heure	The last hour
+Les dernières 24 heures	The last 24 hours
+Les 7 derniers jours	The last 7 days
+Les 4 dernières semaines	The last 4 weeks
+Depuis toujours	All time
+Effacer les données de navigation	Clear browsing data
+Période	Time range
+Historique de navigation et téléchargements	Browsing and download history
+Cookies et données des sites (vous serez déconnecté de la plupart des sites)	Cookies and site data (you'll be signed out of most sites)
+Images et fichiers en cache	Cached images and files
+Les mots de passe, favoris et la liste de lecture ne sont pas touchés.	Passwords, favourites and the reading list are not affected.
+Quand un site demande votre caméra, votre micro, votre position ou des notifications, votre choix apparaît ici.	When a site asks for your camera, microphone, location or notifications, your choice appears here.
+Oublier	Forget
+Zoom par site	Zoom per site
+Le zoom choisi sur un site (Ctrl + / Ctrl -) est retenu et apparaît ici.	The zoom chosen on a site (Ctrl + / Ctrl -) is remembered and appears here.
+Réinitialiser	Reset
+Vue allégée : seul le contenu principal de la page est affiché.	Light view: only the page's main content is shown.
+Afficher toute la page	Show the whole page
+Cette page n'a pas de contenu lisible sans JavaScript.	This page has no readable content without JavaScript.
+Lecteur	Reader
+Revenir à la page normale (Ctrl+Maj+R)	Back to the normal page (Ctrl+Shift+R)
+Sépia	Sepia
+Thème {}	{} theme
+Texte plus grand	Larger text
+Texte plus petit	Smaller text
+Ouvrir dans un onglet privé	Open in private tab
+Copier l'adresse du lien	Copy link address
+Image	Image
+Image : {}	Image: {}
+Cliquer pour charger cette image	Click to load this image
+WebKit, sites complets	WebKit, full sites
+Sanaga Léger, pages simplifiées	Sanaga Light, simplified pages
+{} de mémoire · pages actives : {} sur {} onglets	{} of memory · running pages: {} of {} tabs
+Moteur d'affichage : {}.	Rendering engine: {}.
+Pages chargées depuis le démarrage : {}	Pages loaded since start: {}
+Liste de lecture	Reading List
+Consultés fréquemment	Frequently visited
+Les sites que vous visitez souvent apparaîtront ici.	Sites you visit often will appear here.
+Onglets sur vos autres appareils	Tabs on your other devices
+Rapport de confidentialité	Privacy Report
+La protection contre le suivi intersites est désactivée.	Cross-site tracking protection is off.
+Activez-la dans les Paramètres.	Turn it on in Settings.
+Sanaga empêche les traceurs de vous suivre	Sanaga stops trackers from following you
+d'un site à l'autre. Aucun repéré pour l'instant.	from site to site. None spotted so far.
+Traceurs empêchés de vous profiler : {}	Trackers prevented from profiling you: {}
+Le plus présent : {} (sites : {})	Most seen: {} (sites: {})
+Rapport de sobriété	Sobriety Report
+Terminer	Done
+Personnaliser la page d'accueil	Customise start page
+Barre des favoris	Favourites bar
+Navigation privée	Private browsing
+Sanaga ne garde ni l'historique, ni les cookies, ni les données de cet onglet : tout est effacé dès que vous le fermez. Les favoris et les téléchargements sont conservés.	Sanaga keeps neither the history, the cookies nor the data of this tab: everything is erased as soon as you close it. Favourites and downloads are kept.
+Désépingler l'onglet	Unpin tab
+Épingler l'onglet	Pin tab
+Rétablir le son	Unmute
+Couper le son de l'onglet	Mute tab
+Déplacer vers le groupe	Move to group
+Nouveau groupe…	New group…
+Fermer l'onglet	Close tab
+Fermer les autres onglets	Close other tabs
+Fermer les onglets à droite	Close tabs to the right
+  {} onglet{}	  {} tab{}
+En veille	Sleeping
+Groupes d'onglets (barre latérale)	Tab groups (sidebar)
+Couper le son	Mute
+Fermer l'onglet (Ctrl+W)	Close tab (Ctrl+W)
+Fermer	Close
+Réduire	Minimise
+Agrandir	Zoom
+Barre latérale	Sidebar
+Page précédente (Alt+←)	Back (Alt+←)
+Page suivante (Alt+→)	Forward (Alt+→)
+Profil de cette fenêtre — cliquer pour gérer les profils	This window's profile — click to manage profiles
+Menu de Sanaga	Sanaga menu
+Aperçu des onglets (Ctrl+Maj+O)	Tab overview (Ctrl+Shift+O)
+Nouvel onglet (Ctrl+T)	New tab (Ctrl+T)
+Partager	Share
+Téléchargements (Ctrl+J)	Downloads (Ctrl+J)
+Mémoire utilisée par Sanaga et son moteur, en ce moment	Memory used by Sanaga and its engine right now
+Retirer des favoris (Ctrl+D)	Remove from favourites (Ctrl+D)
+Ajouter aux favoris (Ctrl+D)	Add to favourites (Ctrl+D)
+Arrêter (Échap)	Stop (Esc)
+Actualiser (Ctrl+R)	Reload (Ctrl+R)
+Quitter le Lecteur (Ctrl+Maj+R)	Exit Reader (Ctrl+Shift+R)
+Afficher dans le Lecteur : la page seule, facile à lire (Ctrl+Maj+R)	Show in Reader: just the page, easy to read (Ctrl+Shift+R)
+Réinitialiser le zoom	Reset zoom
+Rechercher ou saisir le nom d'un site	Search or enter website name
+Rechercher avec {} ou saisir une adresse	Search with {} or enter an address
+LISTE DE LECTURE	READING LIST
+Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).	Keep a page for later: menu ⋮ › Add to Reading List (Ctrl+Shift+D).
+GROUPES D'ONGLETS	TAB GROUPS
+Renommer avec le nom saisi ci-dessous	Rename with the name typed below
+Fermer le groupe et ses onglets	Close the group and its tabs
+Nom du nouveau groupe	New group name
+FAVORIS	FAVOURITES
+HISTORIQUE RÉCENT	RECENT HISTORY
+Aucune page visitée	No pages visited
+Tout l'historique	All history
+le téléchargement n'a pas abouti	the download didn't complete
+Le moteur WebKit n'a pas pu démarrer : {}	The WebKit engine couldn't start: {}
+Bloqueur de publicités	Ad blocker
+Masque les emplacements publicitaires les plus courants.	Hides the most common ad slots.
+Pas de lecture automatique	No autoplay
+Empêche les vidéos et les sons de démarrer tout seuls.	Stops videos and sounds from starting on their own.
+Mode sombre pour tous les sites	Dark mode for every site
+Affiche les pages claires en sombre, plus reposant le soir.	Shows light pages in dark colours, easier on the eyes at night.
+Fichier {}	File {}
+Fichier introuvable : {}	File not found: {}
+Adresse introuvable (DNS). Vérifiez l'orthographe ou votre connexion.	Address not found (DNS). Check the spelling or your connection.
+Le site met trop de temps à répondre.	The site is taking too long to respond.
+Le site a refusé la connexion.	The site refused the connection.
+Connexion sécurisée impossible : {}	Secure connection failed: {}
+DuckDuckGo (version légère)	DuckDuckGo (light version)
+à l'instant	just now
+il y a {} min	{} min ago
+il y a {} h	{} h ago
+hier	yesterday
+il y a {} jours	{} days ago
+il y a {} mois	{} months ago
+Aujourd'hui	Today
+Hier	Yesterday
+Cette semaine	This week
+Ce mois-ci	This month
+Plus ancien	Older
+Ignorer	Ignore
+Profils	Profiles
+Personnel	Personal
+Toute l'interface de Sanaga change aussitôt ; les sites sont aussi demandés dans cette langue (pour les nouveaux onglets).	Sanaga's whole interface changes right away; sites are also requested in this language (for new tabs).
+Apparence	Appearance
+Nom	Name
+E-mail	Email
+Traduction	Translation
+Autorisations	Permissions
+Nuit	Night
+Blanc	White
+Rapports	Reports
+Dupliquer	Duplicate
+{} Go	{} GB
+{} Mo	{} MB
+{} Ko	{} KB
+{} o	{} B
+Import depuis {} en cours…	Importing from {}…
+Import des mots de passe en cours…	Importing passwords…
+Importé depuis {} : {} favoris, {} pages d'historique, {} mots de passe.	Imported from {}: {} favourites, {} history pages, {} passwords.
+{} mots de passe n'ont pas pu aller dans le trousseau.	{} passwords could not be put in the keyring.
+Importer depuis un autre navigateur	Import from another browser
+Reprenez vos favoris, votre historique et vos mots de passe. Rien n'est modifié dans l'autre navigateur ; les mots de passe vont dans le trousseau de votre système.	Bring over your favourites, history and passwords. Nothing is changed in the other browser; passwords go into your system's keyring.
+Aucun autre navigateur trouvé sur cet ordinateur.	No other browser found on this computer.
+Favoris, historique et mots de passe	Favourites, history and passwords
+Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis importez le fichier ci-dessous)	Favourites and history (passwords: export them as CSV from Firefox, then import the file below)
+Depuis un fichier	From a file
+Mots de passe (fichier CSV)…	Passwords (CSV file)…
+Favoris (fichier HTML)…	Favourites (HTML file)…
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Settings › Passwords › Export. Firefox: about:logins › ⋯ › Export. Remember to delete the exported file after importing: it contains your passwords in plain text.
+Importer des mots de passe (CSV)	Import passwords (CSV)
+Mots de passe (CSV)	Passwords (CSV)
+Importer depuis un autre navigateur…	Import from another browser…
+Importer depuis un autre navigateur (Chrome, Firefox…)	Import from another browser (Chrome, Firefox…)
+Favoris : {}	Favourites: {}
+Historique : {}	History: {}
+Mots de passe illisibles : {}	Unreadable passwords: {}
+Mots de passe : {}	Passwords: {}
+Firefox : {}	Firefox: {}
+autorisé	allowed
+bloqué	blocked
+téléchargement	download
+La page n'a pas pu être lue : {}	The page couldn't be read: {}
+Dossier de synchronisation introuvable.	Sync folder not found.
+Impossible d'écrire dans le dossier de synchronisation.	Can't write to the sync folder.
+{} de mémoire	{} of memory
+Pages actives : {} sur {} onglets	Running pages: {} of {} tabs
+depuis {}	from {}
+Taille d'écran	Screen size
+Tourner l'écran	Rotate screen
+Astuce : l'inspecteur web (Ctrl+Maj+I) s'utilise avec ce mode.	Tip: the web inspector (Ctrl+Shift+I) works with this mode.
+Quitter le mode taille d'écran (Ctrl+Maj+M)	Leave screen size mode (Ctrl+Shift+M)
+{} × {} (réduit à {} × {} : fenêtre trop petite)	{} × {} (shrunk to {} × {}: window too small)
+Ctrl+Maj+I	Ctrl+Shift+I
+Taille d'écran (téléphone, tablette…)	Screen size (phone, tablet…)
+Ctrl+Maj+M	Ctrl+Shift+M
+Personnaliser la barre d'outils…	Customize toolbar…
+Source de {}	Source of {}
+Boutons de la barre d'outils (aussi : clic droit sur la barre d'outils)	Toolbar buttons (also: right-click the toolbar)
+Retour à la ligne	Line wrap
+{} lignes · {}	{} lines · {}
+Code source de	Source of
+Onglets sans groupe	Ungrouped tabs
+Nouvel onglet à droite	New tab to the right
+Ajouter l'onglet à un nouveau groupe	Add tab to new group
+Ajouter l'onglet au groupe	Add tab to group
+Nouveau groupe	New group
+Retirer du groupe	Remove from group
+Désépingler	Unpin
+Épingler	Pin
+Réactiver le son du site	Unmute site
+Couper le son du site	Mute site
+Rouvrir l'onglet fermé (Ctrl+Maj+T)	Reopen closed tab (Ctrl+Shift+T)
+Nommer ce groupe	Name this group
+Nouvel onglet dans le groupe	New tab in group
+Dissocier	Ungroup
+Fermer le groupe	Close group
+Précédent	Back
+Suivant	Forward
+Actualiser, à côté de Suivant (comme Chrome)	Reload, next to Forward (like Chrome)
+Accueil	Home
+Étoile des favoris, dans la barre d'adresse	Bookmark star, in the address bar
+Lecteur, dans la barre d'adresse	Reader, in the address bar
+Actualiser, dans la barre d'adresse	Reload, in the address bar
+Imprimer	Print
+Rétablir les boutons d'origine	Restore default buttons
+Groupe replié ({} onglets) — cliquer pour l'ouvrir	Collapsed group ({} tabs) — click to open
+Cliquer pour replier le groupe ; clic droit pour le gérer	Click to collapse the group; right-click to manage it
+Boutons de la barre d'outils	Toolbar buttons
+Imprimer… (Ctrl+P)	Print… (Ctrl+P)
+Taille libre	Custom size
+Ordinateur portable	Laptop
+Écran Full HD	Full HD screen
+Gris	Grey
+Bleu	Blue
+Rouge	Red
+Jaune	Yellow
+Vert	Green
+Rose	Pink
+Violet	Purple
+Cyan	Cyan
+Orange	Orange
+Simulateur mobile	Mobile simulator
+Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	See and test a site as on a phone or tablet: 35+ devices, frame, rotation, zoom, mobile version of sites, touch screen and screenshots. Phone button in the toolbar or Ctrl+Shift+M.
+Intégrée à Sanaga	Built into Sanaga
+Téléphones iPhone	iPhone phones
+Téléphones Android	Android phones
+Tablettes	Tablets
+Ordinateurs	Computers
+Tourner l'appareil (portrait / paysage)	Rotate the device (portrait / landscape)
+Ajuster	Fit
+Cadre	Frame
+Dessiner l'appareil autour de l'écran	Draw the device around the screen
+Tactile	Touch
+Les pages voient un écran tactile	Pages see a touch screen
+Capture d'écran	Screenshot
+Capture avec l'appareil	Capture with the device
+Capture de l'écran seul	Capture the screen only
+Capture de la page entière	Capture the whole page
+Quitter le simulateur (Ctrl+Maj+M)	Leave the simulator (Ctrl+Shift+M)
+Capture enregistrée : {}	Screenshot saved: {}
+Capture impossible : {}	Screenshot failed: {}
+Capture impossible.	Screenshot failed.
+Simulateur mobile (Ctrl+Maj+M)	Mobile simulator (Ctrl+Shift+M)
+Galaxy Z Fold (plié)	Galaxy Z Fold (folded)
+Galaxy Z Fold (déplié)	Galaxy Z Fold (unfolded)
+Tecno / Infinix (6,8 pouces)	Tecno / Infinix (6.8 inch)
+iPad Pro 11 pouces	iPad Pro 11-inch
+iPad Pro 12,9 pouces	iPad Pro 12.9-inch
+Petit portable	Small laptop
+Portable 15 pouces	15-inch laptop
+Écran 2K	2K screen
+Choisir l'appareil	Choose the device
+Appareils	Devices
+Masquer la liste	Hide the list
+Rechercher un appareil	Search for a device
+Tous	All
+Autres	Others
+Noir	Black
+Argent	Silver
+Titane	Titanium
+Mes cadres…	My frames…
+Ajoutez vos propres images de cadre : PNG avec l'écran transparent, nommé comme l'appareil (ex. « iPhone 16.png »).	Add your own frame pictures: PNG with a transparent screen, named like the device (e.g. "iPhone 16.png").
+Relire le dossier des cadres	Read the frames folder again
+Cadres d'appareils pour le simulateur mobile de Sanaga.\n\nDéposez ici une image PNG (ou WebP) par appareil : l'appareil avec son écran transparent.\nNommez le fichier comme l'appareil dans la liste, par exemple « iPhone 16.png » ou « Galaxy S20 Ultra.png ».\nSanaga trouve l'écran tout seul et y place la page. Utilisez des images que vous avez le droit d'utiliser.\nCliquez ensuite sur « Actualiser » dans la liste des appareils.\n	Device frames for Sanaga's mobile simulator.\n\nPut one PNG (or WebP) picture per device here: the device with a transparent screen.\nName the file like the device in the list, for example "iPhone 16.png" or "Galaxy S20 Ultra.png".\nSanaga finds the screen by itself and puts the page there. Use pictures you have the right to use.\nThen click "Refresh" in the device list.\n
+iPhone 5 / SE (1re gén.)	iPhone 5 / SE (1st gen.)
+iPhone SE (2e et 3e gén.)	iPhone SE (2nd and 3rd gen.)
+Moto G (récents)	Moto G (recent)
+iPad Mini (6e gén.)	iPad Mini (6th gen.)
+iPad (9e gén.)	iPad (9th gen.)
+iPad (10e gén.)	iPad (10th gen.)
+iPad Air 11 pouces	iPad Air 11-inch
+iPad Air 13 pouces	iPad Air 13-inch
+iPad Pro 13 pouces	iPad Pro 13-inch
+Écran connecté (Nest Hub)	Smart display (Nest Hub)
+Portable 1366 × 768	1366 × 768 laptop
+Portable Windows courant	Common Windows laptop
+MacBook Air 13 pouces	MacBook Air 13-inch
+MacBook Pro 14 pouces	MacBook Pro 14-inch
+MacBook Pro 16 pouces	MacBook Pro 16-inch
+Portable Full HD	Full HD laptop
+iMac 24 pouces	iMac 24-inch
+Écran 4K	4K screen
+Apparence : fond et couleur de l'appareil	Look: backdrop and device colour
+Fond	Backdrop
+Couleur de l'appareil	Device colour
+Montrer l'appareil autour de l'écran	Show the device around the screen
+Écran tactile (les pages voient un écran tactile)	Touch screen (pages see a touch screen)
+Adapter l'appareil à la fenêtre	Fit the device to the window
+Studio sombre	Dark studio
+Clair	Light
+Bleu nuit	Midnight blue
+Océan	Ocean
+Aurore	Dawn
+Coucher de soleil	Sunset
+Forêt	Forest
+Sable	Sand
+Montrer le navigateur de l'appareil (Safari sur Apple, Chrome sur Android et ordinateur)	Show the device's browser (Safari on Apple, Chrome on Android and computers)
+Page précédente	Previous page
+Page suivante	Next page
+Saisir une adresse	Type an address
+ffmpeg est nécessaire pour enregistrer des vidéos (paquet « ffmpeg »).	ffmpeg is needed to record videos (package "ffmpeg").
+Enregistrement vidéo commencé.	Video recording started.
+Vidéo enregistrée : {}	Video saved: {}
+Vidéo impossible : {}	Video failed: {}
+Arrêter l'enregistrement vidéo	Stop video recording
+Enregistrer une vidéo de l'appareil	Record a video of the device
+Finalisation de la vidéo…	Finishing the video…
+Wikipédia	Wikipedia
+NPR Texte	NPR Text
+Bienvenue	Welcome
