@@ -587,7 +587,7 @@ impl PageView {
             if std::env::var_os("SANAGA_TEST_POPUPS").is_some() {
                 st.set_javascript_can_open_windows_automatically(true);
             }
-            st.set_javascript_can_access_clipboard(true);
+            // (clipboard: WebKit's default, a page reads it only on a user gesture)
             st.set_enable_page_cache(true);
             st.set_enable_developer_extras(true);
             // Sanaga handles the two-finger swipe itself (shell.rs)
