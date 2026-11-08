@@ -186,6 +186,11 @@ engine bridge and a few system services.
 - Window moving, maximising and the title bar integration have extra support for
   Hyprland; other desktops use the standard GTK behaviour.
 
+## Audit
+
+What people dislike in Chrome, Firefox and Safari, checked against Sanaga:
+[docs/AUDIT.md](docs/AUDIT.md).
+
 ## Roadmap
 
 What is left before Sanaga is a production-ready daily browser, in order:

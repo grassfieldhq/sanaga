@@ -105,6 +105,9 @@ pub struct Settings {
     pub ai: String,
     /// The model used ("" = the provider's default).
     pub ai_model: String,
+    /// Let sites ask to send notifications (off: their requests are refused
+    /// quietly, as Firefox's "block new requests").
+    pub notif_prompts: bool,
 }
 
 /// Buttons the toolbar can show: key, shown by default.
@@ -165,6 +168,7 @@ impl Default for Settings {
             bar_pos: 0,
             ai: String::new(),
             ai_model: String::new(),
+            notif_prompts: false,
         }
     }
 }
@@ -222,7 +226,7 @@ impl Store {
             dir: None,
             profile: String::new(),
             logins: Vec::new(),
-            extensions_on: vec!["bloqueur-de-publicites".into()],
+            extensions_on: vec!["bloqueur-de-publicites".into(), "sans-bannieres-cookies".into()],
             permissions: Vec::new(),
             settings: Settings::default(),
             history: Vec::new(),
@@ -289,7 +293,7 @@ impl Store {
         }
         match std::fs::read_to_string(dir.join("extensions.txt")) {
             Ok(t) => s.extensions_on = t.lines().filter(|l| !l.trim().is_empty()).map(|l| l.to_string()).collect(),
-            Err(_) => s.extensions_on = vec!["bloqueur-de-publicites".into()],
+            Err(_) => s.extensions_on = vec!["bloqueur-de-publicites".into(), "sans-bannieres-cookies".into()],
         }
         if let Ok(t) = std::fs::read_to_string(dir.join("reading.tsv")) {
             for line in t.lines() {
@@ -340,6 +344,7 @@ impl Store {
                         "bar_pos" => st.bar_pos = v.parse().unwrap_or(0),
                         "ai" => st.ai = v.to_string(),
                         "ai_model" => st.ai_model = v.to_string(),
+                        "notif_prompts" => st.notif_prompts = v == "1",
                         "toolbar" => {
                             st.toolbar = v.to_string();
                             // buttons added since: shown unless switched off ("-key")
@@ -391,8 +396,8 @@ impl Store {
         let st = &self.settings;
         let b = |v: bool| if v { "1" } else { "0" };
         let t = format!(
-            "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\naccent={}\ntheme={}\ntabs_pos={}\nbar_pos={}\nai={}\nai_model={}\n",
-            clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model)
+            "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\naccent={}\ntheme={}\ntabs_pos={}\nbar_pos={}\nai={}\nai_model={}\nnotif_prompts={}\n",
+            clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model), b(st.notif_prompts)
         );
         let _ = write_atomic(&dir.join("settings.txt"), t);
     }

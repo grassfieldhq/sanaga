@@ -135,7 +135,7 @@ impl Sanaga {
                     item(ui, tr("Téléchargements"), tr("Ctrl+J"), "downloads");
                     item(ui, if reading { tr("Quitter le Lecteur") } else { tr("Afficher dans le Lecteur") }, tr("Ctrl+Maj+R"), "reader");
                     item(ui, if in_list { tr("Retirer de la liste de lecture") } else { tr("Ajouter à la liste de lecture") }, tr("Ctrl+Maj+D"), "readinglist");
-                    item(ui, tr("Traduire la page en français"), "", "translate");
+                    item(ui, tr("Traduire la page (Google Traduction)"), "", "translate");
                     item(ui, tr("Favoris"), "", "bookmarks");
                     item(ui, if bm_bar { tr("Masquer la barre des favoris") } else { tr("Afficher la barre des favoris") }, tr("Ctrl+Maj+B"), "bmbar");
                     sep(ui);

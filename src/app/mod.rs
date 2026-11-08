@@ -88,6 +88,9 @@ pub fn english_address(u: &str) -> String {
     OLD.iter().find(|(old, _)| *old == t).map(|(_, new)| new.to_string()).unwrap_or_else(|| u.to_string())
 }
 
+/// Marks the message of a page that stopped working (see `page_error`).
+pub(crate) const CRASH_MARK: &str = "\u{1}crash\u{1}";
+
 fn internal_from_url(u: &str) -> Option<Internal> {
     Some(match english_address(u).trim_end_matches('/') {
         "sanaga://newtab" | "about:blank" => Internal::NewTab,
@@ -180,6 +183,9 @@ struct Tab {
     /// Memory saver: when the tab was last shown, and whether its page was put to sleep.
     last_active: f64,
     sleeping: bool,
+    /// The person typed in a form of the page and has not sent it: the tab
+    /// never sleeps (what was typed would be lost, a classic Chrome grief).
+    form_dirty: bool,
     /// Light-engine page to fetch when the tab is first shown.
     lite_pending: Option<net::Request>,
 }

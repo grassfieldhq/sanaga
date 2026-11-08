@@ -43,6 +43,26 @@ iframe[src*="googlesyndication"], iframe[src*="adservice"], iframe[id^="google_a
 div[id^="taboola-"], .taboola, .OUTBRAIN, [id^="outbrain_widget"] { display: none !important; }
 "#;
 
+/// Cookie banners of the common consent tools, hidden (nothing is accepted:
+/// a site that sees no answer keeps its default, which in Europe is "no").
+/// A page that froze its scrolling behind the banner scrolls again.
+const COOKIE_BANNERS_CSS: &str = r#"
+#onetrust-consent-sdk, #onetrust-banner-sdk, #CybotCookiebotDialog, #CybotCookiebotDialogBodyUnderlay,
+#usercentrics-root, #didomi-host, .didomi-popup-backdrop, #qc-cmp2-container, .qc-cmp2-container,
+#truste-consent-track, .truste_overlay, .truste_box_overlay, #cookie-law-info-bar, .cli-modal-backdrop,
+#cookie-notice, #cookiescript_injected, #cmplz-cookiebanner-container, .cmplz-cookiebanner, #BorlabsCookieBox,
+#tarteaucitronRoot, #axeptio_overlay, .axeptio_mount, #sp_message_container, [id^="sp_message_container"],
+.fc-consent-root, #gdpr-cookie-message, .cc-window.cc-banner, .cc-revoke, #cookieChoiceInfo,
+#consent-banner, #cookie-consent-banner, .cookie-consent-banner, #iubenda-cs-banner, .iubenda-cs-container,
+#klaro, .klaro .cookie-notice, #moove_gdpr_cookie_info_bar, #cookie-information-template-wrapper
+{ display: none !important; }
+html:has(#onetrust-consent-sdk), body:has(#onetrust-consent-sdk), html:has(#didomi-host), body:has(#didomi-host),
+html:has(.qc-cmp2-container), body:has(.qc-cmp2-container), html:has(#usercentrics-root), body:has(#usercentrics-root),
+html:has([id^="sp_message_container"]), body:has([id^="sp_message_container"]), body:has(.fc-consent-root),
+body:has(#CybotCookiebotDialog), body:has(#tarteaucitronRoot), body:has(#axeptio_overlay)
+{ overflow: auto !important; position: static !important; }
+"#;
+
 const DARK_CSS: &str = r#"
 html { filter: invert(0.92) hue-rotate(180deg) !important; background: #111 !important; }
 img, video, picture, canvas, iframe, svg image, [style*="background-image"] { filter: invert(1) hue-rotate(180deg) !important; }
@@ -81,6 +101,15 @@ fn builtins() -> Vec<Extension> {
             matches: vec![],
             js: NO_AUTOPLAY_JS.into(),
             css: String::new(),
+            builtin: true,
+        },
+        Extension {
+            id: "sans-bannieres-cookies".into(),
+            name: tr("Sans bannières de cookies").into(),
+            description: tr("Masque les bannières de consentement des outils les plus courants, sans rien accepter.").into(),
+            matches: vec![],
+            js: String::new(),
+            css: COOKIE_BANNERS_CSS.into(),
             builtin: true,
         },
         Extension {

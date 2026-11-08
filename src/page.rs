@@ -22,6 +22,8 @@ pub enum PageSignal {
     Message(String),
     /// The page closed itself (`window.close()`, e.g. a sign-in window when done).
     Close,
+    /// The page's engine process stopped (a crash, or too much memory: true).
+    Crashed(bool),
 }
 
 /// Makes the page a site opens with `window.open` (sign-in, payment windows):
@@ -173,7 +175,10 @@ impl PageView {
             }
         });
         ucm.register_script_message_handler("ipc");
-        let mut b = WebView::builder().user_content_manager(&ucm);
+        // Like Safari: videos may start by themselves only without sound
+        // (no page shouting at you when it opens)
+        let policies = webkit2gtk::WebsitePolicies::builder().autoplay(webkit2gtk::AutoplayPolicy::AllowWithoutSound).build();
+        let mut b = WebView::builder().user_content_manager(&ucm).website_policies(&policies);
         match opener {
             // same engine process and data as the opener
             Some(o) => b = b.related_view(o),
@@ -235,6 +240,14 @@ impl PageView {
         // for windows a script opened): its tab closes
         let o = on.clone();
         view.connect_close(move |_| o(PageSignal::Close));
+        // the page's process stopped: say so, instead of a blank page (the
+        // other tabs are not touched); ending it on purpose is not a crash
+        let o = on.clone();
+        view.connect_web_process_terminated(move |_, reason| match reason {
+            webkit2gtk::WebProcessTerminationReason::ExceededMemoryLimit => o(PageSignal::Crashed(true)),
+            webkit2gtk::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
+            _ => {}
+        });
         PageView { view }
     }
 

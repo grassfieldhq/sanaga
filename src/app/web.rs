@@ -15,6 +15,10 @@ pub(super) enum WebEvent {
     Shortcut(String),
     /// A page closed itself (a sign-in window when done): its tab closes.
     CloseTab { tab: u64 },
+    /// Text typed in a form and not sent yet (true), or sent / page left.
+    FormDirty { tab: u64, dirty: bool },
+    /// The page stopped working (true: it used too much memory).
+    Crashed { tab: u64, memory: bool },
     /// A message for the person (e.g. a screenshot was saved).
     Notice(String),
     /// A link clicked in a source page: show that file's source.
@@ -151,8 +155,11 @@ impl PageMaker {
                 PageSignal::Title(title) => WebEvent::Title { tab: id, title },
                 PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
+                PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
                 PageSignal::Message(body) => {
-                    if let Some(text) = body.strip_prefix("sum:") {
+                    if body == "form:dirty" || body == "form:clean" {
+                        WebEvent::FormDirty { tab: id, dirty: body == "form:dirty" }
+                    } else if let Some(text) = body.strip_prefix("sum:") {
                         WebEvent::PageText { tab: id, text: text.to_string() }
                     } else if body.starts_with("pw:") {
                         WebEvent::Password { tab: id, msg: body }
@@ -218,6 +225,10 @@ impl Sanaga {
                     return;
                 }
                 t.loading = !finished;
+                if !finished {
+                    // a new page: nothing typed in it yet
+                    t.form_dirty = false;
+                }
                 if t.entries[t.idx].url.starts_with("view-source:") && url == "about:blank" {
                     return; // Sanaga's own source page: the address stays
                 }
@@ -260,6 +271,22 @@ impl Sanaga {
                 self.open_tab(&url, private);
             }
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
+            WebEvent::Crashed { tab, memory } => {
+                if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
+                    t.loading = false;
+                    let why = if memory {
+                        tr("Elle utilisait trop de mémoire. Les autres onglets ne sont pas touchés.")
+                    } else {
+                        tr("Le moteur de la page s'est arrêté. Les autres onglets ne sont pas touchés.")
+                    };
+                    t.view = View::Error(format!("{CRASH_MARK}{why}"));
+                }
+            }
+            WebEvent::FormDirty { tab, dirty } => {
+                if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
+                    t.form_dirty = dirty;
+                }
+            }
             WebEvent::CloseTab { tab } => {
                 if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
                     self.close_tab(i);

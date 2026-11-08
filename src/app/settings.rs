@@ -793,6 +793,7 @@ impl Sanaga {
             any = true;
             group(ui, th, "", |ui, rows| {
                 changed |= rows.switch(ui, tr("Empêcher le suivi intersites"), "", &mut st.itp);
+                changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });
             footnote(ui, th, tr("Les traceurs publicitaires ne peuvent plus vous suivre d'un site à l'autre (comme dans Safari). Le Rapport de confidentialité de la page d'accueil montre ceux qui ont été tenus à l'écart. S'applique aux nouveaux onglets."));
             group(ui, th, tr("Données de navigation"), |ui, rows| {

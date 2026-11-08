@@ -213,7 +213,13 @@ impl Sanaga {
         };
         let mut running: Vec<(f64, usize)> = Vec::new();
         for (i, t) in self.tabs.iter_mut().enumerate() {
-            if i == active || t.web.is_none() || t.audio {
+            // never asleep: the tab shown, a page playing sound, a call (camera
+            // or micro on), a pinned tab (mail, chat…), a form being filled in
+            let calling = t.web.as_ref().is_some_and(|w| {
+                let v = w.webview();
+                v.camera_capture_state() != webkit2gtk::MediaCaptureState::None || v.microphone_capture_state() != webkit2gtk::MediaCaptureState::None
+            });
+            if i == active || t.web.is_none() || t.audio || calling || t.pinned || t.form_dirty {
                 continue;
             }
             if t.last_active > 0.0 && now - t.last_active > minutes * 60.0 {
@@ -247,6 +253,12 @@ impl Sanaga {
             match self.store.permission(&ask.site, ask.kind) {
                 Some(true) => ask.req.allow(),
                 Some(false) => ask.req.deny(),
+                // notification requests: refused quietly unless the person
+                // lets sites ask (Settings › Privacy)
+                None if ask.kind == "notifications" && !self.store.settings.notif_prompts => {
+                    ask.req.deny();
+                    self.notice = Some((tf("Notifications de {} bloquées (Paramètres › Confidentialité).", &[&host_of(&ask.site)]), self.ctx.input(|i| i.time)));
+                }
                 None => {
                     self.perm_current = Some(ask);
                     return;

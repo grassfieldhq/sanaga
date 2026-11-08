@@ -59,6 +59,28 @@
   }, true);
   window.addEventListener('pagehide', function () { capture(document); });
 
+  // No "ping" requests telling sites which links you follow (<a ping>,
+  // sent by Chrome and Safari; not by Firefox, nor Sanaga): the attribute
+  // goes before the click reaches the link.
+  ['mousedown', 'click', 'auxclick', 'keydown'].forEach(function (type) {
+    document.addEventListener(type, function (ev) {
+      var a = ev.target && ev.target.closest && ev.target.closest('a[ping], area[ping]');
+      if (a) a.removeAttribute('ping');
+    }, true);
+  });
+
+  // Text typed in a form and not sent yet: Sanaga keeps this tab awake (the
+  // memory saver would lose it). Sent or emptied: it may sleep again.
+  var dirty = false;
+  function setDirty(d) { if (d !== dirty) { dirty = d; send(d ? 'form:dirty' : 'form:clean'); } }
+  document.addEventListener('input', function (ev) {
+    var t = ev.target;
+    if (!ev.isTrusted || !t) return;
+    var field = t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && !/^(button|submit|checkbox|radio|range|color|file|hidden|search)$/i.test(t.type));
+    if (field) setDirty(String(t.value || t.textContent || '').length > 0);
+  }, true);
+  document.addEventListener('submit', function () { setDirty(false); }, true);
+
   // --- filling: ask once per address, again when sign-in fields appear later ---
   var users = null, asked = '', box = null;
   function ask() {

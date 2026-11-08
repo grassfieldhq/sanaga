@@ -49,6 +49,7 @@ impl Sanaga {
             thumb: None,
             last_active: 0.0,
             sleeping: false,
+            form_dirty: false,
             lite_pending: None,
         });
         let i = self.tabs.len() - 1;

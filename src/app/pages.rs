@@ -230,7 +230,15 @@ impl Sanaga {
             ui.painter().circle_filled(r.center(), 30.0, th.card);
             icons::paint(ui.painter(), r.shrink(14.0), Icon::Info, th.sub);
             ui.add_space(14.0);
-            let title = if msg.is_empty() { tr("Page non chargée") } else { tr("Impossible d'accéder à ce site") };
+            let crashed = msg.starts_with(super::CRASH_MARK);
+            let msg = msg.trim_start_matches(super::CRASH_MARK);
+            let title = if crashed {
+                tr("Cette page a cessé de fonctionner")
+            } else if msg.is_empty() {
+                tr("Page non chargée")
+            } else {
+                tr("Impossible d'accéder à ce site")
+            };
             ui.label(RichText::new(title).size(24.0).family(bold()).color(th.text));
             ui.add_space(6.0);
             ui.label(RichText::new(host_of(&url)).size(15.0).color(th.sub));
