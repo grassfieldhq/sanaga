@@ -28,6 +28,8 @@ optdepends=(
   'spotify-launcher: open.spotify.com opened in the Spotify app'
 )
 makedepends=('cargo' 'git')
+# (makepkg's link-time optimisation breaks the C parts of Rust crates)
+options=('!lto')
 source=("git+https://github.com/grassfieldhq/sanaga.git#tag=v${pkgver}")
 sha256sums=('SKIP')
 
