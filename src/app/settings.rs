@@ -814,7 +814,11 @@ impl Sanaga {
                             changed |= field(ui, &mut st.ai_model, tr("celui par défaut"), 200.0, false);
                         });
                     });
-                    footnote(ui, th, &tf("{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.", &[&tool.name()]));
+                    if tool.tool_less() {
+                        footnote(ui, th, &tf("{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.", &[&tool.name()]));
+                    } else {
+                        footnote(ui, th, &tf("{} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.", &[&tool.name()]));
+                    }
                 }
                 _ => {}
             }

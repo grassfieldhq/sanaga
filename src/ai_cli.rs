@@ -2,11 +2,16 @@
 //! command line with the person's own account: Claude Code, Codex and Gemini
 //! CLI. No API key to give Sanaga.
 //!
-//! They are agents able to run commands and edit files, and the text of a web
-//! page could try to give them orders. So Sanaga calls them locked down: in
-//! an empty folder of its own, with no tools (Claude Code), a read-only
-//! sandbox without network (Codex), or nothing approved (Gemini), and only
-//! reads their answer.
+//! They are agents able to run commands and read or edit files, and the text
+//! of a web page could try to give them orders. Only an assistant that can
+//! be started with no tools at all and no access to files receives the text
+//! of web pages (summaries, translation): Claude Code, with its documented
+//! switches (`--tools ""`, `--disallowedTools "*"`, no MCP servers, safe
+//! mode: no CLAUDE.md, hooks or plugins). Codex's read-only sandbox and
+//! Gemini CLI's default mode still let them read local files, so they are
+//! refused for page content (they may still write an extension from the
+//! person's own description, which the person reviews before enabling it).
+//! All run in an empty private folder, and Sanaga only reads their answer.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -42,6 +47,12 @@ impl CliTool {
             CliTool::Codex => "Codex",
             CliTool::Gemini => "Gemini CLI",
         }
+    }
+
+    /// Can it be started with no tools and no access to files? Only such
+    /// an assistant may receive the text of web pages.
+    pub fn tool_less(self) -> bool {
+        matches!(self, CliTool::ClaudeCode)
     }
 
     fn program(self) -> &'static str {
@@ -116,8 +127,24 @@ pub fn ask(tool: CliTool, model: &str, system: &str, prompt: &str) -> Result<Str
     let input;
     match tool {
         CliTool::ClaudeCode => {
-            // print mode, no tools at all, no MCP servers, nothing kept
-            cmd.args(["-p", "--tools", "", "--output-format", "text", "--no-session-persistence", "--strict-mcp-config", "--disable-slash-commands", "--system-prompt", system]);
+            // print mode; no built-in tools ("") and every tool denied ("*",
+            // MCP ones too); no MCP servers; safe mode: no CLAUDE.md, hooks,
+            // plugins or skills; nothing kept
+            cmd.args([
+                "-p",
+                "--tools",
+                "",
+                "--disallowedTools",
+                "*",
+                "--strict-mcp-config",
+                "--safe-mode",
+                "--disable-slash-commands",
+                "--no-session-persistence",
+                "--output-format",
+                "text",
+                "--system-prompt",
+                system,
+            ]);
             if !model.is_empty() {
                 cmd.args(["--model", model]);
             }
@@ -207,6 +234,13 @@ fn is_work_dir(p: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_tool_less_assistants_read_pages() {
+        assert!(CliTool::ClaudeCode.tool_less());
+        assert!(!CliTool::Codex.tool_less());
+        assert!(!CliTool::Gemini.tool_less());
+    }
 
     #[test]
     fn keys_round_trip_and_folder_is_private() {

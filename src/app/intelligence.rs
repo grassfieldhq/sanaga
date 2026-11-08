@@ -44,8 +44,9 @@ pub(super) enum AiDone {
     Models(Vec<String>),
     /// The accounts read from the system keyring.
     Logins(Vec<(String, String)>),
-    /// A batch of a page's texts, translated (from its place in the page).
-    Translation { tab: u64, from: usize, result: Result<Vec<String>, String> },
+    /// A batch of a page's texts, translated (from its place in the page,
+    /// for the translation `generation` of that tab).
+    Translation { tab: u64, from: usize, generation: u64, result: Result<Vec<String>, String> },
 }
 
 #[derive(Default)]
@@ -117,11 +118,14 @@ impl Sanaga {
             }
             return;
         }
-        if provider == Provider::Local {
+        // the page's text only goes to a model with no tools and no files
+        let refused = ai::page_content_allowed(&provider).err();
+        if provider == Provider::Local || refused.is_some() {
             if let Some(s) = self.summary.as_mut() {
                 s.busy = false;
                 s.text = fallback;
-                s.by = provider.label();
+                s.by = Provider::Local.label();
+                s.note = refused.unwrap_or_default();
             }
             return;
         }
@@ -187,7 +191,7 @@ impl Sanaga {
                     }
                 }
                 AiDone::Models(m) => self.ai_models = Some(m),
-                AiDone::Translation { tab, from, result } => self.translation_done(tab, from, result),
+                AiDone::Translation { tab, from, generation, result } => self.translation_done(tab, from, generation, result),
                 AiDone::Logins(list) => {
                     // the keyring is the reference; an empty answer (a locked
                     // or missing keyring) leaves the list as it was

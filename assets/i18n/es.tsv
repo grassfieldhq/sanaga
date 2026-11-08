@@ -937,3 +937,6 @@ Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres ›
 Voulez-vous autoriser les téléchargements sur « {} » ?	¿Quieres permitir descargas en «{}»?
 Ne pas autoriser	No permitir
 Autoriser	Permitir
+{} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.	{} puede leer tus archivos: Sanaga no le envía el texto de las páginas. Elige Claude Code, Claude u Ollama en Ajustes › Inteligencia.
+{} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.	{} puede leer tus archivos, incluso bloqueado: Sanaga no le envía el texto de las páginas (resumen, traducción). Puede escribir extensiones, que revisas antes de activarlas.
+La traduction s'arrête ici : la page est très longue.	La traducción se detiene aquí: la página es muy larga.

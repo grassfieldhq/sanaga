@@ -300,6 +300,12 @@ impl Sanaga {
                     if self.pw_fill_dismissed.as_ref().is_some_and(|(id, _)| *id == tab) {
                         self.pw_fill_dismissed = None;
                     }
+                    // a translation belongs to the page it started on
+                    if self.translating == Some(tab) {
+                        self.translating = None;
+                        self.translate_batches = 0;
+                        self.translate_gen += 1;
+                    }
                 }
                 if t.entries[t.idx].url.starts_with("view-source:") && url == "about:blank" {
                     return; // Sanaga's own source page: the address stays

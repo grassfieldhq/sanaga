@@ -426,8 +426,11 @@ pub struct Sanaga {
     settings_confirm: Option<f64>,
     /// The welcome tour's step.
     onboarding_step: usize,
-    /// Page translation running (tab) and the language asked.
+    /// Page translation running (tab) and the language asked; the batches
+    /// already sent, and which translation the answers belong to.
     translating: Option<u64>,
+    translate_batches: usize,
+    translate_gen: u64,
     /// The "translate with Google or the AI?" question is shown.
     translate_ask: bool,
     /// Sites whose DRM bar was dismissed; the identity chooser is open.
@@ -721,6 +724,8 @@ impl Sanaga {
             settings_confirm: None,
             onboarding_step: 0,
             translating: None,
+            translate_batches: 0,
+            translate_gen: 0,
             translate_ask: false,
             drm_dismissed: HashSet::new(),
             identity_ask: false,
