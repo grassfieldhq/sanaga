@@ -78,6 +78,8 @@ struct ViewState {
     /// already used that action.
     gesture: Cell<Option<Instant>>,
     gesture_used: Cell<bool>,
+    /// When a key was last pressed in the page (seen by GTK).
+    key_at: Cell<Option<Instant>>,
 }
 
 /// The person acted on this page (a click that navigates, an address
@@ -469,14 +471,50 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
     });
 }
 
-/// Script that gives pages `window.ipc.postMessage(...)` (Sanaga's page scripts use it).
-const IPC_JS: &str = "Object.defineProperty(window, 'ipc', { value: Object.freeze({ postMessage: function(x) { window.webkit.messageHandlers['ipc'].postMessage(x) } }) })";
+/// The JavaScript world of Sanaga's own scripts. The page's scripts (and
+/// any frame inside it) can't see it, can't replace its functions and can't
+/// reach its message channel: only Sanaga's scripts, run in the top frame,
+/// talk to Sanaga.
+pub const WORLD: &str = "sanaga";
 
-fn add_scripts(ucm: &UserContentManager, scripts: &[&str]) {
-    for js in std::iter::once(IPC_JS).chain(scripts.iter().copied()) {
+/// Gives Sanaga's scripts `window.ipc.postMessage(...)` in their world (top
+/// frame only). Each message carries the address of the page that sent it,
+/// so a message from a page that has navigated since is dropped
+/// (`message_body`).
+const IPC_JS: &str = "if (window.top === window) Object.defineProperty(window, 'ipc', { value: Object.freeze({ postMessage: function (x) { window.webkit.messageHandlers.ipc.postMessage(location.href + '\\n' + String(x)); } }) });";
+
+/// Sanaga's scripts go into its own world; the person's extensions act on
+/// the page itself (its world), without Sanaga's channel. All run in the top
+/// frame only.
+fn add_scripts(ucm: &UserContentManager, own: &[&str], page: &[&str]) {
+    for js in std::iter::once(IPC_JS).chain(own.iter().copied()) {
+        ucm.add_script(&UserScript::for_world(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, WORLD, &[], &[]));
+    }
+    for js in page {
         ucm.add_script(&UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]));
     }
 }
+
+fn without_fragment(u: &str) -> &str {
+    u.split('#').next().unwrap_or(u)
+}
+
+/// A message of Sanaga's page scripts ("address\nbody"): its body when it
+/// comes from the page the view shows now (the #fragment may differ),
+/// nothing when that page has navigated since.
+pub fn message_body<'a>(msg: &'a str, current: &str) -> Option<&'a str> {
+    let (from, body) = msg.split_once('\n')?;
+    (!current.is_empty() && without_fragment(from) == without_fragment(current)).then_some(body)
+}
+
+/// A keyboard shortcut forwarded by the page script ("cs:t", ":f5"…).
+pub fn is_shortcut_message(body: &str) -> bool {
+    body.split_once(':').is_some_and(|(mods, key)| !key.is_empty() && mods.chars().all(|c| matches!(c, 'c' | 's' | 'a')))
+}
+
+/// How long a key press in the page vouches for the shortcut message that
+/// follows it.
+const KEY_WINDOW: Duration = Duration::from_millis(1500);
 
 pub struct PageView {
     view: WebView,
@@ -486,15 +524,28 @@ impl PageView {
     /// A new page. `scripts` run at the start of every page (top frame).
     /// `opener`: the page that opened this one (its windows share the engine).
     /// `popups`: makes the pages this one opens; without it they open as new tabs.
-    pub fn new(engine: Option<&Engine>, private: bool, scripts: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
+    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
         let ucm = UserContentManager::new();
-        add_scripts(&ucm, scripts);
+        add_scripts(&ucm, own, page);
         let on = Rc::new(on);
         let o = on.clone();
+        // (the view, once made: to check where each message comes from)
+        let me: Rc<RefCell<Option<gtk::glib::WeakRef<WebView>>>> = Rc::new(RefCell::new(None));
+        let me2 = me.clone();
         ucm.connect_script_message_received(Some("ipc"), move |_, value| {
-            o(PageSignal::Message(value.to_str().to_string()));
+            let text = value.to_str().to_string();
+            let Some(view) = me2.borrow().as_ref().and_then(|w| w.upgrade()) else { return };
+            let current = view.uri().map(|u| u.to_string()).unwrap_or_default();
+            let Some(body) = message_body(&text, &current) else { return };
+            // a shortcut only follows a real key press in the page (seen by
+            // GTK, not claimed by a script)
+            if is_shortcut_message(body) && !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW)) {
+                return;
+            }
+            o(PageSignal::Message(body.to_string()));
         });
-        ucm.register_script_message_handler("ipc", None);
+        // Sanaga's channel exists only in Sanaga's world
+        ucm.register_script_message_handler("ipc", Some(WORLD));
         // Like Safari: videos may start by themselves only without sound
         // (no page shouting at you when it opens)
         let policies = webkit6::WebsitePolicies::builder().autoplay(webkit6::AutoplayPolicy::AllowWithoutSound).build();
@@ -515,6 +566,16 @@ impl PageView {
         VIEWS.with(|v| v.borrow_mut().push(view.downgrade()));
         let state = Rc::new(ViewState::default());
         VIEW_STATES.with(|s| s.borrow_mut().push((view.downgrade(), state.clone())));
+        *me.borrow_mut() = Some(view.downgrade());
+        // real key presses in the page (they vouch for forwarded shortcuts)
+        let keys = gtk::EventControllerKey::new();
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let st = state.clone();
+        keys.connect_key_pressed(move |_, _, _, _| {
+            st.key_at.set(Some(Instant::now()));
+            gtk::glib::Propagation::Proceed
+        });
+        view.add_controller(keys);
         if let Some(st) = WebViewExt::settings(&view) {
             st.set_enable_webgl(true);
             st.set_enable_webaudio(true);
@@ -679,11 +740,11 @@ impl PageView {
     }
     /// Replace the scripts run in this page (extensions switched on or off)
     /// and load it again so the change shows at once.
-    pub fn set_scripts(&self, scripts: &[&str]) {
+    pub fn set_scripts(&self, own: &[&str], page: &[&str]) {
         if let Some(ucm) = self.view.user_content_manager() {
             ucm.remove_all_scripts();
             ucm.remove_all_style_sheets();
-            add_scripts(&ucm, scripts);
+            add_scripts(&ucm, own, page);
             self.view.reload();
         }
     }
@@ -693,8 +754,17 @@ impl PageView {
         self.view.load_uri(url);
         Ok(())
     }
+    /// Run a script in the page's own world (the person's buttons, site
+    /// settings): it has no access to Sanaga's channel.
     pub fn evaluate_script(&self, js: &str) -> R<()> {
         self.view.evaluate_javascript(js, None, None, None::<&gtk::gio::Cancellable>, |_| {});
+        Ok(())
+    }
+
+    /// Run one of Sanaga's scripts in Sanaga's world (top frame), where the
+    /// page can't see or change it.
+    pub fn evaluate_own(&self, js: &str) -> R<()> {
+        self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, |_| {});
         Ok(())
     }
     pub fn zoom(&self, z: f64) -> R<()> {
@@ -797,6 +867,28 @@ mod tests {
         // a site the person allowed: never asked
         assert!(!download_needs_ask(false, false, true));
         assert!(!download_needs_ask(true, true, true));
+    }
+
+    #[test]
+    fn messages_from_a_page_that_navigated_are_dropped() {
+        assert_eq!(message_body("https://a.example/x\ntool:zap-done:#ad", "https://a.example/x"), Some("tool:zap-done:#ad"));
+        assert_eq!(message_body("https://a.example/x#top\nform:dirty", "https://a.example/x#end"), Some("form:dirty"));
+        assert_eq!(message_body("https://a.example/x\nform:dirty", "https://b.example/"), None);
+        assert_eq!(message_body("https://a.example/x\nform:dirty", ""), None);
+        assert_eq!(message_body("no address", "https://a.example/x"), None);
+        // the body may hold line breaks of its own
+        assert_eq!(message_body("about:blank\ntr:0\n[\"a\"]", "about:blank"), Some("tr:0\n[\"a\"]"));
+    }
+
+    #[test]
+    fn shortcut_messages_are_recognised() {
+        assert!(is_shortcut_message("cs:t"));
+        assert!(is_shortcut_message(":f5"));
+        assert!(is_shortcut_message("c:q"));
+        assert!(!is_shortcut_message("tool:zap-done:x"));
+        assert!(!is_shortcut_message("form:dirty"));
+        assert!(!is_shortcut_message("sum:x"));
+        assert!(!is_shortcut_message("c:"));
     }
 
     #[test]

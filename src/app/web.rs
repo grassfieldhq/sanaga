@@ -50,6 +50,7 @@ const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
 
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
+  if (!e.isTrusted) return;
   var k = (e.key || '').toLowerCase();
   var ctrl = e.ctrlKey || e.metaKey;
   var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','y'].indexOf(k) >= 0)
@@ -62,6 +63,25 @@ window.addEventListener('keydown', function (e) {
   window.ipc.postMessage((ctrl ? 'c' : '') + (e.shiftKey ? 's' : '') + (e.altKey ? 'a' : '') + ':' + k);
 }, true);
 "#;
+
+/// Links of Sanaga's own source page (Ctrl+U): a real click shows the
+/// source of the linked file.
+const SOURCE_LINKS_JS: &str = r#"
+document.addEventListener('click', function (e) {
+  if (!e.isTrusted || !window.ipc || !document.documentElement.hasAttribute('data-sanaga-source')) return;
+  var a = e.target && e.target.closest && e.target.closest('a[data-u]');
+  if (!a) return;
+  e.preventDefault();
+  window.ipc.postMessage('vs:' + a.getAttribute('data-u'));
+}, true);
+"#;
+
+/// The page tools whose answer may come from Sanaga's page scripts (the
+/// others are only asked from Sanaga's menus). Each one is still checked
+/// against what the person started (see `page_tool`).
+fn page_may_answer(what: &str) -> bool {
+    matches!(what, "pip-info" | "zap-done" | "media-unsupported") || (cfg!(debug_assertions) && what == "probe")
+}
 
 fn shortcut_name(msg: &str) -> Option<&'static str> {
     let (mods, key) = msg.split_once(':')?;
@@ -151,11 +171,14 @@ pub(super) struct PageMaker {
     ctx: Option<crate::page::Engine>,
     /// The profile's web data folder (containers keep theirs inside it).
     base: Option<std::path::PathBuf>,
+    /// Sanaga's own scripts: they run in Sanaga's world, out of the page's reach.
     scripts: Rc<Vec<String>>,
     tx: std::sync::mpsc::Sender<WebEvent>,
     repaint: egui::Context,
     popups: Rc<RefCell<Vec<(u64, u64, PageView)>>>,
     ids: Rc<Cell<u64>>,
+    /// The person's extensions: they act on the page itself (its world).
+    page_scripts: Rc<Vec<String>>,
 }
 
 impl PageMaker {
@@ -182,8 +205,9 @@ impl PageMaker {
         });
         let (tx, repaint) = (self.tx.clone(), self.repaint.clone());
         let scripts: Vec<&str> = self.scripts.iter().map(|s| s.as_str()).collect();
+        let page_scripts: Vec<&str> = self.page_scripts.iter().map(|s| s.as_str()).collect();
         let engine = if container.is_empty() || private { self.ctx.clone() } else { self.container_engine(container).or_else(|| self.ctx.clone()) };
-        PageView::new(engine.as_ref(), private, &scripts, opener, Some(popup), move |sig| {
+        PageView::new(engine.as_ref(), private, &scripts, &page_scripts, opener, Some(popup), move |sig| {
             let ev = match sig {
                 PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
                 PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
@@ -194,6 +218,9 @@ impl PageMaker {
                 PageSignal::Tool(what, arg) => WebEvent::Tool { tab: id, what: what.to_string(), arg },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
+                        if !page_may_answer(what) {
+                            return;
+                        }
                         WebEvent::Tool { tab: id, what: what.to_string(), arg: arg.to_string() }
                     } else if let Some(rest) = body.strip_prefix("tr:") {
                         WebEvent::Translate { tab: id, msg: rest.to_string() }
@@ -341,6 +368,9 @@ impl Sanaga {
             WebEvent::Notice(msg) => self.notice = Some((msg, self.ctx.input(|i| i.time))),
             WebEvent::PageText { tab, text } => self.summary_text_arrived(tab, text),
             WebEvent::ViewSource { tab, url } => {
+                if !(url.starts_with("http://") || url.starts_with("https://")) {
+                    return;
+                }
                 if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
                     self.navigate(i, format!("view-source:{url}"), None, true);
                 }
@@ -553,11 +583,12 @@ impl Sanaga {
     /// Extensions switched on or off, or removed: every open page gets the
     /// new set at once (it reloads), not only the tabs opened afterwards.
     pub(super) fn refresh_extensions(&mut self) {
-        let scripts = self.page_maker().scripts.clone();
-        let list: Vec<&str> = scripts.iter().map(|s| s.as_str()).collect();
+        let maker = self.page_maker();
+        let own: Vec<&str> = maker.scripts.iter().map(|s| s.as_str()).collect();
+        let page: Vec<&str> = maker.page_scripts.iter().map(|s| s.as_str()).collect();
         for t in &self.tabs {
             if let Some(w) = &t.web {
-                w.set_scripts(&list);
+                w.set_scripts(&own, &page);
             }
         }
     }
@@ -592,11 +623,12 @@ impl Sanaga {
         PageMaker {
             ctx: self.web_context.clone(),
             base: self.web_dir.clone(),
-            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), super::accounts::PASSWORD_JS.to_string(), extensions]),
+            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), SOURCE_LINKS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
             popups: self.popups.clone(),
             ids: self.popup_ids.clone(),
+            page_scripts: Rc::new(vec![extensions]),
         }
     }
 
@@ -609,7 +641,7 @@ impl Sanaga {
     pub(super) fn web_find(&self, backwards: bool) {
         if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
             let q = self.find_query.replace('\\', "\\\\").replace('\'', "\\'");
-            let _ = w.evaluate_script(&format!("window.find('{q}', false, {backwards}, true, false, false, false);"));
+            let _ = w.evaluate_own(&format!("window.find('{q}', false, {backwards}, true, false, false, false);"));
         }
     }
 }

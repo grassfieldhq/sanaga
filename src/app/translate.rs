@@ -111,7 +111,7 @@ impl Sanaga {
             self.notice = Some((tr("La traduction marche sur les pages des sites.").into(), self.ctx.input(|i| i.time)));
             return;
         };
-        let _ = w.evaluate_script(TRANSLATE_JS);
+        let _ = w.evaluate_own(TRANSLATE_JS);
         self.translating = Some(t.id);
         self.notice = Some((tr("Traduction de la page…").into(), self.ctx.input(|i| i.time)));
     }
@@ -162,7 +162,7 @@ impl Sanaga {
         match result {
             Ok(list) => {
                 if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
-                    let _ = w.evaluate_script(&format!("window.__sanagaTrApply && window.__sanagaTrApply({from}, {});", ai::json_array(&list)));
+                    let _ = w.evaluate_own(&format!("window.__sanagaTrApply && window.__sanagaTrApply({from}, {});", ai::json_array(&list)));
                 }
             }
             Err(e) => {

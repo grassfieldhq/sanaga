@@ -64,7 +64,7 @@ impl Sanaga {
                 // the names go to the page, for its list under the field
                 let list = format!("[{}]", users.iter().map(|u| keyring::js_str(u)).collect::<Vec<_>>().join(","));
                 if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
-                    let _ = w.evaluate_script(&format!("window.__sanagaLogins && window.__sanagaLogins({list});"));
+                    let _ = w.evaluate_own(&format!("window.__sanagaLogins && window.__sanagaLogins({list});"));
                 }
                 if users.len() == 1 {
                     // one account for this site: fill it at once (empty fields only)
@@ -93,7 +93,7 @@ impl Sanaga {
             return;
         };
         if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
-            let _ = w.evaluate_script(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {only_empty});", keyring::js_str(user), keyring::js_str(&pass)));
+            let _ = w.evaluate_own(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {only_empty});", keyring::js_str(user), keyring::js_str(&pass)));
         }
     }
 
@@ -112,7 +112,7 @@ impl Sanaga {
             keyring::js_str(&s.fill_address)
         );
         if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
-            let _ = w.evaluate_script(&js);
+            let _ = w.evaluate_own(&js);
         }
     }
 

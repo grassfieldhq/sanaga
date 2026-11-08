@@ -519,6 +519,10 @@ pub struct Sanaga {
     codec_install: Arc<std::sync::atomic::AtomicU8>,
     /// Sites waiting for "Allow downloads on …?" (Safari's question).
     download_asks: Vec<String>,
+    /// The tab where the person started the element remover, or asked for
+    /// the floating video: the page's answer is accepted from there only.
+    zap_armed: Option<u64>,
+    pip_armed: Option<u64>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -780,6 +784,8 @@ impl Sanaga {
             codec_flag: None,
             codec_install: Default::default(),
             download_asks: Vec::new(),
+            zap_armed: None,
+            pip_armed: None,
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -1269,7 +1275,7 @@ impl Sanaga {
                         }
                         a if a.starts_with("probe:") => {
                             if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
-                                let _ = w.evaluate_script(&format!("try{{window.ipc.postMessage('tool:probe:'+String({}))}}catch(e){{window.ipc.postMessage('tool:probe:error '+e)}}", &a[6..]));
+                                let _ = w.evaluate_own(&format!("try{{window.ipc.postMessage('tool:probe:'+String({}))}}catch(e){{window.ipc.postMessage('tool:probe:error '+e)}}", &a[6..]));
                             }
                         }
                         "title" => eprintln!("live title {}", self.tabs[self.active].title()),

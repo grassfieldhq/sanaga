@@ -28,6 +28,8 @@ pub(super) struct Summary {
     busy: bool,
     by: String,
     note: String,
+    /// The page's text has arrived (later ones are ignored).
+    sent: bool,
 }
 
 impl Summary {
@@ -88,13 +90,17 @@ impl Sanaga {
             self.notice = Some((tr("Le résumé marche sur les pages des sites.").into(), self.ctx.input(|i| i.time)));
             return;
         };
-        let _ = w.evaluate_script(PAGE_TEXT_JS);
-        self.summary = Some(Summary { tab: id, title, text: String::new(), busy: true, by: String::new(), note: String::new() });
+        let _ = w.evaluate_own(PAGE_TEXT_JS);
+        self.summary = Some(Summary { tab: id, title, text: String::new(), busy: true, by: String::new(), note: String::new(), sent: false });
     }
 
     pub(super) fn summary_text_arrived(&mut self, tab: u64, text: String) {
-        if self.summary.as_ref().map(|s| s.tab) != Some(tab) {
+        // only the text the person asked for (one answer per request)
+        if !self.summary.as_ref().is_some_and(|s| s.tab == tab && s.busy && s.text.is_empty() && !s.sent) {
             return;
+        }
+        if let Some(s) = self.summary.as_mut() {
+            s.sent = true;
         }
         let (title, body) = text.split_once('\n').map(|(a, b)| (a.to_string(), b.to_string())).unwrap_or_default();
         let fallback = ai::local_summary(&body, 6);

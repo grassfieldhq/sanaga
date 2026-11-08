@@ -43,6 +43,13 @@ window.__sanagaStopTool=stop;document.addEventListener('mousemove',mv,true);docu
 
 const STOP_TOOL_JS: &str = "if(window.__sanagaStopTool)window.__sanagaStopTool();if(document.designMode==='on'){document.designMode='off';}window.__sanagaTool=null;";
 
+/// A selector the element remover could have made (it becomes part of the
+/// site's style sheet): short, one line, nothing that could end the rule.
+fn plausible_selector(s: &str) -> bool {
+    let s = s.trim();
+    !s.is_empty() && s.len() <= 512 && !s.chars().any(|c| c.is_control() || matches!(c, '{' | '}' | '<' | '@' | ';' | '\\'))
+}
+
 fn is_web(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
 }
@@ -185,8 +192,9 @@ impl Sanaga {
         if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
             eprintln!("page tool {what} {arg}");
         }
+        // a tool asked from a menu shows its tab; a page's answer never does
         if let Some(i) = self.tab_index(tab) {
-            if what != "zap-done" && what != "pip-info" {
+            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe") {
                 self.active = i;
             }
         }
@@ -201,7 +209,7 @@ impl Sanaga {
             "site-settings" => self.site_panel = true,
             "media-unsupported" => self.codec_flag = Some(tab),
             // test aid: what a page answered (SANAGA_LIVE_TEST probe:)
-            "probe" => eprintln!("live probe {arg}"),
+            "probe" if cfg!(debug_assertions) => eprintln!("live probe {arg}"),
             _ => {}
         }
     }
@@ -209,12 +217,13 @@ impl Sanaga {
     /// Escape: stop the tool running in the page. True when one was running.
     pub(super) fn stop_page_tool(&mut self) -> bool {
         let editing = self.editing_text.take();
+        self.zap_armed = None;
         if let Some(w) = self.active_page() {
-            let _ = w.evaluate_script(STOP_TOOL_JS);
+            let _ = w.evaluate_own(STOP_TOOL_JS);
         }
         if let Some(id) = editing {
             if let Some(w) = self.page_of(id) {
-                let _ = w.evaluate_script(STOP_TOOL_JS);
+                let _ = w.evaluate_own(STOP_TOOL_JS);
             }
             self.notice = Some((tr("Modification du texte terminée.").into(), self.ctx.input(|i| i.time)));
             return true;
@@ -224,15 +233,22 @@ impl Sanaga {
 
     /// Floating video: the page's video in a small window above the others.
     pub(super) fn start_pip(&mut self) {
+        let tab = self.tabs.get(self.active).map(|t| t.id);
         match self.active_page() {
             Some(w) => {
-                let _ = w.evaluate_script(PIP_JS);
+                let _ = w.evaluate_own(PIP_JS);
+                // its answer is awaited from this tab only
+                self.pip_armed = tab;
             }
             None => self.notice = Some((tr("Aucune vidéo dans cette page.").into(), self.ctx.input(|i| i.time))),
         }
     }
 
     fn pip_info(&mut self, tab: u64, arg: &str) {
+        // only the answer to the person's own request (menu ⋮, right-click)
+        if self.pip_armed.take() != Some(tab) {
+            return;
+        }
         let now = self.ctx.input(|i| i.time);
         if arg.is_empty() {
             self.notice = Some((tr("Aucune vidéo dans cette page.").into(), now));
@@ -259,10 +275,10 @@ impl Sanaga {
         };
         if let Some(p) = self.page_of(tab) {
             if opened {
-                let _ = p.evaluate_script("if(window.__sanagaPip)window.__sanagaPip.pause();");
+                let _ = p.evaluate_own("if(window.__sanagaPip)window.__sanagaPip.pause();");
             } else {
                 // a stream that only plays inside its page: it floats in the page
-                let _ = p.evaluate_script(PIP_IN_PAGE_JS);
+                let _ = p.evaluate_own(PIP_IN_PAGE_JS);
                 self.notice = Some((tr("Cette vidéo ne peut pas quitter sa page : elle flotte dans un coin pendant que vous lisez.").into(), now));
             }
         }
@@ -270,9 +286,12 @@ impl Sanaga {
 
     /// Remove a part of the page: point at it, click.
     pub(super) fn start_zapper(&mut self) {
+        let tab = self.tabs.get(self.active).map(|t| t.id);
         if let Some(w) = self.active_page() {
             let tip = crate::keyring::js_str(tr("Cliquez sur ce qu'il faut retirer de la page — Échap pour annuler"));
-            let _ = w.evaluate_script(&format!("{ZAP_JS}({tip});"));
+            let _ = w.evaluate_own(&format!("{ZAP_JS}({tip});"));
+            // the element picked is awaited from this tab only
+            self.zap_armed = tab;
             if let Some(p) = self.active_page() {
                 p.webview().grab_focus();
             }
@@ -280,9 +299,13 @@ impl Sanaga {
     }
 
     fn zapped(&mut self, tab: u64, selector: &str) {
+        // only after the person started the element remover on this tab
+        if self.zap_armed.take() != Some(tab) {
+            return;
+        }
         let Some(url) = self.tabs.iter().find(|t| t.id == tab).map(|t| t.url().to_string()) else { return };
         let host = crate::site_prefs::key(&host_of(&url));
-        if host.is_empty() || selector.trim().is_empty() {
+        if host.is_empty() || !plausible_selector(selector) {
             return;
         }
         let mut prefs = crate::site_prefs::for_host(&host);
@@ -301,7 +324,7 @@ impl Sanaga {
             return;
         }
         if let Some(w) = self.active_page() {
-            let _ = w.evaluate_script("document.designMode='on';window.__sanagaTool='edit';");
+            let _ = w.evaluate_own("document.designMode='on';window.__sanagaTool='edit';");
             w.webview().grab_focus();
             self.editing_text = Some(id);
             self.notice = Some((tr("Modifiez le texte directement dans la page. Échap pour terminer ; tout revient au rechargement.").into(), self.ctx.input(|i| i.time)));
@@ -413,6 +436,17 @@ fn on_battery() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn element_remover_selectors_stay_selectors() {
+        assert!(plausible_selector("body > div.ad:nth-of-type(2)"));
+        assert!(plausible_selector("#banner"));
+        assert!(!plausible_selector(""));
+        assert!(!plausible_selector("x{} @import url(//evil)"));
+        assert!(!plausible_selector("a;b"));
+        assert!(!plausible_selector("a\nb"));
+        assert!(!plausible_selector(&"a".repeat(600)));
+    }
 
     #[test]
     fn finds_youtube_ids() {
