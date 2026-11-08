@@ -28,6 +28,7 @@ mod html;
 mod i18n;
 mod import;
 mod icons;
+mod identity;
 mod net;
 mod frames;
 mod page;

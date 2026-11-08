@@ -219,6 +219,8 @@ pub struct Store {
     pub site_zoom: std::collections::HashMap<String, f32>,
     pub downloads: Vec<Download>,
     pub first_run: bool,
+    /// Browser identity chosen per site (host).
+    pub identities: Vec<(String, crate::identity::Identity)>,
 }
 
 const MAX_HISTORY: usize = 5000;
@@ -239,6 +241,7 @@ impl Store {
             site_zoom: Default::default(),
             downloads: Vec::new(),
             first_run: false,
+            identities: Vec::new(),
         }
     }
 
@@ -273,7 +276,11 @@ impl Store {
         let dir = if profile.is_empty() { Self::root_dir() } else { Self::root_dir().join("profils").join(profile) };
         let first_run = !dir.join("settings.txt").exists();
         let _ = std::fs::create_dir_all(&dir);
-        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run };
+        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new() };
+        if let Ok(t) = std::fs::read_to_string(dir.join("identity.tsv")) {
+            s.identities = t.lines().filter_map(|l| l.split_once('\t')).map(|(h, k)| (h.to_string(), crate::identity::Identity::from_key(k))).collect();
+        }
+        crate::identity::set_choices(s.identities.clone());
         if let Ok(t) = std::fs::read_to_string(dir.join("zoom.tsv")) {
             for line in t.lines() {
                 if let Some((h, z)) = line.split_once('\t') {
@@ -545,6 +552,14 @@ impl Store {
         let Some(dir) = &self.dir else { return };
         let t: String = self.logins.iter().map(|(a, b)| format!("{}\t{}\n", clean(a), clean(b))).collect();
         let _ = write_atomic(&dir.join("logins.tsv"), t);
+    }
+
+    /// How Sanaga introduces itself to sites the person chose for.
+    pub fn save_identities(&self) {
+        let Some(dir) = &self.dir else { return };
+        let t: String = self.identities.iter().map(|(h, i)| format!("{}\t{}\n", clean(h), i.key())).collect();
+        let _ = write_atomic(&dir.join("identity.tsv"), t);
+        crate::identity::set_choices(self.identities.clone());
     }
 
     pub fn save_extensions(&self) {

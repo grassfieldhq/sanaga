@@ -39,6 +39,9 @@ cairo-rs = { version = "0.18", features = ["png"] }
 egui_glow = "0.37"
 glow = "0.17"
 libloading = "0.8"
+# screen readers (Orca…): the interface described over AT-SPI
+accesskit = "0.25"
+accesskit_unix = "0.24"
 
 [profile.release]
 opt-level = 3

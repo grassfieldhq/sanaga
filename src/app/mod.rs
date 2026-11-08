@@ -14,6 +14,7 @@ mod pages;
 mod settings;
 mod layout;
 mod tabbar;
+mod siteid;
 mod onboarding;
 mod translate;
 mod mainmenu;
@@ -416,6 +417,9 @@ pub struct Sanaga {
     translating: Option<u64>,
     /// The "translate with Google or the AI?" question is shown.
     translate_ask: bool,
+    /// Sites whose DRM bar was dismissed; the identity chooser is open.
+    drm_dismissed: HashSet<String>,
+    identity_ask: bool,
     /// Sidebar: its search, the group being renamed in place.
     sidebar_filter: String,
     group_renaming: Option<usize>,
@@ -513,9 +517,15 @@ pub(super) trait Tip {
 
 impl Tip for egui::Response {
     fn tip(self, text: impl Into<egui::WidgetText>) -> egui::Response {
+        let text: egui::WidgetText = text.into();
+        // the words of the tooltip also name the control for screen readers
+        // (Sanaga draws many of its buttons itself)
+        let label = text.text().to_string();
+        let role = if self.sense.senses_click() { egui::Role::Button } else { egui::Role::Label };
+        self.widget_info(|| egui::WidgetInfo::labeled(role, true, &label));
         if crate::shell::active() {
             if self.hovered() && !self.dragged() {
-                crate::shell::set_tooltip(text.into().text().to_string());
+                crate::shell::set_tooltip(label);
             }
             self
         } else {
@@ -657,6 +667,8 @@ impl Sanaga {
             onboarding_step: 0,
             translating: None,
             translate_ask: false,
+            drm_dismissed: HashSet::new(),
+            identity_ask: false,
             sidebar_filter: String::new(),
             group_renaming: None,
             bm_editing: None,
@@ -1238,6 +1250,11 @@ impl Sanaga {
                 self.permission_bar(ui, &th);
             });
         }
+        if self.drm_bar_service().is_some() {
+            egui::Panel::top("drmbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.drm_bar(ui, &th);
+            });
+        }
         if self.password_bar_visible() {
             egui::Panel::top("pwbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.password_bar(ui, &th);
@@ -1281,6 +1298,7 @@ impl Sanaga {
         self.undo_bar(&ctx, content, &th);
         self.star_popover(&ctx, &th);
         self.translate_question(&ctx, &th);
+        self.identity_chooser(&ctx, &th);
         let t_sync = std::time::Instant::now();
         self.sync_web(content);
         let sync_ms = t_sync.elapsed().as_secs_f64() * 1000.0;

@@ -345,7 +345,62 @@ struct Input {
     chrome_lost_focus: bool,
 }
 
+/// Screen readers (Orca…) read Sanaga's interface through AT-SPI: egui
+/// describes what it draws (AccessKit), this adapter publishes it, and the
+/// reader's actions (press a button, move the focus) come back as input.
+struct A11y {
+    adapter: accesskit_unix::Adapter,
+    /// A screen reader asked for the interface.
+    on: Arc<std::sync::atomic::AtomicBool>,
+    /// Its actions, for the next frame.
+    actions: Arc<std::sync::Mutex<Vec<accesskit::ActionRequest>>>,
+}
+
+struct A11yActivate {
+    on: Arc<std::sync::atomic::AtomicBool>,
+    ctx: egui::Context,
+}
+impl accesskit::ActivationHandler for A11yActivate {
+    fn request_initial_tree(&mut self) -> Option<accesskit::TreeUpdate> {
+        self.on.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.ctx.request_repaint();
+        None
+    }
+}
+struct A11yAction {
+    actions: Arc<std::sync::Mutex<Vec<accesskit::ActionRequest>>>,
+    ctx: egui::Context,
+}
+impl accesskit::ActionHandler for A11yAction {
+    fn do_action(&mut self, request: accesskit::ActionRequest) {
+        if let Ok(mut q) = self.actions.lock() {
+            q.push(request);
+        }
+        self.ctx.request_repaint();
+    }
+}
+struct A11yDeactivate {
+    on: Arc<std::sync::atomic::AtomicBool>,
+}
+impl accesskit::DeactivationHandler for A11yDeactivate {
+    fn deactivate_accessibility(&mut self) {
+        self.on.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+fn new_a11y(ctx: &egui::Context) -> A11y {
+    let on = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let actions = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let adapter = accesskit_unix::Adapter::new(
+        A11yActivate { on: on.clone(), ctx: ctx.clone() },
+        A11yAction { actions: actions.clone(), ctx: ctx.clone() },
+        A11yDeactivate { on: on.clone() },
+    );
+    A11y { adapter, on, actions }
+}
+
 struct Gui {
+    a11y: A11y,
     app: Sanaga,
     ctx: egui::Context,
     gl: Option<Arc<glow::Context>>,
@@ -689,7 +744,7 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
 
     let ctx = egui::Context::default();
     let app = Sanaga::new(&ctx, urls, None);
-    let gui = Rc::new(RefCell::new(Gui { app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false }));
+    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false }));
     WINDOWS.with(|w| w.borrow_mut().push(Win { host: host_rc.clone(), gui: Rc::downgrade(&gui) }));
     crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
@@ -1040,10 +1095,24 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
         }
     });
     INJECT_NOW.with(|q| raw.events.append(&mut q.borrow_mut()));
+    // a screen reader is listening: egui describes the interface, and the
+    // reader's actions become input
+    if g.a11y.on.load(std::sync::atomic::Ordering::Relaxed) {
+        g.ctx.enable_accesskit();
+        if let Ok(mut q) = g.a11y.actions.lock() {
+            raw.events.extend(q.drain(..).map(Event::AccessKitActionRequest));
+        }
+        g.a11y.adapter.update_window_focus_state(input.borrow().focused);
+        let size = accesskit::Rect { x0: 0.0, y0: 0.0, x1: w as f64, y1: h as f64 };
+        g.a11y.adapter.set_root_window_bounds(size, size);
+    }
     TOOLTIP.with(|t| *t.borrow_mut() = None);
     let ctx = g.ctx.clone();
     let app = &mut g.app;
-    let full = ctx.run_ui(raw, |ui| app.frame_ui(ui));
+    let mut full = ctx.run_ui(raw, |ui| app.frame_ui(ui));
+    if let Some(update) = full.platform_output.accesskit_update.take() {
+        g.a11y.adapter.update_if_active(|| update);
+    }
     // hover help: a system tooltip, above the page
     let tip = TOOLTIP.with(|t| t.borrow_mut().take());
     if *host.tip_shown.borrow() != tip {

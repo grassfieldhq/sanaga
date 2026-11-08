@@ -236,6 +236,39 @@ impl PageView {
             }
             None
         });
+        // How Sanaga introduces itself, per site (Chrome for the few web apps
+        // that refuse WebKit, or the person's choice): set before the page is
+        // asked for. A simulated device's identity is left alone.
+        let default_ua = WebViewExt::settings(&view).and_then(|s| s.user_agent()).map(|u| u.to_string()).unwrap_or_default();
+        view.connect_decide_policy(move |v, decision, kind| {
+            if kind != webkit2gtk::PolicyDecisionType::NavigationAction {
+                return false;
+            }
+            use webkit2gtk::{NavigationPolicyDecisionExt, URIRequestExt};
+            let Some(nav) = decision.downcast_ref::<webkit2gtk::NavigationPolicyDecision>() else { return false };
+            let Some(req) = nav.navigation_action().and_then(|a| a.request()) else { return false };
+            let uri = req.uri().map(|u| u.to_string()).unwrap_or_default();
+            let Some(host) = url::Url::parse(&uri).ok().and_then(|u| u.host_str().map(|h| h.to_string())) else { return false };
+            let Some(st) = WebViewExt::settings(v) else { return false };
+            let current = st.user_agent().map(|u| u.to_string()).unwrap_or_default();
+            let ours = current == default_ua || crate::identity::Identity::ALL.iter().any(|i| i.user_agent() == Some(current.as_str()));
+            if !ours {
+                return false;
+            }
+            let want = crate::identity::for_host(&host).user_agent().unwrap_or(&default_ua).to_string();
+            if want == current {
+                return false;
+            }
+            st.set_user_agent(Some(&want));
+            // ask again with the new identity (a form being sent goes on as it is)
+            if req.http_method().is_none_or(|m| m == "GET") {
+                use webkit2gtk::PolicyDecisionExt;
+                decision.ignore();
+                v.load_uri(&uri);
+                return true;
+            }
+            false
+        });
         // a page that closes itself (window.close(), allowed by WebKit only
         // for windows a script opened): its tab closes
         let o = on.clone();

@@ -759,3 +759,15 @@ Traduire la page avec…	Traduzir a página com…
 Seul le texte de la page est envoyé à cette IA	Só o texto da página é enviado a esta IA
 Votre choix est gardé ; il se change dans Paramètres › Intelligence.	A sua escolha fica guardada; muda-se em Definições › Inteligência.
 Extension supprimée.	Extensão removida.
+Se présenter à ce site comme…	Apresentar-se a este site como…
+Identité du navigateur par site	Identidade do navegador por site
+Aucun choix pour l'instant	Nenhuma escolha por agora
+Menu ⋮ › Plus d'outils › Se présenter à ce site comme…	Menu ⋮ › Mais ferramentas › Apresentar-se a este site como…
+Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site.	O Sanaga apresenta-se como Chrome às poucas aplicações web que recusam o WebKit (WhatsApp Web, Teams, Zoom…). Pode escolher para qualquer site.
+{} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire. Installez Chromium ou Firefox pour les regarder.	{} protege os conteúdos com um DRM (Widevine) que o motor do Sanaga não consegue ler. Instale o Chromium ou o Firefox para os ver.
+{} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire.	{} protege os conteúdos com um DRM (Widevine) que o motor do Sanaga não consegue ler.
+Se présenter à {} comme…	Apresentar-se a {} como…
+Certains sites refusent WebKit alors qu'ils fonctionnent avec lui : choisir Chrome les fait s'ouvrir. La page se recharge.	Alguns sites recusam o WebKit embora funcionem com ele: escolher Chrome fá-los abrir. A página recarrega.
+Automatique	Automático
+Ouvrir dans l'application Spotify	Abrir na aplicação Spotify
+Ouvrir dans {}	Abrir no {}

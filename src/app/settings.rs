@@ -361,6 +361,7 @@ enum Act {
     CopyPassword(usize),
     DeletePassword(usize),
     SetPermission(String, String, Option<bool>),
+    SetIdentity(String, Option<crate::identity::Identity>),
     Onboarding,
 }
 
@@ -556,6 +557,7 @@ impl Sanaga {
         let logins = self.store.logins.len();
         let login_list = self.store.logins.clone();
         let permissions = self.store.permissions.clone();
+        let identities = self.store.identities.clone();
         let extensions = crate::extensions::all();
         let ext_on = self.store.extensions_on.clone();
         let mobile_on = self.tb("mobile");
@@ -854,6 +856,25 @@ impl Sanaga {
                 });
                 ui.add_space(12.0);
             }
+            group(ui, th, tr("Identité du navigateur par site"), |ui, rows| {
+                if identities.is_empty() {
+                    rows.row(ui, tr("Aucun choix pour l'instant"), tr("Menu ⋮ › Plus d'outils › Se présenter à ce site comme…"), false, |_| {});
+                }
+                for (host, i) in &identities {
+                    rows.row(ui, host, "", false, |ui| {
+                        if small_icon_button(ui, th, Icon::Close, tr("Oublier ce choix")) {
+                            acts.push(Act::SetIdentity(host.clone(), None));
+                        }
+                        let all = crate::identity::Identity::ALL;
+                        let labels: Vec<&str> = all.iter().map(|x| x.label()).collect();
+                        let k = all.iter().position(|x| x == i).unwrap_or(0);
+                        if let Some(n) = segmented(ui, th, &labels, k) {
+                            acts.push(Act::SetIdentity(host.clone(), if n == 0 { None } else { Some(all[n]) }));
+                        }
+                    });
+                }
+            });
+            footnote(ui, th, tr("Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site."));
             group(ui, th, tr("Données de navigation"), |ui, rows| {
                 if rows.link(ui, tr("Effacer les données"), tr("Historique, cookies, cache…"), "") {
                     acts.push(Act::Go("sanaga://clear"));
@@ -1109,6 +1130,7 @@ impl Sanaga {
                     }
                 }
                 Act::SetPermission(site, kind, allow) => self.store.set_permission(&site, &kind, allow),
+                Act::SetIdentity(host, i) => self.set_identity(&host, i),
                 Act::Onboarding => {
                     self.onboarding_step = 0;
                     self.navigate(self.active, "sanaga://start".into(), None, true);

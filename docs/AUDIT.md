@@ -49,11 +49,11 @@ Legend: ✅ Sanaga does not have the problem · 🟡 partly · ❌ not yet
 
 | Complaint | Usual culprit | Sanaga |
 |---|---|---|
-| “Your browser is not supported” on some sites | Safari, Firefox | 🟡 WebKitGTK announces itself like Safari; most sites work. Some Chrome-only web apps refuse it. Next: per-site browser identity. |
-| DRM video (Netflix, Disney+, Spotify web) | Firefox on some Linux setups, Safari on Linux | ❌ WebKitGTK has no Widevine — not fixable in Sanaga. |
+| “Your browser is not supported” on some sites | Safari, Firefox | ✅ Per-site browser identity: Chrome for the web apps that refuse WebKit (WhatsApp Web, Teams, Zoom…), and any site can be set to Automatic / Safari / Chrome / Firefox (menu ⋮ › More tools; Settings › Privacy). Checked: the site receives the chosen identity. |
+| DRM video (Netflix, Disney+, Spotify web) | Firefox on some Linux setups, Safari on Linux | 🟡 WebKitGTK has no Widevine, so Sanaga cannot play them itself. It recognises 14 such services and offers, in one click, the service's app (Spotify) or an installed browser that has Widevine (Chromium, Chrome, Firefox…). |
 | Extensions limited (Manifest V3 limits ad blockers) | Chrome, Safari | 🟡 No extension store; built-in blockers and user scripts, plus extensions written by AI from a description. Blocking is by hiding (CSS), not by request filtering. |
 | Weak developer tools | Safari | 🟡 WebKit's Web Inspector (docked or separate, dark theme) plus the mobile simulator. |
-| Accessibility of the browser's own interface | — | ❌ Pages are accessible; Sanaga's own interface is not yet exposed to screen readers (PRODUCTION.md). |
+| Accessibility of the browser's own interface | — | ✅ Sanaga's interface is published to screen readers (AT-SPI, through AccessKit): buttons, tabs and favourites have names. Checked with an AT-SPI client. Next: labels for every field, keyboard focus order. |
 | Reopen a closed window | — | ✅ Menu ⋮ › More tools › Reopen closed window. |
 | Extension switched off still acts on open pages | Safari (until reload) | ✅ Switching an extension on or off applies at once to the open pages. |
 

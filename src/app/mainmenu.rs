@@ -128,6 +128,7 @@ impl Sanaga {
                             sub(ui, Icon::Search, tr("Rechercher dans les onglets"), tr("Ctrl+Maj+A"), "tabsearch");
                             sub(ui, Icon::Folder, tr("Nouveau groupe d'onglets"), "", "newgroup");
                             sub(ui, Icon::Grid, tr("Rouvrir la fenêtre fermée"), "", "reopenwindow");
+                            sub(ui, Icon::Shield, tr("Se présenter à ce site comme…"), "", "identity");
                             sub(ui, Icon::Reader, tr("Afficher le code source"), tr("Ctrl+U"), "source");
                             sub(ui, Icon::Info, tr("Inspecteur web"), tr("Ctrl+Maj+I"), "inspector");
                             sub(ui, Icon::Phone, tr("Simulateur mobile"), tr("Ctrl+Maj+M"), "devices");
@@ -190,6 +191,7 @@ impl Sanaga {
                 self.open_tab("sanaga://newtab", true);
             }
             "reopenwindow" => self.reopen_window(),
+            "identity" => self.identity_ask = true,
             "history" => {
                 self.open_tab("sanaga://history", false);
             }
