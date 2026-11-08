@@ -120,10 +120,11 @@ impl Sanaga {
         std::thread::Builder::new()
             .name("sanaga-codec-install".into())
             .spawn(move || {
-                // the command itself, then a pause so its result can be read
-                // (the message is an argument, never part of the script)
-                let script = format!("{}; echo; echo \"$1\"; read _", i.command);
-                let started = std::process::Command::new(&term[0]).args(&term[1..]).args(["sh", "-c", script.as_str(), "sh", close.as_str()]).status();
+                // exactly the command shown (its words passed as arguments,
+                // never re-read by a shell), then a pause so its result can
+                // be read
+                let script = "msg=$1; shift; \"$@\"; echo; echo \"$msg\"; read _";
+                let started = std::process::Command::new(&term[0]).args(&term[1..]).args(["sh", "-c", script, "sh", close.as_str()]).args(&i.argv).status();
                 // (a terminal may hand the command to a server and return at
                 // once: the decoders are looked for until they are there)
                 let mut ok = started.is_ok() && crate::codecs::check_now().complete();
