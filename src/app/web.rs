@@ -67,7 +67,8 @@ fn shortcut_name(msg: &str) -> Option<&'static str> {
         (_, _, _, "f11") => "fullscreen",
         (true, true, _, "d") => "readinglist",
         (true, true, _, "tab") => "prev",
-        (true, false, _, "t") | (true, false, _, "n") => "new",
+        (true, false, _, "t") => "new",
+        (true, false, _, "n") => "window",
         (true, _, _, "w") => "close",
         (true, false, _, "tab") => "next",
         (true, _, _, "l") | (_, _, _, "f6") => "addr",
@@ -269,7 +270,7 @@ impl Sanaga {
             WebEvent::Shortcut(msg) => {
                 if let Some(name) = shortcut_name(&msg) {
                     if name == "quit" {
-                        self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        self.quit_app();
                     } else {
                         self.run_shortcut(name);
                     }

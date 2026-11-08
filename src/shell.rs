@@ -31,10 +31,25 @@ struct Host {
     nav: Cell<i32>,
     shot: RefCell<Option<String>>,
     tip_shown: RefCell<Option<String>>,
+    /// The window's number (0 = the first window).
+    slot: usize,
+}
+
+/// One open window: its parts and its interface.
+struct Win {
+    host: Rc<Host>,
+    gui: std::rc::Weak<RefCell<Gui>>,
 }
 
 thread_local! {
+    /// The window being drawn now (what the interface's requests apply to).
     static HOST: RefCell<Option<Rc<Host>>> = const { RefCell::new(None) };
+    /// All open windows.
+    static WINDOWS: RefCell<Vec<Win>> = const { RefCell::new(Vec::new()) };
+    /// The number the next window gets.
+    static NEXT_SLOT: Cell<usize> = const { Cell::new(1) };
+    /// Addresses sent by other launches of Sanaga, for the window used last.
+    static INCOMING: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     /// Hover help asked during this frame.
     static TOOLTIP: RefCell<Option<String>> = const { RefCell::new(None) };
     /// Input made up by tests (clicks...).
@@ -120,7 +135,7 @@ pub fn attach(view: &webkit2gtk::WebView) {
     h.overlay.reorder_overlay(&h.device_frame, -1);
     h.overlay.reorder_overlay(&h.swipe_hint, -1);
     raise_overlays(&h);
-    watch_gestures(view);
+    watch_gestures(view, Rc::downgrade(&h));
 }
 
 /// The simulator's frame and the swipe arrow stay above the pages (a page
@@ -197,20 +212,20 @@ pub fn take_nav() -> i32 {
     host().map(|h| h.nav.replace(0)).unwrap_or(0)
 }
 
-fn ask_nav(dir: i32) {
-    if let Some(h) = host() {
-        h.nav.set(dir);
-        h.area.queue_render();
-    }
+fn ask_nav(h: &Host, dir: i32) {
+    h.nav.set(dir);
+    h.area.queue_render();
 }
 
 /// Two fingers sliding sideways on a touchpad go back / forward (Chrome,
 /// Firefox); the mouse's side buttons too.
-fn watch_gestures(view: &webkit2gtk::WebView) {
-    view.connect_button_press_event(|_, ev| {
+fn watch_gestures(view: &webkit2gtk::WebView, host: std::rc::Weak<Host>) {
+    let h = host.clone();
+    view.connect_button_press_event(move |_, ev| {
+        let Some(h) = h.upgrade() else { return glib::Propagation::Proceed };
         match ev.button() {
-            8 => ask_nav(-1),
-            9 => ask_nav(1),
+            8 => ask_nav(&h, -1),
+            9 => ask_nav(&h, 1),
             _ => return glib::Propagation::Proceed,
         }
         glib::Propagation::Stop
@@ -218,6 +233,7 @@ fn watch_gestures(view: &webkit2gtk::WebView) {
     // (sum sideways, sum up-down, decided: Some(true) = a sideways swipe)
     let state: Rc<Cell<(f64, f64, Option<bool>)>> = Rc::new(Cell::new((0.0, 0.0, None)));
     view.connect_scroll_event(move |_, ev| {
+        let Some(h) = host.upgrade() else { return glib::Propagation::Proceed };
         let touchpad = ev.source_device().map(|d| d.source() == gdk::InputSource::Touchpad).unwrap_or(false);
         if !touchpad || ev.direction() != gdk::ScrollDirection::Smooth {
             return glib::Propagation::Proceed;
@@ -226,10 +242,10 @@ fn watch_gestures(view: &webkit2gtk::WebView) {
         const GO: f64 = 22.0;
         if ev.is_stop() {
             if decided == Some(true) && sx.abs() >= GO {
-                ask_nav(if sx < 0.0 { -1 } else { 1 });
+                ask_nav(&h, if sx < 0.0 { -1 } else { 1 });
             }
             state.set((0.0, 0.0, None));
-            show_swipe(0, 0.0);
+            show_swipe(&h, 0, 0.0);
             return glib::Propagation::Proceed;
         }
         let (dx, dy) = ev.delta();
@@ -240,7 +256,7 @@ fn watch_gestures(view: &webkit2gtk::WebView) {
         }
         state.set((sx, sy, decided));
         if decided == Some(true) {
-            show_swipe(if sx < 0.0 { -1 } else { 1 }, (sx.abs() / GO).min(1.0));
+            show_swipe(&h, if sx < 0.0 { -1 } else { 1 }, (sx.abs() / GO).min(1.0));
         }
         glib::Propagation::Proceed
     });
@@ -248,16 +264,16 @@ fn watch_gestures(view: &webkit2gtk::WebView) {
 
 /// Test aid: the swipe arrow, and the navigation a finished swipe asks for.
 pub fn test_swipe(dir: i32, progress: f64, finish: bool) {
-    show_swipe(dir, progress);
+    let Some(h) = host() else { return };
+    show_swipe(&h, dir, progress);
     if finish {
-        show_swipe(0, 0.0);
-        ask_nav(dir);
+        show_swipe(&h, 0, 0.0);
+        ask_nav(&h, dir);
     }
 }
 
 /// The arrow at the page's edge while swiping (`dir` 0 hides it).
-fn show_swipe(dir: i32, progress: f64) {
-    let Some(h) = host() else { return };
+fn show_swipe(h: &Host, dir: i32, progress: f64) {
     let l = &h.swipe_hint;
     if dir == 0 || progress < 0.15 {
         l.hide();
@@ -468,6 +484,123 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
     gtk::init().map_err(|e| e.to_string())?;
     crate::desktop::set_native();
 
+    // addresses sent by other launches of Sanaga (links opened from other apps)
+    if single {
+        let _ = std::fs::remove_file(&sock); // left by a Sanaga that did not close cleanly
+        if let Ok(listener) = std::os::unix::net::UnixListener::bind(&sock) {
+            #[allow(deprecated)]
+            let (ltx, lrx) = glib::MainContext::channel::<String>(glib::Priority::DEFAULT);
+            std::thread::Builder::new()
+                .name("sanaga-instance".into())
+                .spawn(move || {
+                    use std::io::Read;
+                    for stream in listener.incoming().flatten() {
+                        let mut text = String::new();
+                        let mut stream = stream;
+                        let _ = stream.read_to_string(&mut text);
+                        let _ = ltx.send(text);
+                    }
+                })
+                .ok();
+            let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
+            #[allow(deprecated)]
+            lrx.attach(None, move |text| {
+                let lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+                if lines.iter().any(|l| l == "nouvelle-fenetre:") {
+                    // `sanaga --new-window`: a window of its own
+                    let mut w: Vec<String> = lines.into_iter().filter(|l| l != "nouvelle-fenetre:").collect();
+                    w.extend(profile.iter().cloned());
+                    open_window(w);
+                } else {
+                    INCOMING.with(|i| i.borrow_mut().extend(lines));
+                    if let Some(h) = last_used_window() {
+                        h.window.present();
+                        h.area.queue_render();
+                    }
+                }
+                glib::ControlFlow::Continue
+            });
+        }
+    }
+
+    let urls: Vec<String> = urls.into_iter().filter(|u| u != "nouvelle-fenetre:").collect();
+    let Some(first) = open_window(urls) else { return Err("fenêtre indisponible".into()) };
+    // the other windows of the last session
+    let extra = first.borrow_mut().app.take_extra_sessions();
+    let profile = first.borrow().app.profile_marker();
+    for tabs in extra {
+        let mut w = tabs;
+        w.extend(profile.clone());
+        open_window(w);
+    }
+    drop(first);
+    gtk::main();
+    if single {
+        let _ = std::fs::remove_file(&sock);
+    }
+    WINDOWS.with(|w| w.borrow_mut().clear());
+    HOST.with(|h| *h.borrow_mut() = None);
+    Ok(())
+}
+
+/// The window used last (it gets the links opened from other applications).
+fn last_used_window() -> Option<Rc<Host>> {
+    let active = crate::page::ACTIVE_WINDOW.load(std::sync::atomic::Ordering::Relaxed);
+    WINDOWS.with(|w| {
+        let w = w.borrow();
+        w.iter().find(|x| x.host.slot == active).or_else(|| w.first()).map(|x| x.host.clone())
+    })
+}
+
+/// Close one window: its tabs are saved; if other windows stay open, they are
+/// not reopened next time (as in Chrome). The last window quits Sanaga.
+fn close_window(host: &Rc<Host>, gui: &RefCell<Gui>) {
+    let others = WINDOWS.with(|w| w.borrow().iter().filter(|x| !Rc::ptr_eq(&x.host, host)).count());
+    if let Ok(mut g) = gui.try_borrow_mut() {
+        g.app.on_close();
+        if others > 0 {
+            g.app.close_window();
+        }
+    }
+    WINDOWS.with(|w| w.borrow_mut().retain(|x| !Rc::ptr_eq(&x.host, host)));
+    if HOST.with(|h| h.borrow().as_ref().is_some_and(|c| Rc::ptr_eq(c, host))) {
+        let next = WINDOWS.with(|w| w.borrow().first().map(|x| x.host.clone()));
+        HOST.with(|h| *h.borrow_mut() = next);
+    }
+    if others == 0 {
+        gtk::main_quit();
+    }
+}
+
+/// Quit Sanaga: every window saves its tabs, then the program ends.
+fn quit_all() {
+    let all: Vec<Rc<RefCell<Gui>>> = WINDOWS.with(|w| w.borrow().iter().filter_map(|x| x.gui.upgrade()).collect());
+    for g in all {
+        if let Ok(mut g) = g.try_borrow_mut() {
+            g.app.on_close();
+        }
+    }
+    gtk::main_quit();
+}
+
+/// Open a Sanaga window. `urls` as on the command line; the first window
+/// restores the last session, the others start with the given addresses (or
+/// the home page).
+fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
+    let first = WINDOWS.with(|w| w.borrow().is_empty()) && !urls.iter().any(|u| u.starts_with("fenetre:"));
+    let slot = if first {
+        0
+    } else {
+        let n = NEXT_SLOT.with(|n| n.get());
+        NEXT_SLOT.with(|c| c.set(n + 1));
+        n
+    };
+    let mut urls = urls;
+    if slot > 0 && !urls.iter().any(|u| u.starts_with("fenetre:")) {
+        urls.push(format!("fenetre:{slot}"));
+    }
+    let urls: Vec<String> = urls.into_iter().map(|u| if u.starts_with("fenetre:") { format!("fenetre:{slot}") } else { u }).collect();
+
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title("Sanaga");
     window.set_default_size(1280, 800);
@@ -534,7 +667,9 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
         nav: Cell::new(0),
         shot: RefCell::new(None),
         tip_shown: RefCell::new(None),
+        slot,
     });
+    // (the window being made is the one the interface talks to while it starts)
     HOST.with(|h| *h.borrow_mut() = Some(host_rc.clone()));
     {
         let h = host_rc.clone();
@@ -555,38 +690,10 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
     let ctx = egui::Context::default();
     let app = Sanaga::new(&ctx, urls, None);
     let gui = Rc::new(RefCell::new(Gui { app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false }));
+    WINDOWS.with(|w| w.borrow_mut().push(Win { host: host_rc.clone(), gui: Rc::downgrade(&gui) }));
+    crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
     let next = Rc::new(Cell::new(None::<Instant>));
-
-    // addresses sent by other launches of Sanaga (links opened from other apps)
-    let incoming: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-    if single {
-        let _ = std::fs::remove_file(&sock); // left by a Sanaga that did not close cleanly
-        if let Ok(listener) = std::os::unix::net::UnixListener::bind(&sock) {
-            #[allow(deprecated)]
-            let (ltx, lrx) = glib::MainContext::channel::<String>(glib::Priority::DEFAULT);
-            std::thread::Builder::new()
-                .name("sanaga-instance".into())
-                .spawn(move || {
-                    use std::io::Read;
-                    for stream in listener.incoming().flatten() {
-                        let mut text = String::new();
-                        let mut stream = stream;
-                        let _ = stream.read_to_string(&mut text);
-                        let _ = ltx.send(text);
-                    }
-                })
-                .ok();
-            let (incoming, window, area) = (incoming.clone(), window.clone(), area.clone());
-            #[allow(deprecated)]
-            lrx.attach(None, move |text| {
-                incoming.borrow_mut().extend(text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()));
-                window.present();
-                area.queue_render();
-                glib::ControlFlow::Continue
-            });
-        }
-    }
 
     // repaint requests (also from other threads: network, favicons...)
     #[allow(deprecated)]
@@ -666,14 +773,24 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
         });
     }
     {
-        let (gui, input, next, host_rc, im, incoming) = (gui.clone(), input.clone(), next.clone(), host_rc.clone(), im.clone(), incoming.clone());
+        let (gui, input, next, host_rc, im) = (gui.clone(), input.clone(), next.clone(), host_rc.clone(), im.clone());
         area.connect_render(move |area, _| {
             let Ok(mut g) = gui.try_borrow_mut() else { return glib::Propagation::Stop };
-            let arrived: Vec<String> = incoming.borrow_mut().drain(..).collect();
-            if !arrived.is_empty() {
-                g.app.open_from_outside(arrived);
+            // what the interface asks of "the window" now applies to this one
+            HOST.with(|h| *h.borrow_mut() = Some(host_rc.clone()));
+            if crate::page::ACTIVE_WINDOW.load(std::sync::atomic::Ordering::Relaxed) == host_rc.slot {
+                let arrived: Vec<String> = INCOMING.with(|i| i.borrow_mut().drain(..).collect());
+                if !arrived.is_empty() {
+                    g.app.open_from_outside(arrived);
+                }
             }
             paint(&mut g, area, &input, &next, &host_rc, &im);
+            // Ctrl+N, a tab moved to a new window
+            if let Some(urls) = g.app.take_window_request() {
+                glib::idle_add_local_once(move || {
+                    open_window(urls);
+                });
+            }
             glib::Propagation::Stop
         });
     }
@@ -840,6 +957,9 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
             i.maximized = s.contains(gdk::WindowState::MAXIMIZED);
             i.fullscreen = s.contains(gdk::WindowState::FULLSCREEN);
             i.focused = s.contains(gdk::WindowState::FOCUSED);
+            if i.focused {
+                crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
+            }
             let f = i.focused;
             i.events.push(Event::WindowFocused(f));
             area.queue_render();
@@ -847,24 +967,16 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
         });
     }
     {
-        let gui = gui.clone();
+        let (gui, host) = (gui.clone(), host_rc.clone());
         window.connect_delete_event(move |_, _| {
-            if let Ok(mut g) = gui.try_borrow_mut() {
-                g.app.on_close();
-            }
-            gtk::main_quit();
+            close_window(&host, &gui);
             glib::Propagation::Proceed
         });
     }
 
     window.show_all();
     base.grab_focus();
-    gtk::main();
-    if single {
-        let _ = std::fs::remove_file(&sock);
-    }
-    HOST.with(|h| *h.borrow_mut() = None);
-    Ok(())
+    Some(gui)
 }
 
 fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<Cell<Option<Instant>>>, host: &Rc<Host>, im: &gtk::IMMulticontext) {
@@ -1059,8 +1171,13 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
         }
     }
     if close {
-        g.app.on_close();
-        gtk::main_quit();
+        if g.app.take_quit_all() {
+            glib::idle_add_local_once(quit_all);
+        } else {
+            // close this window (as its close button does), once this frame is done
+            let win = host.window.clone();
+            glib::idle_add_local_once(move || win.close());
+        }
         return;
     }
     schedule(area, next, repaint);

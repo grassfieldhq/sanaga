@@ -381,6 +381,13 @@ impl Sanaga {
             self.duplicate_tab(i);
             done = true;
         }
+        if self.tabs.len() > 1 && !self.tabs[i].private && ui.button(tr("Déplacer vers une nouvelle fenêtre")).clicked() {
+            // the page opens again in the new window, and leaves this one
+            let url = self.tabs[i].url().to_string();
+            self.new_window(vec![url]);
+            self.close_tab(i);
+            return true;
+        }
         if ui.button(if pinned { tr("Désépingler") } else { tr("Épingler") }).clicked() {
             self.toggle_pin(i);
             done = true;

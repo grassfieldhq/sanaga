@@ -53,7 +53,12 @@ impl Sanaga {
             self.suggest_sel = None;
             return;
         }
-        if !focused && !ui.rect_contains_pointer(self.suggest_rect) {
+        // Pressing on a suggestion takes the focus from the field before the
+        // click ends: keep the list while the pointer is over it. (Not
+        // `ui.rect_contains_pointer`: the list is on a higher layer than the
+        // toolbar, so that would always say no and close it mid-click.)
+        let over_list = ui.input(|i| i.pointer.latest_pos()).is_some_and(|p| self.suggest_rect.contains(p));
+        if !focused && !over_list {
             self.suggest_open = false;
             self.suggest_items.clear();
             self.suggest_sel = None;

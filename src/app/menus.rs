@@ -125,6 +125,7 @@ impl Sanaga {
                         ui.painter().line_segment([pos2(r.left(), r.center().y), pos2(r.right(), r.center().y)], Stroke::new(1.0, th.border));
                     };
                     item(ui, tr("Nouvel onglet"), tr("Ctrl+T"), "new");
+                    item(ui, tr("Nouvelle fenêtre"), tr("Ctrl+N"), "window");
                     item(ui, tr("Nouvel onglet privé"), tr("Ctrl+Maj+N"), "private");
                     item(ui, tr("Nouveau groupe d'onglets"), "", "newgroup");
                     item(ui, tr("Aperçu des onglets"), tr("Ctrl+Maj+O"), "overview");
@@ -233,6 +234,7 @@ impl Sanaga {
             "new" => {
                 self.open_tab("sanaga://nouvel-onglet", false);
             }
+            "window" => self.new_window(Vec::new()),
             "private" => {
                 self.open_tab("sanaga://nouvel-onglet", true);
             }
@@ -271,7 +273,7 @@ impl Sanaga {
             "about" => {
                 self.open_tab("sanaga://a-propos", false);
             }
-            "quit" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            "quit" => self.quit_app(),
             _ => {}
         }
     }

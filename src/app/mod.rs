@@ -11,6 +11,7 @@ mod menus;
 mod nav;
 mod plus;
 mod pages;
+mod settings;
 mod extras;
 mod importer;
 mod render;
@@ -355,9 +356,23 @@ pub struct Sanaga {
     notice: Option<(String, f64)>,
     pw_prompt: Option<accounts::PwPrompt>,
     pw_filter: String,
+    /// Settings page: the category shown, the search text, and whether
+    /// Sanaga is the default browser (asked once).
+    settings_section: settings::Section,
+    settings_filter: String,
+    is_default_browser: Option<bool>,
     pw_shown: Option<(usize, String)>,
     new_profile_name: String,
     web_context: Option<webkit2gtk::WebContext>,
+    /// This window's number (0 = the first one) and what it asks of the
+    /// window system: a new window (with these addresses), or quit everything.
+    slot: usize,
+    window_request: Option<Vec<String>>,
+    quit_all: bool,
+    /// The tabs of the other windows of the last session (opened at start).
+    extra_sessions: Vec<Vec<String>>,
+    /// Data changes seen (another window may change bookmarks, settings…).
+    store_seen: u64,
     sync_status: crate::sync::SyncStatus,
     sync_at: f64,
     perm_queue: plus::PermQueue,
@@ -436,7 +451,9 @@ impl Sanaga {
         egui_ctx.options_mut(|o| o.zoom_with_keyboard = false);
         // `--profil NOM`: this window uses that profile's own data
         let profile = urls.iter().find_map(|u| u.strip_prefix("profil:").map(|s| s.to_string())).unwrap_or_default();
-        let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:")).collect();
+        // "fenetre:N": an extra window (number N), which starts with its own tabs
+        let slot: usize = urls.iter().find_map(|u| u.strip_prefix("fenetre:").and_then(|n| n.parse().ok())).unwrap_or(0);
+        let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:").collect();
         let store = if screenshot.is_some() { Store::ephemeral() } else { Store::load_profile(&profile) };
         // WebKit keeps cookies and site data per profile
         let web_dir = store.data_dir().map(|d| d.join("webkit"));
@@ -466,7 +483,8 @@ impl Sanaga {
                 }
             };
             let (t, r) = (web_tx.clone(), egui_ctx.clone());
-            crate::page::watch_downloads(&c, net::download_path_for, move |url, path, ok| {
+            crate::page::follow_downloads(&c, net::download_path_for);
+            crate::page::add_download_sink(slot, move |url, path, ok| {
                 let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
                 r.request_repaint();
             });
@@ -551,9 +569,17 @@ impl Sanaga {
             notice: None,
             pw_prompt: None,
             pw_filter: String::new(),
+            settings_section: settings::Section::General,
+            settings_filter: String::new(),
+            is_default_browser: None,
             pw_shown: None,
             new_profile_name: String::new(),
             web_context,
+            slot,
+            window_request: None,
+            quit_all: false,
+            extra_sessions: Vec::new(),
+            store_seen: crate::store::CHANGES.load(Ordering::Relaxed),
             sync_status: Default::default(),
             sync_at: -100.0,
             perm_queue: Default::default(),
@@ -623,8 +649,16 @@ impl Sanaga {
             app.app_mode = true;
             start = vec![u];
         }
-        if start.is_empty() && app.store.settings.restore_tabs {
-            start = app.store.load_session();
+        if slot == 0 && !app.app_mode && app.screenshot.is_none() {
+            // the other windows of the last session open too (or are forgotten)
+            let mut extra = app.store.take_extra_sessions();
+            if start.is_empty() && app.store.settings.restore_tabs {
+                start = app.store.load_session(0);
+                if start.is_empty() && !extra.is_empty() {
+                    start = extra.remove(0);
+                }
+                app.extra_sessions = extra;
+            }
         }
         if start.is_empty() {
             start.push(if app.store.first_run { "sanaga://bienvenue".into() } else { app.store.settings.home.clone() });
@@ -666,6 +700,9 @@ impl Sanaga {
         app.active = app.tabs.len() - 1;
         app.current_group = app.tabs[app.active].group;
         app.overview_open = overview;
+        if slot > 0 {
+            app.save_session();
+        }
         app
     }
 
@@ -680,6 +717,14 @@ impl Sanaga {
             return;
         }
         self.applied_dark = Some(dark);
+        if self.web_ok {
+            // GTK follows: the web inspector, file and print dialogs, and the
+            // pages that offer a dark look (`prefers-color-scheme`)
+            use gtk::prelude::GtkSettingsExt;
+            if let Some(s) = gtk::Settings::default() {
+                s.set_gtk_application_prefer_dark_theme(dark);
+            }
+        }
         let th = theme(dark, false);
         let mut v = if dark { egui::Visuals::dark() } else { egui::Visuals::light() };
         v.panel_fill = th.page;
@@ -790,9 +835,75 @@ impl Sanaga {
         self.save_session();
     }
 
+    /// This window closes while others stay open: its tabs are not reopened
+    /// next time (as in Chrome), and it no longer receives downloads.
+    pub fn close_window(&mut self) {
+        self.store.forget_session(self.slot);
+        crate::page::remove_download_sink(self.slot);
+    }
+
+    /// "profil:NAME" for windows of the same profile (nothing for the main one).
+    pub fn profile_marker(&self) -> Vec<String> {
+        if self.store.profile.is_empty() { Vec::new() } else { vec![format!("profil:{}", self.store.profile)] }
+    }
+
+    /// A new window was asked for (with these addresses; none = the home page).
+    pub fn take_window_request(&mut self) -> Option<Vec<String>> {
+        self.window_request.take()
+    }
+
+    /// Quit Sanaga (all windows) rather than close this window?
+    pub fn take_quit_all(&mut self) -> bool {
+        std::mem::take(&mut self.quit_all)
+    }
+
+    /// The tabs of the last session's other windows, to open them again.
+    pub fn take_extra_sessions(&mut self) -> Vec<Vec<String>> {
+        std::mem::take(&mut self.extra_sessions)
+    }
+
+    /// Ask for a new window (Ctrl+N, menu, tab moved to a new window).
+    pub(super) fn new_window(&mut self, mut urls: Vec<String>) {
+        if !self.store.profile.is_empty() {
+            urls.push(format!("profil:{}", self.store.profile));
+        }
+        self.window_request = Some(urls);
+    }
+
+    /// Quit Sanaga: every window.
+    pub(super) fn quit_app(&mut self) {
+        self.quit_all = true;
+        self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+
+    /// Another window changed the saved data (favourites, settings, history,
+    /// passwords…): read it again so this window shows the same.
+    fn follow_other_windows(&mut self) {
+        let now = crate::store::CHANGES.load(Ordering::Relaxed);
+        if now == self.store_seen || self.screenshot.is_some() {
+            return;
+        }
+        self.store_seen = now;
+        let downloads = std::mem::take(&mut self.store.downloads);
+        let profile = self.store.profile.clone();
+        self.store = Store::load_profile(&profile);
+        self.store.downloads = downloads;
+        self.store.first_run = false;
+        crate::i18n::set_language(&self.store.settings.language);
+        self.applied_dark = None;
+        self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
+    }
+
     /// One frame of Sanaga's interface (drawn by eframe for screenshots, by
     /// the GTK window otherwise).
     pub fn frame_ui(&mut self, ui: &mut Ui) {
+        self.follow_other_windows();
+        self.frame_body(ui);
+        // what this window saved itself is already in its memory
+        self.store_seen = crate::store::CHANGES.load(Ordering::Relaxed);
+    }
+
+    fn frame_body(&mut self, ui: &mut Ui) {
         self.frame += 1;
         let frame_start = std::time::Instant::now();
         if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
@@ -821,7 +932,7 @@ impl Sanaga {
         }
         // test aid: SANAGA_LIVE_TEST="4:sidebar,7:menu,9:shot" runs actions at given
         // seconds; "shot" saves a picture of Sanaga's own window (not the screen).
-        if let Ok(spec) = std::env::var("SANAGA_LIVE_TEST") {
+        if let Some(spec) = std::env::var("SANAGA_LIVE_TEST").ok().filter(|_| self.slot == 0) {
             let steps: Vec<(f64, String)> = spec.split(',').filter_map(|x| x.split_once(':')).filter_map(|(t, a)| Some((t.parse().ok()?, a.to_string()))).collect();
             if let Some((t, a)) = steps.get(self.live_step) {
                 if now >= *t {
@@ -835,7 +946,7 @@ impl Sanaga {
                             let _ = std::fs::create_dir_all(&dir);
                             crate::shell::request_shot(dir.join(format!("live-{}.png", self.live_step)).to_string_lossy().to_string());
                         }
-                        "quit" => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
+                        "quit" => self.quit_app(),
                         a if a.starts_with("click:") || a.starts_with("rclick:") || a.starts_with("move:") || a.starts_with("rclick1:") => {
                             let mut p = a.split(':');
                             let kind = p.next().unwrap_or("");
@@ -958,7 +1069,7 @@ impl Sanaga {
             self.go_history(self.active, 1);
         }
         if ui.input(|i| i.modifiers.command && i.key_pressed(Key::Q)) {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            self.quit_app();
         }
         self.update_find();
         let th = self.theme();
@@ -1055,6 +1166,16 @@ impl Sanaga {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn passwords_go_only_to_their_own_site() {
+        use super::accounts::origin_of;
+        assert_eq!(origin_of("https://www.bank.example/login?x=1"), "https://www.bank.example");
+        assert_eq!(origin_of("http://site.example:8080/a"), "http://site.example:8080");
+        assert_eq!(origin_of("file:///tmp/login.html"), "file://");
+        assert_ne!(origin_of("https://evil.example/"), origin_of("https://bank.example/"));
+        assert_eq!(origin_of("not a url"), "");
+    }
 
     #[test]
     fn address_bar_understands_input() {

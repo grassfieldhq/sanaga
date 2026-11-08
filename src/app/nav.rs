@@ -105,7 +105,7 @@ impl Sanaga {
             .filter(|t| !t.private && !t.entries.is_empty())
             .map(|t| format!("{}\t{}\t{}\t{}", t.url(), self.groups.get(t.group).map(|g| g.replace('\t', " ")).unwrap_or_default(), if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " ")))
             .collect();
-        self.store.save_session(&urls);
+        self.store.save_session(self.slot, &urls);
     }
 
     /// Go to `url` in tab `ti`. `push` adds a history step (false = reload / back / forward).
@@ -522,7 +522,7 @@ impl Sanaga {
                 (sc(cs, Key::D), "readinglist"),
                 (sc(cs, Key::Tab), "prev"),
                 (sc(c, Key::T), "new"),
-                (sc(c, Key::N), "new"),
+                (sc(c, Key::N), "window"),
                 (sc(c, Key::W), "close"),
                 (sc(c, Key::Tab), "next"),
                 (sc(c, Key::L), "addr"),
@@ -574,6 +574,7 @@ impl Sanaga {
                 "new" => {
                     self.open_tab("sanaga://nouvel-onglet", false);
                 }
+                "window" => self.new_window(Vec::new()),
                 "close" => self.close_tab(a),
                 "next" | "prev" => {
                     // within the tabs of the current group, in tab-bar order

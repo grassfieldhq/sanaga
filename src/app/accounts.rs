@@ -8,63 +8,7 @@ use crate::keyring;
 use eframe::egui::{Align, Color32, Layout, Margin, RichText, Sense, TextEdit};
 
 /// Runs in every page: notices logins and fills fields when asked.
-pub(super) const PASSWORD_JS: &str = r#"
-(function () {
-  function send(m) { if (window.ipc) window.ipc.postMessage(m); }
-  var e = encodeURIComponent;
-  function userField(scope) {
-    return scope.querySelector('input[autocomplete~="username"],input[type=email],input[name*=user i],input[name*=login i],input[name*=mail i],input[id*=user i],input[type=text]');
-  }
-  var last = '';
-  function capture(form) {
-    var scope = form && form.querySelector ? form : document;
-    var p = scope.querySelector('input[type=password]');
-    if (!p || !p.value) return;
-    var u = userField(scope);
-    var msg = 'pw:save\n' + e(location.origin) + '\n' + e(u ? u.value : '') + '\n' + e(p.value);
-    if (msg === last) return;
-    last = msg;
-    send(msg);
-  }
-  document.addEventListener('submit', function (ev) { capture(ev.target); }, true);
-  document.addEventListener('click', function (ev) {
-    var b = ev.target.closest && ev.target.closest('button,input[type=submit]');
-    if (!b) return;
-    var f = b.form || b.closest('form') || document;
-    if (f.querySelector && f.querySelector('input[type=password]')) capture(f);
-  }, true);
-  function ask() { if (document.querySelector('input[type=password]')) send('pw:get\n' + e(location.origin)); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ask); else ask();
-  function setv(el, v) {
-    if (!el || v == null || v === '') return;
-    var d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
-    if (d && d.set) d.set.call(el, v); else el.value = v;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-  window.__sanagaFill = function (u, p) {
-    var pw = document.querySelector('input[type=password]');
-    if (!pw) return;
-    var f = pw.form || document;
-    setv(userField(f), u); setv(pw, p);
-  };
-  window.__sanagaContact = function (c) {
-    var map = [['name', c.name, /name|nom/i], ['email', c.email, /mail/i], ['tel', c.phone, /tel|phone/i], ['street-address', c.address, /address|adresse|rue/i]];
-    var n = 0;
-    document.querySelectorAll('input,textarea').forEach(function (el) {
-      if (el.type === 'password' || el.type === 'hidden' || el.value) return;
-      var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
-      var key = el.name + ' ' + el.id + ' ' + (el.placeholder || '') + ' ' + el.type;
-      for (var i = 0; i < map.length; i++) {
-        var m = map[i];
-        if (!m[1]) continue;
-        if (ac.indexOf(m[0]) >= 0 || (m[0] === 'email' && el.type === 'email') || (m[0] === 'tel' && el.type === 'tel') || (!ac && m[2].test(key))) { setv(el, m[1]); n++; break; }
-      }
-    });
-    return n;
-  };
-})();
-"#;
+pub(super) const PASSWORD_JS: &str = include_str!("../../assets/passwords.js");
 
 pub(super) enum PwPrompt {
     Save { tab: u64, site: String, user: String, pass: String },
@@ -75,14 +19,32 @@ fn decode(s: &str) -> String {
     percent_encoding::percent_decode_str(s).decode_utf8_lossy().to_string()
 }
 
+/// A page's origin as its `location.origin` says it (`https://site:port`, `file://`).
+pub(super) fn origin_of(url: &str) -> String {
+    match url::Url::parse(url) {
+        Ok(u) if u.scheme() == "file" => "file://".into(),
+        Ok(u) => u.origin().ascii_serialization(),
+        Err(_) => String::new(),
+    }
+}
+
 impl Sanaga {
-    /// Messages from the page script: a login was sent, or a login form appeared.
+    /// Messages from the page script: a login was sent, a login form appeared,
+    /// or an account was picked in the list under the field.
     pub(super) fn on_password_msg(&mut self, tab: u64, msg: &str) {
         if !self.store.settings.passwords {
             return;
         }
-        let private = self.tabs.iter().find(|t| t.id == tab).map(|t| t.private).unwrap_or(false);
+        let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };
+        let private = t.private;
         let parts: Vec<String> = msg.split('\n').map(decode).collect();
+        // The page names its site in the message, and any page script can
+        // send one: it must be the site the tab really shows, so a page only
+        // ever reaches the passwords of its own site.
+        let real = t.web.as_ref().and_then(|w| w.uri()).map(|u| origin_of(&u)).unwrap_or_else(|| origin_of(t.url()));
+        if parts.get(1).is_none_or(|s| *s != real) {
+            return;
+        }
         match parts.first().map(|s| s.as_str()) {
             Some("pw:save") if parts.len() >= 4 && !private => {
                 let (site, user, pass) = (parts[1].clone(), parts[2].clone(), parts[3].clone());
@@ -96,21 +58,42 @@ impl Sanaga {
             Some("pw:get") if parts.len() >= 2 => {
                 let site = parts[1].clone();
                 let users: Vec<String> = self.store.logins.iter().filter(|(s, _)| *s == site).map(|(_, u)| u.clone()).collect();
-                if !users.is_empty() && !matches!(self.pw_prompt, Some(PwPrompt::Save { .. })) {
+                if users.is_empty() {
+                    return;
+                }
+                // the names go to the page, for its list under the field
+                let list = format!("[{}]", users.iter().map(|u| keyring::js_str(u)).collect::<Vec<_>>().join(","));
+                if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+                    let _ = w.evaluate_script(&format!("window.__sanagaLogins && window.__sanagaLogins({list});"));
+                }
+                if users.len() == 1 {
+                    // one account for this site: fill it at once (empty fields only)
+                    self.fill_login(tab, &site, &users[0], true);
+                } else if !matches!(self.pw_prompt, Some(PwPrompt::Save { .. })) {
                     self.pw_prompt = Some(PwPrompt::Fill { tab, site, users });
+                }
+            }
+            Some("pw:fill") if parts.len() >= 3 => {
+                let (site, user) = (parts[1].clone(), parts[2].clone());
+                if self.store.logins.iter().any(|(s, u)| *s == site && *u == user) {
+                    self.fill_login(tab, &site, &user, false);
+                    if matches!(self.pw_prompt, Some(PwPrompt::Fill { .. })) {
+                        self.pw_prompt = None;
+                    }
                 }
             }
             _ => {}
         }
     }
 
-    fn fill_login(&mut self, tab: u64, site: &str, user: &str) {
+    /// Put a saved login in the page's fields (`only_empty`: keep what was typed).
+    fn fill_login(&mut self, tab: u64, site: &str, user: &str, only_empty: bool) {
         let Some(pass) = keyring::lookup(&self.store.profile, site, user) else {
             self.notice = Some((tr("Mot de passe introuvable dans le trousseau.").into(), self.ctx.input(|i| i.time)));
             return;
         };
         if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
-            let _ = w.evaluate_script(&format!("window.__sanagaFill && window.__sanagaFill({}, {});", keyring::js_str(user), keyring::js_str(&pass)));
+            let _ = w.evaluate_script(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {only_empty});", keyring::js_str(user), keyring::js_str(&pass)));
         }
     }
 
@@ -187,7 +170,7 @@ impl Sanaga {
                             if ui.add(b).clicked() {
                                 keep = false;
                                 let (tab, site, u) = (*tab, site.clone(), u.clone());
-                                self.fill_login(tab, &site, &u);
+                                self.fill_login(tab, &site, &u, false);
                             }
                         }
                     });

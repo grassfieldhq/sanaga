@@ -100,6 +100,7 @@ packaging/install.sh --uninstall  # remove it (your data stays)
 sanaga [address …]            # open these addresses (or restore the last session)
 sanaga --profile Work         # use the "Work" profile (its own data)
 sanaga --app https://…        # open one site on its own, as a web app
+sanaga --new-window           # a new window in the running Sanaga
 sanaga --reader https://…     # open in Reader mode
 sanaga --apercu               # start on the tab overview
 sanaga --screenshot out.png   # draw the window once, save a picture, quit
@@ -110,6 +111,7 @@ sanaga --screenshot out.png   # draw the window once, save a picture, quit
 | Action | Keys |
 |---|---|
 | New tab / close tab | Ctrl+T / Ctrl+W |
+| New window | Ctrl+N |
 | Reopen closed tab | Ctrl+Shift+T |
 | New private tab | Ctrl+Shift+N |
 | Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |

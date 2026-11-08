@@ -510,3 +510,38 @@ Finalisation de la vidéo…⟂Finishing the video…⟂Terminando el vídeo…�
 Wikipédia⟂Wikipedia⟂Wikipedia⟂Wikipédia⟂Wikipedia
 NPR Texte⟂NPR Text⟂NPR Texto⟂NPR Texto⟂NPR Text
 Bienvenue⟂Welcome⟂Bienvenida⟂Boas-vindas⟂Willkommen
+Général⟂General⟂General⟂Geral⟂Allgemein
+Confidentialité et sécurité⟂Privacy and security⟂Privacidad y seguridad⟂Privacidade e segurança⟂Datenschutz und Sicherheit
+Performances⟂Performance⟂Rendimiento⟂Desempenho⟂Leistung
+Synchronisation et profils⟂Sync and profiles⟂Sincronización y perfiles⟂Sincronização e perfis⟂Synchronisierung und Profile
+Rechercher dans les paramètres⟂Search settings⟂Buscar en los ajustes⟂Procurar nas definições⟂Einstellungen durchsuchen
+Navigateur par défaut⟂Default browser⟂Navegador predeterminado⟂Navegador predefinido⟂Standardbrowser
+Sanaga est votre navigateur par défaut.⟂Sanaga is your default browser.⟂Sanaga es tu navegador predeterminado.⟂O Sanaga é o seu navegador predefinido.⟂Sanaga ist Ihr Standardbrowser.
+Sanaga n'est pas votre navigateur par défaut.⟂Sanaga is not your default browser.⟂Sanaga no es tu navegador predeterminado.⟂O Sanaga não é o seu navegador predefinido.⟂Sanaga ist nicht Ihr Standardbrowser.
+Définir par défaut⟂Make default⟂Establecer como predeterminado⟂Definir como predefinido⟂Als Standard festlegen
+Les liens ouverts depuis vos autres applications s'ouvriront dans Sanaga.⟂Links opened from your other applications will open in Sanaga.⟂Los enlaces abiertos desde tus otras aplicaciones se abrirán en Sanaga.⟂As ligações abertas a partir das suas outras aplicações vão abrir no Sanaga.⟂Links aus Ihren anderen Anwendungen öffnen sich in Sanaga.
+Langue⟂Language⟂Idioma⟂Idioma⟂Sprache
+Au démarrage⟂On startup⟂Al iniciar⟂Ao iniciar⟂Beim Start
+Ouvrir la page d'accueil⟂Open the home page⟂Abrir la página de inicio⟂Abrir a página inicial⟂Startseite öffnen
+Thème⟂Theme⟂Tema⟂Tema⟂Design
+Sombre⟂Dark⟂Oscuro⟂Escuro⟂Dunkel
+Barre d'outils⟂Toolbar⟂Barra de herramientas⟂Barra de ferramentas⟂Symbolleiste
+Ctrl + molette ou Ctrl +/− change le zoom d'un site ; Sanaga s'en souvient.⟂Ctrl + scroll wheel or Ctrl +/− changes a site's zoom; Sanaga remembers it.⟂Ctrl + rueda o Ctrl +/− cambia el zoom de un sitio; Sanaga lo recuerda.⟂Ctrl + roda ou Ctrl +/− muda o zoom de um site; o Sanaga lembra-se.⟂Strg + Mausrad oder Strg +/− ändert den Zoom einer Website; Sanaga merkt ihn sich.
+Suivi⟂Tracking⟂Rastreo⟂Rastreamento⟂Tracking
+Données de navigation⟂Browsing data⟂Datos de navegación⟂Dados de navegação⟂Browserdaten
+Historique, cookies, cache…⟂History, cookies, cache…⟂Historial, cookies, caché…⟂Histórico, cookies, cache…⟂Verlauf, Cookies, Cache…
+Caméra, micro, notifications, zoom… site par site⟂Camera, microphone, notifications, zoom… site by site⟂Cámara, micrófono, notificaciones, zoom… sitio por sitio⟂Câmara, microfone, notificações, zoom… site a site⟂Kamera, Mikrofon, Benachrichtigungen, Zoom… pro Website
+Sécurité⟂Security⟂Seguridad⟂Segurança⟂Sicherheit
+Sanaga Léger⟂Sanaga Light⟂Sanaga Ligero⟂Sanaga Leve⟂Sanaga Leicht
+Chaque page s'exécute isolée du reste de l'ordinateur (bac à sable). Les mots de passe restent dans le trousseau du système.⟂Each page runs isolated from the rest of the computer (sandbox). Passwords stay in the system keyring.⟂Cada página se ejecuta aislada del resto del ordenador (entorno aislado). Las contraseñas permanecen en el llavero del sistema.⟂Cada página é executada isolada do resto do computador (sandbox). As palavras-passe ficam no porta-chaves do sistema.⟂Jede Seite läuft isoliert vom Rest des Computers (Sandbox). Passwörter bleiben im Systemschlüsselbund.
+Quand un site n'a qu'un compte enregistré, Sanaga le remplit tout seul ; sinon, choisissez le compte dans la liste sous le champ.⟂When a site has only one saved account, Sanaga fills it in by itself; otherwise pick the account in the list under the field.⟂Cuando un sitio tiene una sola cuenta guardada, Sanaga la rellena sola; si no, elige la cuenta en la lista bajo el campo.⟂Quando um site tem só uma conta guardada, o Sanaga preenche-a sozinho; caso contrário, escolha a conta na lista sob o campo.⟂Hat eine Website nur ein gespeichertes Konto, füllt Sanaga es selbst aus; sonst wählen Sie das Konto in der Liste unter dem Feld.
+Coordonnées⟂Contact details⟂Datos de contacto⟂Dados de contacto⟂Kontaktdaten
+WebKit⟂WebKit⟂WebKit⟂WebKit⟂WebKit
+Économie de données⟂Data saver⟂Ahorro de datos⟂Poupança de dados⟂Datensparmodus
+Aucun paramètre ne correspond à votre recherche.⟂No setting matches your search.⟂Ningún ajuste coincide con tu búsqueda.⟂Nenhuma definição corresponde à sua pesquisa.⟂Keine Einstellung passt zu Ihrer Suche.
+Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.⟂First install Sanaga (packaging/install.sh) so that it appears in your applications.⟂Primero instala Sanaga (packaging/install.sh) para que aparezca en tus aplicaciones.⟂Instale primeiro o Sanaga (packaging/install.sh) para que apareça nas suas aplicações.⟂Installieren Sie Sanaga zuerst (packaging/install.sh), damit es in Ihren Anwendungen erscheint.
+Sanaga est maintenant votre navigateur par défaut.⟂Sanaga is now your default browser.⟂Sanaga es ahora tu navegador predeterminado.⟂O Sanaga é agora o seu navegador predefinido.⟂Sanaga ist jetzt Ihr Standardbrowser.
+Impossible de changer le navigateur par défaut.⟂Could not change the default browser.⟂No se pudo cambiar el navegador predeterminado.⟂Não foi possível mudar o navegador predefinido.⟂Der Standardbrowser konnte nicht geändert werden.
+Nouvelle fenêtre⟂New window⟂Nueva ventana⟂Nova janela⟂Neues Fenster
+Ctrl+N⟂Ctrl+N⟂Ctrl+N⟂Ctrl+N⟂Strg+N
+Déplacer vers une nouvelle fenêtre⟂Move to new window⟂Mover a una ventana nueva⟂Mover para uma nova janela⟂In neues Fenster verschieben

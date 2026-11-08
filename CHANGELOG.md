@@ -17,8 +17,22 @@ All notable changes to Sanaga are listed here. The format follows
 - Crash information written to `crash.log`.
 - `sanaga --export-icon` and `packaging/install.sh` (user install).
 
+- Several windows (Ctrl+N, “Move to new window” on a tab, `--new-window`);
+  every window's tabs come back at the next start.
+- Password AutoFill: saved accounts listed under the sign-in field, automatic
+  fill when a site has one account, two-step sign-ins and sign-in forms that
+  appear after the page loads.
+- Settings page with categories, search, and a “Make default” button.
+- The web inspector and GTK dialogs follow Sanaga's dark theme.
+
 ### Changed
 - Data files are written safely (copy, then swap) so a crash cannot corrupt them.
+- Ctrl+N opens a new window (it opened a tab).
+
+### Fixed
+- Clicking an address suggestion did nothing.
+- A page could ask for the saved password of another site (the site is now
+  checked against the page really shown).
 
 ## [0.1.0] — first public release
 

@@ -507,3 +507,38 @@ Finalisation de la vidéo…	Finishing the video…
 Wikipédia	Wikipedia
 NPR Texte	NPR Text
 Bienvenue	Welcome
+Général	General
+Confidentialité et sécurité	Privacy and security
+Performances	Performance
+Synchronisation et profils	Sync and profiles
+Rechercher dans les paramètres	Search settings
+Navigateur par défaut	Default browser
+Sanaga est votre navigateur par défaut.	Sanaga is your default browser.
+Sanaga n'est pas votre navigateur par défaut.	Sanaga is not your default browser.
+Définir par défaut	Make default
+Les liens ouverts depuis vos autres applications s'ouvriront dans Sanaga.	Links opened from your other applications will open in Sanaga.
+Langue	Language
+Au démarrage	On startup
+Ouvrir la page d'accueil	Open the home page
+Thème	Theme
+Sombre	Dark
+Barre d'outils	Toolbar
+Ctrl + molette ou Ctrl +/− change le zoom d'un site ; Sanaga s'en souvient.	Ctrl + scroll wheel or Ctrl +/− changes a site's zoom; Sanaga remembers it.
+Suivi	Tracking
+Données de navigation	Browsing data
+Historique, cookies, cache…	History, cookies, cache…
+Caméra, micro, notifications, zoom… site par site	Camera, microphone, notifications, zoom… site by site
+Sécurité	Security
+Sanaga Léger	Sanaga Light
+Chaque page s'exécute isolée du reste de l'ordinateur (bac à sable). Les mots de passe restent dans le trousseau du système.	Each page runs isolated from the rest of the computer (sandbox). Passwords stay in the system keyring.
+Quand un site n'a qu'un compte enregistré, Sanaga le remplit tout seul ; sinon, choisissez le compte dans la liste sous le champ.	When a site has only one saved account, Sanaga fills it in by itself; otherwise pick the account in the list under the field.
+Coordonnées	Contact details
+WebKit	WebKit
+Économie de données	Data saver
+Aucun paramètre ne correspond à votre recherche.	No setting matches your search.
+Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.	First install Sanaga (packaging/install.sh) so that it appears in your applications.
+Sanaga est maintenant votre navigateur par défaut.	Sanaga is now your default browser.
+Impossible de changer le navigateur par défaut.	Could not change the default browser.
+Nouvelle fenêtre	New window
+Ctrl+N	Ctrl+N
+Déplacer vers une nouvelle fenêtre	Move to new window

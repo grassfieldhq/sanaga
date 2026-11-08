@@ -29,9 +29,63 @@ pub enum PageSignal {
 /// other as on any browser. Returns the new page's widget.
 pub type PopupMaker = Rc<dyn Fn(&WebView) -> Option<WebView>>;
 
+thread_local! {
+    /// One web engine per profile folder, shared by all of Sanaga's windows
+    /// (two engines must never write the same cookies and site data).
+    static CONTEXTS: RefCell<Vec<(std::path::PathBuf, WebContext)>> = const { RefCell::new(Vec::new()) };
+    /// Engines whose downloads are already followed.
+    static WATCHED: RefCell<Vec<WebContext>> = const { RefCell::new(Vec::new()) };
+    /// Where finished downloads are reported: one receiver per window.
+    static DOWNLOAD_SINKS: RefCell<Vec<(usize, DownloadSink)>> = const { RefCell::new(Vec::new()) };
+}
+
+type DownloadSink = Rc<dyn Fn(String, Option<PathBuf>, bool)>;
+
+/// The window used last (its number): downloads are shown there.
+pub static ACTIVE_WINDOW: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Window `slot` wants to hear about finished downloads.
+pub fn add_download_sink(slot: usize, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
+    DOWNLOAD_SINKS.with(|s| s.borrow_mut().push((slot, Rc::new(done))));
+}
+
+/// Window `slot` closed.
+pub fn remove_download_sink(slot: usize) {
+    DOWNLOAD_SINKS.with(|s| s.borrow_mut().retain(|(n, _)| *n != slot));
+}
+
+fn report_download(url: String, path: Option<PathBuf>, ok: bool) {
+    let active = ACTIVE_WINDOW.load(std::sync::atomic::Ordering::Relaxed);
+    let sink = DOWNLOAD_SINKS.with(|s| {
+        let s = s.borrow();
+        s.iter().find(|(n, _)| *n == active).or_else(|| s.first()).map(|(_, f)| f.clone())
+    });
+    if let Some(f) = sink {
+        f(url, path, ok);
+    }
+}
+
+/// Follow the downloads of this engine (once, whatever the number of windows).
+pub fn follow_downloads(ctx: &WebContext, pick: impl Fn(&str) -> PathBuf + 'static) {
+    let known = WATCHED.with(|w| w.borrow().iter().any(|c| c == ctx));
+    if !known {
+        WATCHED.with(|w| w.borrow_mut().push(ctx.clone()));
+        watch_downloads(ctx, pick, report_download);
+    }
+}
+
 /// The engine settings shared by the pages of one profile (cookies, cache,
-/// site data are kept in `dir`).
+/// site data are kept in `dir`), made once and shared by all the windows.
 pub fn profile_context(dir: &Path) -> WebContext {
+    if let Some(c) = CONTEXTS.with(|c| c.borrow().iter().find(|(d, _)| d == dir).map(|(_, c)| c.clone())) {
+        return c;
+    }
+    let c = new_profile_context(dir);
+    CONTEXTS.with(|cs| cs.borrow_mut().push((dir.to_path_buf(), c.clone())));
+    c
+}
+
+fn new_profile_context(dir: &Path) -> WebContext {
     let _ = std::fs::create_dir_all(dir);
     let dm = WebsiteDataManager::builder().base_cache_directory(dir.to_string_lossy()).base_data_directory(dir.to_string_lossy()).build();
     if let Some(cm) = dm.cookie_manager() {
@@ -186,6 +240,10 @@ impl PageView {
 
     pub fn webview(&self) -> WebView {
         self.view.clone()
+    }
+    /// The address the page really shows (not what a page script claims).
+    pub fn uri(&self) -> Option<String> {
+        self.view.uri().map(|u| u.to_string())
     }
     pub fn load_url(&self, url: &str) -> R<()> {
         self.view.load_uri(url);

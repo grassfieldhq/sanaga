@@ -383,6 +383,7 @@ impl Store {
         if let Some(dir) = &self.dir {
             if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("history.tsv")) {
                 let _ = writeln!(f, "{}\t{}\t{}", v.time, clean(&v.url), clean(&v.title));
+                changed();
             }
         }
         self.history.push(v);
@@ -509,17 +510,66 @@ impl Store {
         let _ = write_atomic(&dir.join("extensions.txt"), self.extensions_on.join("\n"));
     }
 
-    pub fn save_session(&self, urls: &[String]) {
-        let Some(dir) = &self.dir else { return };
-        let _ = write_atomic(&dir.join("session.txt"), urls.join("\n"));
+    /// The tabs of window `slot` (0 = the first window: `session.txt`; the
+    /// others: `session-N.txt`).
+    fn session_file(dir: &Path, slot: usize) -> PathBuf {
+        if slot == 0 { dir.join("session.txt") } else { dir.join(format!("session-{slot}.txt")) }
     }
 
-    pub fn load_session(&self) -> Vec<String> {
-        let Some(dir) = &self.dir else { return Vec::new() };
-        std::fs::read_to_string(dir.join("session.txt"))
-            .map(|t| t.lines().filter(|l| !l.trim().is_empty()).map(|l| l.to_string()).collect())
-            .unwrap_or_default()
+    pub fn save_session(&self, slot: usize, urls: &[String]) {
+        let Some(dir) = &self.dir else { return };
+        let _ = write_atomic(&Self::session_file(dir, slot), urls.join("\n"));
     }
+
+    pub fn load_session(&self, slot: usize) -> Vec<String> {
+        let Some(dir) = &self.dir else { return Vec::new() };
+        read_lines(&Self::session_file(dir, slot))
+    }
+
+    /// A window was closed while others stay open: its tabs are not reopened.
+    pub fn forget_session(&self, slot: usize) {
+        let Some(dir) = &self.dir else { return };
+        let _ = std::fs::remove_file(Self::session_file(dir, slot));
+    }
+
+    /// The tabs of the other windows of the last session (their files are
+    /// removed: the windows write them again under their new numbers).
+    pub fn take_extra_sessions(&self) -> Vec<Vec<String>> {
+        let Some(dir) = &self.dir else { return Vec::new() };
+        let mut found: Vec<(usize, PathBuf)> = std::fs::read_dir(dir)
+            .map(|d| {
+                d.flatten()
+                    .filter_map(|e| {
+                        let name = e.file_name().to_string_lossy().to_string();
+                        let n = name.strip_prefix("session-")?.strip_suffix(".txt")?.parse().ok()?;
+                        Some((n, e.path()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        found.sort();
+        let mut out = Vec::new();
+        for (_, path) in found {
+            let tabs = read_lines(&path);
+            let _ = std::fs::remove_file(&path);
+            if !tabs.is_empty() {
+                out.push(tabs);
+            }
+        }
+        out
+    }
+}
+
+fn read_lines(path: &Path) -> Vec<String> {
+    std::fs::read_to_string(path).map(|t| t.lines().filter(|l| !l.trim().is_empty()).map(|l| l.to_string()).collect()).unwrap_or_default()
+}
+
+/// Changes to the data files made by this Sanaga (any window): another window
+/// of the same profile sees the number change and reads the files again.
+pub static CHANGES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn changed() {
+    CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Write a data file safely: into a copy first, then put in place in one go,
@@ -529,7 +579,12 @@ pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> 
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);
     std::fs::write(&tmp, data)?;
-    std::fs::rename(&tmp, path)
+    std::fs::rename(&tmp, path)?;
+    // (each window has its own session file: no need to tell the others)
+    if !path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("session")) {
+        changed();
+    }
+    Ok(())
 }
 
 /// First bookmarks, in the interface language (Wikipedia in that language too).
@@ -593,5 +648,23 @@ mod write_tests {
         super::write_atomic(&f, "a=2\n").unwrap();
         assert_eq!(std::fs::read_to_string(&f).unwrap(), "a=2\n");
         assert!(!dir.join("settings.txt.tmp").exists());
+    }
+
+    #[test]
+    fn each_window_keeps_its_own_tabs() {
+        let dir = std::env::temp_dir().join(format!("sanaga-windows-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let mut s = super::Store::ephemeral();
+        s.dir = Some(dir.clone());
+        s.save_session(0, &["https://a.example/".into()]);
+        s.save_session(3, &["https://b.example/".into(), "https://c.example/".into()]);
+        s.save_session(5, &["https://d.example/".into()]);
+        // a window closed while others stayed open is not reopened
+        s.forget_session(5);
+        assert_eq!(s.load_session(0), vec!["https://a.example/".to_string()]);
+        assert_eq!(s.take_extra_sessions(), vec![vec!["https://b.example/".to_string(), "https://c.example/".to_string()]]);
+        assert!(s.take_extra_sessions().is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

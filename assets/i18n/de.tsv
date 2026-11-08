@@ -507,3 +507,38 @@ Finalisation de la vidéo…	Video wird fertiggestellt…
 Wikipédia	Wikipedia
 NPR Texte	NPR Text
 Bienvenue	Willkommen
+Général	Allgemein
+Confidentialité et sécurité	Datenschutz und Sicherheit
+Performances	Leistung
+Synchronisation et profils	Synchronisierung und Profile
+Rechercher dans les paramètres	Einstellungen durchsuchen
+Navigateur par défaut	Standardbrowser
+Sanaga est votre navigateur par défaut.	Sanaga ist Ihr Standardbrowser.
+Sanaga n'est pas votre navigateur par défaut.	Sanaga ist nicht Ihr Standardbrowser.
+Définir par défaut	Als Standard festlegen
+Les liens ouverts depuis vos autres applications s'ouvriront dans Sanaga.	Links aus Ihren anderen Anwendungen öffnen sich in Sanaga.
+Langue	Sprache
+Au démarrage	Beim Start
+Ouvrir la page d'accueil	Startseite öffnen
+Thème	Design
+Sombre	Dunkel
+Barre d'outils	Symbolleiste
+Ctrl + molette ou Ctrl +/− change le zoom d'un site ; Sanaga s'en souvient.	Strg + Mausrad oder Strg +/− ändert den Zoom einer Website; Sanaga merkt ihn sich.
+Suivi	Tracking
+Données de navigation	Browserdaten
+Historique, cookies, cache…	Verlauf, Cookies, Cache…
+Caméra, micro, notifications, zoom… site par site	Kamera, Mikrofon, Benachrichtigungen, Zoom… pro Website
+Sécurité	Sicherheit
+Sanaga Léger	Sanaga Leicht
+Chaque page s'exécute isolée du reste de l'ordinateur (bac à sable). Les mots de passe restent dans le trousseau du système.	Jede Seite läuft isoliert vom Rest des Computers (Sandbox). Passwörter bleiben im Systemschlüsselbund.
+Quand un site n'a qu'un compte enregistré, Sanaga le remplit tout seul ; sinon, choisissez le compte dans la liste sous le champ.	Hat eine Website nur ein gespeichertes Konto, füllt Sanaga es selbst aus; sonst wählen Sie das Konto in der Liste unter dem Feld.
+Coordonnées	Kontaktdaten
+WebKit	WebKit
+Économie de données	Datensparmodus
+Aucun paramètre ne correspond à votre recherche.	Keine Einstellung passt zu Ihrer Suche.
+Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.	Installieren Sie Sanaga zuerst (packaging/install.sh), damit es in Ihren Anwendungen erscheint.
+Sanaga est maintenant votre navigateur par défaut.	Sanaga ist jetzt Ihr Standardbrowser.
+Impossible de changer le navigateur par défaut.	Der Standardbrowser konnte nicht geändert werden.
+Nouvelle fenêtre	Neues Fenster
+Ctrl+N	Strg+N
+Déplacer vers une nouvelle fenêtre	In neues Fenster verschieben

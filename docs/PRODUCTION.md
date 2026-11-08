@@ -14,7 +14,7 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Data files never half-written | ✅ | Settings, history, bookmarks, session… are written to a copy then swapped in. |
 | Crash information kept | ✅ | `~/.local/share/sanaga/crash.log`. Next: offer to send it (opt-in) and restore the session after a crash with a notice. |
 | One Sanaga per profile | ✅ | Links opened from other apps go to the running Sanaga as new tabs. |
-| Passwords | ✅ | In the system keyring (libsecret). |
+| Passwords | ✅ | In the system keyring (libsecret); AutoFill only for the site really shown. |
 | Security review | ❌ | Review the scripts Sanaga adds to pages (passwords, AutoFill, extensions), `sanaga://` pages and imports before 1.0. |
 
 ## 2. The web must work (must have)
@@ -32,8 +32,8 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 
 | Need | Status | Notes |
 |---|---|---|
-| Several windows, drag a tab out | ❌ | One window per profile today (Ctrl+N opens a tab). |
-| Default browser | 🟡 | `xdg-settings set default-web-browser sanaga.desktop`. Next: a button in Settings. |
+| Several windows | ✅ | Ctrl+N, “Move to new window”, `--new-window`; all windows come back at start. Next: drag a tab out of the window. |
+| Default browser | ✅ | Settings › General › Make default. |
 | Smooth animated pages | 🟡 | Pages with endless animations use more CPU than Chrome (GTK 3 copies each page frame). Moving to GTK 4 / WebKitGTK 6 fixes it — the biggest remaining technical step. |
 | Screen readers | ❌ | Pages are accessible (WebKit), but Sanaga's own interface (drawn with egui) is not yet exposed to Orca. Needed for 1.0. |
 | Fractional scaling (125 %, 150 %) | 🟡 | Integer scales work; fractional ones depend on the desktop's XWayland/Wayland settings. |
@@ -56,10 +56,10 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 2. **Security review** of the page scripts and internal pages; WebKitGTK
    version warning.
 3. **AUR package** (quickest way to reach Omarchy users), then Flatpak.
-4. **Multiple windows** and a download manager.
+4. **Drag a tab out to a new window** and a download manager.
 5. **GTK 4 / WebKitGTK 6 port** (CPU on animated pages, modern rendering).
 6. **Accessibility** of the interface.
 7. **Password-manager bridge** and encrypted sync.
 
 Version **1.0** = sections 1 and 2 all ✅ (except DRM, which WebKitGTK cannot
-do), multiple windows, packages, and accessibility.
+do), packages, and accessibility.

@@ -507,3 +507,38 @@ Finalisation de la vidéo…	A finalizar o vídeo…
 Wikipédia	Wikipédia
 NPR Texte	NPR Texto
 Bienvenue	Boas-vindas
+Général	Geral
+Confidentialité et sécurité	Privacidade e segurança
+Performances	Desempenho
+Synchronisation et profils	Sincronização e perfis
+Rechercher dans les paramètres	Procurar nas definições
+Navigateur par défaut	Navegador predefinido
+Sanaga est votre navigateur par défaut.	O Sanaga é o seu navegador predefinido.
+Sanaga n'est pas votre navigateur par défaut.	O Sanaga não é o seu navegador predefinido.
+Définir par défaut	Definir como predefinido
+Les liens ouverts depuis vos autres applications s'ouvriront dans Sanaga.	As ligações abertas a partir das suas outras aplicações vão abrir no Sanaga.
+Langue	Idioma
+Au démarrage	Ao iniciar
+Ouvrir la page d'accueil	Abrir a página inicial
+Thème	Tema
+Sombre	Escuro
+Barre d'outils	Barra de ferramentas
+Ctrl + molette ou Ctrl +/− change le zoom d'un site ; Sanaga s'en souvient.	Ctrl + roda ou Ctrl +/− muda o zoom de um site; o Sanaga lembra-se.
+Suivi	Rastreamento
+Données de navigation	Dados de navegação
+Historique, cookies, cache…	Histórico, cookies, cache…
+Caméra, micro, notifications, zoom… site par site	Câmara, microfone, notificações, zoom… site a site
+Sécurité	Segurança
+Sanaga Léger	Sanaga Leve
+Chaque page s'exécute isolée du reste de l'ordinateur (bac à sable). Les mots de passe restent dans le trousseau du système.	Cada página é executada isolada do resto do computador (sandbox). As palavras-passe ficam no porta-chaves do sistema.
+Quand un site n'a qu'un compte enregistré, Sanaga le remplit tout seul ; sinon, choisissez le compte dans la liste sous le champ.	Quando um site tem só uma conta guardada, o Sanaga preenche-a sozinho; caso contrário, escolha a conta na lista sob o campo.
+Coordonnées	Dados de contacto
+WebKit	WebKit
+Économie de données	Poupança de dados
+Aucun paramètre ne correspond à votre recherche.	Nenhuma definição corresponde à sua pesquisa.
+Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.	Instale primeiro o Sanaga (packaging/install.sh) para que apareça nas suas aplicações.
+Sanaga est maintenant votre navigateur par défaut.	O Sanaga é agora o seu navegador predefinido.
+Impossible de changer le navigateur par défaut.	Não foi possível mudar o navegador predefinido.
+Nouvelle fenêtre	Nova janela
+Ctrl+N	Ctrl+N
+Déplacer vers une nouvelle fenêtre	Mover para uma nova janela
