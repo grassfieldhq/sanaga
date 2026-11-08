@@ -147,6 +147,11 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 
 ## Install
 
+Packages bring everything, video codecs included — see
+[docs/PACKAGING.md](docs/PACKAGING.md) (Arch / AUR, Flatpak, Debian / Ubuntu).
+To build from source:
+
+
 Sanaga runs on Linux (Wayland or X11). You need:
 
 | What | Arch / Manjaro | Debian / Ubuntu (24.04+) | Fedora |

@@ -44,7 +44,7 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Need | Status | Notes |
 |---|---|---|
 | Install for one user | ✅ | `packaging/install.sh` |
-| Packages | ❌ | AUR package (Arch, Omarchy), Flatpak (all distributions), then .deb/.rpm. |
+| Packages | 🟡 | Recipes ready, codecs included as dependencies (docs/PACKAGING.md): Arch PKGBUILD (built and checked), Flatpak manifest with the ffmpeg extension, .deb metadata. Next: publish on the AUR and Flathub. |
 | Updates | ❌ | Through the package manager once packaged; until then rerun `install.sh` on a new version. |
 | Automatic tests of the real window | 🟡 | `docs/TESTING.md` scripted actions work locally; run them in CI under a headless Wayland compositor (weston/cage). |
 | Releases | ❌ | Tagged versions with notes (`CHANGELOG.md`) and signed builds. |
