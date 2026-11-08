@@ -50,8 +50,19 @@ fn cell() -> &'static Mutex<Option<Status>> {
     STATUS.get_or_init(|| Mutex::new(None))
 }
 
+/// Running as a Flatpak: the runtime and its ffmpeg extension bring the codecs.
+fn in_flatpak() -> bool {
+    std::path::Path::new("/.flatpak-info").exists()
+}
+
 /// Look at the system's decoders (in the background; a few milliseconds each).
 pub fn check_in_background() {
+    if in_flatpak() {
+        if let Ok(mut c) = cell().lock() {
+            *c = Some(Status { h264: true, aac: true, av1: true, vp9: true, opus: true, hardware: true });
+        }
+        return;
+    }
     std::thread::Builder::new()
         .name("sanaga-codecs".into())
         .spawn(|| {
@@ -93,6 +104,9 @@ fn os_release() -> (String, String) {
 
 /// How to install the missing decoders on this system (None: unknown system).
 pub fn install() -> Option<Install> {
+    if in_flatpak() {
+        return None;
+    }
     let (id, like) = os_release();
     let is = |name: &str| id == name || like.split_whitespace().any(|l| l == name);
     let (manager, args, packages): (&str, &[&str], &[&str]) = if is("arch") {

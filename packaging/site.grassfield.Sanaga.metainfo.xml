@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>site.grassfield.Sanaga</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Sanaga</name>
+  <summary>A fast, light web browser</summary>
+  <summary xml:lang="fr">Un navigateur web léger et rapide</summary>
+  <developer id="site.grassfield">
+    <name>Grassfield</name>
+  </developer>
+  <description>
+    <p>Sanaga is a web browser built on WebKitGTK, light on memory and private by default.</p>
+    <ul>
+      <li>Containers: tabs with their own cookies and logins</li>
+      <li>A network blocker of ads and trackers, and settings for each website</li>
+      <li>Tab groups, vertical tree tabs, reader, page summaries</li>
+      <li>Floating video, focus mode, link preview, PDF reader</li>
+      <li>A mobile simulator for web developers</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">site.grassfield.Sanaga.desktop</launchable>
+  <url type="homepage">https://github.com/grassfieldhq/sanaga</url>
+  <url type="bugtracker">https://github.com/grassfieldhq/sanaga/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/grassfieldhq/sanaga/main/docs/screenshots/browser.png</image>
+      <caption>Sanaga showing a Wikipedia article</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/grassfieldhq/sanaga/main/docs/screenshots/containers.png</image>
+      <caption>Containers</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-08"/>
+  </releases>
+  <categories>
+    <category>Network</category>
+    <category>WebBrowser</category>
+  </categories>
+</component>
