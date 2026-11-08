@@ -56,6 +56,9 @@ impl Sanaga {
     /// The model chosen in Settings › Intelligence (with its key, for Claude).
     pub(super) fn ai_provider(&self) -> Provider {
         let st = &self.store.settings;
+        if let Some(tool) = crate::ai_cli::CliTool::from_key(&st.ai) {
+            return Provider::Cli { tool, model: st.ai_model.clone() };
+        }
         match st.ai.as_str() {
             "ollama" => {
                 let model = if !st.ai_model.is_empty() {
@@ -251,10 +254,9 @@ impl Sanaga {
 
     /// sanaga://create-extension: describe what you want, a model writes it.
     pub(super) fn page_create_extension(&mut self, ui: &mut Ui, th: &Theme) {
-        let provider_label = match self.store.settings.ai.as_str() {
-            "ollama" | "claude" => Some(self.store.settings.ai.clone()),
-            _ => None,
-        };
+        let provider_label = (!self.store.settings.ai.is_empty()).then(|| self.store.settings.ai.clone());
+        let found = crate::ai_cli::installed();
+        let mut use_tool: Option<crate::ai_cli::CliTool> = None;
         let mut go_settings = false;
         let mut create = false;
         super::pages::centered_column(ui, |ui| {
@@ -265,6 +267,18 @@ impl Sanaga {
                 Frame::new().fill(th.accent.gamma_multiply(0.12)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(12)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(RichText::new(tr("Il faut un modèle d'IA : Ollama sur cet ordinateur (gratuit, rien ne sort de chez vous) ou Claude avec votre clé.")).color(th.text));
+                    if !found.is_empty() {
+                        ui.add_space(6.0);
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(tr("Trouvés sur cet ordinateur :")).color(th.text));
+                            for t in &found {
+                                let b = egui::Button::new(RichText::new(tf("Utiliser {}", &[&t.name()])).color(Color32::WHITE)).fill(th.accent);
+                                if ui.add(b).clicked() {
+                                    use_tool = Some(*t);
+                                }
+                            }
+                        });
+                    }
                     if ui.link(tr("Choisir dans Paramètres › Intelligence")).clicked() {
                         go_settings = true;
                     }
@@ -321,6 +335,11 @@ impl Sanaga {
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.")).size(12.0).color(th.sub));
         });
+        if let Some(t) = use_tool {
+            self.store.settings.ai = t.key().to_string();
+            self.store.settings.ai_model.clear();
+            self.store.save_settings();
+        }
         if go_settings {
             self.settings_section = super::settings::Section::Intelligence;
             self.navigate(self.active, "sanaga://settings".into(), None, true);

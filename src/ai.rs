@@ -21,6 +21,8 @@ pub enum Provider {
     Local,
     Ollama { model: String },
     Claude { model: String, key: String },
+    /// An assistant installed on the computer (Claude Code, Codex…).
+    Cli { tool: crate::ai_cli::CliTool, model: String },
 }
 
 impl Provider {
@@ -29,6 +31,8 @@ impl Provider {
             Provider::Local => crate::i18n::tr("Sanaga (sans IA, sur cet ordinateur)").into(),
             Provider::Ollama { model } => format!("Ollama · {model}"),
             Provider::Claude { model, .. } => format!("Claude · {model}"),
+            Provider::Cli { tool, model } if model.is_empty() => tool.name().to_string(),
+            Provider::Cli { tool, model } => format!("{} · {model}", tool.name()),
         }
     }
 }
@@ -48,6 +52,7 @@ pub fn ollama_models() -> Vec<String> {
 pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> Result<String, String> {
     match provider {
         Provider::Local => Err(crate::i18n::tr("Choisissez un modèle d'IA dans Paramètres › Intelligence.").into()),
+        Provider::Cli { tool, model } => crate::ai_cli::ask(*tool, model, system, prompt),
         Provider::Ollama { model } => {
             let body = format!("{{\"model\":{},\"system\":{},\"prompt\":{},\"stream\":false}}", json_str(model), json_str(system), json_str(prompt));
             let r = agent(240).post(&format!("{OLLAMA}/api/generate")).set("content-type", "application/json").send_string(&body).map_err(err_text)?;

@@ -616,3 +616,14 @@ Système	Sistema
 Rouge	Rojo
 Jaune	Amarillo
 Vert	Verde
+{} n'est plus installé.	{} ya no está instalado.
+{} ne répond pas.	{} no responde.
+Connectez-vous d'abord à {} dans un terminal.	Primero inicia sesión en {} en una terminal.
+Trouvés sur cet ordinateur :	Encontrados en este ordenador:
+Utiliser {}	Usar {}
+Trouvés sur cet ordinateur — ils utilisent votre propre compte, sans clé à donner :	Encontrados en este ordenador — usan tu propia cuenta, sin clave que dar:
+{} (installé)	{} (instalado)
+Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.	Claude Code, Codex o Gemini CLI instalados en el ordenador aparecerán aquí.
+{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.	{} se llama bloqueado: en una carpeta vacía, sin herramientas ni acceso a tus archivos; Sanaga solo lee su respuesta.
+celui par défaut	el predeterminado
+Le texte de la page résumée est envoyé au service de {}.	El texto de la página resumida se envía al servicio de {}.

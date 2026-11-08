@@ -619,3 +619,14 @@ Système⟂System⟂Sistema⟂Sistema⟂System
 Rouge⟂Red⟂Rojo⟂Vermelho⟂Rot
 Jaune⟂Yellow⟂Amarillo⟂Amarelo⟂Gelb
 Vert⟂Green⟂Verde⟂Verde⟂Grün
+{} n'est plus installé.⟂{} is no longer installed.⟂{} ya no está instalado.⟂{} já não está instalado.⟂{} ist nicht mehr installiert.
+{} ne répond pas.⟂{} is not answering.⟂{} no responde.⟂{} não responde.⟂{} antwortet nicht.
+Connectez-vous d'abord à {} dans un terminal.⟂First sign in to {} in a terminal.⟂Primero inicia sesión en {} en una terminal.⟂Inicie primeiro sessão no {} num terminal.⟂Melden Sie sich zuerst in einem Terminal bei {} an.
+Trouvés sur cet ordinateur :⟂Found on this computer:⟂Encontrados en este ordenador:⟂Encontrados neste computador:⟂Auf diesem Computer gefunden:
+Utiliser {}⟂Use {}⟂Usar {}⟂Usar {}⟂{} verwenden
+Trouvés sur cet ordinateur — ils utilisent votre propre compte, sans clé à donner :⟂Found on this computer — they use your own account, no key to give:⟂Encontrados en este ordenador — usan tu propia cuenta, sin clave que dar:⟂Encontrados neste computador — usam a sua própria conta, sem chave a dar:⟂Auf diesem Computer gefunden — sie nutzen Ihr eigenes Konto, ohne Schlüssel:
+{} (installé)⟂{} (installed)⟂{} (instalado)⟂{} (instalado)⟂{} (installiert)
+Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.⟂Claude Code, Codex or Gemini CLI installed on the computer will show here.⟂Claude Code, Codex o Gemini CLI instalados en el ordenador aparecerán aquí.⟂Claude Code, Codex ou Gemini CLI instalados no computador aparecerão aqui.⟂Auf dem Computer installierte Claude Code, Codex oder Gemini CLI erscheinen hier.
+{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.⟂{} is called locked down: in an empty folder, with no tools and no access to your files; Sanaga only reads its answer.⟂{} se llama bloqueado: en una carpeta vacía, sin herramientas ni acceso a tus archivos; Sanaga solo lee su respuesta.⟂{} é chamado bloqueado: numa pasta vazia, sem ferramentas nem acesso aos seus ficheiros; o Sanaga só lê a resposta.⟂{} wird abgeschottet aufgerufen: in einem leeren Ordner, ohne Werkzeuge und ohne Zugriff auf Ihre Dateien; Sanaga liest nur die Antwort.
+celui par défaut⟂the default one⟂el predeterminado⟂o predefinido⟂der Standard
+Le texte de la page résumée est envoyé au service de {}.⟂The text of the summarised page is sent to {}'s service.⟂El texto de la página resumida se envía al servicio de {}.⟂O texto da página resumida é enviado ao serviço do {}.⟂Der Text der zusammengefassten Seite wird an den Dienst von {} gesendet.

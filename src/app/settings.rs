@@ -549,6 +549,17 @@ impl Sanaga {
                         ui.radio_value(&mut ai, String::new(), tr("Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur"));
                         ui.radio_value(&mut ai, "ollama".to_string(), tr("Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)"));
                         ui.radio_value(&mut ai, "claude".to_string(), tr("Claude (Anthropic) — le meilleur résultat, avec votre clé d'API"));
+                        // assistants installed on this computer: they use your own account, no key
+                        let found = crate::ai_cli::installed();
+                        if !found.is_empty() {
+                            ui.add_space(4.0);
+                            note(ui, th, tr("Trouvés sur cet ordinateur — ils utilisent votre propre compte, sans clé à donner :"));
+                            for t in found {
+                                ui.radio_value(&mut ai, t.key().to_string(), tf("{} (installé)", &[&t.name()]));
+                            }
+                        } else {
+                            note(ui, th, tr("Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici."));
+                        }
                         if ai != st.ai {
                             st.ai = ai;
                             st.ai_model.clear();
@@ -579,6 +590,17 @@ impl Sanaga {
                                 if ui.button(tr("Chercher les modèles")).clicked() {
                                     find_models = true;
                                 }
+                            }
+                            k if crate::ai_cli::CliTool::from_key(k).is_some() => {
+                                let tool = crate::ai_cli::CliTool::from_key(k).unwrap_or(crate::ai_cli::CliTool::ClaudeCode);
+                                note(ui, th, &tf("{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.", &[&tool.name()]));
+                                ui.horizontal(|ui| {
+                                    ui.label(tr("Modèle"));
+                                    if ui.add(TextEdit::singleline(&mut st.ai_model).hint_text(tr("celui par défaut")).desired_width(220.0)).changed() {
+                                        changed = true;
+                                    }
+                                });
+                                note(ui, th, &tf("Le texte de la page résumée est envoyé au service de {}.", &[&tool.name()]));
                             }
                             "claude" => {
                                 if key_known {

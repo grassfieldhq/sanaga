@@ -616,3 +616,14 @@ Système	System
 Rouge	Rot
 Jaune	Gelb
 Vert	Grün
+{} n'est plus installé.	{} ist nicht mehr installiert.
+{} ne répond pas.	{} antwortet nicht.
+Connectez-vous d'abord à {} dans un terminal.	Melden Sie sich zuerst in einem Terminal bei {} an.
+Trouvés sur cet ordinateur :	Auf diesem Computer gefunden:
+Utiliser {}	{} verwenden
+Trouvés sur cet ordinateur — ils utilisent votre propre compte, sans clé à donner :	Auf diesem Computer gefunden — sie nutzen Ihr eigenes Konto, ohne Schlüssel:
+{} (installé)	{} (installiert)
+Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.	Auf dem Computer installierte Claude Code, Codex oder Gemini CLI erscheinen hier.
+{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.	{} wird abgeschottet aufgerufen: in einem leeren Ordner, ohne Werkzeuge und ohne Zugriff auf Ihre Dateien; Sanaga liest nur die Antwort.
+celui par défaut	der Standard
+Le texte de la page résumée est envoyé au service de {}.	Der Text der zusammengefassten Seite wird an den Dienst von {} gesendet.

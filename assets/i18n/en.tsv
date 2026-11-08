@@ -616,3 +616,14 @@ Système	System
 Rouge	Red
 Jaune	Yellow
 Vert	Green
+{} n'est plus installé.	{} is no longer installed.
+{} ne répond pas.	{} is not answering.
+Connectez-vous d'abord à {} dans un terminal.	First sign in to {} in a terminal.
+Trouvés sur cet ordinateur :	Found on this computer:
+Utiliser {}	Use {}
+Trouvés sur cet ordinateur — ils utilisent votre propre compte, sans clé à donner :	Found on this computer — they use your own account, no key to give:
+{} (installé)	{} (installed)
+Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.	Claude Code, Codex or Gemini CLI installed on the computer will show here.
+{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.	{} is called locked down: in an empty folder, with no tools and no access to your files; Sanaga only reads its answer.
+celui par défaut	the default one
+Le texte de la page résumée est envoyé au service de {}.	The text of the summarised page is sent to {}'s service.

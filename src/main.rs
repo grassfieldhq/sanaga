@@ -15,6 +15,7 @@
 compile_error!("Sanaga currently runs on Linux (and BSD) only: it is built on GTK 3 and WebKitGTK. See docs/PORTING.md for the Windows and macOS plan.");
 
 mod ai;
+mod ai_cli;
 mod app;
 mod desktop;
 mod extensions;
