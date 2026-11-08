@@ -524,6 +524,7 @@ impl Sanaga {
                 (sc(cs, Key::D), "readinglist"),
                 (sc(cs, Key::Tab), "prev"),
                 (sc(c, Key::T), "new"),
+                (sc(c, Key::Comma), "settings"),
                 (sc(c, Key::N), "window"),
                 (sc(c, Key::W), "close"),
                 (sc(c, Key::Tab), "next"),
@@ -577,6 +578,10 @@ impl Sanaga {
                     self.open_tab("sanaga://newtab", false);
                 }
                 "window" => self.new_window(Vec::new()),
+                "settings" => {
+                    self.open_tab("sanaga://settings", false);
+                }
+                "translate" => self.translate_page(),
                 "close" => self.close_tab(a),
                 "next" | "prev" => {
                     // within the tabs of the current group, in tab-bar order

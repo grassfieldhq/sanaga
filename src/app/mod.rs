@@ -14,6 +14,9 @@ mod pages;
 mod settings;
 mod layout;
 mod tabbar;
+mod onboarding;
+mod translate;
+mod mainmenu;
 mod sidebar;
 mod bookmarks;
 mod intelligence;
@@ -66,6 +69,7 @@ enum Internal {
     Sites,
     Import,
     CreateExtension,
+    Onboarding,
 }
 
 /// Sanaga's own pages have English addresses; the French ones of earlier
@@ -88,6 +92,11 @@ pub fn english_address(u: &str) -> String {
     OLD.iter().find(|(old, _)| *old == t).map(|(_, new)| new.to_string()).unwrap_or_else(|| u.to_string())
 }
 
+thread_local! {
+    /// Windows closed while others stayed open: their tabs, last one last.
+    static CLOSED_WINDOWS: std::cell::RefCell<Vec<Vec<String>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 /// Marks the message of a page that stopped working (see `page_error`).
 pub(crate) const CRASH_MARK: &str = "\u{1}crash\u{1}";
 
@@ -106,6 +115,7 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://sites" => Internal::Sites,
         "sanaga://import" => Internal::Import,
         "sanaga://create-extension" => Internal::CreateExtension,
+        "sanaga://start" => Internal::Onboarding,
         _ => return None,
     })
 }
@@ -125,6 +135,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Sites => tr("Paramètres des sites"),
         Internal::Import => tr("Importer depuis un autre navigateur"),
         Internal::CreateExtension => tr("Créer une extension"),
+        Internal::Onboarding => tr("Bienvenue dans Sanaga"),
     }
 }
 
@@ -399,6 +410,12 @@ pub struct Sanaga {
     settings_back: Vec<settings::Section>,
     settings_fwd: Vec<settings::Section>,
     settings_confirm: Option<f64>,
+    /// The welcome tour's step.
+    onboarding_step: usize,
+    /// Page translation running (tab) and the language asked.
+    translating: Option<u64>,
+    /// The "translate with Google or the AI?" question is shown.
+    translate_ask: bool,
     /// Sidebar: its search, the group being renamed in place.
     sidebar_filter: String,
     group_renaming: Option<usize>,
@@ -637,6 +654,9 @@ impl Sanaga {
             settings_back: Vec::new(),
             settings_fwd: Vec::new(),
             settings_confirm: None,
+            onboarding_step: 0,
+            translating: None,
+            translate_ask: false,
             sidebar_filter: String::new(),
             group_renaming: None,
             bm_editing: None,
@@ -743,7 +763,8 @@ impl Sanaga {
             }
         }
         if start.is_empty() {
-            start.push(if app.store.first_run { "sanaga://welcome".into() } else { app.store.settings.home.clone() });
+            // the very first start: the welcome tour
+            start.push(if app.store.first_run { "sanaga://start".into() } else { app.store.settings.home.clone() });
         }
         // restored tabs don't load now: each one loads when it is first shown
         app.restoring = true;
@@ -948,6 +969,11 @@ impl Sanaga {
     /// This window closes while others stay open: its tabs are not reopened
     /// next time (as in Chrome), and it no longer receives downloads.
     pub fn close_window(&mut self) {
+        // its tabs can come back: menu ⋮ › More tools › Reopen closed window
+        let urls: Vec<String> = self.tabs.iter().filter(|t| !t.private && !t.entries.is_empty()).map(|t| t.url().to_string()).collect();
+        if !urls.is_empty() {
+            CLOSED_WINDOWS.with(|c| c.borrow_mut().push(urls));
+        }
         self.store.forget_session(self.slot);
         crate::page::remove_download_sink(self.slot);
     }
@@ -970,6 +996,14 @@ impl Sanaga {
     /// The tabs of the last session's other windows, to open them again.
     pub fn take_extra_sessions(&mut self) -> Vec<Vec<String>> {
         std::mem::take(&mut self.extra_sessions)
+    }
+
+    /// Open again the window closed last (with its tabs).
+    pub(super) fn reopen_window(&mut self) {
+        match CLOSED_WINDOWS.with(|c| c.borrow_mut().pop()) {
+            Some(urls) => self.new_window(urls),
+            None => self.notice = Some((tr("Aucune fenêtre fermée à rouvrir.").into(), self.ctx.input(|i| i.time))),
+        }
     }
 
     /// Ask for a new window (Ctrl+N, menu, tab moved to a new window).
@@ -1246,6 +1280,7 @@ impl Sanaga {
         self.show_notice(&ctx, content, &th);
         self.undo_bar(&ctx, content, &th);
         self.star_popover(&ctx, &th);
+        self.translate_question(&ctx, &th);
         let t_sync = std::time::Instant::now();
         self.sync_web(content);
         let sync_ms = t_sync.elapsed().as_secs_f64() * 1000.0;

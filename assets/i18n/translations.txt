@@ -697,3 +697,68 @@ Elle utilisait trop de mémoire. Les autres onglets ne sont pas touchés.⟂It w
 Le moteur de la page s'est arrêté. Les autres onglets ne sont pas touchés.⟂The page's engine stopped. Your other tabs are fine.⟂El motor de la página se detuvo. Las demás pestañas no se ven afectadas.⟂O motor da página parou. Os outros separadores não foram afetados.⟂Die Engine der Seite wurde beendet. Die anderen Tabs sind nicht betroffen.
 Sans bannières de cookies⟂No cookie banners⟂Sin avisos de cookies⟂Sem avisos de cookies⟂Ohne Cookie-Banner
 Masque les bannières de consentement des outils les plus courants, sans rien accepter.⟂Hides the consent banners of the most common tools, without accepting anything.⟂Oculta los avisos de consentimiento de las herramientas más comunes, sin aceptar nada.⟂Oculta os avisos de consentimento das ferramentas mais comuns, sem aceitar nada.⟂Blendet die Zustimmungsbanner der gängigsten Tools aus, ohne etwas zu akzeptieren.
+Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent tout de suite aux pages ouvertes.⟂Extensions add features to web pages. Changes apply right away to open pages.⟂Las extensiones añaden funciones a las páginas web. Los cambios se aplican enseguida a las páginas abiertas.⟂As extensões acrescentam funções às páginas web. As alterações aplicam-se logo às páginas abertas.⟂Erweiterungen fügen Webseiten Funktionen hinzu. Änderungen gelten sofort für geöffnete Seiten.
+Onglet⟂Tab⟂Pestaña⟂Separador⟂Tab
+Fenêtre⟂Window⟂Ventana⟂Janela⟂Fenster
+Privé⟂Private⟂Privada⟂Privado⟂Privat
+Réduire (Ctrl+−)⟂Zoom out (Ctrl+−)⟂Reducir (Ctrl+−)⟂Reduzir (Ctrl+−)⟂Verkleinern (Strg+−)
+Agrandir (Ctrl++)⟂Zoom in (Ctrl++)⟂Ampliar (Ctrl++)⟂Ampliar (Ctrl++)⟂Vergrößern (Strg++)
+Plein écran (F11)⟂Full screen (F11)⟂Pantalla completa (F11)⟂Ecrã inteiro (F11)⟂Vollbild (F11)
+Traduire la page⟂Translate page⟂Traducir la página⟂Traduzir a página⟂Seite übersetzen
+Plus d'outils⟂More tools⟂Más herramientas⟂Mais ferramentas⟂Weitere Tools
+Rouvrir la fenêtre fermée⟂Reopen closed window⟂Reabrir la ventana cerrada⟂Reabrir a janela fechada⟂Geschlossenes Fenster wieder öffnen
+Ctrl+,⟂Ctrl+,⟂Ctrl+,⟂Ctrl+,⟂Strg+,
+Bienvenue dans Sanaga⟂Welcome to Sanaga⟂Bienvenido a Sanaga⟂Bem-vindo ao Sanaga⟂Willkommen bei Sanaga
+Aucune fenêtre fermée à rouvrir.⟂No closed window to reopen.⟂No hay ventanas cerradas para reabrir.⟂Não há janelas fechadas para reabrir.⟂Kein geschlossenes Fenster zum Wiederöffnen.
+Un navigateur rapide, léger et respectueux. Quelques choix et c'est parti.⟂A fast, light and respectful browser. A few choices and off you go.⟂Un navegador rápido, ligero y respetuoso. Unas pocas elecciones y listo.⟂Um navegador rápido, leve e respeitador. Algumas escolhas e já está.⟂Ein schneller, leichter und respektvoller Browser. Ein paar Entscheidungen und los geht's.
+Votre style⟂Your style⟂Tu estilo⟂O seu estilo⟂Ihr Stil
+Clair, sombre, ou comme le reste de l'ordinateur — et votre couleur.⟂Light, dark, or like the rest of the computer — and your colour.⟂Claro, oscuro o como el resto del ordenador, y tu color.⟂Claro, escuro ou como o resto do computador — e a sua cor.⟂Hell, dunkel oder wie der Rest des Computers — und Ihre Farbe.
+Où mettre les onglets ?⟂Where should the tabs go?⟂¿Dónde van las pestañas?⟂Onde ficam os separadores?⟂Wo sollen die Tabs hin?
+En haut comme Safari, ou sur le côté pour en garder beaucoup.⟂On top like Safari, or on the side to keep many.⟂Arriba como Safari, o al lado para tener muchas.⟂Em cima como o Safari, ou de lado para ter muitos.⟂Oben wie bei Safari oder seitlich für viele Tabs.
+Votre vie privée⟂Your privacy⟂Tu privacidad⟂A sua privacidade⟂Ihre Privatsphäre
+Sanaga n'envoie rien à personne. Choisissez vos protections.⟂Sanaga sends nothing to anyone. Choose your protections.⟂Sanaga no envía nada a nadie. Elige tus protecciones.⟂O Sanaga não envia nada a ninguém. Escolha as suas proteções.⟂Sanaga sendet niemandem etwas. Wählen Sie Ihren Schutz.
+Retrouvez vos affaires⟂Bring your things⟂Recupera tus cosas⟂Recupere as suas coisas⟂Holen Sie Ihre Daten
+Favoris, historique et mots de passe d'un autre navigateur.⟂Favourites, history and passwords from another browser.⟂Favoritos, historial y contraseñas de otro navegador.⟂Favoritos, histórico e palavras-passe de outro navegador.⟂Favoriten, Verlauf und Passwörter aus einem anderen Browser.
+Trouvés : {}⟂Found: {}⟂Encontrados: {}⟂Encontrados: {}⟂Gefunden: {}
+Importer maintenant⟂Import now⟂Importar ahora⟂Importar agora⟂Jetzt importieren
+Résumés de pages, traduction et extensions écrites pour vous.⟂Page summaries, translation and extensions written for you.⟂Resúmenes de páginas, traducción y extensiones escritas para ti.⟂Resumos de páginas, tradução e extensões escritas para si.⟂Seitenzusammenfassungen, Übersetzung und für Sie geschriebene Erweiterungen.
+{} (installé sur cet ordinateur)⟂{} (installed on this computer)⟂{} (instalado en este ordenador)⟂{} (instalado neste computador)⟂{} (auf diesem Computer installiert)
+Sanaga seul — sans IA, rien ne quitte l'ordinateur⟂Sanaga alone — no AI, nothing leaves the computer⟂Solo Sanaga — sin IA, nada sale del ordenador⟂Só o Sanaga — sem IA, nada sai do computador⟂Nur Sanaga — ohne KI, nichts verlässt den Computer
+Claude avec une clé ou Ollama : dans Paramètres › Intelligence.⟂Claude with a key or Ollama: in Settings › Intelligence.⟂Claude con clave u Ollama: en Ajustes › Inteligencia.⟂Claude com chave ou Ollama: em Definições › Inteligência.⟂Claude mit Schlüssel oder Ollama: unter Einstellungen › Intelligenz.
+Tout est prêt⟂All set⟂Todo listo⟂Tudo pronto⟂Alles bereit
+Faites de Sanaga votre navigateur, ou gardez celui de maintenant.⟂Make Sanaga your browser, or keep your current one.⟂Haz de Sanaga tu navegador, o quédate con el actual.⟂Faça do Sanaga o seu navegador, ou mantenha o atual.⟂Machen Sie Sanaga zu Ihrem Browser oder behalten Sie den jetzigen.
+Astuce : Ctrl+T nouvel onglet, Ctrl+L barre d'adresse, Ctrl+Maj+Y résumer la page.⟂Tip: Ctrl+T new tab, Ctrl+L address bar, Ctrl+Shift+Y summarise the page.⟂Consejo: Ctrl+T nueva pestaña, Ctrl+L barra de direcciones, Ctrl+Mayús+Y resumir la página.⟂Dica: Ctrl+T novo separador, Ctrl+L barra de endereço, Ctrl+Shift+Y resumir a página.⟂Tipp: Strg+T neuer Tab, Strg+L Adressleiste, Strg+Umschalt+Y Seite zusammenfassen.
+Retour⟂Back⟂Atrás⟂Voltar⟂Zurück
+Commencer⟂Get started⟂Empezar⟂Começar⟂Los geht's
+Continuer⟂Continue⟂Continuar⟂Continuar⟂Weiter
+Passer la présentation⟂Skip the tour⟂Saltar la presentación⟂Saltar a apresentação⟂Einführung überspringen
+Revoir la présentation de Sanaga⟂Replay the Sanaga tour⟂Ver de nuevo la presentación de Sanaga⟂Rever a apresentação do Sanaga⟂Sanaga-Einführung erneut ansehen
+Les premiers réglages, pas à pas⟂The first settings, step by step⟂Los primeros ajustes, paso a paso⟂As primeiras definições, passo a passo⟂Die ersten Einstellungen, Schritt für Schritt
+Traduction des pages⟂Page translation⟂Traducción de páginas⟂Tradução de páginas⟂Seitenübersetzung
+Avec l'intelligence choisie ci-dessus⟂With the intelligence chosen above⟂Con la inteligencia elegida arriba⟂Com a inteligência escolhida acima⟂Mit der oben gewählten Intelligenz
+La page est traduite sur place ; seul son texte est envoyé⟂The page is translated in place; only its text is sent⟂La página se traduce en el sitio; solo se envía su texto⟂A página é traduzida no local; só o texto é enviado⟂Die Seite wird an Ort und Stelle übersetzt; nur ihr Text wird gesendet
+L'adresse de la page est envoyée à Google⟂The page's address is sent to Google⟂La dirección de la página se envía a Google⟂O endereço da página é enviado à Google⟂Die Adresse der Seite wird an Google gesendet
+Me demander la prochaine fois⟂Ask me next time⟂Preguntarme la próxima vez⟂Perguntar-me da próxima vez⟂Beim nächsten Mal fragen
+Autorisations des sites⟂Site permissions⟂Permisos de los sitios⟂Permissões dos sites⟂Website-Berechtigungen
+Oublier ce choix⟂Forget this choice⟂Olvidar esta elección⟂Esquecer esta escolha⟂Diese Wahl vergessen
+Autorisé⟂Allowed⟂Permitido⟂Permitido⟂Erlaubt
+Bloqué⟂Blocked⟂Bloqueado⟂Bloqueado⟂Blockiert
+Comptes enregistrés⟂Saved accounts⟂Cuentas guardadas⟂Contas guardadas⟂Gespeicherte Konten
+(sans identifiant)⟂(no user name)⟂(sin usuario)⟂(sem utilizador)⟂(ohne Benutzername)
+Copier le mot de passe⟂Copy password⟂Copiar la contraseña⟂Copiar a palavra-passe⟂Passwort kopieren
+Voir les {} comptes⟂See all {} accounts⟂Ver las {} cuentas⟂Ver as {} contas⟂Alle {} Konten ansehen
+Extensions installées⟂Installed extensions⟂Extensiones instaladas⟂Extensões instaladas⟂Installierte Erweiterungen
+Confirmer⟂Confirm⟂Confirmar⟂Confirmar⟂Bestätigen
+Supprimer l'extension⟂Remove extension⟂Eliminar la extensión⟂Remover a extensão⟂Erweiterung entfernen
+Les changements s'appliquent tout de suite aux pages ouvertes.⟂Changes apply right away to open pages.⟂Los cambios se aplican enseguida a las páginas abiertas.⟂As alterações aplicam-se logo às páginas abertas.⟂Änderungen gelten sofort für geöffnete Seiten.
+Vos fichiers .js et .css⟂Your .js and .css files⟂Tus archivos .js y .css⟂Os seus ficheiros .js e .css⟂Ihre .js- und .css-Dateien
+Choisissez d'abord une IA dans Paramètres › Intelligence.⟂First choose an AI in Settings › Intelligence.⟂Primero elige una IA en Ajustes › Inteligencia.⟂Escolha primeiro uma IA em Definições › Inteligência.⟂Wählen Sie zuerst eine KI unter Einstellungen › Intelligenz.
+La traduction marche sur les pages des sites.⟂Translation works on websites' pages.⟂La traducción funciona en las páginas de los sitios.⟂A tradução funciona nas páginas dos sites.⟂Übersetzung gibt es für Seiten von Websites.
+Traduction de la page…⟂Translating the page…⟂Traduciendo la página…⟂A traduzir a página…⟂Seite wird übersetzt…
+Page traduite.⟂Page translated.⟂Página traducida.⟂Página traduzida.⟂Seite übersetzt.
+Une IA (à choisir dans Paramètres › Intelligence)⟂An AI (choose it in Settings › Intelligence)⟂Una IA (elígela en Ajustes › Inteligencia)⟂Uma IA (escolha em Definições › Inteligência)⟂Eine KI (unter Einstellungen › Intelligenz wählen)
+Avec {} — la page est traduite sur place⟂With {} — the page is translated in place⟂Con {} — la página se traduce en el sitio⟂Com {} — a página é traduzida no local⟂Mit {} — die Seite wird an Ort und Stelle übersetzt
+Traduire la page avec…⟂Translate the page with…⟂Traducir la página con…⟂Traduzir a página com…⟂Seite übersetzen mit…
+Seul le texte de la page est envoyé à cette IA⟂Only the page's text is sent to this AI⟂Solo el texto de la página se envía a esta IA⟂Só o texto da página é enviado a esta IA⟂Nur der Text der Seite wird an diese KI gesendet
+Votre choix est gardé ; il se change dans Paramètres › Intelligence.⟂Your choice is kept; change it in Settings › Intelligence.⟂Tu elección se guarda; se cambia en Ajustes › Inteligencia.⟂A sua escolha fica guardada; muda-se em Definições › Inteligência.⟂Ihre Wahl wird gespeichert; ändern unter Einstellungen › Intelligenz.
+Extension supprimée.⟂Extension removed.⟂Extensión eliminada.⟂Extensão removida.⟂Erweiterung entfernt.

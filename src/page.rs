@@ -258,6 +258,18 @@ impl PageView {
     pub fn uri(&self) -> Option<String> {
         self.view.uri().map(|u| u.to_string())
     }
+    /// Replace the scripts run in this page (extensions switched on or off)
+    /// and load it again so the change shows at once.
+    pub fn set_scripts(&self, scripts: &[&str]) {
+        if let Some(ucm) = self.view.user_content_manager() {
+            ucm.remove_all_scripts();
+            ucm.remove_all_style_sheets();
+            for js in std::iter::once(IPC_JS).chain(scripts.iter().copied()) {
+                ucm.add_script(&UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]));
+            }
+            self.view.reload();
+        }
+    }
     pub fn load_url(&self, url: &str) -> R<()> {
         self.view.load_uri(url);
         Ok(())

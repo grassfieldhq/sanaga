@@ -694,3 +694,68 @@ Elle utilisait trop de mémoire. Les autres onglets ne sont pas touchés.	It was
 Le moteur de la page s'est arrêté. Les autres onglets ne sont pas touchés.	The page's engine stopped. Your other tabs are fine.
 Sans bannières de cookies	No cookie banners
 Masque les bannières de consentement des outils les plus courants, sans rien accepter.	Hides the consent banners of the most common tools, without accepting anything.
+Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent tout de suite aux pages ouvertes.	Extensions add features to web pages. Changes apply right away to open pages.
+Onglet	Tab
+Fenêtre	Window
+Privé	Private
+Réduire (Ctrl+−)	Zoom out (Ctrl+−)
+Agrandir (Ctrl++)	Zoom in (Ctrl++)
+Plein écran (F11)	Full screen (F11)
+Traduire la page	Translate page
+Plus d'outils	More tools
+Rouvrir la fenêtre fermée	Reopen closed window
+Ctrl+,	Ctrl+,
+Bienvenue dans Sanaga	Welcome to Sanaga
+Aucune fenêtre fermée à rouvrir.	No closed window to reopen.
+Un navigateur rapide, léger et respectueux. Quelques choix et c'est parti.	A fast, light and respectful browser. A few choices and off you go.
+Votre style	Your style
+Clair, sombre, ou comme le reste de l'ordinateur — et votre couleur.	Light, dark, or like the rest of the computer — and your colour.
+Où mettre les onglets ?	Where should the tabs go?
+En haut comme Safari, ou sur le côté pour en garder beaucoup.	On top like Safari, or on the side to keep many.
+Votre vie privée	Your privacy
+Sanaga n'envoie rien à personne. Choisissez vos protections.	Sanaga sends nothing to anyone. Choose your protections.
+Retrouvez vos affaires	Bring your things
+Favoris, historique et mots de passe d'un autre navigateur.	Favourites, history and passwords from another browser.
+Trouvés : {}	Found: {}
+Importer maintenant	Import now
+Résumés de pages, traduction et extensions écrites pour vous.	Page summaries, translation and extensions written for you.
+{} (installé sur cet ordinateur)	{} (installed on this computer)
+Sanaga seul — sans IA, rien ne quitte l'ordinateur	Sanaga alone — no AI, nothing leaves the computer
+Claude avec une clé ou Ollama : dans Paramètres › Intelligence.	Claude with a key or Ollama: in Settings › Intelligence.
+Tout est prêt	All set
+Faites de Sanaga votre navigateur, ou gardez celui de maintenant.	Make Sanaga your browser, or keep your current one.
+Astuce : Ctrl+T nouvel onglet, Ctrl+L barre d'adresse, Ctrl+Maj+Y résumer la page.	Tip: Ctrl+T new tab, Ctrl+L address bar, Ctrl+Shift+Y summarise the page.
+Retour	Back
+Commencer	Get started
+Continuer	Continue
+Passer la présentation	Skip the tour
+Revoir la présentation de Sanaga	Replay the Sanaga tour
+Les premiers réglages, pas à pas	The first settings, step by step
+Traduction des pages	Page translation
+Avec l'intelligence choisie ci-dessus	With the intelligence chosen above
+La page est traduite sur place ; seul son texte est envoyé	The page is translated in place; only its text is sent
+L'adresse de la page est envoyée à Google	The page's address is sent to Google
+Me demander la prochaine fois	Ask me next time
+Autorisations des sites	Site permissions
+Oublier ce choix	Forget this choice
+Autorisé	Allowed
+Bloqué	Blocked
+Comptes enregistrés	Saved accounts
+(sans identifiant)	(no user name)
+Copier le mot de passe	Copy password
+Voir les {} comptes	See all {} accounts
+Extensions installées	Installed extensions
+Confirmer	Confirm
+Supprimer l'extension	Remove extension
+Les changements s'appliquent tout de suite aux pages ouvertes.	Changes apply right away to open pages.
+Vos fichiers .js et .css	Your .js and .css files
+Choisissez d'abord une IA dans Paramètres › Intelligence.	First choose an AI in Settings › Intelligence.
+La traduction marche sur les pages des sites.	Translation works on websites' pages.
+Traduction de la page…	Translating the page…
+Page traduite.	Page translated.
+Une IA (à choisir dans Paramètres › Intelligence)	An AI (choose it in Settings › Intelligence)
+Avec {} — la page est traduite sur place	With {} — the page is translated in place
+Traduire la page avec…	Translate the page with…
+Seul le texte de la page est envoyé à cette IA	Only the page's text is sent to this AI
+Votre choix est gardé ; il se change dans Paramètres › Intelligence.	Your choice is kept; change it in Settings › Intelligence.
+Extension supprimée.	Extension removed.

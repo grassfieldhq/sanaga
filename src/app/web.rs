@@ -15,6 +15,8 @@ pub(super) enum WebEvent {
     Shortcut(String),
     /// A page closed itself (a sign-in window when done): its tab closes.
     CloseTab { tab: u64 },
+    /// Texts of a page to translate (or "done").
+    Translate { tab: u64, msg: String },
     /// Text typed in a form and not sent yet (true), or sent / page left.
     FormDirty { tab: u64, dirty: bool },
     /// The page stopped working (true: it used too much memory).
@@ -157,7 +159,9 @@ impl PageMaker {
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
                 PageSignal::Message(body) => {
-                    if body == "form:dirty" || body == "form:clean" {
+                    if let Some(rest) = body.strip_prefix("tr:") {
+                        WebEvent::Translate { tab: id, msg: rest.to_string() }
+                    } else if body == "form:dirty" || body == "form:clean" {
                         WebEvent::FormDirty { tab: id, dirty: body == "form:dirty" }
                     } else if let Some(text) = body.strip_prefix("sum:") {
                         WebEvent::PageText { tab: id, text: text.to_string() }
@@ -287,6 +291,7 @@ impl Sanaga {
                     t.form_dirty = dirty;
                 }
             }
+            WebEvent::Translate { tab, msg } => self.translation_batch(tab, &msg),
             WebEvent::CloseTab { tab } => {
                 if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
                     self.close_tab(i);
@@ -325,7 +330,7 @@ impl Sanaga {
         if !self.web_ok {
             return;
         }
-        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || egui::Popup::is_any_open(&self.ctx);
+        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || egui::Popup::is_any_open(&self.ctx);
         // A menu over a page: the page sits above Sanaga's drawing, so take a
         // picture of it first and show that picture while the menu is open
         // (instead of a blank page).
@@ -491,6 +496,43 @@ impl Sanaga {
                 self.move_tab(i, to);
             }
         }
+    }
+
+    /// Extensions switched on or off, or removed: every open page gets the
+    /// new set at once (it reloads), not only the tabs opened afterwards.
+    pub(super) fn refresh_extensions(&mut self) {
+        let scripts = self.page_maker().scripts.clone();
+        let list: Vec<&str> = scripts.iter().map(|s| s.as_str()).collect();
+        for t in &self.tabs {
+            if let Some(w) = &t.web {
+                w.set_scripts(&list);
+            }
+        }
+    }
+
+    /// Switch an extension on or off.
+    pub(super) fn toggle_extension(&mut self, id: &str) {
+        if let Some(p) = self.store.extensions_on.iter().position(|x| x == id) {
+            self.store.extensions_on.remove(p);
+        } else {
+            self.store.extensions_on.push(id.to_string());
+        }
+        self.store.save_extensions();
+        self.refresh_extensions();
+    }
+
+    /// Remove one of the person's extensions (its file goes too).
+    pub(super) fn delete_extension(&mut self, id: &str) {
+        if let Some(name) = id.strip_prefix("fichier:") {
+            let path = crate::extensions::folder().join(name);
+            if path.parent() == Some(crate::extensions::folder().as_path()) {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+        self.store.extensions_on.retain(|x| x != id);
+        self.store.save_extensions();
+        self.refresh_extensions();
+        self.notice = Some((tr("Extension supprimée.").into(), self.ctx.input(|i| i.time)));
     }
 
     fn page_maker(&self) -> PageMaker {

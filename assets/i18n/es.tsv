@@ -694,3 +694,68 @@ Elle utilisait trop de mémoire. Les autres onglets ne sont pas touchés.	Usaba 
 Le moteur de la page s'est arrêté. Les autres onglets ne sont pas touchés.	El motor de la página se detuvo. Las demás pestañas no se ven afectadas.
 Sans bannières de cookies	Sin avisos de cookies
 Masque les bannières de consentement des outils les plus courants, sans rien accepter.	Oculta los avisos de consentimiento de las herramientas más comunes, sin aceptar nada.
+Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent tout de suite aux pages ouvertes.	Las extensiones añaden funciones a las páginas web. Los cambios se aplican enseguida a las páginas abiertas.
+Onglet	Pestaña
+Fenêtre	Ventana
+Privé	Privada
+Réduire (Ctrl+−)	Reducir (Ctrl+−)
+Agrandir (Ctrl++)	Ampliar (Ctrl++)
+Plein écran (F11)	Pantalla completa (F11)
+Traduire la page	Traducir la página
+Plus d'outils	Más herramientas
+Rouvrir la fenêtre fermée	Reabrir la ventana cerrada
+Ctrl+,	Ctrl+,
+Bienvenue dans Sanaga	Bienvenido a Sanaga
+Aucune fenêtre fermée à rouvrir.	No hay ventanas cerradas para reabrir.
+Un navigateur rapide, léger et respectueux. Quelques choix et c'est parti.	Un navegador rápido, ligero y respetuoso. Unas pocas elecciones y listo.
+Votre style	Tu estilo
+Clair, sombre, ou comme le reste de l'ordinateur — et votre couleur.	Claro, oscuro o como el resto del ordenador, y tu color.
+Où mettre les onglets ?	¿Dónde van las pestañas?
+En haut comme Safari, ou sur le côté pour en garder beaucoup.	Arriba como Safari, o al lado para tener muchas.
+Votre vie privée	Tu privacidad
+Sanaga n'envoie rien à personne. Choisissez vos protections.	Sanaga no envía nada a nadie. Elige tus protecciones.
+Retrouvez vos affaires	Recupera tus cosas
+Favoris, historique et mots de passe d'un autre navigateur.	Favoritos, historial y contraseñas de otro navegador.
+Trouvés : {}	Encontrados: {}
+Importer maintenant	Importar ahora
+Résumés de pages, traduction et extensions écrites pour vous.	Resúmenes de páginas, traducción y extensiones escritas para ti.
+{} (installé sur cet ordinateur)	{} (instalado en este ordenador)
+Sanaga seul — sans IA, rien ne quitte l'ordinateur	Solo Sanaga — sin IA, nada sale del ordenador
+Claude avec une clé ou Ollama : dans Paramètres › Intelligence.	Claude con clave u Ollama: en Ajustes › Inteligencia.
+Tout est prêt	Todo listo
+Faites de Sanaga votre navigateur, ou gardez celui de maintenant.	Haz de Sanaga tu navegador, o quédate con el actual.
+Astuce : Ctrl+T nouvel onglet, Ctrl+L barre d'adresse, Ctrl+Maj+Y résumer la page.	Consejo: Ctrl+T nueva pestaña, Ctrl+L barra de direcciones, Ctrl+Mayús+Y resumir la página.
+Retour	Atrás
+Commencer	Empezar
+Continuer	Continuar
+Passer la présentation	Saltar la presentación
+Revoir la présentation de Sanaga	Ver de nuevo la presentación de Sanaga
+Les premiers réglages, pas à pas	Los primeros ajustes, paso a paso
+Traduction des pages	Traducción de páginas
+Avec l'intelligence choisie ci-dessus	Con la inteligencia elegida arriba
+La page est traduite sur place ; seul son texte est envoyé	La página se traduce en el sitio; solo se envía su texto
+L'adresse de la page est envoyée à Google	La dirección de la página se envía a Google
+Me demander la prochaine fois	Preguntarme la próxima vez
+Autorisations des sites	Permisos de los sitios
+Oublier ce choix	Olvidar esta elección
+Autorisé	Permitido
+Bloqué	Bloqueado
+Comptes enregistrés	Cuentas guardadas
+(sans identifiant)	(sin usuario)
+Copier le mot de passe	Copiar la contraseña
+Voir les {} comptes	Ver las {} cuentas
+Extensions installées	Extensiones instaladas
+Confirmer	Confirmar
+Supprimer l'extension	Eliminar la extensión
+Les changements s'appliquent tout de suite aux pages ouvertes.	Los cambios se aplican enseguida a las páginas abiertas.
+Vos fichiers .js et .css	Tus archivos .js y .css
+Choisissez d'abord une IA dans Paramètres › Intelligence.	Primero elige una IA en Ajustes › Inteligencia.
+La traduction marche sur les pages des sites.	La traducción funciona en las páginas de los sitios.
+Traduction de la page…	Traduciendo la página…
+Page traduite.	Página traducida.
+Une IA (à choisir dans Paramètres › Intelligence)	Una IA (elígela en Ajustes › Inteligencia)
+Avec {} — la page est traduite sur place	Con {} — la página se traduce en el sitio
+Traduire la page avec…	Traducir la página con…
+Seul le texte de la page est envoyé à cette IA	Solo el texto de la página se envía a esta IA
+Votre choix est gardé ; il se change dans Paramètres › Intelligence.	Tu elección se guarda; se cambia en Ajustes › Inteligencia.
+Extension supprimée.	Extensión eliminada.

@@ -8,7 +8,7 @@ use eframe::egui::{Align2, Color32, Margin, Sense};
 use webkit2gtk::{WebViewExt, WebsiteDataManagerExt};
 
 impl Sanaga {
-    fn current_page(&self) -> Option<(String, String)> {
+    pub(super) fn current_page(&self) -> Option<(String, String)> {
         let t = self.tabs.get(self.active)?;
         if t.entries.is_empty() || t.url().starts_with("sanaga://") {
             return None;
@@ -52,15 +52,6 @@ impl Sanaga {
     pub(super) fn view_source(&mut self) {
         if let Some((u, _)) = self.current_page() {
             self.open_tab(&format!("view-source:{u}"), self.tabs[self.active].private);
-        }
-    }
-
-    /// Translate the page into French (through a translation website).
-    pub(super) fn translate_page(&mut self) {
-        if let Some((u, _)) = self.current_page() {
-            let enc: String = url::form_urlencoded::byte_serialize(u.as_bytes()).collect();
-            let a = self.active;
-            self.navigate(a, format!("https://translate.google.com/translate?sl=auto&tl={}&u={enc}", crate::i18n::language()), None, true);
         }
     }
 

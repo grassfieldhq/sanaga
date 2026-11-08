@@ -17,7 +17,7 @@ Legend: ✅ Sanaga does not have the problem · 🟡 partly · ❌ not yet
 | Cross-site trackers, third-party cookies | Chrome (Privacy Sandbox, Topics) | ✅ WebKit's tracking prevention (ITP) on by default, with a privacy report. No Topics / ad measurement APIs. |
 | `<a ping>` reports which links you follow | Chrome, Safari | ✅ **Fixed during the audit**: Sanaga removes `ping` from a link before the click (WebKit ignores its own setting for this). |
 | Notification permission spam | All | ✅ **Fixed**: requests are refused quietly (a short note says so); Settings › Privacy can let sites ask again. |
-| Translation sends the page to a cloud service without saying so | Chrome | 🟡 **Labelled**: the menu now says “Translate page (Google Translate)”. An on-device translation would be better. |
+| Translation sends the page to a cloud service without saying so | Chrome | ✅ **Your choice**: Google Translate, or the AI you chose (Claude Code, Codex, Claude, Ollama — the page is translated in place, only its text is sent). Asked the first time; Settings › Intelligence. |
 | Passwords stored in the browser's own files | Chrome (Linux: basic store), Firefox (without primary password) | ✅ In the system keyring (Secret Service) — the list itself is read from the keyring. |
 | Fingerprinting | All | 🟡 ITP limits some of it; no dedicated fingerprinting protection yet. |
 | Cookie banners everywhere | All (Brave/Firefox auto-reject) | ✅ **Added**: built-in “No cookie banners” extension (on by default for new profiles) hides the common consent tools without accepting anything, and restores scrolling. |
@@ -54,7 +54,8 @@ Legend: ✅ Sanaga does not have the problem · 🟡 partly · ❌ not yet
 | Extensions limited (Manifest V3 limits ad blockers) | Chrome, Safari | 🟡 No extension store; built-in blockers and user scripts, plus extensions written by AI from a description. Blocking is by hiding (CSS), not by request filtering. |
 | Weak developer tools | Safari | 🟡 WebKit's Web Inspector (docked or separate, dark theme) plus the mobile simulator. |
 | Accessibility of the browser's own interface | — | ❌ Pages are accessible; Sanaga's own interface is not yet exposed to screen readers (PRODUCTION.md). |
-| Reopen a closed window | — | ❌ Ctrl+Shift+T reopens tabs, not whole windows yet. |
+| Reopen a closed window | — | ✅ Menu ⋮ › More tools › Reopen closed window. |
+| Extension switched off still acts on open pages | Safari (until reload) | ✅ Switching an extension on or off applies at once to the open pages. |
 
 ## Changes made during this audit
 

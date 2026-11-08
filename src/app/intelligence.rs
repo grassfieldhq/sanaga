@@ -42,6 +42,8 @@ pub(super) enum AiDone {
     Models(Vec<String>),
     /// The accounts read from the system keyring.
     Logins(Vec<(String, String)>),
+    /// A batch of a page's texts, translated (from its place in the page).
+    Translation { tab: u64, from: usize, result: Result<Vec<String>, String> },
 }
 
 #[derive(Default)]
@@ -179,6 +181,7 @@ impl Sanaga {
                     }
                 }
                 AiDone::Models(m) => self.ai_models = Some(m),
+                AiDone::Translation { tab, from, result } => self.translation_done(tab, from, result),
                 AiDone::Logins(list) => {
                     // the keyring is the reference; an empty answer (a locked
                     // or missing keyring) leaves the list as it was

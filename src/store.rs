@@ -108,6 +108,9 @@ pub struct Settings {
     /// Let sites ask to send notifications (off: their requests are refused
     /// quietly, as Firefox's "block new requests").
     pub notif_prompts: bool,
+    /// Page translation: "" ask the first time, "google", or "ai" (the AI
+    /// chosen for summaries).
+    pub translate_with: String,
 }
 
 /// Buttons the toolbar can show: key, shown by default.
@@ -169,6 +172,7 @@ impl Default for Settings {
             ai: String::new(),
             ai_model: String::new(),
             notif_prompts: false,
+            translate_with: String::new(),
         }
     }
 }
@@ -345,6 +349,7 @@ impl Store {
                         "ai" => st.ai = v.to_string(),
                         "ai_model" => st.ai_model = v.to_string(),
                         "notif_prompts" => st.notif_prompts = v == "1",
+                        "translate_with" => st.translate_with = v.to_string(),
                         "toolbar" => {
                             st.toolbar = v.to_string();
                             // buttons added since: shown unless switched off ("-key")
@@ -396,8 +401,8 @@ impl Store {
         let st = &self.settings;
         let b = |v: bool| if v { "1" } else { "0" };
         let t = format!(
-            "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\naccent={}\ntheme={}\ntabs_pos={}\nbar_pos={}\nai={}\nai_model={}\nnotif_prompts={}\n",
-            clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model), b(st.notif_prompts)
+            "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\naccent={}\ntheme={}\ntabs_pos={}\nbar_pos={}\nai={}\nai_model={}\nnotif_prompts={}\ntranslate_with={}\n",
+            clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model), b(st.notif_prompts), clean(&st.translate_with)
         );
         let _ = write_atomic(&dir.join("settings.txt"), t);
     }

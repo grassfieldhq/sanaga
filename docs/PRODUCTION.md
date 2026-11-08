@@ -49,6 +49,25 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Automatic tests of the real window | 🟡 | `docs/TESTING.md` scripted actions work locally; run them in CI under a headless Wayland compositor (weston/cage). |
 | Releases | ❌ | Tagged versions with notes (`CHANGELOG.md`) and signed builds. |
 
+## Moving to GTK 4 / WebKitGTK 6 — what it takes
+
+Nothing blocks it in principle (WebKitGTK 6 and the Rust `gtk4` / `webkit6`
+bindings exist); it is a large rewrite of the parts that touch the window:
+
+- `src/shell.rs` (the window, input, the GL drawing of the interface, the
+  overlay that puts pages over it) — GTK 4 has no `GtkOverlay` margins the same
+  way, a new input model (event controllers), and draws with GSK.
+- `src/page.rs` and the WebKit calls in `src/app/` — WebKitGTK 6 renames and
+  changes some APIs (network session instead of website data manager, no
+  synchronous JavaScript calls, new permission and download objects).
+- The mobile simulator's frame (cairo drawing over the page) and the tab
+  snapshots.
+- The interface itself (egui) stays as it is.
+
+The gain: GTK 4 composes the page with the GPU instead of copying each frame,
+which removes the processor cost of animated pages (≈16–19 % → close to 2 %)
+and gives smooth fractional scaling. Estimated as the next big project.
+
 ## Suggested order
 
 1. **Use it daily for a few weeks** (dogfooding) and fix what breaks — the

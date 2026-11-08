@@ -55,6 +55,11 @@ impl Sanaga {
             self.tab_overview(ui, th);
             return;
         }
+        if let View::Internal(Internal::Onboarding) = self.tabs[a].view {
+            self.page_onboarding(ui, th);
+            self.hover_url = None;
+            return;
+        }
         if let View::Internal(Internal::Settings) = self.tabs[a].view {
             // Settings has its own sidebar and scrolling (macOS System Settings)
             self.page_settings(ui, th);
@@ -77,6 +82,7 @@ impl Sanaga {
                 Internal::Sites => self.page_sites(ui, th),
                 Internal::Import => self.page_import(ui, th),
                 Internal::CreateExtension => self.page_create_extension(ui, th),
+                Internal::Onboarding => self.page_onboarding(ui, th),
             });
             self.hover_url = None;
             return;

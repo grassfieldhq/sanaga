@@ -191,7 +191,7 @@ impl Rows<'_> {
 }
 
 /// The macOS switch: a capsule, the accent colour when on, a white knob.
-fn switch(ui: &mut Ui, th: &Theme, on: &mut bool) -> bool {
+pub(super) fn switch(ui: &mut Ui, th: &Theme, on: &mut bool) -> bool {
     let (r, resp) = ui.allocate_exact_size(vec2(38.0, 22.0), Sense::click());
     let t = ui.ctx().animate_bool_with_time(resp.id, *on, 0.14);
     let off = th.track.gamma_multiply(1.4);
@@ -215,7 +215,7 @@ fn lerp(a: Color32, b: Color32, t: f32) -> Color32 {
 }
 
 /// A segmented control (the chosen part a light pill); the index clicked.
-fn segmented(ui: &mut Ui, th: &Theme, options: &[&str], chosen: usize) -> Option<usize> {
+pub(super) fn segmented(ui: &mut Ui, th: &Theme, options: &[&str], chosen: usize) -> Option<usize> {
     let font = FontId::proportional(12.5);
     let widths: Vec<f32> = options.iter().map(|o| ui.painter().layout_no_wrap(o.to_string(), font.clone(), th.text).size().x + 26.0).collect();
     let total: f32 = widths.iter().sum::<f32>() + 4.0;
@@ -242,7 +242,7 @@ fn segmented(ui: &mut Ui, th: &Theme, options: &[&str], chosen: usize) -> Option
 }
 
 /// A pop-up menu button on the right of a row (macOS: the value and ⌃⌄).
-fn popup<T: PartialEq + Copy>(ui: &mut Ui, id: &str, current: T, options: &[(T, &str)]) -> Option<T> {
+pub(super) fn popup<T: PartialEq + Copy>(ui: &mut Ui, id: &str, current: T, options: &[(T, &str)]) -> Option<T> {
     let label = options.iter().find(|o| o.0 == current).map(|o| o.1).unwrap_or("");
     let mut out = None;
     egui::ComboBox::from_id_salt(id).selected_text(label).width(220.0).show_ui(ui, |ui| {
@@ -267,6 +267,16 @@ fn check(p: &egui::Painter, c: Pos2, col: Color32) {
     p.line_segment([pos2(c.x - 1.5, c.y + 4.0), pos2(c.x + 5.5, c.y - 4.5)], s);
 }
 
+/// A small round button with a symbol (in a row's controls).
+fn small_icon_button(ui: &mut Ui, th: &Theme, icon: Icon, tip: &str) -> bool {
+    let (r, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().circle_filled(r.center(), 13.0, th.track);
+    }
+    icons::paint(ui.painter(), r.shrink(7.5), icon, th.sub);
+    resp.on_hover_cursor(CursorIcon::PointingHand).tip(tip).clicked()
+}
+
 /// A field on the right of a row.
 fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32, password: bool) -> bool {
     ui.add(TextEdit::singleline(value).hint_text(hint).desired_width(width).password(password)).changed()
@@ -275,7 +285,7 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32, password: bool
 /// A choice drawn as a small picture of the window (where the tabs and the
 /// address bar go). `tabs`: 0 top, 1 bottom, 2 left, 3 right, 9 not shown;
 /// `bar`: 0 top, 1 bottom, 2 floating, 9 not shown.
-fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar: u8, selected: bool) -> bool {
+pub(super) fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar: u8, selected: bool) -> bool {
     let (r, resp) = ui.allocate_exact_size(vec2(100.0, 88.0), Sense::click());
     let pic = Rect::from_min_size(r.min + vec2(4.0, 4.0), vec2(92.0, 58.0));
     let p = ui.painter();
@@ -344,6 +354,14 @@ enum Act {
     SaveKey,
     ForgetKey,
     FindModels,
+    ToggleExt(String),
+    DeleteExt(String),
+    ToggleMobile,
+    OpenExtFolder,
+    CopyPassword(usize),
+    DeletePassword(usize),
+    SetPermission(String, String, Option<bool>),
+    Onboarding,
 }
 
 const SIDEBAR_W: f32 = 236.0;
@@ -536,6 +554,13 @@ impl Sanaga {
         let key_known = self.ai_key_known.unwrap_or(false);
         let models = self.ai_models.clone();
         let logins = self.store.logins.len();
+        let login_list = self.store.logins.clone();
+        let permissions = self.store.permissions.clone();
+        let extensions = crate::extensions::all();
+        let ext_on = self.store.extensions_on.clone();
+        let mobile_on = self.tb("mobile");
+        let confirm_key = egui::Id::new("settings-confirm-delete");
+        let confirm_del: Option<(String, f64)> = ui.ctx().data(|d| d.get_temp(confirm_key));
         let keyring_ok = crate::keyring::available();
         let now = ui.input(|i| i.time);
         let confirm_clear = self.settings_confirm.is_some_and(|t| now - t < 4.0);
@@ -597,6 +622,11 @@ impl Sanaga {
                 });
             });
             footnote(ui, th, tr("La version légère de DuckDuckGo fonctionne le mieux avec Sanaga."));
+            group(ui, th, "", |ui, rows| {
+                if rows.link(ui, tr("Revoir la présentation de Sanaga"), tr("Les premiers réglages, pas à pas"), "") {
+                    acts.push(Act::Onboarding);
+                }
+            });
         }
 
         // ---------------- Appearance ----------------
@@ -780,6 +810,19 @@ impl Sanaga {
                 }
                 _ => {}
             }
+            group(ui, th, tr("Traduction des pages"), |ui, rows| {
+                for (key, label, sub) in [
+                    ("ai", tr("Avec l'intelligence choisie ci-dessus"), tr("La page est traduite sur place ; seul son texte est envoyé")),
+                    ("google", "Google Traduction", tr("L'adresse de la page est envoyée à Google")),
+                    ("", tr("Me demander la prochaine fois"), ""),
+                ] {
+                    if rows.choice(ui, label, sub, st.translate_with == key) && st.translate_with != key {
+                        st.translate_with = key.to_string();
+                        changed = true;
+                    }
+                }
+            });
+            ui.add_space(12.0);
             group(ui, th, "", |ui, rows| {
                 if rows.link(ui, tr("Créer une extension"), tr("Décrivez ce que vous voulez : Sanaga l'écrit pour vous"), "") {
                     acts.push(Act::Go("sanaga://create-extension"));
@@ -796,6 +839,21 @@ impl Sanaga {
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });
             footnote(ui, th, tr("Les traceurs publicitaires ne peuvent plus vous suivre d'un site à l'autre (comme dans Safari). Le Rapport de confidentialité de la page d'accueil montre ceux qui ont été tenus à l'écart. S'applique aux nouveaux onglets."));
+            if !permissions.is_empty() {
+                group(ui, th, tr("Autorisations des sites"), |ui, rows| {
+                    for (site, kind, allowed) in &permissions {
+                        rows.row(ui, &host_of(site), super::plus::kind_label(kind), false, |ui| {
+                            if small_icon_button(ui, th, Icon::Close, tr("Oublier ce choix")) {
+                                acts.push(Act::SetPermission(site.clone(), kind.clone(), None));
+                            }
+                            if let Some(v) = segmented(ui, th, &[tr("Autorisé"), tr("Bloqué")], if *allowed { 0 } else { 1 }) {
+                                acts.push(Act::SetPermission(site.clone(), kind.clone(), Some(v == 0)));
+                            }
+                        });
+                    }
+                });
+                ui.add_space(12.0);
+            }
             group(ui, th, tr("Données de navigation"), |ui, rows| {
                 if rows.link(ui, tr("Effacer les données"), tr("Historique, cookies, cache…"), "") {
                     acts.push(Act::Go("sanaga://clear"));
@@ -850,6 +908,26 @@ impl Sanaga {
                     tr("Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.")
                 },
             );
+            if !login_list.is_empty() {
+                let shown = login_list.len().min(60);
+                group(ui, th, tr("Comptes enregistrés"), |ui, rows| {
+                    for (i, (site, user)) in login_list.iter().take(shown).enumerate() {
+                        let who = if user.is_empty() { tr("(sans identifiant)").to_string() } else { user.clone() };
+                        rows.row(ui, &host_of(site), &who, false, |ui| {
+                            if small_icon_button(ui, th, Icon::Close, tr("Supprimer")) {
+                                acts.push(Act::DeletePassword(i));
+                            }
+                            if small_icon_button(ui, th, Icon::Mail, tr("Copier le mot de passe")) {
+                                acts.push(Act::CopyPassword(i));
+                            }
+                        });
+                    }
+                    if login_list.len() > shown && rows.link(ui, &tf("Voir les {} comptes", &[&login_list.len()]), "", "") {
+                        acts.push(Act::Go("sanaga://passwords"));
+                    }
+                });
+                ui.add_space(12.0);
+            }
             group(ui, th, tr("Coordonnées"), |ui, rows| {
                 for (label, value) in [(tr("Nom"), &mut st.fill_name), (tr("E-mail"), &mut st.fill_email), (tr("Téléphone"), &mut st.fill_phone), (tr("Adresse"), &mut st.fill_address)] {
                     rows.row(ui, label, "", false, |ui| {
@@ -913,14 +991,45 @@ impl Sanaga {
         }
 
         // ---------------- Extensions ----------------
-        if show.shows(Section::Extensions, tr("Extensions"), &[tr("Créer une extension")]) {
+        if show.shows(Section::Extensions, tr("Extensions"), &[tr("Créer une extension"), tr("Simulateur mobile")]) {
             any = true;
-            group(ui, th, "", |ui, rows| {
-                if rows.link(ui, tr("Gérer les extensions"), tr("Bloqueur de publicités, mode sombre, les vôtres…"), "") {
-                    acts.push(Act::Go("sanaga://extensions"));
+            group(ui, th, tr("Extensions installées"), |ui, rows| {
+                let mut m = mobile_on;
+                if rows.switch(ui, tr("Simulateur mobile"), tr("Intégrée à Sanaga"), &mut m) {
+                    acts.push(Act::ToggleMobile);
                 }
+                for e in &extensions {
+                    let mut on = ext_on.contains(&e.id);
+                    let sub = if e.builtin { tr("Intégrée à Sanaga").to_string() } else { e.description.clone() };
+                    let id = e.id.clone();
+                    let confirming = confirm_del.as_ref().is_some_and(|(cid, t)| *cid == id && now - t < 4.0);
+                    let mut toggled = false;
+                    let resp = rows.row(ui, &e.name, &sub, false, |ui| {
+                        toggled = switch(ui, th, &mut on);
+                        if !e.builtin {
+                            ui.add_space(6.0);
+                            if confirming {
+                                if ui.add(egui::Button::new(RichText::new(tr("Confirmer")).color(Color32::WHITE)).fill(Color32::from_rgb(0xC0, 0x30, 0x2A))).clicked() {
+                                    acts.push(Act::DeleteExt(id.clone()));
+                                }
+                            } else if small_icon_button(ui, th, Icon::Close, tr("Supprimer l'extension")) {
+                                ui.ctx().data_mut(|d| d.insert_temp(confirm_key, (id.clone(), now)));
+                            }
+                        }
+                    });
+                    let _ = resp;
+                    if toggled {
+                        acts.push(Act::ToggleExt(e.id.clone()));
+                    }
+                }
+            });
+            footnote(ui, th, tr("Les changements s'appliquent tout de suite aux pages ouvertes."));
+            group(ui, th, "", |ui, rows| {
                 if rows.link(ui, tr("Créer une extension"), tr("Décrivez ce que vous voulez : Sanaga l'écrit pour vous"), "") {
                     acts.push(Act::Go("sanaga://create-extension"));
+                }
+                if rows.link(ui, tr("Ouvrir le dossier des extensions"), tr("Vos fichiers .js et .css"), "") {
+                    acts.push(Act::OpenExtFolder);
                 }
             });
         }
@@ -968,8 +1077,48 @@ impl Sanaga {
                     self.ai_key_known = Some(false);
                 }
                 Act::FindModels => self.refresh_ollama_models(),
+                Act::ToggleExt(id) => self.toggle_extension(&id),
+                Act::DeleteExt(id) => self.delete_extension(&id),
+                Act::ToggleMobile => {
+                    let on = self.tb("mobile");
+                    let mut keys: Vec<String> = self.store.settings.toolbar.split(',').filter(|k| !k.is_empty() && *k != "mobile" && *k != "-mobile").map(|k| k.to_string()).collect();
+                    keys.push(if on { "-mobile".into() } else { "mobile".into() });
+                    self.store.settings.toolbar = keys.join(",");
+                    self.store.save_settings();
+                    if on {
+                        self.device = None;
+                    }
+                }
+                Act::OpenExtFolder => {
+                    let dir = crate::extensions::prepare_folder();
+                    let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+                }
+                Act::CopyPassword(i) => {
+                    if let Some((s, u)) = self.store.logins.get(i).cloned() {
+                        if let Some(p) = crate::keyring::lookup(&self.store.profile, &s, &u) {
+                            self.ctx.copy_text(p);
+                            self.notice = Some((tr("Mot de passe copié.").into(), self.ctx.input(|i| i.time)));
+                        }
+                    }
+                }
+                Act::DeletePassword(i) => {
+                    if i < self.store.logins.len() {
+                        let (s, u) = self.store.logins.remove(i);
+                        crate::keyring::delete(&self.store.profile, &s, &u);
+                        self.store.save_logins();
+                    }
+                }
+                Act::SetPermission(site, kind, allow) => self.store.set_permission(&site, &kind, allow),
+                Act::Onboarding => {
+                    self.onboarding_step = 0;
+                    self.navigate(self.active, "sanaga://start".into(), None, true);
+                }
             }
         }
+    }
+
+    pub(super) fn make_default_browser_pub(&mut self) {
+        self.make_default_browser();
     }
 
     /// Make Sanaga the default browser (web links and HTML files).

@@ -694,3 +694,68 @@ Elle utilisait trop de mémoire. Les autres onglets ne sont pas touchés.	Sie br
 Le moteur de la page s'est arrêté. Les autres onglets ne sont pas touchés.	Die Engine der Seite wurde beendet. Die anderen Tabs sind nicht betroffen.
 Sans bannières de cookies	Ohne Cookie-Banner
 Masque les bannières de consentement des outils les plus courants, sans rien accepter.	Blendet die Zustimmungsbanner der gängigsten Tools aus, ohne etwas zu akzeptieren.
+Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent tout de suite aux pages ouvertes.	Erweiterungen fügen Webseiten Funktionen hinzu. Änderungen gelten sofort für geöffnete Seiten.
+Onglet	Tab
+Fenêtre	Fenster
+Privé	Privat
+Réduire (Ctrl+−)	Verkleinern (Strg+−)
+Agrandir (Ctrl++)	Vergrößern (Strg++)
+Plein écran (F11)	Vollbild (F11)
+Traduire la page	Seite übersetzen
+Plus d'outils	Weitere Tools
+Rouvrir la fenêtre fermée	Geschlossenes Fenster wieder öffnen
+Ctrl+,	Strg+,
+Bienvenue dans Sanaga	Willkommen bei Sanaga
+Aucune fenêtre fermée à rouvrir.	Kein geschlossenes Fenster zum Wiederöffnen.
+Un navigateur rapide, léger et respectueux. Quelques choix et c'est parti.	Ein schneller, leichter und respektvoller Browser. Ein paar Entscheidungen und los geht's.
+Votre style	Ihr Stil
+Clair, sombre, ou comme le reste de l'ordinateur — et votre couleur.	Hell, dunkel oder wie der Rest des Computers — und Ihre Farbe.
+Où mettre les onglets ?	Wo sollen die Tabs hin?
+En haut comme Safari, ou sur le côté pour en garder beaucoup.	Oben wie bei Safari oder seitlich für viele Tabs.
+Votre vie privée	Ihre Privatsphäre
+Sanaga n'envoie rien à personne. Choisissez vos protections.	Sanaga sendet niemandem etwas. Wählen Sie Ihren Schutz.
+Retrouvez vos affaires	Holen Sie Ihre Daten
+Favoris, historique et mots de passe d'un autre navigateur.	Favoriten, Verlauf und Passwörter aus einem anderen Browser.
+Trouvés : {}	Gefunden: {}
+Importer maintenant	Jetzt importieren
+Résumés de pages, traduction et extensions écrites pour vous.	Seitenzusammenfassungen, Übersetzung und für Sie geschriebene Erweiterungen.
+{} (installé sur cet ordinateur)	{} (auf diesem Computer installiert)
+Sanaga seul — sans IA, rien ne quitte l'ordinateur	Nur Sanaga — ohne KI, nichts verlässt den Computer
+Claude avec une clé ou Ollama : dans Paramètres › Intelligence.	Claude mit Schlüssel oder Ollama: unter Einstellungen › Intelligenz.
+Tout est prêt	Alles bereit
+Faites de Sanaga votre navigateur, ou gardez celui de maintenant.	Machen Sie Sanaga zu Ihrem Browser oder behalten Sie den jetzigen.
+Astuce : Ctrl+T nouvel onglet, Ctrl+L barre d'adresse, Ctrl+Maj+Y résumer la page.	Tipp: Strg+T neuer Tab, Strg+L Adressleiste, Strg+Umschalt+Y Seite zusammenfassen.
+Retour	Zurück
+Commencer	Los geht's
+Continuer	Weiter
+Passer la présentation	Einführung überspringen
+Revoir la présentation de Sanaga	Sanaga-Einführung erneut ansehen
+Les premiers réglages, pas à pas	Die ersten Einstellungen, Schritt für Schritt
+Traduction des pages	Seitenübersetzung
+Avec l'intelligence choisie ci-dessus	Mit der oben gewählten Intelligenz
+La page est traduite sur place ; seul son texte est envoyé	Die Seite wird an Ort und Stelle übersetzt; nur ihr Text wird gesendet
+L'adresse de la page est envoyée à Google	Die Adresse der Seite wird an Google gesendet
+Me demander la prochaine fois	Beim nächsten Mal fragen
+Autorisations des sites	Website-Berechtigungen
+Oublier ce choix	Diese Wahl vergessen
+Autorisé	Erlaubt
+Bloqué	Blockiert
+Comptes enregistrés	Gespeicherte Konten
+(sans identifiant)	(ohne Benutzername)
+Copier le mot de passe	Passwort kopieren
+Voir les {} comptes	Alle {} Konten ansehen
+Extensions installées	Installierte Erweiterungen
+Confirmer	Bestätigen
+Supprimer l'extension	Erweiterung entfernen
+Les changements s'appliquent tout de suite aux pages ouvertes.	Änderungen gelten sofort für geöffnete Seiten.
+Vos fichiers .js et .css	Ihre .js- und .css-Dateien
+Choisissez d'abord une IA dans Paramètres › Intelligence.	Wählen Sie zuerst eine KI unter Einstellungen › Intelligenz.
+La traduction marche sur les pages des sites.	Übersetzung gibt es für Seiten von Websites.
+Traduction de la page…	Seite wird übersetzt…
+Page traduite.	Seite übersetzt.
+Une IA (à choisir dans Paramètres › Intelligence)	Eine KI (unter Einstellungen › Intelligenz wählen)
+Avec {} — la page est traduite sur place	Mit {} — die Seite wird an Ort und Stelle übersetzt
+Traduire la page avec…	Seite übersetzen mit…
+Seul le texte de la page est envoyé à cette IA	Nur der Text der Seite wird an diese KI gesendet
+Votre choix est gardé ; il se change dans Paramètres › Intelligence.	Ihre Wahl wird gespeichert; ändern unter Einstellungen › Intelligenz.
+Extension supprimée.	Erweiterung entfernt.

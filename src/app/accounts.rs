@@ -277,12 +277,13 @@ impl Sanaga {
     pub(super) fn page_extensions(&mut self, ui: &mut Ui, th: &Theme) {
         let list = crate::extensions::all();
         let mut toggle: Option<String> = None;
+        let mut delete: Option<String> = None;
         let mut toggle_mobile = false;
         let mut open_folder = false;
         let on = self.store.extensions_on.clone();
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Extensions"));
-            ui.label(RichText::new(tr("Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent aux nouveaux onglets.")).size(13.0).color(th.sub));
+            ui.label(RichText::new(tr("Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent tout de suite aux pages ouvertes.")).size(13.0).color(th.sub));
             ui.add_space(12.0);
             // built-in, native: the mobile simulator
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
@@ -317,6 +318,9 @@ impl Sanaga {
                             }
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if !e.builtin && ui.button(tr("Supprimer")).clicked() {
+                                delete = Some(e.id.clone());
+                            }
                             let mut enabled = on.contains(&e.id);
                             let label = if enabled { tr("Activée") } else { tr("Désactivée") };
                             if ui.checkbox(&mut enabled, label).changed() {
@@ -344,12 +348,10 @@ impl Sanaga {
             }
         }
         if let Some(id) = toggle {
-            if let Some(p) = self.store.extensions_on.iter().position(|x| *x == id) {
-                self.store.extensions_on.remove(p);
-            } else {
-                self.store.extensions_on.push(id);
-            }
-            self.store.save_extensions();
+            self.toggle_extension(&id);
+        }
+        if let Some(id) = delete {
+            self.delete_extension(&id);
         }
         if open_folder {
             let dir = crate::extensions::prepare_folder();

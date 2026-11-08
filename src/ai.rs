@@ -304,6 +304,29 @@ fn json_strings(body: &str, key: &str) -> Vec<String> {
     out
 }
 
+/// A JSON array of strings.
+pub fn json_array(list: &[String]) -> String {
+    format!("[{}]", list.iter().map(|s| json_str(s)).collect::<Vec<_>>().join(","))
+}
+
+/// A JSON string's text (after its opening quote) and how many bytes it used
+/// up to and with its closing quote.
+pub fn read_json_string_end(s: &str) -> Option<(String, usize)> {
+    let mut depth_escape = false;
+    for (i, c) in s.char_indices() {
+        if depth_escape {
+            depth_escape = false;
+            continue;
+        }
+        if c == '\\' {
+            depth_escape = true;
+        } else if c == '"' {
+            return read_json_string(&s[..=i]).map(|t| (t, i + 1));
+        }
+    }
+    None
+}
+
 fn read_json_string(s: &str) -> Option<String> {
     let mut out = String::new();
     let mut it = s.chars();
