@@ -70,6 +70,7 @@ impl Sanaga {
                 Internal::ClearData => self.page_clear_data(ui, th),
                 Internal::Sites => self.page_sites(ui, th),
                 Internal::Import => self.page_import(ui, th),
+                Internal::CreateExtension => self.page_create_extension(ui, th),
             });
             self.hover_url = None;
             return;

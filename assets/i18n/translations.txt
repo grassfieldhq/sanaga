@@ -545,3 +545,77 @@ Impossible de changer le navigateur par défaut.⟂Could not change the default 
 Nouvelle fenêtre⟂New window⟂Nueva ventana⟂Nova janela⟂Neues Fenster
 Ctrl+N⟂Ctrl+N⟂Ctrl+N⟂Ctrl+N⟂Strg+N
 Déplacer vers une nouvelle fenêtre⟂Move to new window⟂Mover a una ventana nueva⟂Mover para uma nova janela⟂In neues Fenster verschieben
+Sanaga (sans IA, sur cet ordinateur)⟂Sanaga (no AI, on this computer)⟂Sanaga (sin IA, en este ordenador)⟂Sanaga (sem IA, neste computador)⟂Sanaga (ohne KI, auf diesem Computer)
+Choisissez un modèle d'IA dans Paramètres › Intelligence.⟂Choose an AI model in Settings › Intelligence.⟂Elige un modelo de IA en Ajustes › Inteligencia.⟂Escolha um modelo de IA em Definições › Inteligência.⟂Wählen Sie ein KI-Modell unter Einstellungen › Intelligenz.
+Réponse du modèle illisible.⟂The model's answer could not be read.⟂No se pudo leer la respuesta del modelo.⟂Não foi possível ler a resposta do modelo.⟂Die Antwort des Modells ist unlesbar.
+Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.⟂API key refused: check it in Settings › Intelligence.⟂Clave de API rechazada: revísala en Ajustes › Inteligencia.⟂Chave de API recusada: verifique-a em Definições › Inteligência.⟂API-Schlüssel abgelehnt: prüfen Sie ihn unter Einstellungen › Intelligenz.
+Modèle injoignable ({})⟂Model unreachable ({})⟂Modelo inaccesible ({})⟂Modelo inacessível ({})⟂Modell nicht erreichbar ({})
+Le modèle n'a pas écrit de code.⟂The model wrote no code.⟂El modelo no escribió código.⟂O modelo não escreveu código.⟂Das Modell hat keinen Code geschrieben.
+Le résumé marche sur les pages des sites.⟂Summaries work on websites' pages.⟂El resumen funciona en las páginas de los sitios.⟂O resumo funciona nas páginas dos sites.⟂Zusammenfassungen gibt es für Seiten von Websites.
+Cette page contient trop peu de texte à résumer.⟂This page has too little text to summarise.⟂Esta página tiene muy poco texto para resumir.⟂Esta página tem pouco texto para resumir.⟂Diese Seite hat zu wenig Text für eine Zusammenfassung.
+« {} » est créée et activée : elle s'applique aux onglets que vous ouvrez maintenant.⟂“{}” is created and switched on: it applies to the tabs you open from now on.⟂«{}» está creada y activada: se aplica a las pestañas que abras desde ahora.⟂«{}» foi criada e ativada: aplica-se aos separadores que abrir a partir de agora.⟂„{}“ ist erstellt und aktiviert: Sie gilt für Tabs, die Sie ab jetzt öffnen.
+Résumé⟂Summary⟂Resumen⟂Resumo⟂Zusammenfassung
+Lecture de la page…⟂Reading the page…⟂Leyendo la página…⟂A ler a página…⟂Seite wird gelesen…
+Par : {}⟂By: {}⟂Por: {}⟂Por: {}⟂Von: {}
+Résumer à nouveau⟂Summarise again⟂Resumir de nuevo⟂Resumir de novo⟂Erneut zusammenfassen
+Résumer cette page⟂Summarise this page⟂Resumir esta página⟂Resumir esta página⟂Diese Seite zusammenfassen
+Créer une extension⟂Create an extension⟂Crear una extensión⟂Criar uma extensão⟂Erweiterung erstellen
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension pour vous et l'active.⟂Describe what you want to change on websites: Sanaga writes the extension for you and switches it on.⟂Describe lo que quieres cambiar en los sitios: Sanaga escribe la extensión por ti y la activa.⟂Descreva o que quer mudar nos sites: o Sanaga escreve a extensão por si e ativa-a.⟂Beschreiben Sie, was Sie auf Websites ändern möchten: Sanaga schreibt die Erweiterung für Sie und aktiviert sie.
+Il faut un modèle d'IA : Ollama sur cet ordinateur (gratuit, rien ne sort de chez vous) ou Claude avec votre clé.⟂This needs an AI model: Ollama on this computer (free, nothing leaves your home) or Claude with your key.⟂Hace falta un modelo de IA: Ollama en este ordenador (gratis, nada sale de tu casa) o Claude con tu clave.⟂É preciso um modelo de IA: Ollama neste computador (grátis, nada sai de sua casa) ou Claude com a sua chave.⟂Dafür braucht es ein KI-Modell: Ollama auf diesem Computer (kostenlos, nichts verlässt Ihr Zuhause) oder Claude mit Ihrem Schlüssel.
+Choisir dans Paramètres › Intelligence⟂Choose in Settings › Intelligence⟂Elegir en Ajustes › Inteligencia⟂Escolher em Definições › Inteligência⟂Unter Einstellungen › Intelligenz wählen
+Ex. : YouTube sans distractions⟂E.g. YouTube without distractions⟂Ej.: YouTube sin distracciones⟂Ex.: YouTube sem distrações⟂Z. B. YouTube ohne Ablenkung
+Ce qu'elle doit faire⟂What it should do⟂Lo que debe hacer⟂O que deve fazer⟂Was sie tun soll
+Ex. : masquer les Shorts et les vidéos recommandées à droite, et agrandir le lecteur.⟂E.g. hide Shorts and the recommended videos on the right, and make the player bigger.⟂Ej.: ocultar los Shorts y los vídeos recomendados de la derecha, y agrandar el reproductor.⟂Ex.: ocultar os Shorts e os vídeos recomendados à direita, e aumentar o leitor.⟂Z. B. Shorts und die empfohlenen Videos rechts ausblenden und den Player vergrößern.
+Sur quels sites⟂On which sites⟂En qué sitios⟂Em que sites⟂Auf welchen Websites
+youtube.com — vide : tous les sites⟂youtube.com — empty: all sites⟂youtube.com — vacío: todos los sitios⟂youtube.com — vazio: todos os sites⟂youtube.com — leer: alle Websites
+Idées :⟂Ideas:⟂Ideas:⟂Ideias:⟂Ideen:
+Lecture zen⟂Zen reading⟂Lectura zen⟂Leitura zen⟂Zen-Lesen
+Masquer les bannières de cookies, les fenêtres d'inscription et les publicités collantes.⟂Hide cookie banners, sign-up pop-ups and sticky ads.⟂Ocultar los banners de cookies, las ventanas de registro y los anuncios fijos.⟂Ocultar os avisos de cookies, as janelas de inscrição e os anúncios fixos.⟂Cookie-Banner, Anmelde-Popups und klebende Werbung ausblenden.
+YouTube calme⟂Calm YouTube⟂YouTube tranquilo⟂YouTube calmo⟂Ruhiges YouTube
+Masquer les Shorts, les recommandations et les commentaires.⟂Hide Shorts, recommendations and comments.⟂Ocultar los Shorts, las recomendaciones y los comentarios.⟂Ocultar os Shorts, as recomendações e os comentários.⟂Shorts, Empfehlungen und Kommentare ausblenden.
+Liens dans un nouvel onglet⟂Links in a new tab⟂Enlaces en una pestaña nueva⟂Ligações num novo separador⟂Links in neuem Tab
+Ouvrir les liens vers d'autres sites dans un nouvel onglet.⟂Open links to other sites in a new tab.⟂Abrir los enlaces a otros sitios en una pestaña nueva.⟂Abrir as ligações para outros sites num novo separador.⟂Links zu anderen Websites in einem neuen Tab öffnen.
+Créer l'extension⟂Create the extension⟂Crear la extensión⟂Criar a extensão⟂Erweiterung erstellen
+Écriture de l'extension…⟂Writing the extension…⟂Escribiendo la extensión…⟂A escrever a extensão…⟂Erweiterung wird geschrieben…
+Voir le code⟂Show the code⟂Ver el código⟂Ver o código⟂Code anzeigen
+Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.⟂Created extensions are plain files in the extensions folder: you can switch them off or delete them in Extensions.⟂Las extensiones creadas son archivos sencillos en la carpeta de extensiones: puedes desactivarlas o borrarlas en Extensiones.⟂As extensões criadas são ficheiros simples na pasta das extensões: pode desativá-las ou apagá-las em Extensões.⟂Erstellte Erweiterungen sind einfache Dateien im Erweiterungsordner: Sie können sie unter Erweiterungen deaktivieren oder löschen.
+Ajoutez votre clé Claude ou lancez Ollama (Paramètres › Intelligence).⟂Add your Claude key or start Ollama (Settings › Intelligence).⟂Añade tu clave de Claude o inicia Ollama (Ajustes › Inteligencia).⟂Adicione a sua chave Claude ou inicie o Ollama (Definições › Inteligência).⟂Fügen Sie Ihren Claude-Schlüssel hinzu oder starten Sie Ollama (Einstellungen › Intelligenz).
+1 onglet⟂1 tab⟂1 pestaña⟂1 separador⟂1 Tab
+{} onglets⟂{} tabs⟂{} pestañas⟂{} separadores⟂{} Tabs
+Rechercher dans les onglets (Ctrl+Maj+A)⟂Search tabs (Ctrl+Shift+A)⟂Buscar en las pestañas (Ctrl+Mayús+A)⟂Procurar nos separadores (Ctrl+Shift+A)⟂Tabs durchsuchen (Strg+Umschalt+A)
+Résumer la page⟂Summarise page⟂Resumir la página⟂Resumir a página⟂Seite zusammenfassen
+Ctrl+Maj+Y⟂Ctrl+Shift+Y⟂Ctrl+Mayús+Y⟂Ctrl+Shift+Y⟂Strg+Umschalt+Y
+Créer une extension…⟂Create an extension…⟂Crear una extensión…⟂Criar uma extensão…⟂Erweiterung erstellen…
+Intelligence⟂Intelligence⟂Inteligencia⟂Inteligência⟂Intelligenz
+Disposition⟂Layout⟂Disposición⟂Disposição⟂Anordnung
+Barre d'adresse⟂Address bar⟂Barra de direcciones⟂Barra de endereço⟂Adressleiste
+Onglets verticaux⟂Vertical tabs⟂Pestañas verticales⟂Separadores verticais⟂Vertikale Tabs
+Où mettre les onglets — sur le côté, ils restent lisibles même très nombreux.⟂Where the tabs go — on the side, they stay readable even when there are many.⟂Dónde van las pestañas: en el lateral siguen legibles aunque sean muchas.⟂Onde ficam os separadores — de lado, continuam legíveis mesmo muitos.⟂Wo die Tabs sind — seitlich bleiben sie auch bei vielen Tabs lesbar.
+En haut⟂Top⟂Arriba⟂Em cima⟂Oben
+En bas⟂Bottom⟂Abajo⟂Em baixo⟂Unten
+À gauche⟂Left⟂Izquierda⟂À esquerda⟂Links
+À droite⟂Right⟂Derecha⟂À direita⟂Rechts
+Où mettre la barre d'adresse :⟂Where the address bar goes:⟂Dónde va la barra de direcciones:⟂Onde fica a barra de endereço:⟂Wo die Adressleiste ist:
+Flottante⟂Floating⟂Flotante⟂Flutuante⟂Schwebend
+Couleur d'accent⟂Accent colour⟂Color de acento⟂Cor de destaque⟂Akzentfarbe
+Résumés et extensions sur mesure⟂Summaries and made-to-measure extensions⟂Resúmenes y extensiones a medida⟂Resumos e extensões à medida⟂Zusammenfassungen und maßgeschneiderte Erweiterungen
+Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.⟂Sanaga summarises pages (✦ button or Ctrl+Shift+Y) and writes extensions from what you describe.⟂Sanaga resume páginas (botón ✦ o Ctrl+Mayús+Y) y escribe extensiones a partir de lo que describes.⟂O Sanaga resume páginas (botão ✦ ou Ctrl+Shift+Y) e escreve extensões a partir do que descreve.⟂Sanaga fasst Seiten zusammen (✦-Taste oder Strg+Umschalt+Y) und schreibt Erweiterungen nach Ihrer Beschreibung.
+Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur⟂Sanaga alone — simple summary, no AI, nothing leaves the computer⟂Solo Sanaga — resumen sencillo, sin IA, nada sale del ordenador⟂Só o Sanaga — resumo simples, sem IA, nada sai do computador⟂Nur Sanaga — einfache Zusammenfassung, ohne KI, nichts verlässt den Computer
+Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)⟂Ollama — an AI model installed on this computer (free, private)⟂Ollama — un modelo de IA instalado en este ordenador (gratis, privado)⟂Ollama — um modelo de IA instalado neste computador (grátis, privado)⟂Ollama — ein KI-Modell auf diesem Computer (kostenlos, privat)
+Claude (Anthropic) — le meilleur résultat, avec votre clé d'API⟂Claude (Anthropic) — the best results, with your API key⟂Claude (Anthropic) — el mejor resultado, con tu clave de API⟂Claude (Anthropic) — o melhor resultado, com a sua chave de API⟂Claude (Anthropic) — die besten Ergebnisse, mit Ihrem API-Schlüssel
+Modèle⟂Model⟂Modelo⟂Modelo⟂Modell
+Ollama ne répond pas : installez-le (ollama.com), puis dans un terminal : ollama pull llama3.2⟂Ollama is not answering: install it (ollama.com), then in a terminal: ollama pull llama3.2⟂Ollama no responde: instálalo (ollama.com) y luego en una terminal: ollama pull llama3.2⟂O Ollama não responde: instale-o (ollama.com) e depois num terminal: ollama pull llama3.2⟂Ollama antwortet nicht: installieren Sie es (ollama.com), dann im Terminal: ollama pull llama3.2
+Chercher les modèles⟂Look for models⟂Buscar modelos⟂Procurar modelos⟂Modelle suchen
+Clé enregistrée dans le trousseau du système.⟂Key saved in the system keyring.⟂Clave guardada en el llavero del sistema.⟂Chave guardada no porta-chaves do sistema.⟂Schlüssel im Systemschlüsselbund gespeichert.
+Oublier la clé⟂Forget the key⟂Olvidar la clave⟂Esquecer a chave⟂Schlüssel vergessen
+Créez une clé sur console.anthropic.com. Elle est gardée dans le trousseau du système, pas dans les fichiers de Sanaga.⟂Create a key at console.anthropic.com. It is kept in the system keyring, not in Sanaga's files.⟂Crea una clave en console.anthropic.com. Se guarda en el llavero del sistema, no en los archivos de Sanaga.⟂Crie uma chave em console.anthropic.com. Fica no porta-chaves do sistema, não nos ficheiros do Sanaga.⟂Erstellen Sie einen Schlüssel auf console.anthropic.com. Er liegt im Systemschlüsselbund, nicht in Sanagas Dateien.
+Avec Claude, le texte de la page résumée est envoyé à Anthropic.⟂With Claude, the text of the summarised page is sent to Anthropic.⟂Con Claude, el texto de la página resumida se envía a Anthropic.⟂Com o Claude, o texto da página resumida é enviado à Anthropic.⟂Mit Claude wird der Text der zusammengefassten Seite an Anthropic gesendet.
+Décrivez ce que vous voulez : Sanaga l'écrit pour vous⟂Describe what you want: Sanaga writes it for you⟂Describe lo que quieres: Sanaga lo escribe por ti⟂Descreva o que quer: o Sanaga escreve-o por si⟂Beschreiben Sie, was Sie möchten: Sanaga schreibt es für Sie
+Bleu⟂Blue⟂Azul⟂Azul⟂Blau
+Rose⟂Pink⟂Rosa⟂Rosa⟂Rosa
+Graphite⟂Graphite⟂Grafito⟂Grafite⟂Graphit
+Système⟂System⟂Sistema⟂Sistema⟂System
+« Système » suit l'apparence et la couleur d'accent choisies pour tout l'ordinateur (Grassfield › Réglages › Apparence).⟂“System” follows the appearance and accent colour chosen for the whole computer (Grassfield › Settings › Appearance).⟂«Sistema» sigue la apariencia y el color de acento elegidos para todo el ordenador (Grassfield › Ajustes › Apariencia).⟂«Sistema» segue a aparência e a cor de destaque escolhidas para todo o computador (Grassfield › Definições › Aparência).⟂„System“ folgt dem Erscheinungsbild und der Akzentfarbe des ganzen Computers (Grassfield › Einstellungen › Erscheinungsbild).
+Rouge⟂Red⟂Rojo⟂Vermelho⟂Rot
+Jaune⟂Yellow⟂Amarillo⟂Amarelo⟂Gelb
+Vert⟂Green⟂Verde⟂Verde⟂Grün

@@ -20,7 +20,7 @@ pub(super) fn tool_button(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: b
 }
 
 /// Dragging an empty bar moves the window; double-click maximises it.
-fn window_drag(ui: &Ui, resp: &Response) {
+pub(super) fn window_drag(ui: &Ui, resp: &Response) {
     if resp.drag_started_by(egui::PointerButton::Primary) && !crate::desktop::begin_move() {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }
@@ -32,7 +32,7 @@ fn window_drag(ui: &Ui, resp: &Response) {
     }
 }
 
-fn spinner(p: &egui::Painter, c: egui::Pos2, r: f32, time: f64, col: Color32) {
+pub(super) fn spinner(p: &egui::Painter, c: egui::Pos2, r: f32, time: f64, col: Color32) {
     let a0 = (time * 6.0) as f32;
     let pts: Vec<egui::Pos2> = (0..=16)
         .map(|k| {
@@ -45,7 +45,7 @@ fn spinner(p: &egui::Painter, c: egui::Pos2, r: f32, time: f64, col: Color32) {
 
 
 /// The three round window buttons; returns where they end on the right.
-fn window_buttons(ui: &mut Ui, x: f32, cy: f32) -> f32 {
+pub(super) fn window_buttons(ui: &mut Ui, x: f32, cy: f32) -> f32 {
     let hover_lights = ui.rect_contains_pointer(Rect::from_min_size(pos2(x - 10.0, cy - 10.0), vec2(64.0, 20.0)));
     let lights = [Color32::from_rgb(0xFF, 0x5F, 0x57), Color32::from_rgb(0xFE, 0xBC, 0x2E), Color32::from_rgb(0x28, 0xC8, 0x40)];
     for (k, col) in lights.into_iter().enumerate() {
@@ -109,6 +109,7 @@ pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
             "share" => tr("Partager"),
             "overview" => tr("Aperçu des onglets"),
             "mobile" => tr("Simulateur mobile"),
+            "summary" => tr("Résumer la page"),
             _ => key,
         };
         let mut on = toolbar.split(',').any(|k| k == key);
@@ -143,7 +144,7 @@ impl Sanaga {
         window_drag(ui, &bg);
         bg.menu_on_press(|ui| {
             if ui.button(tr("Nouvel onglet")).clicked() {
-                self.open_tab("sanaga://nouvel-onglet", false);
+                self.open_tab("sanaga://newtab", false);
                 ui.close();
             }
             if ui.button(tr("Nouveau groupe d'onglets")).clicked() {
@@ -158,8 +159,12 @@ impl Sanaga {
             }
         });
 
-        // window buttons
-        let left = window_buttons(ui, full.left() + 18.0, full.center().y + 2.0) + 14.0;
+        // window buttons (when the tab row is on top)
+        let left = if self.window_buttons_in() == super::layout::WindowButtonsIn::TabRow {
+            window_buttons(ui, full.left() + 18.0, full.center().y + 2.0) + 14.0
+        } else {
+            full.left() + 12.0
+        };
 
         let top = full.top() + 6.0;
         let bottom = full.bottom();
@@ -451,7 +456,7 @@ impl Sanaga {
         icons::paint(ui.painter(), pr.shrink(7.0), Icon::Plus, th.text);
         if presp.tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
             self.overview_open = false;
-            self.open_tab("sanaga://nouvel-onglet", false);
+            self.open_tab("sanaga://newtab", false);
         }
 
         if let Some(g) = fold {
@@ -483,8 +488,12 @@ impl Sanaga {
         let bg = ui.interact(full, egui::Id::new("toolbar-bg"), Sense::click_and_drag());
         window_drag(ui, &bg);
 
-        // (window buttons are in the tab row above, like Chrome)
+        // window buttons: in the tab row above (like Chrome), or here when
+        // the tabs are elsewhere
         let mut x = full.left() + 12.0;
+        if self.window_buttons_in() == super::layout::WindowButtonsIn::Toolbar && self.bar_at() == super::layout::BarAt::Top {
+            x = window_buttons(ui, full.left() + 18.0, cy) + 16.0;
+        }
         let slot = |x: &mut f32, w: f32| {
             let r = Rect::from_min_size(pos2(*x, cy - 14.0), vec2(w, 28.0));
             *x += w + 4.0;
@@ -541,7 +550,7 @@ impl Sanaga {
             ui.painter().galley(pos2(pr.left() + 10.0, cy - g.size().y / 2.0), g, Color32::WHITE);
             if presp.tip(tr("Profil de cette fenêtre — cliquer pour gérer les profils")).clicked() {
                 let a = self.active;
-                self.navigate(a, "sanaga://profils".into(), None, true);
+                self.navigate(a, "sanaga://profiles".into(), None, true);
             }
             x = pr.right() + 4.0;
         }
@@ -578,6 +587,18 @@ impl Sanaga {
         } else {
             self.share_rect = self.menu_rect;
         }
+        if self.tb("summary") {
+            let r = slot_r(&mut rx, 30.0);
+            let on = self.summary.is_some();
+            let can = matches!(self.tabs[a].view, View::Web);
+            if tool_button(ui, r, Icon::Sparkle, can, on, th).tip(tr("Résumer la page")).clicked() {
+                if on && self.summary.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
+                    self.summary = None;
+                } else {
+                    self.summarize_page();
+                }
+            }
+        }
         if self.tb("mobile") {
             let r = slot_r(&mut rx, 30.0);
             let on = self.device.is_some();
@@ -600,19 +621,19 @@ impl Sanaga {
         if self.tb("bookmarks") {
             let r = slot_r(&mut rx, 30.0);
             if tool_button(ui, r, Icon::StarFilled, true, false, th).tip(tr("Favoris")).clicked() {
-                self.open_tab("sanaga://favoris", false);
+                self.open_tab("sanaga://bookmarks", false);
             }
         }
         if self.tb("newtab") {
             let r = slot_r(&mut rx, 30.0);
             if tool_button(ui, r, Icon::Plus, true, false, th).tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
-                self.open_tab("sanaga://nouvel-onglet", false);
+                self.open_tab("sanaga://newtab", false);
             }
         }
         if self.tb("downloads") && !self.store.downloads.is_empty() {
             let dl = slot_r(&mut rx, 30.0);
             if tool_button(ui, dl, Icon::Download, true, false, th).tip(tr("Téléchargements (Ctrl+J)")).clicked() {
-                self.open_tab("sanaga://telechargements", false);
+                self.open_tab("sanaga://downloads", false);
             }
         }
         let now = ui.input(|i| i.time);
@@ -657,13 +678,13 @@ impl Sanaga {
             ui.painter().rect_filled(rect, CornerRadius::same(10), if hovered { th.omnibox_hover } else { th.omnibox });
         }
         let url = self.tabs[a].url().to_string();
-        let is_ntp = url.starts_with("sanaga://nouvel-onglet");
+        let is_ntp = url.starts_with("sanaga://newtab");
 
         // bookmark star on the left, reload / stop on the right
         let star_r = Rect::from_center_size(pos2(rect.left() + 18.0, rect.center().y), vec2(24.0, 24.0));
         if is_ntp {
             icons::paint(ui.painter(), star_r.shrink(6.0), Icon::Search, th.sub);
-        } else if (url.starts_with("sanaga://") && url != "sanaga://bienvenue") || !self.tb("star") {
+        } else if (url.starts_with("sanaga://") && url != "sanaga://welcome") || !self.tb("star") {
             // Sanaga's own pages: nothing to bookmark
         } else {
             let bookmarked = self.store.is_bookmarked(&url);
@@ -963,7 +984,7 @@ impl Sanaga {
                 });
             }
             ui.add_space(12.0);
-            for (label, page) in [(tr("Tout l'historique"), "sanaga://historique"), (tr("Téléchargements"), "sanaga://telechargements"), (tr("Paramètres"), "sanaga://parametres")] {
+            for (label, page) in [(tr("Tout l'historique"), "sanaga://history"), (tr("Téléchargements"), "sanaga://downloads"), (tr("Paramètres"), "sanaga://settings")] {
                 ui.horizontal(|ui| {
                     ui.add_space(16.0);
                     if ui.link(RichText::new(label).size(12.5).color(th.accent)).clicked() {

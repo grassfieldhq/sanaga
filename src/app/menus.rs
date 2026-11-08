@@ -157,6 +157,7 @@ impl Sanaga {
                         }
                     }
                     sep(ui);
+                    item(ui, tr("Résumer la page"), tr("Ctrl+Maj+Y"), "summary");
                     item(ui, tr("Rechercher dans la page"), tr("Ctrl+F"), "find");
                     item(ui, tr("Imprimer…"), tr("Ctrl+P"), "print");
                     item(ui, tr("Enregistrer la page"), tr("Ctrl+S"), "savepage");
@@ -164,6 +165,7 @@ impl Sanaga {
                     sep(ui);
                     item(ui, tr("Afficher le code source"), tr("Ctrl+U"), "source");
                     item(ui, tr("Inspecteur web"), tr("Ctrl+Maj+I"), "inspector");
+                    item(ui, tr("Créer une extension…"), "", "make-extension");
                     item(ui, tr("Taille d'écran (téléphone, tablette…)"), tr("Ctrl+Maj+M"), "devices");
                     item(ui, tr("Personnaliser la barre d'outils…"), "", "settings");
                     sep(ui);
@@ -208,44 +210,48 @@ impl Sanaga {
             }
             "savepage" => self.save_page(),
             "import" => {
-                self.open_tab("sanaga://importer", false);
+                self.open_tab("sanaga://import", false);
             }
             "sites" => {
                 self.open_tab("sanaga://sites", false);
             }
             "cleardata" => {
-                self.open_tab("sanaga://effacer", false);
+                self.open_tab("sanaga://clear", false);
             }
             "passwords" => {
-                self.open_tab("sanaga://motsdepasse", false);
+                self.open_tab("sanaga://passwords", false);
             }
             "extensions" => {
                 self.open_tab("sanaga://extensions", false);
             }
             "profiles" => {
-                self.open_tab("sanaga://profils", false);
+                self.open_tab("sanaga://profiles", false);
             }
             "translate" => self.translate_page(),
             "print" => self.print_page(),
+            "summary" => self.summarize_page(),
+            "make-extension" => {
+                self.open_tab("sanaga://create-extension", false);
+            }
             "fullscreen" => self.toggle_fullscreen(),
             "source" => self.view_source(),
             "inspector" => self.open_inspector(),
             "devices" => self.toggle_devices(),
             "new" => {
-                self.open_tab("sanaga://nouvel-onglet", false);
+                self.open_tab("sanaga://newtab", false);
             }
             "window" => self.new_window(Vec::new()),
             "private" => {
-                self.open_tab("sanaga://nouvel-onglet", true);
+                self.open_tab("sanaga://newtab", true);
             }
             "history" => {
-                self.open_tab("sanaga://historique", false);
+                self.open_tab("sanaga://history", false);
             }
             "downloads" => {
-                self.open_tab("sanaga://telechargements", false);
+                self.open_tab("sanaga://downloads", false);
             }
             "bookmarks" => {
-                self.open_tab("sanaga://favoris", false);
+                self.open_tab("sanaga://bookmarks", false);
             }
             "zin" => self.zoom_by(0.1),
             "zout" => self.zoom_by(-0.1),
@@ -264,14 +270,17 @@ impl Sanaga {
                 self.store.save_settings();
             }
             "dark" => {
-                self.store.settings.dark = !self.store.settings.dark;
+                // a fixed choice from now on (light or dark), not the system's
+                let st = &mut self.store.settings;
+                st.dark = !st.dark;
+                st.theme = if st.dark { 2 } else { 1 };
                 self.store.save_settings();
             }
             "settings" => {
-                self.open_tab("sanaga://parametres", false);
+                self.open_tab("sanaga://settings", false);
             }
             "about" => {
-                self.open_tab("sanaga://a-propos", false);
+                self.open_tab("sanaga://about", false);
             }
             "quit" => self.quit_app(),
             _ => {}
@@ -375,7 +384,7 @@ impl Sanaga {
             self.downloads_bar = false;
         }
         if show_all {
-            self.open_tab("sanaga://telechargements", false);
+            self.open_tab("sanaga://downloads", false);
         }
     }
 }

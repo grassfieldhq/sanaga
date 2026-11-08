@@ -48,6 +48,11 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - Customisable toolbar (right-click it), touchpad swipe and mouse side buttons
   for back/forward, native tooltips.
 - Web inspector (Ctrl+Shift+I or F12), docked or in its own window.
+- Your layout: tabs on top, at the bottom or down the side (vertical tabs);
+  address bar on top, at the bottom or floating. Accent colour and light/dark
+  follow the system (Grassfield) or your choice.
+- Page summaries (✦, Ctrl+Shift+Y) and extensions written from a description —
+  with Sanaga alone (no AI), a local model (Ollama) or Claude (your API key).
 - Interface in English, French, Spanish, Portuguese and German.
 
 **Mobile simulator** (Ctrl+Shift+M, or the phone button)

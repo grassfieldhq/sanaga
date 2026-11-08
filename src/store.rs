@@ -89,10 +89,26 @@ pub struct Settings {
     pub language: String,
     /// Toolbar buttons shown (see `TOOLBAR_BUTTONS`), comma-separated.
     pub toolbar: String,
+    /// Accent colour (index in `theme::ACCENTS`; 0 = the system's, as on
+    /// Grassfield; 1 = Grassfield green).
+    pub accent: u8,
+    /// Light or dark: 0 like the system, 1 light, 2 dark. (`dark` is the
+    /// look in use.)
+    pub theme: u8,
+    /// Where the tabs are: 0 top, 1 bottom, 2 left, 3 right.
+    pub tabs_pos: u8,
+    /// Where the address bar is: 0 top, 1 bottom, 2 floating.
+    pub bar_pos: u8,
+    /// Page summaries and extensions written for you: "" (Sanaga's own,
+    /// no AI), "ollama" (a model on this computer) or "claude" (Anthropic,
+    /// with your API key kept in the keyring).
+    pub ai: String,
+    /// The model used ("" = the provider's default).
+    pub ai_model: String,
 }
 
 /// Buttons the toolbar can show: key, shown by default.
-pub const TOOLBAR_BUTTONS: [(&str, bool); 17] = [
+pub const TOOLBAR_BUTTONS: [(&str, bool); 18] = [
     ("sidebar", true),
     ("back", true),
     ("forward", true),
@@ -110,6 +126,7 @@ pub const TOOLBAR_BUTTONS: [(&str, bool); 17] = [
     ("share", true),
     ("overview", true),
     ("mobile", true),
+    ("summary", true),
 ];
 
 pub fn default_toolbar() -> String {
@@ -119,7 +136,7 @@ pub fn default_toolbar() -> String {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            home: "sanaga://nouvel-onglet".into(),
+            home: "sanaga://newtab".into(),
             engine: Engine::DuckDuckGo,
             images: true,
             dark: false,
@@ -142,6 +159,12 @@ impl Default for Settings {
             memory_saver: 2,
             language: crate::i18n::system_language().to_string(),
             toolbar: default_toolbar(),
+            accent: 0,
+            theme: 0,
+            tabs_pos: 0,
+            bar_pos: 0,
+            ai: String::new(),
+            ai_model: String::new(),
         }
     }
 }
@@ -278,6 +301,10 @@ impl Store {
         if let Ok(t) = std::fs::read_to_string(dir.join("settings.txt")) {
             // Sanaga was French-only before: an existing install keeps French
             // until the person picks another language.
+            // the dark switch of earlier versions becomes the "Dark" choice
+            if !t.lines().any(|l| l.starts_with("theme=")) && t.lines().any(|l| l == "dark=1") {
+                s.settings.theme = 2;
+            }
             if !t.lines().any(|l| l.starts_with("language=")) {
                 s.settings.language = "fr".into();
             }
@@ -285,7 +312,7 @@ impl Store {
                 if let Some((k, v)) = line.split_once('=') {
                     let st = &mut s.settings;
                     match k {
-                        "home" => st.home = v.to_string(),
+                        "home" => st.home = crate::app::english_address(v),
                         "engine" => st.engine = Engine::from_key(v),
                         "images" => st.images = v == "1",
                         "dark" => st.dark = v == "1",
@@ -307,11 +334,16 @@ impl Store {
                         "sync_dir" => st.sync_dir = v.to_string(),
                         "memory_saver" => st.memory_saver = v.parse().unwrap_or(2),
                         "language" => st.language = v.to_string(),
+                        "accent" => st.accent = v.parse().unwrap_or(0),
+                        "theme" => st.theme = v.parse().unwrap_or(0),
+                        "tabs_pos" => st.tabs_pos = v.parse().unwrap_or(0),
+                        "bar_pos" => st.bar_pos = v.parse().unwrap_or(0),
+                        "ai" => st.ai = v.to_string(),
+                        "ai_model" => st.ai_model = v.to_string(),
                         "toolbar" => {
                             st.toolbar = v.to_string();
                             // buttons added since: shown unless switched off ("-key")
-                            {
-                                let key = "mobile";
+                            for key in ["mobile", "summary"] {
                                 if !st.toolbar.split(',').any(|k| k == key || k.strip_prefix('-') == Some(key)) {
                                     st.toolbar.push_str(&format!(",{key}"));
                                 }
@@ -359,8 +391,8 @@ impl Store {
         let st = &self.settings;
         let b = |v: bool| if v { "1" } else { "0" };
         let t = format!(
-            "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\n",
-            clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar)
+            "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\naccent={}\ntheme={}\ntabs_pos={}\nbar_pos={}\nai={}\nai_model={}\n",
+            clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model)
         );
         let _ = write_atomic(&dir.join("settings.txt"), t);
     }
@@ -597,7 +629,7 @@ fn default_bookmarks(lang: &str) -> Vec<Bookmark> {
         ("https://news.ycombinator.com/", "Hacker News"),
         ("https://text.npr.org/", crate::i18n::tr("NPR Texte")),
         ("https://lite.cnn.com/", "CNN Lite"),
-        ("sanaga://bienvenue", crate::i18n::tr("Bienvenue")),
+        ("sanaga://welcome", crate::i18n::tr("Bienvenue")),
     ]
     .iter()
     .map(|(u, t)| Bookmark { url: u.to_string(), title: t.to_string() })

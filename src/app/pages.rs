@@ -158,7 +158,7 @@ impl Sanaga {
             self.store.save_bookmarks();
         }
         if open_import {
-            self.navigate(self.active, "sanaga://importer".into(), None, true);
+            self.navigate(self.active, "sanaga://import".into(), None, true);
         }
         if pick_file {
             import = self.choose_file(tr("Importer des favoris (fichier HTML)"), &["*.html", "*.htm"], tr("Favoris (HTML)"));
@@ -277,7 +277,7 @@ impl Sanaga {
             }
         });
         if open_welcome {
-            self.navigate(self.active, "sanaga://bienvenue".into(), None, true);
+            self.navigate(self.active, "sanaga://welcome".into(), None, true);
         }
     }
 

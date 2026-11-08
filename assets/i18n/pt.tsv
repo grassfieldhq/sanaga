@@ -542,3 +542,77 @@ Impossible de changer le navigateur par défaut.	Não foi possível mudar o nave
 Nouvelle fenêtre	Nova janela
 Ctrl+N	Ctrl+N
 Déplacer vers une nouvelle fenêtre	Mover para uma nova janela
+Sanaga (sans IA, sur cet ordinateur)	Sanaga (sem IA, neste computador)
+Choisissez un modèle d'IA dans Paramètres › Intelligence.	Escolha um modelo de IA em Definições › Inteligência.
+Réponse du modèle illisible.	Não foi possível ler a resposta do modelo.
+Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.	Chave de API recusada: verifique-a em Definições › Inteligência.
+Modèle injoignable ({})	Modelo inacessível ({})
+Le modèle n'a pas écrit de code.	O modelo não escreveu código.
+Le résumé marche sur les pages des sites.	O resumo funciona nas páginas dos sites.
+Cette page contient trop peu de texte à résumer.	Esta página tem pouco texto para resumir.
+« {} » est créée et activée : elle s'applique aux onglets que vous ouvrez maintenant.	«{}» foi criada e ativada: aplica-se aos separadores que abrir a partir de agora.
+Résumé	Resumo
+Lecture de la page…	A ler a página…
+Par : {}	Por: {}
+Résumer à nouveau	Resumir de novo
+Résumer cette page	Resumir esta página
+Créer une extension	Criar uma extensão
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension pour vous et l'active.	Descreva o que quer mudar nos sites: o Sanaga escreve a extensão por si e ativa-a.
+Il faut un modèle d'IA : Ollama sur cet ordinateur (gratuit, rien ne sort de chez vous) ou Claude avec votre clé.	É preciso um modelo de IA: Ollama neste computador (grátis, nada sai de sua casa) ou Claude com a sua chave.
+Choisir dans Paramètres › Intelligence	Escolher em Definições › Inteligência
+Ex. : YouTube sans distractions	Ex.: YouTube sem distrações
+Ce qu'elle doit faire	O que deve fazer
+Ex. : masquer les Shorts et les vidéos recommandées à droite, et agrandir le lecteur.	Ex.: ocultar os Shorts e os vídeos recomendados à direita, e aumentar o leitor.
+Sur quels sites	Em que sites
+youtube.com — vide : tous les sites	youtube.com — vazio: todos os sites
+Idées :	Ideias:
+Lecture zen	Leitura zen
+Masquer les bannières de cookies, les fenêtres d'inscription et les publicités collantes.	Ocultar os avisos de cookies, as janelas de inscrição e os anúncios fixos.
+YouTube calme	YouTube calmo
+Masquer les Shorts, les recommandations et les commentaires.	Ocultar os Shorts, as recomendações e os comentários.
+Liens dans un nouvel onglet	Ligações num novo separador
+Ouvrir les liens vers d'autres sites dans un nouvel onglet.	Abrir as ligações para outros sites num novo separador.
+Créer l'extension	Criar a extensão
+Écriture de l'extension…	A escrever a extensão…
+Voir le code	Ver o código
+Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.	As extensões criadas são ficheiros simples na pasta das extensões: pode desativá-las ou apagá-las em Extensões.
+Ajoutez votre clé Claude ou lancez Ollama (Paramètres › Intelligence).	Adicione a sua chave Claude ou inicie o Ollama (Definições › Inteligência).
+1 onglet	1 separador
+{} onglets	{} separadores
+Rechercher dans les onglets (Ctrl+Maj+A)	Procurar nos separadores (Ctrl+Shift+A)
+Résumer la page	Resumir a página
+Ctrl+Maj+Y	Ctrl+Shift+Y
+Créer une extension…	Criar uma extensão…
+Intelligence	Inteligência
+Disposition	Disposição
+Barre d'adresse	Barra de endereço
+Onglets verticaux	Separadores verticais
+Où mettre les onglets — sur le côté, ils restent lisibles même très nombreux.	Onde ficam os separadores — de lado, continuam legíveis mesmo muitos.
+En haut	Em cima
+En bas	Em baixo
+À gauche	À esquerda
+À droite	À direita
+Où mettre la barre d'adresse :	Onde fica a barra de endereço:
+Flottante	Flutuante
+Couleur d'accent	Cor de destaque
+Résumés et extensions sur mesure	Resumos e extensões à medida
+Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	O Sanaga resume páginas (botão ✦ ou Ctrl+Shift+Y) e escreve extensões a partir do que descreve.
+Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur	Só o Sanaga — resumo simples, sem IA, nada sai do computador
+Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)	Ollama — um modelo de IA instalado neste computador (grátis, privado)
+Claude (Anthropic) — le meilleur résultat, avec votre clé d'API	Claude (Anthropic) — o melhor resultado, com a sua chave de API
+Modèle	Modelo
+Ollama ne répond pas : installez-le (ollama.com), puis dans un terminal : ollama pull llama3.2	O Ollama não responde: instale-o (ollama.com) e depois num terminal: ollama pull llama3.2
+Chercher les modèles	Procurar modelos
+Clé enregistrée dans le trousseau du système.	Chave guardada no porta-chaves do sistema.
+Oublier la clé	Esquecer a chave
+Créez une clé sur console.anthropic.com. Elle est gardée dans le trousseau du système, pas dans les fichiers de Sanaga.	Crie uma chave em console.anthropic.com. Fica no porta-chaves do sistema, não nos ficheiros do Sanaga.
+Avec Claude, le texte de la page résumée est envoyé à Anthropic.	Com o Claude, o texto da página resumida é enviado à Anthropic.
+Décrivez ce que vous voulez : Sanaga l'écrit pour vous	Descreva o que quer: o Sanaga escreve-o por si
+Bleu	Azul
+Rose	Rosa
+Graphite	Grafite
+Système	Sistema
+« Système » suit l'apparence et la couleur d'accent choisies pour tout l'ordinateur (Grassfield › Réglages › Apparence).	«Sistema» segue a aparência e a cor de destaque escolhidas para todo o computador (Grassfield › Definições › Aparência).
+Rouge	Vermelho
+Jaune	Amarelo
+Vert	Verde

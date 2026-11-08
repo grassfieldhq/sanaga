@@ -24,6 +24,8 @@ pub(super) enum WebEvent {
     DownloadDone { url: String, path: Option<std::path::PathBuf>, ok: bool },
     /// Privacy report: trackers kept from following the person.
     Privacy(Vec<(String, usize)>),
+    /// The text of a page, for its summary.
+    PageText { tab: u64, text: String },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -150,7 +152,9 @@ impl PageMaker {
                 PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Message(body) => {
-                    if body.starts_with("pw:") {
+                    if let Some(text) = body.strip_prefix("sum:") {
+                        WebEvent::PageText { tab: id, text: text.to_string() }
+                    } else if body.starts_with("pw:") {
                         WebEvent::Password { tab: id, msg: body }
                     } else if let Some(u) = body.strip_prefix("vs:") {
                         WebEvent::ViewSource { tab: id, url: u.to_string() }
@@ -262,6 +266,7 @@ impl Sanaga {
                 }
             }
             WebEvent::Notice(msg) => self.notice = Some((msg, self.ctx.input(|i| i.time))),
+            WebEvent::PageText { tab, text } => self.summary_text_arrived(tab, text),
             WebEvent::ViewSource { tab, url } => {
                 if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
                     self.navigate(i, format!("view-source:{url}"), None, true);
@@ -436,7 +441,7 @@ impl Sanaga {
         let list: Vec<(u64, u64, PageView)> = self.popups.borrow_mut().drain(..).collect();
         for (opener, id, pv) in list {
             let (private, group) = self.tabs.iter().find(|t| t.id == opener).map(|t| (t.private, t.group)).unwrap_or((false, 0));
-            let i = self.open_tab("sanaga://nouvel-onglet", private);
+            let i = self.open_tab("sanaga://newtab", private);
             self.focus_address = false;
             let t = &mut self.tabs[i];
             t.id = id;

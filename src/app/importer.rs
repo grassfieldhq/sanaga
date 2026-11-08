@@ -199,7 +199,7 @@ impl Sanaga {
             }
         }
         if html {
-            self.navigate(self.active, "sanaga://favoris".into(), None, true);
+            self.navigate(self.active, "sanaga://bookmarks".into(), None, true);
         }
     }
 }

@@ -44,7 +44,7 @@ impl Sanaga {
             pinned: false,
             // new empty tabs start outside groups (Chrome); pages opened from a
             // grouped tab join its group
-            group: if url.starts_with("sanaga://nouvel-onglet") { 0 } else { self.current_group },
+            group: if url.starts_with("sanaga://newtab") { 0 } else { self.current_group },
             muted: false,
             audio: false,
             thumb: None,
@@ -55,7 +55,7 @@ impl Sanaga {
         let i = self.tabs.len() - 1;
         self.active = i;
         self.navigate(i, url.to_string(), None, true);
-        if url.starts_with("sanaga://nouvel-onglet") {
+        if url.starts_with("sanaga://newtab") {
             self.focus_address = true;
         }
         i
@@ -88,7 +88,7 @@ impl Sanaga {
             Some(k) => self.active = k,
             None => {
                 self.active = 0;
-                self.open_tab("sanaga://nouvel-onglet", false);
+                self.open_tab("sanaga://newtab", false);
             }
         }
         self.save_session();
@@ -110,6 +110,7 @@ impl Sanaga {
 
     /// Go to `url` in tab `ti`. `push` adds a history step (false = reload / back / forward).
     pub(super) fn navigate(&mut self, ti: usize, url: String, post: Option<String>, push: bool) {
+        let url = super::english_address(&url);
         self.suggest_open = false;
         self.menu_open = false;
         let is_web_url = url.starts_with("http://") || url.starts_with("https://") || url.starts_with("file://");
@@ -122,7 +123,7 @@ impl Sanaga {
             tab.zoom = self.store.site_zoom.get(&host).copied().unwrap_or(self.store.settings.zoom);
         }
         let use_web = use_web && !tab.reader;
-        let url = if url == "about:blank" { "sanaga://nouvel-onglet".to_string() } else { url };
+        let url = if url == "about:blank" { "sanaga://newtab".to_string() } else { url };
         // Inside a WebKit page, WebKit keeps the back/forward list itself.
         let push = push && !(use_web && matches!(tab.view, View::Web));
         if push {
@@ -158,15 +159,15 @@ impl Sanaga {
         tab.nav += 1;
         tab.loading = false;
         tab.target_block = None;
-        tab.address = if url.starts_with("sanaga://nouvel-onglet") { String::new() } else { url.clone() };
+        tab.address = if url.starts_with("sanaga://newtab") { String::new() } else { url.clone() };
 
         if let Some(i) = internal_from_url(&url) {
             tab.view = View::Internal(i);
             tab.scroll_to = Some(0.0);
             return;
         }
-        if url.trim_end_matches('/') == "sanaga://bienvenue" {
-            let doc = Arc::new(crate::html::parse(welcome_html(), "sanaga://bienvenue"));
+        if url.trim_end_matches('/') == "sanaga://welcome" {
+            let doc = Arc::new(crate::html::parse(welcome_html(), "sanaga://welcome"));
             let (id, nav) = (tab.id, tab.nav);
             self.on_page(id, nav, Ok(doc));
             return;
@@ -455,7 +456,7 @@ impl Sanaga {
 
     pub(super) fn toggle_bookmark(&mut self) {
         let t = &self.tabs[self.active];
-        if t.entries.is_empty() || t.url().starts_with("sanaga://nouvel-onglet") {
+        if t.entries.is_empty() || t.url().starts_with("sanaga://newtab") {
             return;
         }
         let (u, ti) = (t.url().to_string(), t.title());
@@ -516,6 +517,7 @@ impl Sanaga {
                 (sc(cs, Key::I), "inspector"),
                 (sc(Modifiers::NONE, Key::F12), "inspector"),
                 (sc(cs, Key::M), "devices"),
+                (sc(cs, Key::Y), "summary"),
                 (sc(c, Key::P), "print"),
                 (sc(c, Key::U), "source"),
                 (sc(Modifiers::NONE, Key::F11), "fullscreen"),
@@ -560,7 +562,7 @@ impl Sanaga {
             let a = self.active.min(self.tabs.len() - 1);
             match t {
                 "private" => {
-                    self.open_tab("sanaga://nouvel-onglet", true);
+                    self.open_tab("sanaga://newtab", true);
                 }
                 "reopen" => {
                     if let Some(u) = self.closed.pop() {
@@ -572,7 +574,7 @@ impl Sanaga {
                     self.store.save_settings();
                 }
                 "new" => {
-                    self.open_tab("sanaga://nouvel-onglet", false);
+                    self.open_tab("sanaga://newtab", false);
                 }
                 "window" => self.new_window(Vec::new()),
                 "close" => self.close_tab(a),
@@ -599,20 +601,21 @@ impl Sanaga {
                 }
                 "savepage" => self.save_page(),
                 "cleardata" => {
-                    self.open_tab("sanaga://effacer", false);
+                    self.open_tab("sanaga://clear", false);
                 }
                 "sidebar" => self.sidebar_open = !self.sidebar_open,
                 "inspector" => self.open_inspector(),
+                "summary" => self.summarize_page(),
                 "devices" => self.toggle_devices(),
                 "print" => self.print_page(),
                 "source" => self.view_source(),
                 "fullscreen" => self.toggle_fullscreen(),
                 "readinglist" => self.toggle_reading_list(),
                 "history" => {
-                    self.open_tab("sanaga://historique", false);
+                    self.open_tab("sanaga://history", false);
                 }
                 "downloads" => {
-                    self.open_tab("sanaga://telechargements", false);
+                    self.open_tab("sanaga://downloads", false);
                 }
                 "find" => {
                     self.find_open = true;

@@ -25,7 +25,17 @@ All notable changes to Sanaga are listed here. The format follows
 - Settings page with categories, search, and a “Make default” button.
 - The web inspector and GTK dialogs follow Sanaga's dark theme.
 
+- Layout choices: tabs on top, at the bottom, on the left or on the right
+  (vertical tabs), address bar on top, at the bottom or floating.
+- Page summaries (✦ button, Ctrl+Shift+Y): Sanaga's own (no AI), a local model
+  through Ollama, or Claude with your API key (kept in the keyring).
+- Create an extension by describing it (`sanaga://create-extension`).
+- Follows the Grassfield system's accent colour and light / dark appearance
+  ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
+
 ### Changed
+- Sanaga's own pages have English addresses (`sanaga://settings`,
+  `sanaga://newtab`…); the old French ones still work.
 - Data files are written safely (copy, then swap) so a crash cannot corrupt them.
 - Ctrl+N opens a new window (it opened a tab).
 

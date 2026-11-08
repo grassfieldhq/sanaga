@@ -134,7 +134,7 @@ impl Sanaga {
             Some(i) => self.active = i,
             None => {
                 self.current_group = g;
-                self.open_tab("sanaga://nouvel-onglet", false);
+                self.open_tab("sanaga://newtab", false);
                 let a = self.active;
                 self.tabs[a].group = g;
             }
@@ -154,7 +154,7 @@ impl Sanaga {
             self.tabs[a].group = g;
         } else {
             self.current_group = g;
-            self.open_tab("sanaga://nouvel-onglet", false);
+            self.open_tab("sanaga://newtab", false);
             let a = self.active;
             self.tabs[a].group = g;
         }
@@ -197,7 +197,7 @@ impl Sanaga {
         self.drop_group_meta(g);
         self.current_group = 0;
         if self.tabs.is_empty() {
-            self.open_tab("sanaga://nouvel-onglet", false);
+            self.open_tab("sanaga://newtab", false);
         }
         self.active = active_id.and_then(|id| self.tabs.iter().position(|t| t.id == id)).or_else(|| self.strip_tabs().first().copied()).unwrap_or(0);
         self.save_session();
@@ -238,7 +238,7 @@ impl Sanaga {
                 Some(i) => self.active = i,
                 None => {
                     self.current_group = 0;
-                    self.open_tab("sanaga://nouvel-onglet", false);
+                    self.open_tab("sanaga://newtab", false);
                     let a = self.active;
                     self.tabs[a].group = 0;
                 }
@@ -250,7 +250,7 @@ impl Sanaga {
     pub(super) fn new_tab_right(&mut self, i: usize) {
         let g = self.tabs[i].group;
         let id = self.tabs[i].id;
-        self.open_tab("sanaga://nouvel-onglet", false);
+        self.open_tab("sanaga://newtab", false);
         let n = self.active;
         self.tabs[n].group = g;
         if let Some(pos) = self.tabs.iter().position(|t| t.id == id) {
@@ -578,7 +578,7 @@ impl Sanaga {
             self.overview_open = false;
         } else if new_tab {
             self.overview_open = false;
-            self.open_tab("sanaga://nouvel-onglet", false);
+            self.open_tab("sanaga://newtab", false);
         }
     }
 }

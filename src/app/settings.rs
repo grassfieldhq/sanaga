@@ -16,20 +16,22 @@ pub(super) enum Section {
     Performance,
     Sync,
     Extensions,
+    Intelligence,
 }
 
 impl Section {
-    const ALL: [Section; 7] = [Section::General, Section::Appearance, Section::Privacy, Section::Passwords, Section::Performance, Section::Sync, Section::Extensions];
+    const ALL: [Section; 8] = [Section::General, Section::Appearance, Section::Intelligence, Section::Privacy, Section::Passwords, Section::Performance, Section::Sync, Section::Extensions];
 
     fn label(self) -> &'static str {
         match self {
             Section::General => tr("Général"),
             Section::Appearance => tr("Apparence"),
             Section::Privacy => tr("Confidentialité et sécurité"),
-            Section::Passwords => tr("Mots de passe et remplissage automatique"),
+            Section::Passwords => tr("Mots de passe"),
             Section::Performance => tr("Performances"),
             Section::Sync => tr("Synchronisation et profils"),
             Section::Extensions => tr("Extensions"),
+            Section::Intelligence => tr("Intelligence"),
         }
     }
 
@@ -41,7 +43,8 @@ impl Section {
             Section::Passwords => Icon::Lock,
             Section::Performance => Icon::Leaf,
             Section::Sync => Icon::Rotate,
-            Section::Extensions => Icon::Grid,
+            Section::Extensions => Icon::Puzzle,
+            Section::Intelligence => Icon::Sparkle,
         }
     }
 }
@@ -97,6 +100,54 @@ fn link_row(ui: &mut Ui, th: &Theme, label: &str, sub: &str) -> bool {
     resp.on_hover_cursor(CursorIcon::PointingHand).clicked()
 }
 
+/// A choice drawn as a small picture of the window (where the tabs and the
+/// address bar go). `tabs`: 0 top, 1 bottom, 2 left, 3 right, 9 not shown;
+/// `bar`: 0 top, 1 bottom, 2 floating, 9 not shown.
+fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar: u8, selected: bool) -> bool {
+    let (r, resp) = ui.allocate_exact_size(vec2(104.0, 92.0), Sense::click());
+    let pic = Rect::from_min_size(r.min + vec2(4.0, 4.0), vec2(96.0, 62.0));
+    let p = ui.painter();
+    p.rect_filled(pic, CornerRadius::same(8), th.page);
+    p.rect_stroke(pic, CornerRadius::same(8), Stroke::new(if selected { 2.5 } else { 1.0 }, if selected { th.accent } else if resp.hovered() { th.sub } else { th.border }), egui::StrokeKind::Outside);
+    let tabs_col = th.accent.gamma_multiply(0.55);
+    let bar_col = th.sub.gamma_multiply(0.55);
+    let inner = pic.shrink(5.0);
+    let mut area = inner;
+    match tabs {
+        0 => {
+            p.rect_filled(Rect::from_min_size(area.min, vec2(area.width(), 6.0)), 2.0, tabs_col);
+            area.min.y += 8.0;
+        }
+        1 => {
+            p.rect_filled(Rect::from_min_max(pos2(area.left(), area.bottom() - 6.0), area.max), 2.0, tabs_col);
+            area.max.y -= 8.0;
+        }
+        2 => {
+            p.rect_filled(Rect::from_min_size(area.min, vec2(20.0, area.height())), 3.0, tabs_col);
+            area.min.x += 23.0;
+        }
+        3 => {
+            p.rect_filled(Rect::from_min_max(pos2(area.right() - 20.0, area.top()), area.max), 3.0, tabs_col);
+            area.max.x -= 23.0;
+        }
+        _ => {}
+    }
+    match bar {
+        0 => {
+            p.rect_filled(Rect::from_min_size(area.min, vec2(area.width(), 7.0)), 3.0, bar_col);
+        }
+        1 => {
+            p.rect_filled(Rect::from_min_max(pos2(area.left(), area.bottom() - 7.0), area.max), 3.0, bar_col);
+        }
+        2 => {
+            p.rect_filled(Rect::from_center_size(pos2(area.center().x, area.bottom() - 6.0), vec2(area.width() * 0.72, 8.0)), 4.0, bar_col);
+        }
+        _ => {}
+    }
+    p.text(pos2(r.center().x, r.bottom() - 11.0), Align2::CENTER_CENTER, label, FontId::proportional(12.5), if selected { th.accent } else { th.text });
+    resp.on_hover_cursor(CursorIcon::PointingHand).clicked()
+}
+
 /// Is Sanaga the system's default web browser? (`xdg-settings`)
 fn default_browser_is_sanaga() -> bool {
     std::process::Command::new("xdg-settings")
@@ -129,7 +180,19 @@ impl Sanaga {
         let is_default = self.is_default_browser.unwrap_or(false);
         let mut section = self.settings_section;
         let query = self.settings_filter.trim().to_lowercase();
+        if section == Section::Intelligence && self.store.settings.ai == "claude" && self.ai_key_known.is_none() {
+            self.ai_key_known = Some(crate::keyring::lookup(&self.store.profile, crate::ai::KEY_SITE, "claude").is_some_and(|k| !k.is_empty()));
+        }
+        if section == Section::Intelligence && self.store.settings.ai == "ollama" && self.ai_models.is_none() {
+            self.refresh_ollama_models();
+        }
+        let key_known = self.ai_key_known.unwrap_or(false);
+        let models = self.ai_models.clone();
+        let key_input = &mut self.ai_key_input;
         let filter = &mut self.settings_filter;
+        let mut save_key = false;
+        let mut forget_key = false;
+        let mut find_models = false;
         let st = &mut self.store.settings;
 
         let w = ui.available_width();
@@ -272,13 +335,69 @@ impl Sanaga {
                 }
 
                 // ---------------- Appearance ----------------
-                if show.shows(Section::Appearance, tr("Thème"), &[tr("Thème sombre")]) {
+                if show.shows(Section::Appearance, tr("Disposition"), &[tr("Onglets"), tr("Barre d'adresse"), tr("Onglets verticaux")]) {
+                    any = true;
+                    group(ui, th, tr("Disposition"), |ui| {
+                        note(ui, th, tr("Où mettre les onglets — sur le côté, ils restent lisibles même très nombreux."));
+                        ui.horizontal_wrapped(|ui| {
+                            for (v, label) in [(0u8, tr("En haut")), (1, tr("En bas")), (2, tr("À gauche")), (3, tr("À droite"))] {
+                                if layout_choice(ui, th, label, v, 9, st.tabs_pos == v) && st.tabs_pos != v {
+                                    st.tabs_pos = v;
+                                    changed = true;
+                                }
+                            }
+                        });
+                        ui.add_space(8.0);
+                        note(ui, th, tr("Où mettre la barre d'adresse :"));
+                        ui.horizontal_wrapped(|ui| {
+                            for (v, label) in [(0u8, tr("En haut")), (1, tr("En bas")), (2, tr("Flottante"))] {
+                                if layout_choice(ui, th, label, 9, v, st.bar_pos == v) && st.bar_pos != v {
+                                    st.bar_pos = v;
+                                    changed = true;
+                                }
+                            }
+                        });
+                    });
+                }
+                if show.shows(Section::Appearance, tr("Couleur d'accent"), &["Grassfield"]) {
+                    any = true;
+                    group(ui, th, tr("Couleur d'accent"), |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            for (k, (name, _light, _dark, swatch)) in crate::theme::ACCENTS.iter().enumerate() {
+                                // "System": the system's own accent, as it is now
+                                let col = if k == 0 { crate::theme::ACCENTS[crate::theme::accent_in_use_of_system()].3 } else { *swatch };
+                                let (r, resp) = ui.allocate_exact_size(vec2(60.0, 54.0), Sense::click());
+                                let c = pos2(r.center().x, r.top() + 15.0);
+                                let chosen = st.accent as usize == k;
+                                ui.painter().circle_filled(c, 12.0, col);
+                                if chosen {
+                                    ui.painter().circle_stroke(c, 15.5, Stroke::new(2.0, col));
+                                    icons::paint(ui.painter(), Rect::from_center_size(c, vec2(10.0, 10.0)), Icon::Plus, Color32::TRANSPARENT);
+                                } else if resp.hovered() {
+                                    ui.painter().circle_stroke(c, 15.5, Stroke::new(1.0, th.border));
+                                }
+                                ui.painter().text(pos2(r.center().x, r.bottom() - 8.0), Align2::CENTER_CENTER, tr(name), FontId::proportional(11.5), if chosen { th.text } else { th.sub });
+                                if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() && !chosen {
+                                    st.accent = k as u8;
+                                    changed = true;
+                                }
+                            }
+                        });
+                    });
+                }
+                if show.shows(Section::Appearance, tr("Thème"), &[tr("Thème sombre"), tr("Clair"), tr("Sombre")]) {
                     any = true;
                     group(ui, th, tr("Thème"), |ui| {
                         ui.horizontal(|ui| {
-                            changed |= ui.selectable_value(&mut st.dark, false, tr("Clair")).changed();
-                            changed |= ui.selectable_value(&mut st.dark, true, tr("Sombre")).changed();
+                            for (v, label) in [(0u8, tr("Système")), (1, tr("Clair")), (2, tr("Sombre"))] {
+                                if ui.selectable_label(st.theme == v, label).clicked() && st.theme != v {
+                                    st.theme = v;
+                                    st.dark = v == 2;
+                                    changed = true;
+                                }
+                            }
                         });
+                        note(ui, th, tr("« Système » suit l'apparence et la couleur d'accent choisies pour tout l'ordinateur (Grassfield › Réglages › Apparence)."));
                     });
                 }
                 if show.shows(Section::Appearance, tr("Barre d'outils"), &[tr("Afficher la barre de favoris"), tr("Boutons de la barre d'outils (aussi : clic droit sur la barre d'outils)")]) {
@@ -311,7 +430,7 @@ impl Sanaga {
                     any = true;
                     group(ui, th, tr("Données de navigation"), |ui| {
                         if link_row(ui, th, tr("Effacer les données"), tr("Historique, cookies, cache…")) {
-                            go_page = Some("sanaga://effacer");
+                            go_page = Some("sanaga://clear");
                         }
                         if link_row(ui, th, tr("Paramètres des sites"), tr("Caméra, micro, notifications, zoom… site par site")) {
                             go_page = Some("sanaga://sites");
@@ -338,10 +457,10 @@ impl Sanaga {
                         note(ui, th, tr("Quand un site n'a qu'un compte enregistré, Sanaga le remplit tout seul ; sinon, choisissez le compte dans la liste sous le champ."));
                         ui.add_space(4.0);
                         if link_row(ui, th, tr("Gérer les mots de passe enregistrés"), "") {
-                            go_page = Some("sanaga://motsdepasse");
+                            go_page = Some("sanaga://passwords");
                         }
                         if link_row(ui, th, tr("Importer depuis un autre navigateur (Chrome, Firefox…)"), "") {
-                            go_page = Some("sanaga://importer");
+                            go_page = Some("sanaga://import");
                         }
                     });
                 }
@@ -415,7 +534,84 @@ impl Sanaga {
                     any = true;
                     group(ui, th, tr("Profils"), |ui| {
                         if link_row(ui, th, tr("Gérer les profils"), &tf("Profil de cette fenêtre : {}", &[&profile])) {
-                            go_page = Some("sanaga://profils");
+                            go_page = Some("sanaga://profiles");
+                        }
+                    });
+                }
+
+                // ---------------- Intelligence ----------------
+                if show.shows(Section::Intelligence, tr("Résumés et extensions sur mesure"), &[tr("Résumer la page"), tr("Créer une extension"), "Claude", "Ollama"]) {
+                    any = true;
+                    group(ui, th, tr("Résumés et extensions sur mesure"), |ui| {
+                        note(ui, th, tr("Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez."));
+                        ui.add_space(4.0);
+                        let mut ai = st.ai.clone();
+                        ui.radio_value(&mut ai, String::new(), tr("Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur"));
+                        ui.radio_value(&mut ai, "ollama".to_string(), tr("Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)"));
+                        ui.radio_value(&mut ai, "claude".to_string(), tr("Claude (Anthropic) — le meilleur résultat, avec votre clé d'API"));
+                        if ai != st.ai {
+                            st.ai = ai;
+                            st.ai_model.clear();
+                            changed = true;
+                        }
+                        ui.add_space(6.0);
+                        match st.ai.as_str() {
+                            "ollama" => {
+                                match &models {
+                                    Some(m) if !m.is_empty() => {
+                                        ui.horizontal(|ui| {
+                                            ui.label(tr("Modèle"));
+                                            let current = if st.ai_model.is_empty() { m[0].clone() } else { st.ai_model.clone() };
+                                            egui::ComboBox::from_id_salt("ollama-model").selected_text(&current).width(240.0).show_ui(ui, |ui| {
+                                                for name in m {
+                                                    if ui.selectable_label(*name == current, name).clicked() {
+                                                        st.ai_model = name.clone();
+                                                        changed = true;
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    }
+                                    _ => {
+                                        note(ui, th, tr("Ollama ne répond pas : installez-le (ollama.com), puis dans un terminal : ollama pull llama3.2"));
+                                    }
+                                }
+                                if ui.button(tr("Chercher les modèles")).clicked() {
+                                    find_models = true;
+                                }
+                            }
+                            "claude" => {
+                                if key_known {
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new(tr("Clé enregistrée dans le trousseau du système.")).color(th.text));
+                                        if ui.button(tr("Oublier la clé")).clicked() {
+                                            forget_key = true;
+                                        }
+                                    });
+                                } else {
+                                    ui.horizontal(|ui| {
+                                        ui.add(TextEdit::singleline(key_input).password(true).hint_text("sk-ant-…").desired_width(320.0));
+                                        if ui.add_enabled(!key_input.trim().is_empty(), egui::Button::new(tr("Enregistrer"))).clicked() {
+                                            save_key = true;
+                                        }
+                                    });
+                                    note(ui, th, tr("Créez une clé sur console.anthropic.com. Elle est gardée dans le trousseau du système, pas dans les fichiers de Sanaga."));
+                                }
+                                ui.horizontal(|ui| {
+                                    ui.label(tr("Modèle"));
+                                    let mut m = if st.ai_model.is_empty() { crate::ai::CLAUDE_MODEL.to_string() } else { st.ai_model.clone() };
+                                    if ui.add(TextEdit::singleline(&mut m).desired_width(220.0)).changed() {
+                                        st.ai_model = m;
+                                        changed = true;
+                                    }
+                                });
+                                note(ui, th, tr("Avec Claude, le texte de la page résumée est envoyé à Anthropic."));
+                            }
+                            _ => {}
+                        }
+                        ui.add_space(4.0);
+                        if link_row(ui, th, tr("Créer une extension"), tr("Décrivez ce que vous voulez : Sanaga l'écrit pour vous")) {
+                            go_page = Some("sanaga://create-extension");
                         }
                     });
                 }
@@ -427,6 +623,9 @@ impl Sanaga {
                         if link_row(ui, th, tr("Gérer les extensions (bloqueur de publicités, mode sombre…)"), "") {
                             go_page = Some("sanaga://extensions");
                         }
+                        if link_row(ui, th, tr("Créer une extension"), tr("Décrivez ce que vous voulez : Sanaga l'écrit pour vous")) {
+                            go_page = Some("sanaga://create-extension");
+                        }
                     });
                 }
 
@@ -435,7 +634,7 @@ impl Sanaga {
                 }
                 ui.add_space(10.0);
                 if ui.link(tr("À propos de Sanaga")).clicked() {
-                    go_page = Some("sanaga://a-propos");
+                    go_page = Some("sanaga://about");
                 }
                 ui.add_space(30.0);
             });
@@ -448,6 +647,21 @@ impl Sanaga {
         }
         if make_default {
             self.make_default_browser();
+        }
+        if save_key {
+            let key = self.ai_key_input.trim().to_string();
+            let ok = crate::keyring::store(&self.store.profile, crate::ai::KEY_SITE, "claude", &key);
+            self.ai_key_input.clear();
+            self.ai_key_known = Some(ok);
+            let msg = if ok { tr("Clé enregistrée dans le trousseau du système.") } else { tr("Le trousseau du système n'est pas disponible.") };
+            self.notice = Some((msg.into(), self.ctx.input(|i| i.time)));
+        }
+        if forget_key {
+            crate::keyring::delete(&self.store.profile, crate::ai::KEY_SITE, "claude");
+            self.ai_key_known = Some(false);
+        }
+        if find_models {
+            self.refresh_ollama_models();
         }
         if let Some(p) = go_page {
             self.navigate(self.active, p.to_string(), None, true);

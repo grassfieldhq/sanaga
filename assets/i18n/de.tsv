@@ -542,3 +542,77 @@ Impossible de changer le navigateur par défaut.	Der Standardbrowser konnte nich
 Nouvelle fenêtre	Neues Fenster
 Ctrl+N	Strg+N
 Déplacer vers une nouvelle fenêtre	In neues Fenster verschieben
+Sanaga (sans IA, sur cet ordinateur)	Sanaga (ohne KI, auf diesem Computer)
+Choisissez un modèle d'IA dans Paramètres › Intelligence.	Wählen Sie ein KI-Modell unter Einstellungen › Intelligenz.
+Réponse du modèle illisible.	Die Antwort des Modells ist unlesbar.
+Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.	API-Schlüssel abgelehnt: prüfen Sie ihn unter Einstellungen › Intelligenz.
+Modèle injoignable ({})	Modell nicht erreichbar ({})
+Le modèle n'a pas écrit de code.	Das Modell hat keinen Code geschrieben.
+Le résumé marche sur les pages des sites.	Zusammenfassungen gibt es für Seiten von Websites.
+Cette page contient trop peu de texte à résumer.	Diese Seite hat zu wenig Text für eine Zusammenfassung.
+« {} » est créée et activée : elle s'applique aux onglets que vous ouvrez maintenant.	„{}“ ist erstellt und aktiviert: Sie gilt für Tabs, die Sie ab jetzt öffnen.
+Résumé	Zusammenfassung
+Lecture de la page…	Seite wird gelesen…
+Par : {}	Von: {}
+Résumer à nouveau	Erneut zusammenfassen
+Résumer cette page	Diese Seite zusammenfassen
+Créer une extension	Erweiterung erstellen
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension pour vous et l'active.	Beschreiben Sie, was Sie auf Websites ändern möchten: Sanaga schreibt die Erweiterung für Sie und aktiviert sie.
+Il faut un modèle d'IA : Ollama sur cet ordinateur (gratuit, rien ne sort de chez vous) ou Claude avec votre clé.	Dafür braucht es ein KI-Modell: Ollama auf diesem Computer (kostenlos, nichts verlässt Ihr Zuhause) oder Claude mit Ihrem Schlüssel.
+Choisir dans Paramètres › Intelligence	Unter Einstellungen › Intelligenz wählen
+Ex. : YouTube sans distractions	Z. B. YouTube ohne Ablenkung
+Ce qu'elle doit faire	Was sie tun soll
+Ex. : masquer les Shorts et les vidéos recommandées à droite, et agrandir le lecteur.	Z. B. Shorts und die empfohlenen Videos rechts ausblenden und den Player vergrößern.
+Sur quels sites	Auf welchen Websites
+youtube.com — vide : tous les sites	youtube.com — leer: alle Websites
+Idées :	Ideen:
+Lecture zen	Zen-Lesen
+Masquer les bannières de cookies, les fenêtres d'inscription et les publicités collantes.	Cookie-Banner, Anmelde-Popups und klebende Werbung ausblenden.
+YouTube calme	Ruhiges YouTube
+Masquer les Shorts, les recommandations et les commentaires.	Shorts, Empfehlungen und Kommentare ausblenden.
+Liens dans un nouvel onglet	Links in neuem Tab
+Ouvrir les liens vers d'autres sites dans un nouvel onglet.	Links zu anderen Websites in einem neuen Tab öffnen.
+Créer l'extension	Erweiterung erstellen
+Écriture de l'extension…	Erweiterung wird geschrieben…
+Voir le code	Code anzeigen
+Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.	Erstellte Erweiterungen sind einfache Dateien im Erweiterungsordner: Sie können sie unter Erweiterungen deaktivieren oder löschen.
+Ajoutez votre clé Claude ou lancez Ollama (Paramètres › Intelligence).	Fügen Sie Ihren Claude-Schlüssel hinzu oder starten Sie Ollama (Einstellungen › Intelligenz).
+1 onglet	1 Tab
+{} onglets	{} Tabs
+Rechercher dans les onglets (Ctrl+Maj+A)	Tabs durchsuchen (Strg+Umschalt+A)
+Résumer la page	Seite zusammenfassen
+Ctrl+Maj+Y	Strg+Umschalt+Y
+Créer une extension…	Erweiterung erstellen…
+Intelligence	Intelligenz
+Disposition	Anordnung
+Barre d'adresse	Adressleiste
+Onglets verticaux	Vertikale Tabs
+Où mettre les onglets — sur le côté, ils restent lisibles même très nombreux.	Wo die Tabs sind — seitlich bleiben sie auch bei vielen Tabs lesbar.
+En haut	Oben
+En bas	Unten
+À gauche	Links
+À droite	Rechts
+Où mettre la barre d'adresse :	Wo die Adressleiste ist:
+Flottante	Schwebend
+Couleur d'accent	Akzentfarbe
+Résumés et extensions sur mesure	Zusammenfassungen und maßgeschneiderte Erweiterungen
+Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga fasst Seiten zusammen (✦-Taste oder Strg+Umschalt+Y) und schreibt Erweiterungen nach Ihrer Beschreibung.
+Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur	Nur Sanaga — einfache Zusammenfassung, ohne KI, nichts verlässt den Computer
+Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)	Ollama — ein KI-Modell auf diesem Computer (kostenlos, privat)
+Claude (Anthropic) — le meilleur résultat, avec votre clé d'API	Claude (Anthropic) — die besten Ergebnisse, mit Ihrem API-Schlüssel
+Modèle	Modell
+Ollama ne répond pas : installez-le (ollama.com), puis dans un terminal : ollama pull llama3.2	Ollama antwortet nicht: installieren Sie es (ollama.com), dann im Terminal: ollama pull llama3.2
+Chercher les modèles	Modelle suchen
+Clé enregistrée dans le trousseau du système.	Schlüssel im Systemschlüsselbund gespeichert.
+Oublier la clé	Schlüssel vergessen
+Créez une clé sur console.anthropic.com. Elle est gardée dans le trousseau du système, pas dans les fichiers de Sanaga.	Erstellen Sie einen Schlüssel auf console.anthropic.com. Er liegt im Systemschlüsselbund, nicht in Sanagas Dateien.
+Avec Claude, le texte de la page résumée est envoyé à Anthropic.	Mit Claude wird der Text der zusammengefassten Seite an Anthropic gesendet.
+Décrivez ce que vous voulez : Sanaga l'écrit pour vous	Beschreiben Sie, was Sie möchten: Sanaga schreibt es für Sie
+Bleu	Blau
+Rose	Rosa
+Graphite	Graphit
+Système	System
+« Système » suit l'apparence et la couleur d'accent choisies pour tout l'ordinateur (Grassfield › Réglages › Apparence).	„System“ folgt dem Erscheinungsbild und der Akzentfarbe des ganzen Computers (Grassfield › Einstellungen › Erscheinungsbild).
+Rouge	Rot
+Jaune	Gelb
+Vert	Grün

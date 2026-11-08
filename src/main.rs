@@ -14,6 +14,7 @@
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android"))]
 compile_error!("Sanaga currently runs on Linux (and BSD) only: it is built on GTK 3 and WebKitGTK. See docs/PORTING.md for the Windows and macOS plan.");
 
+mod ai;
 mod app;
 mod desktop;
 mod extensions;
@@ -21,6 +22,7 @@ mod favicon;
 mod keyring;
 mod migrate;
 mod sync;
+mod system_look;
 mod html;
 mod i18n;
 mod import;

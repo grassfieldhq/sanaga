@@ -542,3 +542,77 @@ Impossible de changer le navigateur par défaut.	Could not change the default br
 Nouvelle fenêtre	New window
 Ctrl+N	Ctrl+N
 Déplacer vers une nouvelle fenêtre	Move to new window
+Sanaga (sans IA, sur cet ordinateur)	Sanaga (no AI, on this computer)
+Choisissez un modèle d'IA dans Paramètres › Intelligence.	Choose an AI model in Settings › Intelligence.
+Réponse du modèle illisible.	The model's answer could not be read.
+Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.	API key refused: check it in Settings › Intelligence.
+Modèle injoignable ({})	Model unreachable ({})
+Le modèle n'a pas écrit de code.	The model wrote no code.
+Le résumé marche sur les pages des sites.	Summaries work on websites' pages.
+Cette page contient trop peu de texte à résumer.	This page has too little text to summarise.
+« {} » est créée et activée : elle s'applique aux onglets que vous ouvrez maintenant.	“{}” is created and switched on: it applies to the tabs you open from now on.
+Résumé	Summary
+Lecture de la page…	Reading the page…
+Par : {}	By: {}
+Résumer à nouveau	Summarise again
+Résumer cette page	Summarise this page
+Créer une extension	Create an extension
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension pour vous et l'active.	Describe what you want to change on websites: Sanaga writes the extension for you and switches it on.
+Il faut un modèle d'IA : Ollama sur cet ordinateur (gratuit, rien ne sort de chez vous) ou Claude avec votre clé.	This needs an AI model: Ollama on this computer (free, nothing leaves your home) or Claude with your key.
+Choisir dans Paramètres › Intelligence	Choose in Settings › Intelligence
+Ex. : YouTube sans distractions	E.g. YouTube without distractions
+Ce qu'elle doit faire	What it should do
+Ex. : masquer les Shorts et les vidéos recommandées à droite, et agrandir le lecteur.	E.g. hide Shorts and the recommended videos on the right, and make the player bigger.
+Sur quels sites	On which sites
+youtube.com — vide : tous les sites	youtube.com — empty: all sites
+Idées :	Ideas:
+Lecture zen	Zen reading
+Masquer les bannières de cookies, les fenêtres d'inscription et les publicités collantes.	Hide cookie banners, sign-up pop-ups and sticky ads.
+YouTube calme	Calm YouTube
+Masquer les Shorts, les recommandations et les commentaires.	Hide Shorts, recommendations and comments.
+Liens dans un nouvel onglet	Links in a new tab
+Ouvrir les liens vers d'autres sites dans un nouvel onglet.	Open links to other sites in a new tab.
+Créer l'extension	Create the extension
+Écriture de l'extension…	Writing the extension…
+Voir le code	Show the code
+Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.	Created extensions are plain files in the extensions folder: you can switch them off or delete them in Extensions.
+Ajoutez votre clé Claude ou lancez Ollama (Paramètres › Intelligence).	Add your Claude key or start Ollama (Settings › Intelligence).
+1 onglet	1 tab
+{} onglets	{} tabs
+Rechercher dans les onglets (Ctrl+Maj+A)	Search tabs (Ctrl+Shift+A)
+Résumer la page	Summarise page
+Ctrl+Maj+Y	Ctrl+Shift+Y
+Créer une extension…	Create an extension…
+Intelligence	Intelligence
+Disposition	Layout
+Barre d'adresse	Address bar
+Onglets verticaux	Vertical tabs
+Où mettre les onglets — sur le côté, ils restent lisibles même très nombreux.	Where the tabs go — on the side, they stay readable even when there are many.
+En haut	Top
+En bas	Bottom
+À gauche	Left
+À droite	Right
+Où mettre la barre d'adresse :	Where the address bar goes:
+Flottante	Floating
+Couleur d'accent	Accent colour
+Résumés et extensions sur mesure	Summaries and made-to-measure extensions
+Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga summarises pages (✦ button or Ctrl+Shift+Y) and writes extensions from what you describe.
+Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur	Sanaga alone — simple summary, no AI, nothing leaves the computer
+Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)	Ollama — an AI model installed on this computer (free, private)
+Claude (Anthropic) — le meilleur résultat, avec votre clé d'API	Claude (Anthropic) — the best results, with your API key
+Modèle	Model
+Ollama ne répond pas : installez-le (ollama.com), puis dans un terminal : ollama pull llama3.2	Ollama is not answering: install it (ollama.com), then in a terminal: ollama pull llama3.2
+Chercher les modèles	Look for models
+Clé enregistrée dans le trousseau du système.	Key saved in the system keyring.
+Oublier la clé	Forget the key
+Créez une clé sur console.anthropic.com. Elle est gardée dans le trousseau du système, pas dans les fichiers de Sanaga.	Create a key at console.anthropic.com. It is kept in the system keyring, not in Sanaga's files.
+Avec Claude, le texte de la page résumée est envoyé à Anthropic.	With Claude, the text of the summarised page is sent to Anthropic.
+Décrivez ce que vous voulez : Sanaga l'écrit pour vous	Describe what you want: Sanaga writes it for you
+Bleu	Blue
+Rose	Pink
+Graphite	Graphite
+Système	System
+« Système » suit l'apparence et la couleur d'accent choisies pour tout l'ordinateur (Grassfield › Réglages › Apparence).	“System” follows the appearance and accent colour chosen for the whole computer (Grassfield › Settings › Appearance).
+Rouge	Red
+Jaune	Yellow
+Vert	Green

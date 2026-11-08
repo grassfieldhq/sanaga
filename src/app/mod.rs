@@ -12,6 +12,8 @@ mod nav;
 mod plus;
 mod pages;
 mod settings;
+mod layout;
+mod intelligence;
 mod extras;
 mod importer;
 mod render;
@@ -60,22 +62,44 @@ enum Internal {
     ClearData,
     Sites,
     Import,
+    CreateExtension,
+}
+
+/// Sanaga's own pages have English addresses; the French ones of earlier
+/// versions (in saved sessions, settings and bookmarks) still work.
+pub fn english_address(u: &str) -> String {
+    const OLD: [(&str, &str); 11] = [
+        ("sanaga://nouvel-onglet", "sanaga://newtab"),
+        ("sanaga://historique", "sanaga://history"),
+        ("sanaga://favoris", "sanaga://bookmarks"),
+        ("sanaga://telechargements", "sanaga://downloads"),
+        ("sanaga://parametres", "sanaga://settings"),
+        ("sanaga://a-propos", "sanaga://about"),
+        ("sanaga://motsdepasse", "sanaga://passwords"),
+        ("sanaga://profils", "sanaga://profiles"),
+        ("sanaga://effacer", "sanaga://clear"),
+        ("sanaga://importer", "sanaga://import"),
+        ("sanaga://bienvenue", "sanaga://welcome"),
+    ];
+    let t = u.trim_end_matches('/');
+    OLD.iter().find(|(old, _)| *old == t).map(|(_, new)| new.to_string()).unwrap_or_else(|| u.to_string())
 }
 
 fn internal_from_url(u: &str) -> Option<Internal> {
-    Some(match u.trim_end_matches('/') {
-        "sanaga://nouvel-onglet" | "sanaga://newtab" | "about:blank" => Internal::NewTab,
-        "sanaga://historique" | "sanaga://history" => Internal::History,
-        "sanaga://favoris" | "sanaga://bookmarks" => Internal::Bookmarks,
-        "sanaga://telechargements" | "sanaga://downloads" => Internal::Downloads,
-        "sanaga://parametres" | "sanaga://settings" => Internal::Settings,
-        "sanaga://a-propos" | "sanaga://about" => Internal::About,
-        "sanaga://motsdepasse" | "sanaga://passwords" => Internal::Passwords,
+    Some(match english_address(u).trim_end_matches('/') {
+        "sanaga://newtab" | "about:blank" => Internal::NewTab,
+        "sanaga://history" => Internal::History,
+        "sanaga://bookmarks" => Internal::Bookmarks,
+        "sanaga://downloads" => Internal::Downloads,
+        "sanaga://settings" => Internal::Settings,
+        "sanaga://about" => Internal::About,
+        "sanaga://passwords" => Internal::Passwords,
         "sanaga://extensions" => Internal::Extensions,
-        "sanaga://profils" | "sanaga://profiles" => Internal::Profiles,
-        "sanaga://effacer" | "sanaga://clear" => Internal::ClearData,
+        "sanaga://profiles" => Internal::Profiles,
+        "sanaga://clear" => Internal::ClearData,
         "sanaga://sites" => Internal::Sites,
-        "sanaga://importer" | "sanaga://import" => Internal::Import,
+        "sanaga://import" => Internal::Import,
+        "sanaga://create-extension" => Internal::CreateExtension,
         _ => return None,
     })
 }
@@ -94,6 +118,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::ClearData => tr("Effacer les données"),
         Internal::Sites => tr("Paramètres des sites"),
         Internal::Import => tr("Importer depuis un autre navigateur"),
+        Internal::CreateExtension => tr("Créer une extension"),
     }
 }
 
@@ -220,7 +245,7 @@ pub fn input_to_url(s: &str, engine: Engine, home: &str) -> String {
         return t.to_string();
     }
     if lower == "about:blank" {
-        return "sanaga://nouvel-onglet".into();
+        return "sanaga://newtab".into();
     }
     if t.starts_with('/') && std::path::Path::new(t).exists() {
         return format!("file://{t}");
@@ -294,7 +319,7 @@ pub struct Sanaga {
     pages_loaded: u64,
     bytes_loaded: u64,
     visited: HashSet<String>,
-    applied_dark: Option<bool>,
+    applied_dark: Option<(bool, u8)>,
     ctx: egui::Context,
     screenshot: Option<ScreenshotJob>,
     web_ok: bool,
@@ -373,6 +398,17 @@ pub struct Sanaga {
     extra_sessions: Vec<Vec<String>>,
     /// Data changes seen (another window may change bookmarks, settings…).
     store_seen: u64,
+    /// Page summary at the side, answers of the AI models, the
+    /// create-an-extension form, the Ollama models found, the Claude key typed.
+    summary: Option<intelligence::Summary>,
+    ai_tx: std::sync::mpsc::Sender<intelligence::AiDone>,
+    ai_rx: Receiver<intelligence::AiDone>,
+    ext_form: intelligence::ExtForm,
+    ai_models: Option<Vec<String>>,
+    ai_key_input: String,
+    ai_key_known: Option<bool>,
+    /// When the system's look was last checked.
+    look_checked: f64,
     sync_status: crate::sync::SyncStatus,
     sync_at: f64,
     perm_queue: plus::PermQueue,
@@ -461,6 +497,7 @@ impl Sanaga {
         let (web_tx, web_rx) = channel();
         let (thumb_tx, thumb_rx) = channel();
         let (freeze_tx, freeze_rx) = channel();
+        let (ai_tx, ai_rx) = channel();
         // interface language; WebKit reads it too (pages are asked in that language)
         crate::i18n::set_language(&store.settings.language);
         if screenshot.is_none() {
@@ -580,6 +617,14 @@ impl Sanaga {
             quit_all: false,
             extra_sessions: Vec::new(),
             store_seen: crate::store::CHANGES.load(Ordering::Relaxed),
+            summary: None,
+            ai_tx,
+            ai_rx,
+            ext_form: Default::default(),
+            ai_models: None,
+            ai_key_input: String::new(),
+            ai_key_known: None,
+            look_checked: 0.0,
             sync_status: Default::default(),
             sync_at: -100.0,
             perm_queue: Default::default(),
@@ -624,7 +669,7 @@ impl Sanaga {
         let urls: Vec<String> = urls.into_iter().filter(|u| u != "apercu:").collect();
         if app.screenshot.is_some() && urls.is_empty() {
             // A fixed scene for the picture: the welcome page, a site tab and a new tab.
-            app.open_tab("sanaga://bienvenue", false);
+            app.open_tab("sanaga://welcome", false);
             app.open_tab("https://fr.wikipedia.org/", false);
             if let Some(t) = app.tabs.last_mut() {
                 t.nav += 1;
@@ -633,7 +678,7 @@ impl Sanaga {
                 t.entries[0].title = tr("Wikipédia, l'encyclopédie libre").into();
             }
             let private = app.shot_private;
-            app.open_tab("sanaga://nouvel-onglet", private);
+            app.open_tab("sanaga://newtab", private);
             app.focus_address = false;
             app.overview_open = overview;
             let st = std::env::var("SANAGA_SHOT_STATE").unwrap_or_default();
@@ -661,7 +706,7 @@ impl Sanaga {
             }
         }
         if start.is_empty() {
-            start.push(if app.store.first_run { "sanaga://bienvenue".into() } else { app.store.settings.home.clone() });
+            start.push(if app.store.first_run { "sanaga://welcome".into() } else { app.store.settings.home.clone() });
         }
         // restored tabs don't load now: each one loads when it is first shown
         app.restoring = true;
@@ -711,12 +756,38 @@ impl Sanaga {
         theme(self.store.settings.dark, private)
     }
 
-    fn apply_style(&mut self) {
-        let dark = self.store.settings.dark;
-        if self.applied_dark == Some(dark) {
+    /// Follow the system's look (Grassfield's accent colour and light / dark
+    /// appearance) when the settings say "System".
+    fn follow_system_look(&mut self) {
+        if self.screenshot.is_some() {
             return;
         }
-        self.applied_dark = Some(dark);
+        let now = self.ctx.input(|i| i.time);
+        if now - self.look_checked < 1.5 && self.look_checked > 0.0 {
+            return;
+        }
+        self.look_checked = now;
+        let look = crate::system_look::current();
+        if let Some(l) = &look {
+            crate::theme::set_system_accent(crate::theme::accent_index(&l.accent));
+        }
+        let st = &mut self.store.settings;
+        st.dark = match st.theme {
+            1 => false,
+            2 => true,
+            _ => look.map(|l| l.dark).unwrap_or(st.dark),
+        };
+    }
+
+    fn apply_style(&mut self) {
+        self.follow_system_look();
+        let dark = self.store.settings.dark;
+        crate::theme::set_accent(self.store.settings.accent as usize);
+        let accent = crate::theme::accent_in_use() as u8;
+        if self.applied_dark == Some((dark, accent)) {
+            return;
+        }
+        self.applied_dark = Some((dark, accent));
         if self.web_ok {
             // GTK follows: the web inspector, file and print dialogs, and the
             // pages that offer a dark look (`prefers-color-scheme`)
@@ -917,6 +988,7 @@ impl Sanaga {
         let pump_ms = t_pump.elapsed().as_secs_f64() * 1000.0;
         self.poll_tab_extras();
         self.poll_import();
+        self.poll_ai();
         crate::favicon::pump(&ctx0, &self.agent);
         let now = ctx0.input(|i| i.time);
         // test aid: SANAGA_BENCH_CYCLE=n shows the next tab every 3 s, n times
@@ -1080,13 +1152,8 @@ impl Sanaga {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         }
 
-        // tabs on top, like Chrome, then the toolbar
-        egui::Panel::top("tabstrip").exact_size(42.0).show_separator_line(false).frame(Frame::NONE.fill(base_th.strip)).show(ui, |ui| {
-            self.tab_strip(ui, &base_th);
-        });
-        egui::Panel::top("toolbar").exact_size(46.0).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
-            self.toolbar(ui, &th);
-        });
+        // tabs and address bar where the person put them (top by default)
+        self.window_parts(ui, &th, &base_th);
         if self.store.settings.show_bookmarks_bar && !self.app_mode {
             egui::Panel::top("bookmarks").exact_size(28.0).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
                 self.bookmarks_bar(ui, &th);
@@ -1120,6 +1187,11 @@ impl Sanaga {
                 .show(ui, |ui| {
                     self.sidebar(ui, &th);
                 });
+        }
+        if self.summary.is_some() {
+            egui::Panel::right("summary").exact_size(380.0).frame(Frame::NONE.fill(th.sidebar)).show(ui, |ui| {
+                self.summary_panel(ui, &th);
+            });
         }
         let central = egui::CentralPanel::no_frame().frame(Frame::NONE.fill(th.page)).show(ui, |ui| {
             let r = ui.max_rect();
