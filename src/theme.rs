@@ -8,7 +8,6 @@ pub struct Theme {
     /// Tab bar background (and inactive tabs).
     pub strip: Color32,
     pub tab_active: Color32,
-    pub tab_hover: Color32,
     pub toolbar: Color32,
     /// Address field.
     pub omnibox: Color32,
@@ -27,6 +26,16 @@ pub struct Theme {
     pub ntp_bg: Color32,
     /// Sidebar background.
     pub sidebar: Color32,
+    /// The tab bar's track (the rounded band holding the tabs, as in macOS 27).
+    pub track: Color32,
+    /// The pill of the tab shown, inside the track.
+    pub pill: Color32,
+    /// The toolbar's button capsules (back / forward, the right-hand group).
+    pub capsule: Color32,
+    /// The soft shadow under a capsule.
+    pub capsule_shadow: Color32,
+    /// Hairlines (between back and forward, under the bars).
+    pub hairline: Color32,
 }
 
 const fn c(r: u8, g: u8, b: u8) -> Color32 {
@@ -105,33 +114,41 @@ pub fn theme(dark: bool, private: bool) -> Theme {
     t
 }
 
+/// Grassfield's warm neutrals (its macOS 27-like window colours), so Sanaga
+/// sits with the other apps of the system.
 fn base_theme(dark: bool, private: bool) -> Theme {
+    let w = |a: u8| Color32::from_white_alpha(a);
+    let k = |a: u8| Color32::from_black_alpha(a);
     if dark || private {
         let mut t = Theme {
-            strip: c(0x1E, 0x1E, 0x20),
-            tab_active: c(0x2C, 0x2C, 0x2F),
-            tab_hover: c(0x26, 0x26, 0x29),
-            toolbar: c(0x2C, 0x2C, 0x2F),
-            omnibox: c(0x1C, 0x1C, 0x1E),
-            omnibox_hover: c(0x22, 0x22, 0x25),
-            text: c(0xF2, 0xF2, 0xF7),
-            sub: c(0x98, 0x98, 0x9F),
-            accent: c(0x0A, 0x84, 0xFF),
-            link: c(0x4D, 0xA3, 0xFF),
+            strip: c(0x2B, 0x29, 0x25),
+            tab_active: c(0x3A, 0x38, 0x33),
+            toolbar: c(0x2B, 0x29, 0x25),
+            omnibox: c(0x36, 0x34, 0x30),
+            omnibox_hover: c(0x3E, 0x3C, 0x37),
+            text: c(0xF8, 0xF5, 0xF0),
+            sub: c(0xA8, 0xA5, 0x9E),
+            accent: c(0x4F, 0xB3, 0x6B),
+            link: c(0x6C, 0xAE, 0xFF),
             visited: c(0xC4, 0x9B, 0xFF),
-            page: c(0x1E, 0x1E, 0x20),
-            border: c(0x3A, 0x3A, 0x3D),
+            page: c(0x22, 0x20, 0x1D),
+            border: c(0x3E, 0x3B, 0x36),
             highlight: c(0x8A, 0x6D, 0x10),
-            card: c(0x2C, 0x2C, 0x2F),
-            code_bg: c(0x26, 0x26, 0x29),
-            ntp_bg: c(0x1C, 0x1C, 0x1E),
-            sidebar: c(0x24, 0x24, 0x27),
+            card: c(0x33, 0x31, 0x2D),
+            code_bg: c(0x2B, 0x29, 0x25),
+            ntp_bg: c(0x22, 0x20, 0x1D),
+            sidebar: c(0x26, 0x24, 0x21),
+            track: w(30),
+            pill: w(36),
+            capsule: w(16),
+            capsule_shadow: k(80),
+            hairline: w(26),
         };
         if private {
             // Private tabs: a deeper night tone and a lighter field, like a lit-up search box.
             t.toolbar = c(0x22, 0x21, 0x2A);
             t.tab_active = c(0x22, 0x21, 0x2A);
-            t.strip = c(0x17, 0x16, 0x1D);
+            t.strip = c(0x22, 0x21, 0x2A);
             t.omnibox = c(0x3A, 0x38, 0x47);
             t.omnibox_hover = c(0x44, 0x42, 0x52);
             t.ntp_bg = c(0x1A, 0x19, 0x21);
@@ -142,24 +159,28 @@ fn base_theme(dark: bool, private: bool) -> Theme {
         t
     } else {
         Theme {
-            strip: c(0xE3, 0xE3, 0xE7),
-            tab_active: c(0xF7, 0xF7, 0xF8),
-            tab_hover: c(0xEC, 0xEC, 0xEF),
-            toolbar: c(0xF7, 0xF7, 0xF8),
-            omnibox: c(0xE6, 0xE6, 0xEA),
-            omnibox_hover: c(0xDE, 0xDE, 0xE3),
-            text: c(0x1D, 0x1D, 0x1F),
-            sub: c(0x6E, 0x6E, 0x73),
-            accent: c(0x0A, 0x7A, 0xFF),
-            link: c(0x00, 0x66, 0xCC),
+            strip: c(0xF4, 0xF2, 0xED),
+            tab_active: c(0xFD, 0xFC, 0xF9),
+            toolbar: c(0xF4, 0xF2, 0xED),
+            omnibox: c(0xE6, 0xE4, 0xDF),
+            omnibox_hover: c(0xDE, 0xDC, 0xD6),
+            text: c(0x1D, 0x1B, 0x18),
+            sub: c(0x6B, 0x68, 0x62),
+            accent: c(0x19, 0x5E, 0x3F),
+            link: c(0x00, 0x5F, 0xC8),
             visited: c(0x7D, 0x3C, 0xB5),
             page: c(0xFF, 0xFF, 0xFF),
-            border: c(0xD6, 0xD6, 0xDB),
+            border: c(0xE0, 0xDD, 0xD6),
             highlight: c(0xFF, 0xE0, 0x66),
-            card: c(0xF4, 0xF4, 0xF6),
-            code_bg: c(0xF2, 0xF2, 0xF5),
-            ntp_bg: c(0xF2, 0xF2, 0xF5),
-            sidebar: c(0xEE, 0xEE, 0xF1),
+            card: c(0xF4, 0xF2, 0xED),
+            code_bg: c(0xF3, 0xF1, 0xEC),
+            ntp_bg: c(0xF6, 0xF4, 0xEF),
+            sidebar: c(0xF0, 0xEE, 0xE9),
+            track: k(26),
+            pill: Color32::from_rgba_unmultiplied(0xFD, 0xFC, 0xF9, 205),
+            capsule: Color32::from_rgba_unmultiplied(0xFF, 0xFF, 0xFF, 190),
+            capsule_shadow: k(28),
+            hairline: k(40),
         }
     }
 }

@@ -6,17 +6,48 @@ use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, Response, RichText, ScrollArea, Sense, TextEdit};
 
-/// A rounded toolbar button (grey square on hover, tinted when switched on).
+/// A toolbar button inside a capsule (macOS 27): a soft round highlight on
+/// hover, the accent colour when switched on.
 pub(super) fn tool_button(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: bool, th: &Theme) -> Response {
     let resp = ui.interact(r, egui::Id::new(("tool", r.min.x as i32, r.min.y as i32)), if enabled { Sense::click() } else { Sense::hover() });
+    let spot = Rect::from_center_size(r.center(), vec2(r.width().min(32.0), 28.0));
     if on {
-        ui.painter().rect_filled(r, CornerRadius::same(7), th.omnibox);
+        ui.painter().rect_filled(spot, CornerRadius::same(14), th.accent.gamma_multiply(0.14));
     } else if enabled && resp.hovered() {
-        ui.painter().rect_filled(r, CornerRadius::same(7), th.omnibox_hover);
+        ui.painter().rect_filled(spot, CornerRadius::same(14), th.track);
     }
-    let col = if enabled { th.text.gamma_multiply(0.85) } else { th.sub.gamma_multiply(0.45) };
-    icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(16.0, 16.0)), icon, col);
-    resp
+    let col = if on { th.accent } else if enabled { th.text.gamma_multiply(0.82) } else { th.sub.gamma_multiply(0.4) };
+    icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(17.0, 17.0)), icon, col);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// The capsules behind groups of toolbar buttons that touch each other, with
+/// a hairline between back and forward (macOS 27).
+fn capsules(groups: &[Rect], cy: f32, th: &Theme, dividers: bool) -> Vec<egui::Shape> {
+    let mut runs: Vec<Vec<Rect>> = Vec::new();
+    let mut sorted = groups.to_vec();
+    sorted.sort_by(|a, b| a.left().total_cmp(&b.left()));
+    for r in sorted {
+        match runs.last_mut() {
+            Some(run) if (r.left() - run.last().map(|l| l.right()).unwrap_or(f32::MIN)).abs() < 1.5 => run.push(r),
+            _ => runs.push(vec![r]),
+        }
+    }
+    let mut out = Vec::new();
+    for run in runs {
+        let (l, rgt) = (run[0].left(), run[run.len() - 1].right());
+        let cap = Rect::from_min_max(pos2(l, cy - 18.0), pos2(rgt, cy + 18.0));
+        let round = CornerRadius::same(18);
+        out.push(egui::Shadow { offset: [0, 2], blur: 8, spread: 0, color: th.capsule_shadow }.as_shape(cap, round).into());
+        out.push(egui::Shape::rect_filled(cap, round, th.capsule));
+        if dividers {
+            for pair in run.windows(2) {
+                let x = pair[0].right();
+                out.push(egui::Shape::line_segment([pos2(x, cy - 10.0), pos2(x, cy + 10.0)], Stroke::new(1.0, th.hairline)));
+            }
+        }
+    }
+    out
 }
 
 /// Dragging an empty bar moves the window; double-click maximises it.
@@ -130,351 +161,6 @@ pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
 }
 
 impl Sanaga {
-    /// Tab row at the top of the window, in the style of Chrome: window buttons
-    /// on the left, tabs aligned left with a rounded top, the active tab joined
-    /// to the toolbar by two small curves, site icon on the left, close button
-    /// on the right, and a + right after the last tab. Pinned tabs are small
-    /// squares; tabs can be dragged and have a right-click menu.
-    pub(super) fn tab_strip(&mut self, ui: &mut Ui, th: &Theme) {
-        let full = ui.max_rect();
-        self.sync_group_meta();
-        let all = self.visible_tabs();
-        let time = ui.input(|i| i.time);
-        let bg = ui.interact(full, egui::Id::new("tabbar-bg"), Sense::click_and_drag());
-        window_drag(ui, &bg);
-        bg.menu_on_press(|ui| {
-            if ui.button(tr("Nouvel onglet")).clicked() {
-                self.open_tab("sanaga://newtab", false);
-                ui.close();
-            }
-            if ui.button(tr("Nouveau groupe d'onglets")).clicked() {
-                self.new_group("");
-                let g = self.groups.len() - 1;
-                self.group_editing = Some(g);
-                ui.close();
-            }
-            if !self.closed.is_empty() && ui.button(tr("Rouvrir l'onglet fermé (Ctrl+Maj+T)")).clicked() {
-                self.run_shortcut("reopen");
-                ui.close();
-            }
-        });
-
-        // window buttons (when the tab row is on top)
-        let left = if self.window_buttons_in() == super::layout::WindowButtonsIn::TabRow {
-            window_buttons(ui, full.left() + 18.0, full.center().y + 2.0) + 14.0
-        } else {
-            full.left() + 12.0
-        };
-
-        let top = full.top() + 6.0;
-        let bottom = full.bottom();
-        let pin_w = 44.0;
-        // group labels (Chrome): before each group's first tab; a folded group
-        // shows only its label
-        let label_w = |name: &String| if name.is_empty() { 22.0 } else { ui.painter().layout_no_wrap(name.clone(), FontId::new(12.0, bold()), Color32::WHITE).size().x.min(140.0) + 20.0 } + 6.0;
-        let mut order: Vec<usize> = Vec::new();
-        let mut chip_before: Vec<Vec<(usize, f32)>> = Vec::new();
-        let mut pending: Vec<(usize, f32)> = Vec::new();
-        let mut last_group = usize::MAX;
-        let mut chips_w = 0.0;
-        for &i in &all {
-            let g = if self.tabs[i].pinned { 0 } else { self.tabs[i].group };
-            if g > 0 && g != last_group {
-                let w = label_w(&self.groups[g]);
-                pending.push((g, w));
-                chips_w += w;
-            }
-            last_group = g;
-            if i == self.active || !self.group_folded(g) {
-                order.push(i);
-                chip_before.push(std::mem::take(&mut pending));
-            }
-        }
-        let chip_tail = pending;
-        let pinned_n = order.iter().filter(|&&i| self.tabs[i].pinned).count();
-        let normal_n = (order.len() - pinned_n).max(1) as f32;
-        let room = (full.right() - left - 44.0 - 70.0 - pinned_n as f32 * pin_w - chips_w).max(60.0);
-        // many tabs: they shrink down to just their icon (like Chrome)...
-        let w = (room / normal_n).clamp(36.0, 240.0);
-        // ...and when even that doesn't fit, the row scrolls with the wheel
-        let total = normal_n * w + pinned_n as f32 * pin_w + chips_w;
-        let visible = (full.right() - 44.0 - 70.0 - left).max(60.0);
-        let max_scroll = (total - visible).max(0.0);
-        if max_scroll > 0.0 && ui.rect_contains_pointer(full) {
-            let d = ui.input(|i| i.smooth_scroll_delta);
-            self.tab_scroll -= if d.x.abs() > d.y.abs() { d.x } else { d.y };
-        }
-        let mut x = left - self.tab_scroll;
-        let mut chips: Vec<(usize, Rect)> = Vec::new();
-        let rects: Vec<Rect> = order
-            .iter()
-            .enumerate()
-            .map(|(k, &i)| {
-                for &(g, cw) in &chip_before[k] {
-                    chips.push((g, Rect::from_min_max(pos2(x + 3.0, top + 5.0), pos2(x + cw - 3.0, bottom - 9.0))));
-                    x += cw;
-                }
-                let tw = if self.tabs[i].pinned { pin_w } else { w };
-                let r = Rect::from_min_max(pos2(x, top), pos2(x + tw, bottom));
-                x += tw;
-                r
-            })
-            .collect();
-        for &(g, cw) in &chip_tail {
-            chips.push((g, Rect::from_min_max(pos2(x + 3.0, top + 5.0), pos2(x + cw - 3.0, bottom - 9.0))));
-            x += cw;
-        }
-        if let Some(p) = order.iter().position(|&i| i == self.active) {
-            if p != self.tab_scroll_seen.0 || self.tabs.len() != self.tab_scroll_seen.1 {
-                // keep the shown tab in view when it changes
-                let ax = rects[p].left() - (left - self.tab_scroll);
-                let aw = rects[p].width();
-                if ax < self.tab_scroll {
-                    self.tab_scroll = ax;
-                } else if ax + aw > self.tab_scroll + visible {
-                    self.tab_scroll = ax + aw - visible;
-                }
-                self.tab_scroll_seen = (p, self.tabs.len());
-            }
-        }
-        self.tab_scroll = self.tab_scroll.clamp(0.0, max_scroll);
-        let tabs_end = x.min(left + visible);
-        let strip_clip = Rect::from_min_max(pos2(left - if self.tab_scroll > 0.0 { 0.0 } else { 9.0 }, full.top()), pos2(left + visible + 9.0, full.bottom()));
-        let saved_clip = ui.clip_rect();
-        ui.set_clip_rect(strip_clip.intersect(saved_clip));
-
-        let mut close: Option<usize> = None;
-        let mut select: Option<usize> = None;
-        let mut mute: Option<usize> = None;
-        let mut drop_at: Option<(usize, usize)> = None;
-        let mut menu_done = false;
-        let active_pos = order.iter().position(|&i| i == self.active);
-        let hovered_pos = rects.iter().position(|r| ui.rect_contains_pointer(*r));
-
-        // separators between inactive tabs (hidden next to the active or hovered tab)
-        for k in 0..rects.len().saturating_sub(1) {
-            let near = |p: Option<usize>| p == Some(k) || p == Some(k + 1);
-            if !near(active_pos) && !near(hovered_pos) {
-                let xr = rects[k].right();
-                ui.painter().line_segment([pos2(xr, top + 9.0), pos2(xr, bottom - 9.0)], Stroke::new(1.0, th.border));
-            }
-        }
-
-        // group labels: click folds / unfolds the group, right-click manages it
-        let mut fold: Option<usize> = None;
-        for &(g, cr) in &chips {
-            if !strip_clip.intersects(cr) {
-                continue;
-            }
-            let col = self.group_color(g);
-            let folded = self.group_folded(g);
-            let cresp = ui.interact(cr, egui::Id::new(("group-label", g)), Sense::click());
-            let name = self.groups[g].clone();
-            if name.is_empty() {
-                ui.painter().circle_filled(cr.center(), 7.0, col);
-            } else {
-                let fill = if cresp.hovered() { col.gamma_multiply(0.85) } else { col };
-                ui.painter().rect_filled(cr, CornerRadius::same(7), fill);
-                let painter = ui.painter().with_clip_rect(cr.shrink2(vec2(8.0, 0.0)));
-                painter.text(pos2(cr.left() + 10.0, cr.center().y), Align2::LEFT_CENTER, name, FontId::new(12.0, bold()), Color32::WHITE);
-            }
-            let n = self.tabs.iter().filter(|t| t.group == g).count();
-            let help = if folded { tf("Groupe replié ({} onglets) — cliquer pour l'ouvrir", &[&n]) } else { tr("Cliquer pour replier le groupe ; clic droit pour le gérer").to_string() };
-            let cresp = cresp.tip(help);
-            if cresp.clicked() {
-                fold = Some(g);
-            }
-            cresp.menu_on_press(|ui| {
-                if self.group_menu(ui, g) {
-                    menu_done = true;
-                    ui.close();
-                }
-            });
-            if menu_done {
-                return;
-            }
-            // just created: its menu opens under the label to name it
-            let cmd = (self.group_editing == Some(g)).then_some(egui::SetOpenCommand::Bool(true));
-            let mut close_edit = false;
-            egui::Popup::new(egui::Id::new(("group-edit", g)), ui.ctx().clone(), egui::PopupAnchor::from(cr), ui.layer_id())
-                .kind(egui::PopupKind::Menu)
-                .open_memory(cmd)
-                .show(|ui| {
-                    if self.group_menu(ui, g) {
-                        close_edit = true;
-                        ui.close();
-                    }
-                });
-            if close_edit {
-                return;
-            }
-        }
-        // a coloured line under the tabs of each group
-        for (k, &i) in order.iter().enumerate() {
-            let g = self.tabs[i].group;
-            if g > 0 && !self.tabs[i].pinned && strip_clip.intersects(rects[k]) {
-                let r = rects[k];
-                let start = chips.iter().find(|c| c.0 == g && c.1.right() <= r.left() + 1.0 && r.left() - c.1.right() < 8.0).map(|c| c.1.left()).unwrap_or(r.left());
-                ui.painter().rect_filled(Rect::from_min_max(pos2(start + 2.0, bottom - 3.0), pos2(r.right() - 2.0, bottom - 1.0)), 1.0, self.group_color(g));
-            }
-        }
-
-        // draw inactive tabs first and the active one last (its curves overlap)
-        let mut draw_order: Vec<usize> = (0..order.len()).collect();
-        if let Some(a) = active_pos {
-            draw_order.retain(|&k| k != a);
-            draw_order.push(a);
-        }
-        for k in draw_order {
-            let i = order[k];
-            let rect = rects[k];
-            if !strip_clip.intersects(rect) {
-                continue; // scrolled out of view
-            }
-            let tab = &self.tabs[i];
-            let resp = ui.interact(rect, ui.id().with(("tab", tab.id)), Sense::click_and_drag());
-            let active = i == self.active;
-            let tth = theme(self.store.settings.dark, tab.private);
-            let p = ui.painter();
-            if active {
-                let fill = tth.toolbar;
-                p.rect_filled(rect, CornerRadius { nw: 9, ne: 9, sw: 0, se: 0 }, fill);
-                // the two little curves joining the tab to the toolbar
-                let r = 8.0;
-                for (side, sx) in [(-1.0f32, rect.left()), (1.0, rect.right())] {
-                    let foot = Rect::from_min_max(pos2(sx.min(sx + side * r), bottom - r), pos2(sx.max(sx + side * r), bottom));
-                    p.rect_filled(foot, 0.0, fill);
-                    p.circle_filled(pos2(sx + side * r, bottom - r), r, th.strip);
-                }
-            } else if resp.hovered() {
-                p.rect_filled(Rect::from_min_max(pos2(rect.left() + 2.0, top + 2.0), pos2(rect.right() - 2.0, bottom - 4.0)), CornerRadius::same(8), th.tab_hover);
-            }
-            if tab.private && !active {
-                p.rect_filled(Rect::from_min_size(pos2(rect.left() + 12.0, bottom - 5.0), vec2(rect.width() - 24.0, 2.0)), 1.0, Color32::from_rgb(0x7B, 0x5C, 0xD6));
-            }
-            let text_col = if active { tth.text } else { th.sub };
-            let title = tab.title();
-            let cy = (top + bottom) / 2.0 - 1.0;
-            if tab.pinned {
-                let ic = pos2(rect.center().x, cy);
-                if tab.loading {
-                    spinner(p, ic, 6.0, time, th.accent);
-                } else {
-                    site_badge(p, ic, 8.0, tab.url(), &title);
-                }
-            } else {
-                // icon on the left (centred, alone, on very narrow tabs)
-                let narrow = rect.width() < 70.0;
-                let ic = if narrow { pos2(rect.center().x, cy) } else { pos2(rect.left() + 20.0, cy) };
-                if narrow && active {
-                    // narrow shown tab: only its close button, like Chrome
-                } else if tab.loading {
-                    spinner(p, ic, 6.5, time, th.accent);
-                } else if tab.private {
-                    icons::paint(p, Rect::from_center_size(ic, vec2(15.0, 15.0)), Icon::Private, tth.accent);
-                } else {
-                    site_badge(p, ic, 8.0, tab.url(), &title);
-                }
-                let show_close = if narrow { active } else { active || resp.hovered() || rect.width() > 110.0 };
-                let sound = (tab.audio || tab.muted) && !narrow;
-                let mut text_right = rect.right() - if show_close { 30.0 } else { 10.0 };
-                if sound {
-                    let sr = Rect::from_center_size(pos2(text_right - 10.0, cy), vec2(20.0, 20.0));
-                    let sresp = ui.interact(sr, ui.id().with(("sound", tab.id)), Sense::click());
-                    if sresp.hovered() {
-                        ui.painter().circle_filled(sr.center(), 10.0, th.border);
-                    }
-                    let icon = if tab.muted { Icon::SpeakerMuted } else { Icon::Speaker };
-                    icons::paint(ui.painter(), sr.shrink(4.0), icon, if tab.muted { th.sub } else { th.accent });
-                    if sresp.tip(if tab.muted { tr("Rétablir le son") } else { tr("Couper le son") }).clicked() {
-                        mute = Some(i);
-                    }
-                    text_right = sr.left() - 2.0;
-                }
-                if rect.width() > 64.0 {
-                    let clip = Rect::from_min_max(pos2(ic.x + 14.0, top), pos2(text_right, bottom));
-                    let painter = ui.painter().with_clip_rect(clip);
-                    painter.text(pos2(clip.left(), cy), Align2::LEFT_CENTER, &title, FontId::proportional(12.5), text_col);
-                    // fade long titles out instead of cutting them
-                    let fade_bg = if active { tth.toolbar } else if resp.hovered() { th.tab_hover } else { th.strip };
-                    let fr = Rect::from_min_max(pos2(clip.right() - 18.0, top + 6.0), pos2(clip.right(), bottom - 6.0));
-                    let mut mesh = egui::Mesh::default();
-                    mesh.colored_vertex(fr.left_top(), fade_bg.gamma_multiply(0.0));
-                    mesh.colored_vertex(fr.right_top(), fade_bg);
-                    mesh.colored_vertex(fr.right_bottom(), fade_bg);
-                    mesh.colored_vertex(fr.left_bottom(), fade_bg.gamma_multiply(0.0));
-                    mesh.add_triangle(0, 1, 2);
-                    mesh.add_triangle(0, 2, 3);
-                    painter.add(egui::Shape::mesh(mesh));
-                }
-                if show_close {
-                    let cr = Rect::from_center_size(pos2(if narrow { rect.center().x } else { rect.right() - 17.0 }, cy), vec2(18.0, 18.0));
-                    let cresp = ui.interact(cr, ui.id().with(("close", tab.id)), Sense::click());
-                    if cresp.hovered() {
-                        ui.painter().circle_filled(cr.center(), 9.0, th.border);
-                    }
-                    icons::paint(ui.painter(), cr.shrink(4.5), Icon::Close, text_col);
-                    if cresp.tip(tr("Fermer l'onglet (Ctrl+W)")).clicked() {
-                        close = Some(i);
-                    }
-                }
-            }
-            // drag a tab to another place (pinned and normal tabs stay apart)
-            if resp.dragged_by(egui::PointerButton::Primary) {
-                if let Some(px) = ui.ctx().pointer_interact_pos() {
-                    if let Some(t) = rects.iter().position(|r| px.x >= r.left() && px.x < r.right()) {
-                        if t != k && self.tabs[order[t]].pinned == self.tabs[i].pinned {
-                            drop_at = Some((i, order[t]));
-                        }
-                    }
-                }
-            }
-            let resp = resp.tip(&title);
-            resp.menu_on_press(|ui| {
-                if self.tab_menu(ui, i) {
-                    menu_done = true;
-                    ui.close();
-                }
-            });
-            if menu_done {
-                return;
-            }
-            if resp.middle_clicked() && !self.tabs[i].pinned {
-                close = Some(i);
-            } else if resp.clicked() && close.is_none() && mute.is_none() {
-                select = Some(i);
-            }
-        }
-
-        ui.set_clip_rect(saved_clip);
-        // + right after the last tab
-        let pr = Rect::from_center_size(pos2(tabs_end + 20.0, (top + bottom) / 2.0 - 1.0), vec2(28.0, 28.0));
-        let presp = ui.interact(pr, egui::Id::new("tabbar-plus"), Sense::click());
-        if presp.hovered() {
-            ui.painter().circle_filled(pr.center(), 14.0, th.tab_hover);
-        }
-        icons::paint(ui.painter(), pr.shrink(7.0), Icon::Plus, th.text);
-        if presp.tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
-            self.overview_open = false;
-            self.open_tab("sanaga://newtab", false);
-        }
-
-        if let Some(g) = fold {
-            self.toggle_group_fold(g);
-        }
-        if let Some(i) = mute {
-            self.toggle_mute(i);
-        } else if let Some(i) = select {
-            self.active = i;
-            self.suggest_open = false;
-        }
-        if let Some((from, to)) = drop_at {
-            self.move_tab(from, to);
-        }
-        if let Some(i) = close {
-            self.close_tab(i);
-        }
-    }
 
     pub(super) fn toolbar(&mut self, ui: &mut Ui, th: &Theme) {
         let a = self.active;
@@ -494,9 +180,14 @@ impl Sanaga {
         if self.window_buttons_in() == super::layout::WindowButtonsIn::Toolbar && self.bar_at() == super::layout::BarAt::Top {
             x = window_buttons(ui, full.left() + 18.0, cy) + 16.0;
         }
+        // buttons side by side share a capsule (their rects are kept for it)
+        let capsule_layer = ui.painter().add(egui::Shape::Noop);
+        let left_slots: std::cell::RefCell<Vec<Rect>> = Default::default();
+        let right_slots: std::cell::RefCell<Vec<Rect>> = Default::default();
         let slot = |x: &mut f32, w: f32| {
-            let r = Rect::from_min_size(pos2(*x, cy - 14.0), vec2(w, 28.0));
-            *x += w + 4.0;
+            let r = Rect::from_min_size(pos2(*x, cy - 16.0), vec2(w, 32.0));
+            *x += w;
+            left_slots.borrow_mut().push(r);
             r
         };
         // right-click on the toolbar: choose its buttons (Chrome / Firefox)
@@ -505,26 +196,26 @@ impl Sanaga {
             self.toolbar_menu(ui);
         });
         if self.tb("sidebar") {
-            let sb = slot(&mut x, 32.0);
+            let sb = slot(&mut x, 36.0);
             if tool_button(ui, sb, Icon::Sidebar, true, self.sidebar_open, th).tip(tr("Barre latérale")).clicked() {
                 self.sidebar_open = !self.sidebar_open;
             }
-            x += 6.0;
+            x += 10.0;
         }
         if self.tb("back") {
-            let back = slot(&mut x, 30.0);
+            let back = slot(&mut x, 36.0);
             if tool_button(ui, back, Icon::Back, can_back, false, th).tip(tr("Page précédente (Alt+←)")).clicked() {
                 self.go_history(a, -1);
             }
         }
         if self.tb("forward") {
-            let fwd = slot(&mut x, 30.0);
+            let fwd = slot(&mut x, 36.0);
             if tool_button(ui, fwd, Icon::Forward, can_fwd, false, th).tip(tr("Page suivante (Alt+→)")).clicked() {
                 self.go_history(a, 1);
             }
         }
         if self.tb("reload_left") {
-            let rl = slot(&mut x, 30.0);
+            let rl = slot(&mut x, 36.0);
             let tip = if loading { tr("Arrêter (Échap)") } else { tr("Actualiser (Ctrl+R)") };
             if tool_button(ui, rl, if loading { Icon::Stop } else { Icon::Reload }, true, false, th).tip(tip).clicked() {
                 if loading {
@@ -535,7 +226,7 @@ impl Sanaga {
             }
         }
         if self.tb("home") {
-            let hm = slot(&mut x, 30.0);
+            let hm = slot(&mut x, 36.0);
             if tool_button(ui, hm, Icon::Home, true, false, th).tip(tr("Page d'accueil")).clicked() {
                 self.go_home(a);
             }
@@ -559,25 +250,26 @@ impl Sanaga {
         // right side, from the edge inwards
         let mut rx = full.right() - 12.0;
         let slot_r = |rx: &mut f32, w: f32| {
-            let r = Rect::from_min_size(pos2(*rx - w, cy - 14.0), vec2(w, 28.0));
-            *rx -= w + 4.0;
+            let r = Rect::from_min_size(pos2(*rx - w, cy - 16.0), vec2(w, 32.0));
+            *rx -= w;
+            right_slots.borrow_mut().push(r);
             r
         };
-        let menu_r = slot_r(&mut rx, 30.0);
+        let menu_r = slot_r(&mut rx, 36.0);
         let mresp = tool_button(ui, menu_r, Icon::Menu, true, self.menu_open, th).tip(tr("Menu de Sanaga"));
         if mresp.clicked() {
             self.menu_open = !self.menu_open;
         }
         self.menu_rect = mresp.rect;
         if self.tb("overview") {
-            let ov_r = slot_r(&mut rx, 30.0);
+            let ov_r = slot_r(&mut rx, 36.0);
             if tool_button(ui, ov_r, Icon::Grid, true, self.overview_open, th).tip(tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {
                 self.toggle_overview();
             }
         }
         let has_page = !self.tabs[a].url().starts_with("sanaga://");
         if self.tb("share") {
-            let share_r = slot_r(&mut rx, 30.0);
+            let share_r = slot_r(&mut rx, 36.0);
             let sresp = tool_button(ui, share_r, Icon::Share, has_page, self.share_open, th).tip(tr("Partager"));
             if sresp.clicked() {
                 self.share_open = !self.share_open;
@@ -588,7 +280,7 @@ impl Sanaga {
             self.share_rect = self.menu_rect;
         }
         if self.tb("summary") {
-            let r = slot_r(&mut rx, 30.0);
+            let r = slot_r(&mut rx, 36.0);
             let on = self.summary.is_some();
             let can = matches!(self.tabs[a].view, View::Web);
             if tool_button(ui, r, Icon::Sparkle, can, on, th).tip(tr("Résumer la page")).clicked() {
@@ -600,38 +292,38 @@ impl Sanaga {
             }
         }
         if self.tb("mobile") {
-            let r = slot_r(&mut rx, 30.0);
+            let r = slot_r(&mut rx, 36.0);
             let on = self.device.is_some();
             if tool_button(ui, r, Icon::Phone, true, on, th).tip(tr("Simulateur mobile (Ctrl+Maj+M)")).clicked() {
                 self.toggle_devices();
             }
         }
         if self.tb("print") {
-            let r = slot_r(&mut rx, 30.0);
+            let r = slot_r(&mut rx, 36.0);
             if tool_button(ui, r, Icon::Print, has_page, false, th).tip(tr("Imprimer… (Ctrl+P)")).clicked() {
                 self.print_page();
             }
         }
         if self.tb("reading") {
-            let r = slot_r(&mut rx, 30.0);
+            let r = slot_r(&mut rx, 36.0);
             if tool_button(ui, r, Icon::Glasses, true, false, th).tip(tr("Liste de lecture")).clicked() {
                 self.sidebar_open = !self.sidebar_open;
             }
         }
         if self.tb("bookmarks") {
-            let r = slot_r(&mut rx, 30.0);
+            let r = slot_r(&mut rx, 36.0);
             if tool_button(ui, r, Icon::StarFilled, true, false, th).tip(tr("Favoris")).clicked() {
                 self.open_tab("sanaga://bookmarks", false);
             }
         }
         if self.tb("newtab") {
-            let r = slot_r(&mut rx, 30.0);
+            let r = slot_r(&mut rx, 36.0);
             if tool_button(ui, r, Icon::Plus, true, false, th).tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
                 self.open_tab("sanaga://newtab", false);
             }
         }
         if self.tb("downloads") && !self.store.downloads.is_empty() {
-            let dl = slot_r(&mut rx, 30.0);
+            let dl = slot_r(&mut rx, 36.0);
             if tool_button(ui, dl, Icon::Download, true, false, th).tip(tr("Téléchargements (Ctrl+J)")).clicked() {
                 self.open_tab("sanaga://downloads", false);
             }
@@ -662,7 +354,14 @@ impl Sanaga {
             fl = left_end;
         }
         fr = fr.min(right_start).max(fl + 120.0);
-        let rect = Rect::from_min_max(pos2(fl, cy - 17.0), pos2(fr, cy + 17.0));
+        let rect = Rect::from_min_max(pos2(fl, cy - 18.0), pos2(fr, cy + 18.0));
+        // the capsules, drawn under the buttons (not in the floating bar, a
+        // capsule itself)
+        if self.bar_at() != super::layout::BarAt::Floating {
+            let mut shapes = capsules(&left_slots.borrow(), cy, th, true);
+            shapes.extend(capsules(&right_slots.borrow(), cy, th, false));
+            ui.painter().set(capsule_layer, egui::Shape::Vec(shapes));
+        }
         self.address_field(ui, rect, loading, th);
     }
 
@@ -672,10 +371,16 @@ impl Sanaga {
         let focused = ui.memory(|m| m.has_focus(id));
         let hovered = ui.rect_contains_pointer(rect);
         if focused {
-            ui.painter().rect_stroke(rect.expand(1.0), CornerRadius::same(11), Stroke::new(3.0, th.accent.gamma_multiply(0.5)), egui::StrokeKind::Outside);
-            ui.painter().rect_filled(rect, CornerRadius::same(10), th.page);
+            ui.painter().rect_stroke(rect.expand(1.0), CornerRadius::same(19), Stroke::new(3.5, th.accent.gamma_multiply(0.35)), egui::StrokeKind::Outside);
+            ui.painter().rect_filled(rect, CornerRadius::same(18), th.page);
         } else {
-            ui.painter().rect_filled(rect, CornerRadius::same(10), if hovered { th.omnibox_hover } else { th.omnibox });
+            // a capsule like the buttons' (macOS 27), a plain field in the floating bar
+            if self.bar_at() == super::layout::BarAt::Floating {
+                ui.painter().rect_filled(rect, CornerRadius::same(18), if hovered { th.omnibox_hover } else { th.omnibox });
+            } else {
+                ui.painter().add(egui::Shadow { offset: [0, 2], blur: 8, spread: 0, color: th.capsule_shadow }.as_shape(rect, CornerRadius::same(18)));
+                ui.painter().rect_filled(rect, CornerRadius::same(18), if hovered { th.capsule.gamma_multiply(0.85) } else { th.capsule });
+            }
         }
         let url = self.tabs[a].url().to_string();
         let is_ntp = url.starts_with("sanaga://newtab");

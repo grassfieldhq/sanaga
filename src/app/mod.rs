@@ -13,6 +13,7 @@ mod plus;
 mod pages;
 mod settings;
 mod layout;
+mod tabbar;
 mod intelligence;
 mod extras;
 mod importer;
@@ -1154,11 +1155,6 @@ impl Sanaga {
 
         // tabs and address bar where the person put them (top by default)
         self.window_parts(ui, &th, &base_th);
-        if self.store.settings.show_bookmarks_bar && !self.app_mode {
-            egui::Panel::top("bookmarks").exact_size(28.0).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
-                self.bookmarks_bar(ui, &th);
-            });
-        }
         if self.permission_bar_visible() {
             egui::Panel::top("permbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.permission_bar(ui, &th);

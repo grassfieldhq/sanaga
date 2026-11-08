@@ -35,6 +35,10 @@ pub(super) enum WindowButtonsIn {
 }
 
 pub(super) const VTABS_W: f32 = 248.0;
+/// The toolbar (macOS 27: 36-pt capsules with room around them).
+pub(super) const TOOLBAR_H: f32 = 52.0;
+/// The tab bar under it (macOS 27: a 28-pt track, 8 under the toolbar).
+pub(super) const TABBAR_H: f32 = 38.0;
 
 impl Sanaga {
     pub(super) fn tabs_at(&self) -> TabsAt {
@@ -56,8 +60,9 @@ impl Sanaga {
 
     pub(super) fn window_buttons_in(&self) -> WindowButtonsIn {
         match (self.tabs_at(), self.bar_at()) {
-            (TabsAt::Top, _) => WindowButtonsIn::TabRow,
+            // macOS 27: the toolbar on top holds them, the tab bar under it
             (_, BarAt::Top) => WindowButtonsIn::Toolbar,
+            (TabsAt::Top, _) => WindowButtonsIn::TabRow,
             (TabsAt::Left, _) => WindowButtonsIn::SideTabs,
             _ => WindowButtonsIn::TitleBar,
         }
@@ -343,20 +348,28 @@ impl Sanaga {
                 self.side_tabs(ui, base_th);
             });
         }
-        if tabs == TabsAt::Top {
-            egui::Panel::top("tabstrip").exact_size(42.0).show_separator_line(false).frame(Frame::NONE.fill(base_th.strip)).show(ui, |ui| {
-                self.tab_strip(ui, base_th);
+        // macOS 27 (Safari, Finder): the toolbar, then the tab bar under it,
+        // in one band of the window's colour
+        if bar == BarAt::Top {
+            egui::Panel::top("toolbar").exact_size(TOOLBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+                self.toolbar(ui, th);
             });
         }
-        if bar == BarAt::Top {
-            egui::Panel::top("toolbar").exact_size(46.0).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
-                self.toolbar(ui, th);
+        // the favourites bar: under the toolbar, above the tabs (Safari)
+        if self.store.settings.show_bookmarks_bar && !self.app_mode {
+            egui::Panel::top("bookmarks").exact_size(28.0).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+                self.bookmarks_bar(ui, th);
+            });
+        }
+        if tabs == TabsAt::Top {
+            egui::Panel::top("tabstrip").exact_size(TABBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+                self.tab_strip(ui, th);
             });
         }
         // bottom edge, from the outside in
         match bar {
             BarAt::Bottom => {
-                egui::Panel::bottom("toolbar").exact_size(46.0).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+                egui::Panel::bottom("toolbar").exact_size(TOOLBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
                     self.toolbar(ui, th);
                 });
             }
@@ -368,8 +381,8 @@ impl Sanaga {
             BarAt::Top => {}
         }
         if tabs == TabsAt::Bottom {
-            egui::Panel::bottom("tabstrip").exact_size(42.0).show_separator_line(false).frame(Frame::NONE.fill(base_th.strip)).show(ui, |ui| {
-                self.tab_strip(ui, base_th);
+            egui::Panel::bottom("tabstrip").exact_size(TABBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+                self.tab_strip(ui, th);
             });
         }
     }
