@@ -9,15 +9,15 @@ use eframe::egui::{Align, Align2, Color32, Layout, Margin, RichText, Sense, Text
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use webkit2gtk::glib::{Cast, ObjectExt};
-use webkit2gtk::{PermissionRequestExt, UserMediaPermissionRequestExt, WebViewExt, WebsiteDataManagerExtManual};
+use gtk::glib::prelude::*;
+use webkit6::prelude::*;
 
 /// A site asking for the camera, microphone, location or notifications.
 pub(super) struct PermAsk {
     pub tab: u64,
     pub site: String,
     pub kind: &'static str,
-    pub req: webkit2gtk::PermissionRequest,
+    pub req: webkit6::PermissionRequest,
 }
 
 pub(super) type PermQueue = Rc<RefCell<VecDeque<PermAsk>>>;
@@ -36,16 +36,16 @@ pub(super) fn kind_label(kind: &str) -> &'static str {
 /// Listen to WebKit's permission requests for one tab.
 pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: PermQueue, ctx: egui::Context) {
     w.webview().connect_permission_request(move |wv, req| {
-        let kind: &'static str = if let Some(m) = req.downcast_ref::<webkit2gtk::UserMediaPermissionRequest>() {
+        let kind: &'static str = if let Some(m) = req.downcast_ref::<webkit6::UserMediaPermissionRequest>() {
             match (m.is_for_video_device(), m.is_for_audio_device()) {
                 (true, true) => "camera+micro",
                 (true, false) => "camera",
                 (false, true) => "micro",
                 _ => return false,
             }
-        } else if req.is::<webkit2gtk::GeolocationPermissionRequest>() {
+        } else if req.is::<webkit6::GeolocationPermissionRequest>() {
             "location"
-        } else if req.is::<webkit2gtk::NotificationPermissionRequest>() {
+        } else if req.is::<webkit6::NotificationPermissionRequest>() {
             "notifications"
         } else {
             return false; // anything else: WebKit's default (refused)
@@ -217,7 +217,7 @@ impl Sanaga {
             // or micro on), a pinned tab (mail, chat…), a form being filled in
             let calling = t.web.as_ref().is_some_and(|w| {
                 let v = w.webview();
-                v.camera_capture_state() != webkit2gtk::MediaCaptureState::None || v.microphone_capture_state() != webkit2gtk::MediaCaptureState::None
+                v.camera_capture_state() != webkit6::MediaCaptureState::None || v.microphone_capture_state() != webkit6::MediaCaptureState::None
             });
             if i == active || t.web.is_none() || t.audio || calling || t.pinned || t.form_dirty {
                 continue;
@@ -321,7 +321,7 @@ impl Sanaga {
         let path = net::download_path_for(&format!("https://x/{name}.mhtml"));
         let tx = self.web_tx.clone();
         let p2 = path.clone();
-        w.webview().save_to_file(&webkit2gtk::gio::File::for_path(&path), webkit2gtk::SaveMode::Mhtml, None::<&webkit2gtk::gio::Cancellable>, move |res| {
+        w.webview().save_to_file(&webkit6::gio::File::for_path(&path), webkit6::SaveMode::Mhtml, None::<&webkit6::gio::Cancellable>, move |res| {
             let _ = tx.send(web::WebEvent::DownloadDone { url: String::new(), path: Some(p2), ok: res.is_ok() });
         });
         self.notice = Some((tf("Page enregistrée dans {}", &[&path.display()]), self.ctx.input(|i| i.time)));
@@ -335,23 +335,22 @@ impl Sanaga {
             self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
             self.store.downloads.retain(|d| d.time < since);
         }
-        let mut types = webkit2gtk::WebsiteDataTypes::empty();
+        let mut types = webkit6::WebsiteDataTypes::empty();
         if cookies {
-            types |= webkit2gtk::WebsiteDataTypes::COOKIES
-                | webkit2gtk::WebsiteDataTypes::LOCAL_STORAGE
-                | webkit2gtk::WebsiteDataTypes::SESSION_STORAGE
-                | webkit2gtk::WebsiteDataTypes::INDEXEDDB_DATABASES
-                | webkit2gtk::WebsiteDataTypes::WEBSQL_DATABASES
-                | webkit2gtk::WebsiteDataTypes::SERVICE_WORKER_REGISTRATIONS
-                | webkit2gtk::WebsiteDataTypes::DOM_CACHE;
+            types |= webkit6::WebsiteDataTypes::COOKIES
+                | webkit6::WebsiteDataTypes::LOCAL_STORAGE
+                | webkit6::WebsiteDataTypes::SESSION_STORAGE
+                | webkit6::WebsiteDataTypes::INDEXEDDB_DATABASES
+                | webkit6::WebsiteDataTypes::SERVICE_WORKER_REGISTRATIONS
+                | webkit6::WebsiteDataTypes::DOM_CACHE;
         }
         if cache {
-            types |= webkit2gtk::WebsiteDataTypes::MEMORY_CACHE | webkit2gtk::WebsiteDataTypes::DISK_CACHE;
+            types |= webkit6::WebsiteDataTypes::MEMORY_CACHE | webkit6::WebsiteDataTypes::DISK_CACHE;
         }
         if !types.is_empty() {
             let span = glib_timespan(period);
-            match self.tabs.iter().find_map(|t| t.web.as_ref()).and_then(|w| w.webview().website_data_manager()) {
-                Some(dm) => dm.clear(types, span, None::<&webkit2gtk::gio::Cancellable>, |_| {}),
+            match self.tabs.iter().find_map(|t| t.web.as_ref()).and_then(|w| w.webview().network_session()).and_then(|s| s.website_data_manager()) {
+                Some(dm) => dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {}),
                 None => self.pending_clear = Some((types.bits(), period)),
             }
         }
@@ -361,8 +360,8 @@ impl Sanaga {
     /// Data clearing asked while no web page was open: done with the first one.
     pub(super) fn run_pending_clear(&mut self, w: &crate::page::PageView) {
         if let Some((bits, period)) = self.pending_clear.take() {
-            if let Some(dm) = w.webview().website_data_manager() {
-                dm.clear(webkit2gtk::WebsiteDataTypes::from_bits_truncate(bits), glib_timespan(period), None::<&webkit2gtk::gio::Cancellable>, |_| {});
+            if let Some(dm) = w.webview().network_session().and_then(|s| s.website_data_manager()) {
+                dm.clear(webkit6::WebsiteDataTypes::from_bits_truncate(bits), glib_timespan(period), None::<&webkit6::gio::Cancellable>, |_| {});
             }
         }
     }
@@ -570,8 +569,8 @@ fn put_to_sleep(t: &mut Tab) {
     t.web_shown = false;
 }
 
-fn glib_timespan(period_secs: u64) -> webkit2gtk::glib::TimeSpan {
-    webkit2gtk::glib::TimeSpan::from_seconds(period_secs as i64)
+fn glib_timespan(period_secs: u64) -> webkit6::glib::TimeSpan {
+    webkit6::glib::TimeSpan::from_seconds(period_secs as i64)
 }
 
 #[cfg(test)]

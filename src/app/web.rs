@@ -6,7 +6,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use crate::page::{PageSignal, PageView};
 use crate::store;
-use webkit2gtk::{WebViewExt, WebsiteDataManagerExt};
+use webkit6::prelude::*;
 
 pub(super) enum WebEvent {
     Load { tab: u64, finished: bool, url: String },
@@ -101,8 +101,10 @@ static PAGE_INPUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool
 /// Note mouse, wheel and keyboard use inside a page: Sanaga then ticks fast
 /// for a moment, and slowly the rest of the time (saves CPU when idle).
 pub(super) fn watch_page_input(w: &PageView) {
-    use gtk::prelude::WidgetExt;
-    w.webview().connect_event(|_, ev| {
+    use gtk::prelude::*;
+    let watch = gtk::EventControllerLegacy::new();
+    watch.set_propagation_phase(gtk::PropagationPhase::Capture);
+    watch.connect_event(|_, ev| {
         use gtk::gdk::EventType as E;
         if matches!(
             ev.event_type(),
@@ -112,6 +114,7 @@ pub(super) fn watch_page_input(w: &PageView) {
         }
         gtk::glib::Propagation::Proceed
     });
+    w.webview().add_controller(watch);
 }
 
 /// Load an address, or HTML made by Sanaga (e.g. a page's source).
@@ -128,7 +131,7 @@ fn load_into(w: &PageView, url: &str) {
 /// those are linked to their opener and become new tabs (see adopt_popups).
 #[derive(Clone)]
 pub(super) struct PageMaker {
-    ctx: Option<webkit2gtk::WebContext>,
+    ctx: Option<crate::page::Engine>,
     scripts: Rc<Vec<String>>,
     tx: std::sync::mpsc::Sender<WebEvent>,
     repaint: egui::Context,
@@ -137,9 +140,9 @@ pub(super) struct PageMaker {
 }
 
 impl PageMaker {
-    pub(super) fn make(&self, id: u64, private: bool, opener: Option<&webkit2gtk::WebView>) -> PageView {
+    pub(super) fn make(&self, id: u64, private: bool, opener: Option<&webkit6::WebView>) -> PageView {
         let me = self.clone();
-        let popup: crate::page::PopupMaker = Rc::new(move |op: &webkit2gtk::WebView| {
+        let popup: crate::page::PopupMaker = Rc::new(move |op: &webkit6::WebView| {
             let nid = me.ids.get();
             me.ids.set(nid + 1);
             let pv = me.make(nid, private, Some(op));
@@ -349,7 +352,7 @@ impl Sanaga {
                     None => {
                         if let Some(w) = &tab.web {
                             let (tx, ctx) = (self.freeze_tx.clone(), self.ctx.clone());
-                            w.webview().snapshot(webkit2gtk::SnapshotRegion::Visible, webkit2gtk::SnapshotOptions::NONE, None::<&webkit2gtk::gio::Cancellable>, move |res| {
+                            w.webview().snapshot(webkit6::SnapshotRegion::Visible, webkit6::SnapshotOptions::NONE, None::<&webkit6::gio::Cancellable>, move |res| {
                                 if let Some(img) = res.ok().and_then(super::tabs::surface_to_full_image) {
                                     let _ = tx.send((active_id, img));
                                 }
@@ -441,12 +444,12 @@ impl Sanaga {
         crate::shell::attach(&wk);
         let _ = w.set_visible(show);
         // Safari's "Prevent cross-site tracking"
-        if let Some(dm) = wk.website_data_manager() {
-            dm.set_itp_enabled(self.store.settings.itp);
+        if let Some(s) = wk.network_session() {
+            s.set_itp_enabled(self.store.settings.itp);
         }
         wk.set_is_muted(self.tabs[i].muted);
         if let Some(st) = WebViewExt::settings(&wk) {
-            use webkit2gtk::{HardwareAccelerationPolicy as H, SettingsExt};
+            use webkit6::HardwareAccelerationPolicy as H;
             // test aid: SANAGA_HWACCEL=never|always
             match std::env::var("SANAGA_HWACCEL").as_deref() {
                 Ok("never") => st.set_hardware_acceleration_policy(H::Never),
@@ -455,8 +458,8 @@ impl Sanaga {
             }
         }
         // smaller caches: less memory per page
-        if let Some(c) = wk.context() {
-            webkit2gtk::WebContextExt::set_cache_model(&c, webkit2gtk::CacheModel::DocumentBrowser);
+        if let Some(c) = wk.web_context() {
+            c.set_cache_model(webkit6::CacheModel::DocumentBrowser);
         }
         super::plus::watch_permissions(w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
         watch_page_input(w);

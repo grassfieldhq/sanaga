@@ -5,7 +5,7 @@
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, Margin, Sense};
-use webkit2gtk::{WebViewExt, WebsiteDataManagerExt};
+use webkit6::prelude::*;
 
 impl Sanaga {
     pub(super) fn current_page(&self) -> Option<(String, String)> {
@@ -39,8 +39,13 @@ impl Sanaga {
     pub(super) fn open_inspector(&mut self) {
         if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
             // docked under the page, inside Sanaga's window
-            use webkit2gtk::{WebInspectorExt, WebViewExt};
+            use webkit6::prelude::*;
             if let Some(ins) = w.webview().inspector() {
+                // a second press closes it (as F12 does in Chrome)
+                if ins.is_attached() {
+                    ins.close();
+                    return;
+                }
                 ins.show();
                 ins.attach();
             } else {
@@ -104,9 +109,9 @@ impl Sanaga {
         }
         self.privacy_asked = now;
         let Some(w) = self.tabs.iter().find_map(|t| t.web.as_ref()) else { return };
-        let Some(dm) = w.webview().website_data_manager() else { return };
+        let Some(dm) = w.webview().network_session() else { return };
         let tx = self.web_tx.clone();
-        dm.itp_summary(None::<&webkit2gtk::gio::Cancellable>, move |res| {
+        dm.itp_summary(None::<&webkit6::gio::Cancellable>, move |res| {
             if let Ok(list) = res {
                 let mut out: Vec<(String, usize)> = list
                     .iter()

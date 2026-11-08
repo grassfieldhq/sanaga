@@ -34,8 +34,8 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 |---|---|---|
 | Several windows | ✅ | Ctrl+N, “Move to new window”, `--new-window`; all windows come back at start. Next: drag a tab out of the window. |
 | Default browser | ✅ | Settings › General › Make default. |
-| Smooth animated pages | 🟡 | Pages with endless animations use more CPU than Chrome (GTK 3 copies each page frame). Moving to GTK 4 / WebKitGTK 6 fixes it — the biggest remaining technical step. |
-| Screen readers | ❌ | Pages are accessible (WebKit), but Sanaga's own interface (drawn with egui) is not yet exposed to Orca. Needed for 1.0. |
+| Smooth animated pages | ✅ | GTK 4 / WebKitGTK 6: pages are composed on the graphics card; still page 0 %, endless animation 6–10 % of one core (docs/GTK4.md). |
+| Screen readers | ✅ | The interface (AccessKit) and the pages (GTK 4) are published over AT-SPI. Next: labels for every field, keyboard focus order. |
 | Fractional scaling (125 %, 150 %) | 🟡 | Integer scales work; fractional ones depend on the desktop's XWayland/Wayland settings. |
 | Sync between computers | 🟡 | Through a shared folder. Next: end-to-end encrypted sync of bookmarks, passwords and tabs. |
 
@@ -49,24 +49,9 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Automatic tests of the real window | 🟡 | `docs/TESTING.md` scripted actions work locally; run them in CI under a headless Wayland compositor (weston/cage). |
 | Releases | ❌ | Tagged versions with notes (`CHANGELOG.md`) and signed builds. |
 
-## Moving to GTK 4 / WebKitGTK 6 — what it takes
+## GTK 4 / WebKitGTK 6
 
-Nothing blocks it in principle (WebKitGTK 6 and the Rust `gtk4` / `webkit6`
-bindings exist); it is a large rewrite of the parts that touch the window:
-
-- `src/shell.rs` (the window, input, the GL drawing of the interface, the
-  overlay that puts pages over it) — GTK 4 has no `GtkOverlay` margins the same
-  way, a new input model (event controllers), and draws with GSK.
-- `src/page.rs` and the WebKit calls in `src/app/` — WebKitGTK 6 renames and
-  changes some APIs (network session instead of website data manager, no
-  synchronous JavaScript calls, new permission and download objects).
-- The mobile simulator's frame (cairo drawing over the page) and the tab
-  snapshots.
-- The interface itself (egui) stays as it is.
-
-The gain: GTK 4 composes the page with the GPU instead of copying each frame,
-which removes the processor cost of animated pages (≈16–19 % → close to 2 %)
-and gives smooth fractional scaling. Estimated as the next big project.
+Done — see [GTK4.md](GTK4.md) for what changed and the measurements.
 
 ## Suggested order
 
@@ -76,8 +61,8 @@ and gives smooth fractional scaling. Estimated as the next big project.
    version warning.
 3. **AUR package** (quickest way to reach Omarchy users), then Flatpak.
 4. **Drag a tab out to a new window** and a download manager.
-5. **GTK 4 / WebKitGTK 6 port** (CPU on animated pages, modern rendering).
-6. **Accessibility** of the interface.
+5. ~~GTK 4 / WebKitGTK 6 port~~ — done (docs/GTK4.md).
+6. ~~Accessibility of the interface~~ — done; next: field labels, focus order.
 7. **Password-manager bridge** and encrypted sync.
 
 Version **1.0** = sections 1 and 2 all ✅ (except DRM, which WebKitGTK cannot

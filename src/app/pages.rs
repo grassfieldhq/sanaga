@@ -122,22 +122,11 @@ impl Sanaga {
 
     /// The system's file picker (GTK), when WebKit/GTK is running.
     pub(super) fn choose_file(&mut self, title: &str, patterns: &[&str], filter_name: &str) -> Option<std::path::PathBuf> {
-        use gtk::prelude::*;
         if !self.web_ok {
             self.notice = Some((tr("Le sélecteur de fichiers n'est pas disponible ici.").into(), self.ctx.input(|i| i.time)));
             return None;
         }
-        let dialog = gtk::FileChooserNative::new(Some(title), None::<&gtk::Window>, gtk::FileChooserAction::Open, Some(tr("Importer")), Some(tr("Annuler")));
-        let filter = gtk::FileFilter::new();
-        for p in patterns {
-            filter.add_pattern(p);
-        }
-        filter.set_name(Some(filter_name));
-        dialog.add_filter(filter);
-        let res = dialog.run();
-        let path = if res == gtk::ResponseType::Accept { dialog.filename() } else { None };
-        dialog.destroy();
-        path
+        crate::shell::choose_file(title, patterns, filter_name, None)
     }
 
     pub(super) fn page_downloads(&mut self, ui: &mut Ui, th: &Theme) {

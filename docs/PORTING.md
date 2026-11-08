@@ -18,8 +18,8 @@ part would become on Windows and macOS, and a suggested order of work.
 
 | Part | Linux today | Windows | macOS |
 |---|---|---|---|
-| Web engine | WebKitGTK 4.1 (`src/page.rs`) | **WebView2** (Edge, Chromium-based) | **WKWebView** (WebKit, same engine as Safari) |
-| Window and page placement | GTK 3 window, egui in a GL area, pages as GTK widgets on top (`src/shell.rs`) | Win32 / winit window, WebView2 controller as a child | AppKit / winit window, WKWebView as a subview |
+| Web engine | WebKitGTK 6 (`src/page.rs`) | **WebView2** (Edge, Chromium-based) | **WKWebView** (WebKit, same engine as Safari) |
+| Window and page placement | GTK 4 window, egui in a GL area, pages as GTK widgets on top (`src/shell.rs`) | Win32 / winit window, WebView2 controller as a child | AppKit / winit window, WKWebView as a subview |
 | Drawing over the page (simulator frame, swipe arrow) | GTK overlay layer | a transparent child window above the WebView2 controller | a transparent `NSView` above the web view |
 | Page pictures (thumbnails, screenshots, video) | WebKitGTK snapshot | `CapturePreview` | `takeSnapshot(with:)` |
 | Passwords | `secret-tool` (libsecret) | Credential Manager | Keychain |

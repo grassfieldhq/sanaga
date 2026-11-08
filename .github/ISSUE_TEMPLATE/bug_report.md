@@ -18,7 +18,7 @@ labels: bug
 - Sanaga version (or commit):
 - Distribution and version:
 - Desktop (GNOME, KDE, Hyprland, …) and Wayland or X11:
-- WebKitGTK version (e.g. `pacman -Q webkit2gtk-4.1` or `apt policy libwebkit2gtk-4.1-0`):
+- WebKitGTK version (e.g. `pacman -Q webkitgtk-6.0` or `apt policy libwebkitgtk-6.0-4`):
 
 **Anything else**
 <!-- Messages printed in the terminal when you start `sanaga` from it are useful. -->

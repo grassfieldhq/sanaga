@@ -8,7 +8,7 @@ use super::*;
 use super::myframes::{self, CustomFrame};
 use crate::frames::{self, Finish, Style};
 use eframe::egui::{Align2, Color32, RichText, ScrollArea, Sense};
-use webkit2gtk::{SettingsExt, UserContentManagerExt, WebViewExt};
+use webkit6::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Kind {
@@ -455,7 +455,7 @@ impl Sanaga {
         let want = self.wanted_identity();
         let active_id = self.tabs.get(self.active).map(|t| t.id);
         let old = self.device_ua.take();
-        let touch_script = webkit2gtk::UserScript::new(TOUCH_JS, webkit2gtk::UserContentInjectedFrames::AllFrames, webkit2gtk::UserScriptInjectionTime::Start, &[], &[]);
+        let touch_script = webkit6::UserScript::new(TOUCH_JS, webkit6::UserContentInjectedFrames::AllFrames, webkit6::UserScriptInjectionTime::Start, &[], &[]);
         for t in &self.tabs {
             let Some(w) = &t.web else { continue };
             let wk = w.webview();
@@ -627,7 +627,7 @@ impl Sanaga {
     pub(super) fn device_capture(&mut self, what: u8) {
         let Some(d) = self.device.clone() else { return };
         let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) else { return };
-        let region = if what == 2 { webkit2gtk::SnapshotRegion::FullDocument } else { webkit2gtk::SnapshotRegion::Visible };
+        let region = if what == 2 { webkit6::SnapshotRegion::FullDocument } else { webkit6::SnapshotRegion::Visible };
         let tx = self.web_tx.clone();
         let ctx = self.ctx.clone();
         let style = if what == 0 && d.frame { d.device().map(|x| x.style) } else { None };
@@ -637,7 +637,7 @@ impl Sanaga {
         let time = now_hm();
         let browser = d.browser();
         let (domain, title, secure) = self.device_page_info();
-        w.webview().snapshot(region, webkit2gtk::SnapshotOptions::NONE, None::<&webkit2gtk::gio::Cancellable>, move |res| {
+        w.webview().snapshot(region, webkit6::SnapshotOptions::NONE, None::<&webkit6::gio::Cancellable>, move |res| {
             let msg = match res {
                 Ok(page) => {
                     let stamp = crate::store::now();
@@ -658,7 +658,7 @@ impl Sanaga {
 
 /// The page picture, inside the drawn device when `style` is given.
 #[allow(clippy::too_many_arguments)]
-fn save_capture(page: &gtk::cairo::Surface, style: Option<Style>, custom: Option<&CustomFrame>, finish: Finish, screen: Vec2, landscape: bool, time: &str, look: &frames::Page, file: &std::path::Path) -> Result<(), String> {
+fn save_capture(page: &gtk::gdk::Texture, style: Option<Style>, custom: Option<&CustomFrame>, finish: Finish, screen: Vec2, landscape: bool, time: &str, look: &frames::Page, file: &std::path::Path) -> Result<(), String> {
     let out = compose_capture(page, style, custom, finish, screen, landscape, time, look)?;
     let mut f = std::fs::File::create(file).map_err(|e| e.to_string())?;
     out.write_to_png(&mut f).map_err(|e| e.to_string())
@@ -666,9 +666,9 @@ fn save_capture(page: &gtk::cairo::Surface, style: Option<Style>, custom: Option
 
 /// The page picture inside the drawn device (screenshots, video frames).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compose_capture(page: &gtk::cairo::Surface, style: Option<Style>, custom: Option<&CustomFrame>, finish: Finish, screen: Vec2, landscape: bool, time: &str, look: &frames::Page) -> Result<gtk::cairo::ImageSurface, String> {
+pub(super) fn compose_capture(page: &gtk::gdk::Texture, style: Option<Style>, custom: Option<&CustomFrame>, finish: Finish, screen: Vec2, landscape: bool, time: &str, look: &frames::Page) -> Result<gtk::cairo::ImageSurface, String> {
     use gtk::cairo::{Context, Format, ImageSurface};
-    let page_img = ImageSurface::try_from(page.clone()).map_err(|_| "image".to_string())?;
+    let page_img = crate::page::texture_to_surface(page).ok_or_else(|| "image".to_string())?;
     let out = match (custom, style) {
         (Some(c), _) => {
             // the person's picture, sized so its screen matches the page

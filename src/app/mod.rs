@@ -353,7 +353,7 @@ pub struct Sanaga {
     /// "Screen size" mode, and the tab given a mobile browser identity.
     device: Option<devices::DeviceMode>,
     device_ua: Option<(u64, String)>,
-    device_touch: Option<webkit2gtk::UserScript>,
+    device_touch: Option<webkit6::UserScript>,
     /// Pages sites opened with window.open, waiting to become tabs: (opener tab, new tab id, page).
     popups: std::rc::Rc<std::cell::RefCell<Vec<(u64, u64, crate::page::PageView)>>>,
     popup_ids: std::rc::Rc<std::cell::Cell<u64>>,
@@ -435,7 +435,7 @@ pub struct Sanaga {
     bm_drag: Option<usize>,
     pw_shown: Option<(usize, String)>,
     new_profile_name: String,
-    web_context: Option<webkit2gtk::WebContext>,
+    web_context: Option<crate::page::Engine>,
     /// This window's number (0 = the first one) and what it asks of the
     /// window system: a new window (with these addresses), or quit everything.
     slot: usize,
@@ -566,11 +566,7 @@ impl Sanaga {
         let web_context = if web_ok {
             let c = match web_dir {
                 Some(d) => crate::page::profile_context(&d),
-                None => {
-                    let c = webkit2gtk::WebContext::new_ephemeral();
-                    crate::page::secure_context(&c);
-                    c
-                }
+                None => crate::page::ephemeral_engine(),
             };
             let (t, r) = (web_tx.clone(), egui_ctx.clone());
             crate::page::follow_downloads(&c, net::download_path_for);
@@ -863,7 +859,6 @@ impl Sanaga {
         if self.web_ok {
             // GTK follows: the web inspector, file and print dialogs, and the
             // pages that offer a dark look (`prefers-color-scheme`)
-            use gtk::prelude::GtkSettingsExt;
             if let Some(s) = gtk::Settings::default() {
                 s.set_gtk_application_prefer_dark_theme(dark);
             }
@@ -964,7 +959,7 @@ impl Sanaga {
     }
 
     /// The web page shown now, if any (it gets the keyboard back).
-    pub fn shown_page(&self) -> Option<webkit2gtk::WebView> {
+    pub fn shown_page(&self) -> Option<webkit6::WebView> {
         let t = self.tabs.get(self.active)?;
         t.web.as_ref().filter(|_| t.web_shown).map(|w| w.webview())
     }
@@ -1154,7 +1149,7 @@ impl Sanaga {
                             crate::shell::test_swipe(dir, prog, p.next() == Some("go"));
                         }
                         "inspector-detach" | "inspector-attach" => {
-                            use webkit2gtk::{WebInspectorExt, WebViewExt};
+                            use webkit6::prelude::*;
                             if let Some(ins) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()).and_then(|w| w.webview().inspector()) {
                                 if a == "inspector-detach" {
                                     ins.detach();

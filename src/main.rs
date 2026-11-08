@@ -9,10 +9,10 @@
 // a few layout loops index parallel lists: kept on purpose for readability.
 #![allow(clippy::too_many_arguments, clippy::type_complexity, clippy::needless_range_loop)]
 
-// Sanaga's window (GTK 3) and web engine (WebKitGTK) are Linux / BSD only for
+// Sanaga's window (GTK 4) and web engine (WebKitGTK) are Linux / BSD only for
 // now: say so clearly instead of failing deep inside a dependency.
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android"))]
-compile_error!("Sanaga currently runs on Linux (and BSD) only: it is built on GTK 3 and WebKitGTK. See docs/PORTING.md for the Windows and macOS plan.");
+compile_error!("Sanaga currently runs on Linux (and BSD) only: it is built on GTK 4 and WebKitGTK. See docs/PORTING.md for the Windows and macOS plan.");
 
 mod ai;
 mod ai_cli;

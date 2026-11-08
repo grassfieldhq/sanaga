@@ -1,10 +1,10 @@
-//! Sanaga's window: one native GTK window (Wayland or X11).
+//! Sanaga's window: one native GTK 4 window (Wayland or X11).
 //!
 //! Sanaga's interface (tabs, toolbar, menus, internal pages) is drawn with the
-//! graphics card in a GL area filling the window, and each web page is a normal
-//! GTK part of the same window, placed over the page area. GTK lays out and
-//! draws both together, in the same frame: when the window is resized the page
-//! follows exactly, with no black strips and no lag between the two.
+//! graphics card in a GL area filling the window, and each web page is a
+//! normal GTK part of the same window, placed over the page area. GTK 4
+//! composes both on the graphics card in the same frame: resizing stays
+//! smooth, and a page's animations are not copied by the processor any more.
 
 use crate::app::Sanaga;
 use eframe::egui::{self, pos2, vec2, Event, Modifiers, PointerButton, Pos2, Rect, ViewportCommand, ViewportId};
@@ -18,19 +18,24 @@ use std::time::{Duration, Instant};
 
 struct Host {
     overlay: gtk::Overlay,
-    base: gtk::EventBox,
     area: gtk::GLArea,
     window: gtk::Window,
     insets: Cell<[i32; 4]>,
     /// Arrow shown while swiping back / forward over a page.
     swipe_hint: gtk::Label,
     /// The mobile simulator's drawn device, above the page (clicks go through).
-    device_frame: gtk::Box,
-    device_pic: RefCell<Option<gtk::cairo::ImageSurface>>,
+    device_frame: gtk::DrawingArea,
+    device_pic: Rc<RefCell<Option<gtk::cairo::ImageSurface>>>,
     /// Back (-1) or forward (1) asked by a gesture or a mouse button.
     nav: Cell<i32>,
     shot: RefCell<Option<String>>,
     tip_shown: RefCell<Option<String>>,
+    /// When the next frame is already asked for.
+    next: Rc<Cell<Option<Instant>>>,
+    /// A frame of the interface is asked for (it runs once GTK is idle).
+    wanted: Cell<bool>,
+    /// Waiting for the screen's next refresh.
+    ticking: Cell<bool>,
     /// The window's number (0 = the first window).
     slot: usize,
 }
@@ -39,6 +44,79 @@ struct Host {
 struct Win {
     host: Rc<Host>,
     gui: std::rc::Weak<RefCell<Gui>>,
+    input: Rc<RefCell<Input>>,
+    im: gtk::IMMulticontext,
+}
+
+/// Asks a window for a frame of its interface. The interface runs when GTK
+/// is idle, never while GTK draws (GTK 4 does not allow adding or moving a
+/// page while drawing), then GTK draws what it made.
+fn wake(h: &Host) {
+    if h.wanted.replace(true) {
+        return;
+    }
+    let slot = h.slot;
+    glib::idle_add_local_once(move || run_window(slot));
+}
+
+/// What the input handlers hold: the GL area, and its window to wake.
+#[derive(Clone)]
+struct Wake {
+    area: gtk::GLArea,
+    host: std::rc::Weak<Host>,
+}
+impl Wake {
+    fn queue_render(&self) {
+        if let Some(h) = self.host.upgrade() {
+            wake(&h);
+        }
+    }
+}
+impl std::ops::Deref for Wake {
+    type Target = gtk::GLArea;
+    fn deref(&self) -> &gtk::GLArea {
+        &self.area
+    }
+}
+
+/// One frame of a window's interface.
+fn run_window(slot: usize) {
+    let found = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| (x.host.clone(), x.gui.upgrade(), x.input.clone(), x.im.clone())));
+    let Some((host, Some(gui), input, im)) = found else { return };
+    host.wanted.set(false);
+    let Ok(mut g) = gui.try_borrow_mut() else {
+        // (busy: a dialog of this window is open) try again shortly
+        let h = Rc::downgrade(&host);
+        glib::timeout_add_local_once(Duration::from_millis(30), move || {
+            if let Some(h) = h.upgrade() {
+                wake(&h);
+            }
+        });
+        return;
+    };
+    // what the interface asks of "the window" now applies to this one
+    HOST.with(|h| *h.borrow_mut() = Some(host.clone()));
+    if crate::page::ACTIVE_WINDOW.load(std::sync::atomic::Ordering::Relaxed) == host.slot {
+        let arrived: Vec<String> = INCOMING.with(|i| i.borrow_mut().drain(..).collect());
+        if !arrived.is_empty() {
+            g.app.open_from_outside(arrived);
+        }
+    }
+    let area = host.area.clone();
+    update(&mut g, &area, &input, &host, &im);
+    // Ctrl+N, a tab moved to a new window
+    if let Some(urls) = g.app.take_window_request() {
+        glib::idle_add_local_once(move || {
+            open_window(urls);
+        });
+    }
+}
+
+/// What the interface made, waiting for GTK to draw it.
+struct Frame {
+    prims: Vec<egui::ClippedPrimitive>,
+    ppp: f32,
+    size: [i32; 2],
 }
 
 thread_local! {
@@ -55,38 +133,27 @@ thread_local! {
     /// Input made up by tests (clicks...).
     static INJECT: RefCell<Vec<Event>> = const { RefCell::new(Vec::new()) };
     static INJECT_NOW: RefCell<Vec<Event>> = const { RefCell::new(Vec::new()) };
+    /// The main loop (quitting it ends Sanaga).
+    static MAIN: RefCell<Option<glib::MainLoop>> = const { RefCell::new(None) };
 }
 
 pub fn set_tooltip(text: String) {
     TOOLTIP.with(|t| *t.borrow_mut() = Some(text));
 }
 
-/// Test aid: a mouse click delivered through GTK itself (as a real one is).
+/// Test aid: a mouse click at (x, y), pressed then released.
 pub fn gtk_click(x: f64, y: f64, button: u32) {
-    use gtk::glib::translate::{IntoGlib, ToGlibPtr};
-    let Some(h) = host() else { return };
-    let Some(win) = h.base.window() else { return };
-    let Some(dev) = gdk::Display::default().and_then(|d| d.default_seat()).and_then(|s| s.pointer()) else { return };
-    for (kind, delay) in [(gdk::EventType::ButtonPress, 0u64), (gdk::EventType::ButtonRelease, 90)] {
-        let (win, dev) = (win.clone(), dev.clone());
-        glib::timeout_add_local_once(Duration::from_millis(delay), move || unsafe {
-            let ev = gdk::ffi::gdk_event_new(kind.into_glib());
-            let b = &mut (*ev).button;
-            b.window = win.to_glib_full();
-            b.send_event = 1;
-            b.time = 0;
-            b.x = x;
-            b.y = y;
-            b.button = button;
-            b.state = if kind == gdk::EventType::ButtonRelease && button == 3 { gdk::ffi::GDK_BUTTON3_MASK } else { 0 };
-            let (_, ox, oy) = win.origin();
-            b.x_root = ox as f64 + x;
-            b.y_root = oy as f64 + y;
-            gdk::ffi::gdk_event_set_device(ev, dev.to_glib_none().0);
-            gtk::ffi::gtk_main_do_event(ev);
-            gdk::ffi::gdk_event_free(ev);
-        });
-    }
+    let b = match button {
+        3 => PointerButton::Secondary,
+        2 => PointerButton::Middle,
+        _ => PointerButton::Primary,
+    };
+    let p = pos2(x as f32, y as f32);
+    inject(vec![
+        Event::PointerMoved(p),
+        Event::PointerButton { pos: p, button: b, pressed: true, modifiers: Modifiers::default() },
+        Event::PointerButton { pos: p, button: b, pressed: false, modifiers: Modifiers::default() },
+    ]);
 }
 
 /// Test aid: like `inject`, optionally all in one frame.
@@ -94,7 +161,7 @@ pub fn inject_together(together: bool, events: Vec<Event>) {
     if together {
         INJECT_NOW.with(|i| i.borrow_mut().extend(events));
         if let Some(h) = host() {
-            h.area.queue_render();
+            wake(&h);
         }
     } else {
         inject(events);
@@ -105,7 +172,7 @@ pub fn inject_together(together: bool, events: Vec<Event>) {
 pub fn inject(events: Vec<Event>) {
     INJECT.with(|i| i.borrow_mut().extend(events));
     if let Some(h) = host() {
-        h.area.queue_render();
+        wake(&h);
     }
 }
 
@@ -126,26 +193,23 @@ fn apply_insets(w: &impl IsA<gtk::Widget>, [l, t, r, b]: [i32; 4]) {
 }
 
 /// Put a web page into the window, over the page area.
-pub fn attach(view: &webkit2gtk::WebView) {
+pub fn attach(view: &webkit6::WebView) {
     let Some(h) = host() else { return };
     view.set_halign(gtk::Align::Fill);
     view.set_valign(gtk::Align::Fill);
     apply_insets(view, h.insets.get());
     h.overlay.add_overlay(view);
-    h.overlay.reorder_overlay(&h.device_frame, -1);
-    h.overlay.reorder_overlay(&h.swipe_hint, -1);
     raise_overlays(&h);
     watch_gestures(view, Rc::downgrade(&h));
 }
 
-/// The simulator's frame and the swipe arrow stay above the pages (a page
-/// added later gets its own window on top otherwise).
+/// The simulator's frame and the swipe arrow stay above the pages (GTK draws
+/// the overlays in the order they were added).
 fn raise_overlays(h: &Host) {
     for w in [h.device_frame.upcast_ref::<gtk::Widget>(), h.swipe_hint.upcast_ref::<gtk::Widget>()] {
-        if let Some(win) = w.window() {
-            if Some(&win) != h.overlay.window().as_ref() {
-                win.raise();
-            }
+        if w.next_sibling().is_some() {
+            h.overlay.remove_overlay(w);
+            h.overlay.add_overlay(w);
         }
     }
 }
@@ -161,48 +225,52 @@ pub fn set_device_frame(pic: Option<([i32; 2], gtk::cairo::ImageSurface)>) {
             if std::env::var_os("SANAGA_DEBUG_FRAME").is_some() {
                 eprintln!("device frame at {x},{y} size {w}x{hh}");
             }
-            let same = h.device_pic.borrow().as_ref().is_some_and(|s| s.to_raw_none() == surf.to_raw_none());
-            if a.margin_start() != x || a.margin_top() != y || a.width_request() != w || a.height_request() != hh {
+            if a.margin_start() != x || a.margin_top() != y || a.content_width() != w || a.content_height() != hh {
                 a.set_margin_start(x);
                 a.set_margin_top(y);
-                a.set_size_request(w, hh);
+                a.set_content_width(w);
+                a.set_content_height(hh);
             }
-            if !same {
-                *h.device_pic.borrow_mut() = Some(surf);
-                a.queue_draw();
-            }
+            *h.device_pic.borrow_mut() = Some(surf);
+            a.queue_draw();
             if !a.is_visible() {
-                a.show();
+                a.set_visible(true);
                 raise_overlays(&h);
             }
         }
         None => {
             if a.is_visible() {
-                a.hide();
+                a.set_visible(false);
             }
             h.device_pic.borrow_mut().take();
         }
     }
 }
 
+fn children(w: &impl IsA<gtk::Widget>) -> Vec<gtk::Widget> {
+    let mut out = Vec::new();
+    let mut c = w.first_child();
+    while let Some(x) = c {
+        c = x.next_sibling();
+        out.push(x);
+    }
+    out
+}
+
 /// Test aid: where each part of the window really is.
 pub fn debug_allocations() {
     let Some(h) = host() else { return };
-    for c in h.overlay.children() {
-        let a = c.allocation();
+    for c in children(&h.overlay) {
         eprintln!(
-            "alloc {} visible={} x={} y={} w={} h={} margins l={} t={} r={} b={} min_h={:?}",
+            "alloc {} visible={} w={} h={} margins l={} t={} r={} b={}",
             c.type_().name(),
             c.is_visible(),
-            a.x(),
-            a.y(),
-            a.width(),
-            a.height(),
+            c.width(),
+            c.height(),
             c.margin_start(),
             c.margin_top(),
             c.margin_end(),
-            c.margin_bottom(),
-            c.preferred_height()
+            c.margin_bottom()
         );
     }
 }
@@ -214,53 +282,61 @@ pub fn take_nav() -> i32 {
 
 fn ask_nav(h: &Host, dir: i32) {
     h.nav.set(dir);
-    h.area.queue_render();
+    wake(h);
 }
 
 /// Two fingers sliding sideways on a touchpad go back / forward (Chrome,
 /// Firefox); the mouse's side buttons too.
-fn watch_gestures(view: &webkit2gtk::WebView, host: std::rc::Weak<Host>) {
+fn watch_gestures(view: &webkit6::WebView, host: std::rc::Weak<Host>) {
+    let click = gtk::GestureClick::new();
+    click.set_button(0);
+    click.set_propagation_phase(gtk::PropagationPhase::Capture);
     let h = host.clone();
-    view.connect_button_press_event(move |_, ev| {
-        let Some(h) = h.upgrade() else { return glib::Propagation::Proceed };
-        match ev.button() {
+    click.connect_pressed(move |g, _, _, _| {
+        let Some(h) = h.upgrade() else { return };
+        match g.current_button() {
             8 => ask_nav(&h, -1),
             9 => ask_nav(&h, 1),
-            _ => return glib::Propagation::Proceed,
+            _ => return,
         }
-        glib::Propagation::Stop
+        g.set_state(gtk::EventSequenceState::Claimed);
     });
+    view.add_controller(click);
     // (sum sideways, sum up-down, decided: Some(true) = a sideways swipe)
     let state: Rc<Cell<(f64, f64, Option<bool>)>> = Rc::new(Cell::new((0.0, 0.0, None)));
-    view.connect_scroll_event(move |_, ev| {
-        let Some(h) = host.upgrade() else { return glib::Propagation::Proceed };
-        let touchpad = ev.source_device().map(|d| d.source() == gdk::InputSource::Touchpad).unwrap_or(false);
-        if !touchpad || ev.direction() != gdk::ScrollDirection::Smooth {
-            return glib::Propagation::Proceed;
+    let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
+    scroll.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let (st, h) = (state.clone(), host.clone());
+    scroll.connect_scroll(move |c, dx, dy| {
+        let Some(h) = h.upgrade() else { return glib::Propagation::Proceed };
+        if c.unit() != gdk::ScrollUnit::Surface {
+            return glib::Propagation::Proceed; // a mouse wheel, not a touchpad
         }
-        let (mut sx, mut sy, mut decided) = state.get();
-        const GO: f64 = 22.0;
-        if ev.is_stop() {
-            if decided == Some(true) && sx.abs() >= GO {
-                ask_nav(&h, if sx < 0.0 { -1 } else { 1 });
-            }
-            state.set((0.0, 0.0, None));
-            show_swipe(&h, 0, 0.0);
-            return glib::Propagation::Proceed;
-        }
-        let (dx, dy) = ev.delta();
+        let (mut sx, mut sy, mut decided) = st.get();
         sx += dx;
         sy += dy;
         if decided.is_none() && sx.abs() + sy.abs() > 3.0 {
             decided = Some(sx.abs() > 2.5 * sy.abs());
         }
-        state.set((sx, sy, decided));
+        st.set((sx, sy, decided));
         if decided == Some(true) {
-            show_swipe(&h, if sx < 0.0 { -1 } else { 1 }, (sx.abs() / GO).min(1.0));
+            show_swipe(&h, if sx < 0.0 { -1 } else { 1 }, (sx.abs() / SWIPE_GO).min(1.0));
         }
         glib::Propagation::Proceed
     });
+    scroll.connect_scroll_end(move |_| {
+        let Some(h) = host.upgrade() else { return };
+        let (sx, _, decided) = state.get();
+        if decided == Some(true) && sx.abs() >= SWIPE_GO {
+            ask_nav(&h, if sx < 0.0 { -1 } else { 1 });
+        }
+        state.set((0.0, 0.0, None));
+        show_swipe(&h, 0, 0.0);
+    });
+    view.add_controller(scroll);
 }
+
+const SWIPE_GO: f64 = 22.0;
 
 /// Test aid: the swipe arrow, and the navigation a finished swipe asks for.
 pub fn test_swipe(dir: i32, progress: f64, finish: bool) {
@@ -276,7 +352,7 @@ pub fn test_swipe(dir: i32, progress: f64, finish: bool) {
 fn show_swipe(h: &Host, dir: i32, progress: f64) {
     let l = &h.swipe_hint;
     if dir == 0 || progress < 0.15 {
-        l.hide();
+        l.set_visible(false);
         return;
     }
     let [left, _, right, _] = h.insets.get();
@@ -286,13 +362,12 @@ fn show_swipe(h: &Host, dir: i32, progress: f64) {
     l.set_margin_start(left + 8 + if dir < 0 { slide } else { 0 });
     l.set_margin_end(right + 8 + if dir > 0 { slide } else { 0 });
     l.set_opacity(0.35 + 0.65 * progress);
-    let ctx = l.style_context();
     if progress >= 1.0 {
-        ctx.add_class("ready");
+        l.add_css_class("ready");
     } else {
-        ctx.remove_class("ready");
+        l.remove_css_class("ready");
     }
-    l.show();
+    l.set_visible(true);
 }
 
 /// The page area, as distances from the window's left, top, right and bottom
@@ -303,8 +378,8 @@ pub fn set_page_area(insets: [i32; 4]) {
         return;
     }
     h.insets.set(insets);
-    for c in h.overlay.children() {
-        if c != *h.base.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() {
+    for c in children(&h.overlay) {
+        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() {
             apply_insets(&c, insets);
         }
     }
@@ -314,20 +389,59 @@ pub fn set_page_area(insets: [i32; 4]) {
 pub fn request_shot(path: String) {
     if let Some(h) = host() {
         *h.shot.borrow_mut() = Some(path);
-        h.area.queue_render();
+        wake(&h);
     }
 }
 
 fn save_shot(window: &gtk::Window, path: &str) {
-    let (w, h) = (window.allocated_width(), window.allocated_height());
-    let Ok(surf) = gtk::cairo::ImageSurface::create(gtk::cairo::Format::ARgb32, w.max(1), h.max(1)) else { return };
-    if let Ok(cr) = gtk::cairo::Context::new(&surf) {
-        window.draw(&cr);
+    let (w, h) = (window.width().max(1), window.height().max(1));
+    let Some(content) = window.child() else { return };
+    let snap = gtk::Snapshot::new();
+    window.snapshot_child(&content, &snap);
+    let (node, renderer) = (snap.to_node(), window.renderer());
+    let (Some(node), Some(renderer)) = (node.as_ref(), renderer) else {
+        eprintln!("live shot impossible ({w}x{h}, picture {}, drawing {})", node.is_some(), window.renderer().is_some());
+        return;
+    };
+    let tex = renderer.render_texture(node, None);
+    match tex.save_to_png(path) {
+        Ok(()) => eprintln!("live shot {path}"),
+        Err(e) => eprintln!("live shot {path}: {e}"),
     }
-    if let Ok(mut f) = std::fs::File::create(path) {
-        let _ = surf.write_to_png(&mut f);
-        eprintln!("live shot {path}");
+}
+
+/// Ask a file of the person (blocking until they answer): the system's file
+/// dialog (GTK 4 only has an asynchronous one, so a small loop waits).
+pub fn choose_file(title: &str, patterns: &[&str], filter_name: &str, save_as: Option<&str>) -> Option<std::path::PathBuf> {
+    let dialog = gtk::FileDialog::builder().title(title).modal(true).build();
+    if !patterns.is_empty() {
+        let filter = gtk::FileFilter::new();
+        for p in patterns {
+            filter.add_pattern(p);
+        }
+        filter.set_name(Some(filter_name));
+        let list = gtk::gio::ListStore::new::<gtk::FileFilter>();
+        list.append(&filter);
+        dialog.set_filters(Some(&list));
     }
+    if let Some(name) = save_as {
+        dialog.set_initial_name(Some(name));
+    }
+    let parent = host().map(|h| h.window.clone());
+    let result: Rc<RefCell<Option<std::path::PathBuf>>> = Rc::new(RefCell::new(None));
+    let wait = glib::MainLoop::new(None, false);
+    let (r, w) = (result.clone(), wait.clone());
+    let done = move |res: Result<gtk::gio::File, glib::Error>| {
+        *r.borrow_mut() = res.ok().and_then(|f| f.path());
+        w.quit();
+    };
+    if save_as.is_some() {
+        dialog.save(parent.as_ref(), None::<&gtk::gio::Cancellable>, done);
+    } else {
+        dialog.open(parent.as_ref(), None::<&gtk::gio::Cancellable>, done);
+    }
+    wait.run();
+    result.take()
 }
 
 /// What the input handlers collect between two frames.
@@ -337,10 +451,10 @@ struct Input {
     modifiers: Modifiers,
     sent_modifiers: Modifiers,
     focused: bool,
-    maximized: bool,
-    fullscreen: bool,
-    /// Last mouse press: button, position on screen, time (to start a window move).
+    /// Last mouse press: button, position in the window, time, device (to
+    /// start a window move or resize).
     press: (u32, f64, f64, u32),
+    device: Option<gdk::Device>,
     /// The keyboard went from Sanaga's interface to a page.
     chrome_lost_focus: bool,
 }
@@ -408,12 +522,16 @@ struct Gui {
     start: Instant,
     cursor: egui::CursorIcon,
     text_focus: bool,
+    /// The last frame made (drawn again if GTK asks), and the picture changes
+    /// not sent to the graphics card yet.
+    frame: Option<Frame>,
+    delta: egui::TexturesDelta,
 }
 
 fn modifiers_of(state: gdk::ModifierType) -> Modifiers {
     let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
     Modifiers {
-        alt: state.contains(gdk::ModifierType::MOD1_MASK),
+        alt: state.contains(gdk::ModifierType::ALT_MASK),
         ctrl,
         shift: state.contains(gdk::ModifierType::SHIFT_MASK),
         mac_cmd: false,
@@ -421,7 +539,7 @@ fn modifiers_of(state: gdk::ModifierType) -> Modifiers {
     }
 }
 
-fn key_of(kv: gdk::keys::Key) -> Option<egui::Key> {
+fn key_of(kv: gdk::Key) -> Option<egui::Key> {
     let name = kv.to_lower().name()?;
     let n = match name.as_str() {
         "Return" | "KP_Enter" | "ISO_Enter" => "Enter",
@@ -483,11 +601,33 @@ fn gl_loader() -> Result<impl Fn(&str) -> *const std::ffi::c_void, String> {
 }
 
 /// Ask for the next frame in `delay` (keeps the earliest request).
-fn schedule(area: &gtk::GLArea, next: &Rc<Cell<Option<Instant>>>, delay: Duration) {
+fn schedule(host: &Rc<Host>, delay: Duration) {
     if delay.is_zero() {
-        area.queue_render();
+        // an animation: the next frame comes with the screen's next refresh
+        // (or a little later if the window is not on screen: hidden, screen off)
+        if host.wanted.replace(true) {
+            return;
+        }
+        let slot = host.slot;
+        if !host.ticking.replace(true) {
+            host.area.add_tick_callback(move |_, _| {
+                if let Some(h) = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| x.host.clone())) {
+                    h.ticking.set(false);
+                    if h.wanted.get() {
+                        run_window(slot);
+                    }
+                }
+                glib::ControlFlow::Break
+            });
+        }
+        glib::timeout_add_local_once(Duration::from_millis(200), move || {
+            if WINDOWS.with(|w| w.borrow().iter().any(|x| x.host.slot == slot && x.host.wanted.get())) {
+                run_window(slot);
+            }
+        });
         return;
     }
+    let next = &host.next;
     if delay > Duration::from_secs(3600) {
         return;
     }
@@ -496,13 +636,24 @@ fn schedule(area: &gtk::GLArea, next: &Rc<Cell<Option<Instant>>>, delay: Duratio
         return;
     }
     next.set(Some(at));
-    let (area, next) = (area.clone(), next.clone());
+    let h = Rc::downgrade(host);
     glib::timeout_add_local_once(delay, move || {
-        if next.get() == Some(at) {
-            next.set(None);
-            area.queue_render();
+        if let Some(h) = h.upgrade() {
+            if h.next.get() == Some(at) {
+                h.next.set(None);
+                wake(&h);
+            }
         }
     });
+}
+
+/// A window's interface asked for a frame (from any thread, through the
+/// main loop).
+fn frame_for(slot: usize, delay: Duration) {
+    let h = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| x.host.clone()));
+    if let Some(h) = h {
+        schedule(&h, delay);
+    }
 }
 
 /// Where the running Sanaga listens for addresses opened from elsewhere (one
@@ -527,6 +678,31 @@ fn forward_to_running(sock: &std::path::Path, urls: &[String]) -> bool {
     s.write_all(list.join("\n").as_bytes()).is_ok()
 }
 
+/// Addresses sent by another launch of Sanaga (on the main loop).
+fn incoming(text: String, profile: Vec<String>) {
+    let lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+    if lines.iter().any(|l| l == "nouvelle-fenetre:") {
+        // `sanaga --new-window`: a window of its own
+        let mut w: Vec<String> = lines.into_iter().filter(|l| l != "nouvelle-fenetre:").collect();
+        w.extend(profile);
+        open_window(w);
+    } else {
+        INCOMING.with(|i| i.borrow_mut().extend(lines));
+        if let Some(h) = last_used_window() {
+            h.window.present();
+            wake(&h);
+        }
+    }
+}
+
+fn quit_main() {
+    MAIN.with(|m| {
+        if let Some(l) = m.borrow().as_ref() {
+            l.quit();
+        }
+    });
+}
+
 pub fn run(urls: Vec<String>) -> Result<(), String> {
     // one Sanaga per data folder and profile (web apps run on their own)
     let single = !urls.iter().any(|u| u.starts_with("webapp:"));
@@ -537,14 +713,22 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
     glib::set_prgname(Some("sanaga"));
     glib::set_application_name("Sanaga");
     gtk::init().map_err(|e| e.to_string())?;
+    gtk::Window::set_default_icon_name("sanaga");
     crate::desktop::set_native();
+    if let Some(display) = gdk::Display::default() {
+        let css = gtk::CssProvider::new();
+        css.load_from_string(
+            "#sanaga-swipe { background: rgba(255,255,255,0.97); color: #1a73e8; border-radius: 999px; padding: 6px 15px 9px 15px; font-size: 24px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+             #sanaga-swipe.ready { background: #1a73e8; color: white; }",
+        );
+        gtk::style_context_add_provider_for_display(&display, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+    }
 
     // addresses sent by other launches of Sanaga (links opened from other apps)
     if single {
         let _ = std::fs::remove_file(&sock); // left by a Sanaga that did not close cleanly
         if let Ok(listener) = std::os::unix::net::UnixListener::bind(&sock) {
-            #[allow(deprecated)]
-            let (ltx, lrx) = glib::MainContext::channel::<String>(glib::Priority::DEFAULT);
+            let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
             std::thread::Builder::new()
                 .name("sanaga-instance".into())
                 .spawn(move || {
@@ -553,31 +737,24 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
                         let mut text = String::new();
                         let mut stream = stream;
                         let _ = stream.read_to_string(&mut text);
-                        let _ = ltx.send(text);
+                        let profile = profile.clone();
+                        glib::MainContext::default().invoke(move || incoming(text, profile));
                     }
                 })
                 .ok();
-            let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
-            #[allow(deprecated)]
-            lrx.attach(None, move |text| {
-                let lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
-                if lines.iter().any(|l| l == "nouvelle-fenetre:") {
-                    // `sanaga --new-window`: a window of its own
-                    let mut w: Vec<String> = lines.into_iter().filter(|l| l != "nouvelle-fenetre:").collect();
-                    w.extend(profile.iter().cloned());
-                    open_window(w);
-                } else {
-                    INCOMING.with(|i| i.borrow_mut().extend(lines));
-                    if let Some(h) = last_used_window() {
-                        h.window.present();
-                        h.area.queue_render();
-                    }
-                }
-                glib::ControlFlow::Continue
-            });
         }
     }
 
+    if std::env::var_os("SANAGA_DEBUG_FRAMES").is_some() {
+        glib::timeout_add_local(Duration::from_secs(1), || {
+            let n = WINDOWS.with(|w| w.borrow().len());
+            let busy = WINDOWS.with(|w| w.borrow().iter().map(|x| x.gui.upgrade().map(|g| g.try_borrow_mut().is_err())).collect::<Vec<_>>());
+            eprintln!("tick windows={n} busy={busy:?}");
+            glib::ControlFlow::Continue
+        });
+    }
+    let main = glib::MainLoop::new(None, false);
+    MAIN.with(|m| *m.borrow_mut() = Some(main.clone()));
     let urls: Vec<String> = urls.into_iter().filter(|u| u != "nouvelle-fenetre:").collect();
     let Some(first) = open_window(urls) else { return Err("fenêtre indisponible".into()) };
     // the other windows of the last session
@@ -589,12 +766,13 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
         open_window(w);
     }
     drop(first);
-    gtk::main();
+    main.run();
     if single {
         let _ = std::fs::remove_file(&sock);
     }
     WINDOWS.with(|w| w.borrow_mut().clear());
     HOST.with(|h| *h.borrow_mut() = None);
+    MAIN.with(|m| *m.borrow_mut() = None);
     Ok(())
 }
 
@@ -623,7 +801,7 @@ fn close_window(host: &Rc<Host>, gui: &RefCell<Gui>) {
         HOST.with(|h| *h.borrow_mut() = next);
     }
     if others == 0 {
-        gtk::main_quit();
+        quit_main();
     }
 }
 
@@ -635,7 +813,18 @@ fn quit_all() {
             g.app.on_close();
         }
     }
-    gtk::main_quit();
+    quit_main();
+}
+
+fn button_of(b: u32) -> Option<PointerButton> {
+    match b {
+        1 => Some(PointerButton::Primary),
+        2 => Some(PointerButton::Middle),
+        3 => Some(PointerButton::Secondary),
+        8 => Some(PointerButton::Extra1),
+        9 => Some(PointerButton::Extra2),
+        _ => None,
+    }
 }
 
 /// Open a Sanaga window. `urls` as on the command line; the first window
@@ -656,132 +845,94 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     }
     let urls: Vec<String> = urls.into_iter().map(|u| if u.starts_with("fenetre:") { format!("fenetre:{slot}") } else { u }).collect();
 
-    let window = gtk::Window::new(gtk::WindowType::Toplevel);
-    window.set_title("Sanaga");
+    let window = gtk::Window::new();
+    window.set_title(Some("Sanaga"));
     window.set_default_size(1280, 800);
     window.set_size_request(560, 380);
     window.set_decorated(false);
-    {
-        let icon = crate::icons::window_icon(64);
-        let bytes = glib::Bytes::from_owned(icon.rgba.clone());
-        let pix = gtk::gdk_pixbuf::Pixbuf::from_bytes(&bytes, gtk::gdk_pixbuf::Colorspace::Rgb, true, 8, icon.width as i32, icon.height as i32, icon.width as i32 * 4);
-        window.set_icon(Some(&pix));
-    }
+    window.set_icon_name(Some("sanaga"));
     let overlay = gtk::Overlay::new();
-    let base = gtk::EventBox::new();
     let area = gtk::GLArea::new();
-    area.set_has_alpha(false);
+    area.set_has_depth_buffer(false);
     area.set_auto_render(false);
-    base.add(&area);
-    base.set_can_focus(true);
-    base.add_events(
-        gdk::EventMask::POINTER_MOTION_MASK
-            | gdk::EventMask::BUTTON_PRESS_MASK
-            | gdk::EventMask::BUTTON_RELEASE_MASK
-            | gdk::EventMask::SCROLL_MASK
-            | gdk::EventMask::SMOOTH_SCROLL_MASK
-            | gdk::EventMask::KEY_PRESS_MASK
-            | gdk::EventMask::KEY_RELEASE_MASK
-            | gdk::EventMask::LEAVE_NOTIFY_MASK
-            | gdk::EventMask::FOCUS_CHANGE_MASK,
-    );
-    overlay.add(&base);
-    window.add(&overlay);
+    area.set_focusable(true);
+    area.set_hexpand(true);
+    area.set_vexpand(true);
+    overlay.set_child(Some(&area));
+    window.set_child(Some(&overlay));
 
     // the swipe arrow (Chrome-like round button at the page's edge)
     let swipe_hint = gtk::Label::new(Some("←"));
     swipe_hint.set_widget_name("sanaga-swipe");
     swipe_hint.set_valign(gtk::Align::Center);
-    swipe_hint.set_no_show_all(true);
-    {
-        let css = gtk::CssProvider::new();
-        let _ = css.load_from_data(
-            b"#sanaga-swipe { background: rgba(255,255,255,0.97); color: #1a73e8; border-radius: 999px; padding: 6px 15px 9px 15px; font-size: 24px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
-              #sanaga-swipe.ready { background: #1a73e8; color: white; }",
-        );
-        swipe_hint.style_context().add_provider(&css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
-    }
-    // no window of its own: clicks and scrolling go through it to the page
-    let device_frame = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    device_frame.set_app_paintable(true);
+    swipe_hint.set_visible(false);
+    swipe_hint.set_can_target(false);
+    // clicks and scrolling go through it to the page
+    let device_frame = gtk::DrawingArea::new();
     device_frame.set_halign(gtk::Align::Start);
     device_frame.set_valign(gtk::Align::Start);
-    device_frame.set_no_show_all(true);
-    overlay.add_overlay(&device_frame);
-    overlay.set_overlay_pass_through(&device_frame, true);
-    overlay.add_overlay(&swipe_hint);
-    let host_rc = Rc::new(Host {
-        overlay: overlay.clone(),
-        base: base.clone(),
-        area: area.clone(),
-        window: window.clone(),
-        insets: Cell::new([0, 88, 0, 0]),
-        swipe_hint,
-        device_frame: device_frame.clone(),
-        device_pic: RefCell::new(None),
-        nav: Cell::new(0),
-        shot: RefCell::new(None),
-        tip_shown: RefCell::new(None),
-        slot,
-    });
-    // (the window being made is the one the interface talks to while it starts)
-    HOST.with(|h| *h.borrow_mut() = Some(host_rc.clone()));
+    device_frame.set_visible(false);
+    device_frame.set_can_target(false);
+    let device_pic: Rc<RefCell<Option<gtk::cairo::ImageSurface>>> = Rc::new(RefCell::new(None));
     {
-        let h = host_rc.clone();
-        device_frame.connect_draw(move |a, cr| {
-            if std::env::var_os("SANAGA_DEBUG_FRAME").is_some() {
-                eprintln!("device frame drawn (picture: {})", h.device_pic.borrow().is_some());
-            }
-            if let Some(s) = h.device_pic.borrow().as_ref() {
+        let pic = device_pic.clone();
+        device_frame.set_draw_func(move |a, cr, _, _| {
+            if let Some(s) = pic.borrow().as_ref() {
                 let scale = a.scale_factor().max(1) as f64;
                 cr.scale(1.0 / scale, 1.0 / scale);
                 let _ = cr.set_source_surface(s, 0.0, 0.0);
                 let _ = cr.paint();
             }
-            glib::Propagation::Stop
         });
     }
+    overlay.add_overlay(&device_frame);
+    overlay.add_overlay(&swipe_hint);
+    let host_rc = Rc::new(Host {
+        overlay: overlay.clone(),
+        area: area.clone(),
+        window: window.clone(),
+        insets: Cell::new([0, 88, 0, 0]),
+        swipe_hint,
+        device_frame,
+        device_pic,
+        nav: Cell::new(0),
+        shot: RefCell::new(None),
+        tip_shown: RefCell::new(None),
+        next: Rc::new(Cell::new(None)),
+        wanted: Cell::new(false),
+        ticking: Cell::new(false),
+        slot,
+    });
+    // (the window being made is the one the interface talks to while it starts)
+    HOST.with(|h| *h.borrow_mut() = Some(host_rc.clone()));
 
     let ctx = egui::Context::default();
+    // repaint requests (also from other threads: network, favicons...)
+    ctx.set_request_repaint_callback(move |info| {
+        let delay = info.delay;
+        glib::MainContext::default().invoke(move || frame_for(slot, delay));
+    });
     let app = Sanaga::new(&ctx, urls, None);
-    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false }));
-    WINDOWS.with(|w| w.borrow_mut().push(Win { host: host_rc.clone(), gui: Rc::downgrade(&gui) }));
+    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, frame: None, delta: Default::default() }));
     crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
-    let next = Rc::new(Cell::new(None::<Instant>));
-
-    // repaint requests (also from other threads: network, favicons...)
-    #[allow(deprecated)]
-    let (tx, rx) = glib::MainContext::channel::<Duration>(glib::Priority::DEFAULT);
-    ctx.set_request_repaint_callback(move |info| {
-        let _ = tx.send(info.delay);
-    });
-    {
-        let (area, next) = (area.clone(), next.clone());
-        #[allow(deprecated)]
-        rx.attach(None, move |delay| {
-            schedule(&area, &next, delay);
-            glib::ControlFlow::Continue
-        });
-    }
 
     // text input (accents, compose key, input methods)
     let im = gtk::IMMulticontext::new();
+    WINDOWS.with(|w| w.borrow_mut().push(Win { host: host_rc.clone(), gui: Rc::downgrade(&gui), input: input.clone(), im: im.clone() }));
+    let waker = Wake { area: area.clone(), host: Rc::downgrade(&host_rc) };
+    im.set_client_widget(Some(&area));
     {
-        let (input, area) = (input.clone(), area.clone());
+        let (input, area) = (input.clone(), waker.clone());
         im.connect_commit(move |_, text| {
             input.borrow_mut().events.push(Event::Text(text.to_string()));
             area.queue_render();
         });
     }
-    {
-        let im = im.clone();
-        base.connect_realize(move |b| im.set_client_window(b.window().as_ref()));
-    }
 
     // ---- GL ----
     {
-        let gui = gui.clone();
+        let (gui, w) = (gui.clone(), waker.clone());
         area.connect_realize(move |area| {
             if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
                 eprintln!("GL area realize");
@@ -810,6 +961,7 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
                     let mut g = gui.borrow_mut();
                     g.gl = Some(gl);
                     g.painter = Some(p);
+                    w.queue_render();
                 }
                 Err(e) => eprintln!("OpenGL indisponible : {e}"),
             }
@@ -818,128 +970,98 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     {
         let gui = gui.clone();
         area.connect_unrealize(move |area| {
-            if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
-                eprintln!("GL area unrealize");
-            }
             area.make_current();
-            if let Some(mut p) = gui.borrow_mut().painter.take() {
-                p.destroy();
+            if let Ok(mut g) = gui.try_borrow_mut() {
+                if let Some(mut p) = g.painter.take() {
+                    p.destroy();
+                }
             }
         });
     }
     {
-        let (gui, input, next, host_rc, im) = (gui.clone(), input.clone(), next.clone(), host_rc.clone(), im.clone());
+        let (gui, w) = (gui.clone(), waker.clone());
         area.connect_render(move |area, _| {
             let Ok(mut g) = gui.try_borrow_mut() else { return glib::Propagation::Stop };
-            // what the interface asks of "the window" now applies to this one
-            HOST.with(|h| *h.borrow_mut() = Some(host_rc.clone()));
-            if crate::page::ACTIVE_WINDOW.load(std::sync::atomic::Ordering::Relaxed) == host_rc.slot {
-                let arrived: Vec<String> = INCOMING.with(|i| i.borrow_mut().drain(..).collect());
-                if !arrived.is_empty() {
-                    g.app.open_from_outside(arrived);
-                }
-            }
-            paint(&mut g, area, &input, &next, &host_rc, &im);
-            // Ctrl+N, a tab moved to a new window
-            if let Some(urls) = g.app.take_window_request() {
-                glib::idle_add_local_once(move || {
-                    open_window(urls);
-                });
+            draw(&mut g, area);
+            // the window changed size: a new frame for the new size
+            let size = [area.width().max(1), area.height().max(1)];
+            if g.frame.as_ref().is_some_and(|f| f.size != size) {
+                w.queue_render();
             }
             glib::Propagation::Stop
         });
     }
 
     // ---- input ----
+    let input0 = input.clone();
     {
-        let (input, area) = (input.clone(), area.clone());
-        base.connect_motion_notify_event(move |_, ev| {
-            let (x, y) = ev.position();
+        let motion = gtk::EventControllerMotion::new();
+        let (input, a) = (input0.clone(), waker.clone());
+        motion.connect_motion(move |c, x, y| {
             let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(ev.state());
+            i.modifiers = modifiers_of(c.current_event_state());
             i.events.push(Event::PointerMoved(pos2(x as f32, y as f32)));
-            area.queue_render();
-            glib::Propagation::Proceed
+            a.queue_render();
         });
+        let (input, a) = (input0.clone(), waker.clone());
+        motion.connect_leave(move |_| {
+            input.borrow_mut().events.push(Event::PointerGone);
+            a.queue_render();
+        });
+        area.add_controller(motion);
     }
-    let button_of = |b: u32| match b {
-        1 => Some(PointerButton::Primary),
-        2 => Some(PointerButton::Middle),
-        3 => Some(PointerButton::Secondary),
-        8 => Some(PointerButton::Extra1),
-        9 => Some(PointerButton::Extra2),
-        _ => None,
-    };
     {
-        let (input, area) = (input.clone(), area.clone());
-        base.connect_button_press_event(move |b, ev| {
-            if ev.event_type() != gdk::EventType::ButtonPress {
-                return glib::Propagation::Stop; // egui counts double clicks itself
+        let click = gtk::GestureClick::new();
+        click.set_button(0);
+        let (input, a) = (input0.clone(), waker.clone());
+        click.connect_pressed(move |g, _, x, y| {
+            if !a.has_focus() {
+                a.grab_focus();
             }
-            if !b.has_focus() {
-                b.grab_focus();
-            }
-            let (x, y) = ev.position();
-            let (rx, ry) = ev.root();
             let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(ev.state());
-            i.press = (ev.button(), rx, ry, ev.time());
-            if let Some(button) = button_of(ev.button()) {
+            i.modifiers = modifiers_of(g.current_event_state());
+            let b = g.current_button();
+            i.press = (b, x, y, g.current_event_time());
+            i.device = g.current_event_device();
+            if let Some(button) = button_of(b) {
                 let modifiers = i.modifiers;
                 i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button, pressed: true, modifiers });
             }
-            area.queue_render();
-            glib::Propagation::Stop
+            a.queue_render();
         });
-    }
-    {
-        let (input, area) = (input.clone(), area.clone());
-        base.connect_button_release_event(move |_, ev| {
-            let (x, y) = ev.position();
+        let (input, a) = (input0.clone(), waker.clone());
+        click.connect_released(move |g, _, x, y| {
             let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(ev.state());
-            if let Some(button) = button_of(ev.button()) {
+            i.modifiers = modifiers_of(g.current_event_state());
+            if let Some(button) = button_of(g.current_button()) {
                 let modifiers = i.modifiers;
                 i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button, pressed: false, modifiers });
             }
-            area.queue_render();
-            glib::Propagation::Stop
+            a.queue_render();
         });
+        area.add_controller(click);
     }
     {
-        let (input, area) = (input.clone(), area.clone());
-        base.connect_scroll_event(move |_, ev| {
-            let delta = match ev.direction() {
-                gdk::ScrollDirection::Up => vec2(0.0, 1.0),
-                gdk::ScrollDirection::Down => vec2(0.0, -1.0),
-                gdk::ScrollDirection::Left => vec2(1.0, 0.0),
-                gdk::ScrollDirection::Right => vec2(-1.0, 0.0),
-                _ => {
-                    let (dx, dy) = ev.delta();
-                    vec2(-dx as f32, -dy as f32)
-                }
-            };
+        let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
+        let (input, a) = (input0.clone(), waker.clone());
+        scroll.connect_scroll(move |c, dx, dy| {
+            // a mouse wheel moves by lines, a touchpad by points
+            let (unit, delta) = if c.unit() == gdk::ScrollUnit::Wheel { (egui::MouseWheelUnit::Line, vec2(-dx as f32, -dy as f32)) } else { (egui::MouseWheelUnit::Point, vec2(-dx as f32, -dy as f32) * 1.0) };
             let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(ev.state());
+            i.modifiers = modifiers_of(c.current_event_state());
             let modifiers = i.modifiers;
-            i.events.push(Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta, phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers });
-            area.queue_render();
+            i.events.push(Event::MouseWheel { unit, delta, phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers });
+            a.queue_render();
             glib::Propagation::Stop
         });
+        area.add_controller(scroll);
     }
     {
-        let (input, area) = (input.clone(), area.clone());
-        base.connect_leave_notify_event(move |_, _| {
-            input.borrow_mut().events.push(Event::PointerGone);
-            area.queue_render();
-            glib::Propagation::Proceed
-        });
-    }
-    {
-        let (input, area, im) = (input.clone(), area.clone(), im.clone());
-        base.connect_key_press_event(move |_, ev| {
-            let modifiers = modifiers_of(ev.state());
-            let kv = ev.keyval();
+        let keys = gtk::EventControllerKey::new();
+        keys.set_im_context(Some(&im));
+        let (input, a) = (input0.clone(), waker.clone());
+        keys.connect_key_pressed(move |_, kv, _, state| {
+            let modifiers = modifiers_of(state);
             let key = key_of(kv);
             {
                 let mut i = input.borrow_mut();
@@ -956,90 +1078,76 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
                 }
             }
             if modifiers.command && !modifiers.alt && key == Some(egui::Key::V) {
-                let (input, area) = (input.clone(), area.clone());
-                gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD).request_text(move |_, t| {
-                    if let Some(t) = t {
+                let (input, a2) = (input.clone(), a.clone());
+                a.clipboard().read_text_async(None::<&gtk::gio::Cancellable>, move |res| {
+                    if let Ok(Some(t)) = res {
                         input.borrow_mut().events.push(Event::Paste(t.replace("\r\n", "\n")));
-                        area.queue_render();
+                        a2.queue_render();
                     }
                 });
-            } else if !modifiers.command && !modifiers.alt && !im.filter_keypress(ev) {
-                if let Some(c) = kv.to_unicode().filter(|c| !c.is_control()) {
-                    input.borrow_mut().events.push(Event::Text(c.to_string()));
-                }
             }
-            area.queue_render();
+            a.queue_render();
             glib::Propagation::Stop
         });
-    }
-    {
-        let (input, area, im) = (input.clone(), area.clone(), im.clone());
-        base.connect_key_release_event(move |_, ev| {
-            im.filter_keypress(ev);
-            let modifiers = modifiers_of(ev.state());
+        let (input, a) = (input0.clone(), waker.clone());
+        keys.connect_key_released(move |_, kv, _, state| {
+            let modifiers = modifiers_of(state);
             let mut i = input.borrow_mut();
             i.modifiers = modifiers;
-            if let Some(key) = key_of(ev.keyval()) {
+            if let Some(key) = key_of(kv) {
                 i.events.push(Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers });
             }
-            area.queue_render();
-            glib::Propagation::Stop
+            a.queue_render();
         });
+        area.add_controller(keys);
     }
     {
-        let im = im.clone();
-        base.connect_focus_in_event(move |_, _| {
-            im.focus_in();
-            glib::Propagation::Proceed
-        });
-    }
-    {
-        let (input, area, im) = (input.clone(), area.clone(), im.clone());
-        base.connect_focus_out_event(move |_, _| {
-            im.focus_out();
+        let focus = gtk::EventControllerFocus::new();
+        let im2 = im.clone();
+        focus.connect_enter(move |_| im2.focus_in());
+        let (input, a, im2) = (input0.clone(), waker.clone(), im.clone());
+        focus.connect_leave(move |_| {
+            im2.focus_out();
             let mut i = input.borrow_mut();
             i.chrome_lost_focus = true;
             i.modifiers = Modifiers::default();
-            area.queue_render();
-            glib::Propagation::Proceed
+            a.queue_render();
         });
+        area.add_controller(focus);
     }
     {
-        let (input, area) = (input.clone(), area.clone());
-        window.connect_window_state_event(move |_, ev| {
-            let s = ev.new_window_state();
+        let (input, a) = (input0.clone(), waker.clone());
+        window.connect_is_active_notify(move |w| {
+            let f = w.is_active();
             let mut i = input.borrow_mut();
-            i.maximized = s.contains(gdk::WindowState::MAXIMIZED);
-            i.fullscreen = s.contains(gdk::WindowState::FULLSCREEN);
-            i.focused = s.contains(gdk::WindowState::FOCUSED);
-            if i.focused {
+            i.focused = f;
+            if f {
                 crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
             }
-            let f = i.focused;
             i.events.push(Event::WindowFocused(f));
-            area.queue_render();
-            glib::Propagation::Proceed
+            a.queue_render();
         });
     }
     {
         let (gui, host) = (gui.clone(), host_rc.clone());
-        window.connect_delete_event(move |_, _| {
+        window.connect_close_request(move |_| {
             close_window(&host, &gui);
             glib::Propagation::Proceed
         });
     }
 
-    window.show_all();
-    base.grab_focus();
+    window.present();
+    area.grab_focus();
+    waker.queue_render();
     Some(gui)
 }
 
-fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<Cell<Option<Instant>>>, host: &Rc<Host>, im: &gtk::IMMulticontext) {
+fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc<Host>, im: &gtk::IMMulticontext) {
     if g.painter.is_none() {
         return;
     }
     let scale = area.scale_factor().max(1) as f32;
-    let (w, h) = (area.allocated_width().max(1), area.allocated_height().max(1));
+    let (w, h) = (area.width().max(1), area.height().max(1));
     let zoom = g.ctx.zoom_factor();
     let mut raw = egui::RawInput::default();
     let screen = Rect::from_min_size(Pos2::ZERO, vec2(w as f32, h as f32) / zoom);
@@ -1067,8 +1175,8 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
         let vp = raw.viewports.entry(ViewportId::ROOT).or_default();
         vp.native_pixels_per_point = Some(scale);
         vp.focused = Some(i.focused);
-        vp.maximized = Some(i.maximized);
-        vp.fullscreen = Some(i.fullscreen);
+        vp.maximized = Some(host.window.is_maximized());
+        vp.fullscreen = Some(host.window.is_fullscreen());
         vp.inner_rect = Some(screen);
     }
     if let Some(p) = &g.painter {
@@ -1091,7 +1199,7 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
             }
         }
         if !q.is_empty() {
-            area.queue_render();
+            wake(host);
         }
     });
     INJECT_NOW.with(|q| raw.events.append(&mut q.borrow_mut()));
@@ -1116,9 +1224,9 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
     // hover help: a system tooltip, above the page
     let tip = TOOLTIP.with(|t| t.borrow_mut().take());
     if *host.tip_shown.borrow() != tip {
-        host.base.set_tooltip_text(tip.as_deref());
+        area.set_tooltip_text(tip.as_deref());
         if tip.is_some() {
-            host.base.trigger_tooltip_query();
+            area.trigger_tooltip_query();
         }
         *host.tip_shown.borrow_mut() = tip;
     }
@@ -1127,9 +1235,9 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
     // bar, search...) -> to the interface; it let go of it (Enter, Escape) ->
     // back to the page shown.
     let text_focus = ctx.memory(|m| m.focused().is_some());
-    if text_focus && !host.base.has_focus() {
-        host.base.grab_focus();
-    } else if !text_focus && g.text_focus && host.base.has_focus() {
+    if text_focus && !area.has_focus() {
+        area.grab_focus();
+    } else if !text_focus && g.text_focus && area.has_focus() {
         if let Some(page) = g.app.shown_page() {
             page.grab_focus();
         }
@@ -1140,14 +1248,11 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
     let out = &full.platform_output;
     if out.cursor_icon != g.cursor {
         g.cursor = out.cursor_icon;
-        if let (Some(win), Some(d)) = (host.base.window(), gdk::Display::default()) {
-            let c = gdk::Cursor::from_name(&d, cursor_name(out.cursor_icon));
-            win.set_cursor(c.as_ref());
-        }
+        area.set_cursor_from_name(Some(cursor_name(out.cursor_icon)));
     }
     for c in &out.commands {
         match c {
-            egui::OutputCommand::CopyText(t) => gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD).set_text(t),
+            egui::OutputCommand::CopyText(t) => area.clipboard().set_text(t),
             egui::OutputCommand::OpenUrl(u) => {
                 let _ = std::process::Command::new("xdg-open").arg(&u.url).spawn();
             }
@@ -1163,31 +1268,38 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
         repaint = vo.repaint_delay;
         for c in &vo.commands {
             let win = &host.window;
+            let toplevel = win.surface().and_then(|s| s.downcast::<gdk::Toplevel>().ok());
             match c {
                 ViewportCommand::Close => close = true,
-                ViewportCommand::Title(t) => win.set_title(t),
+                ViewportCommand::Title(t) => win.set_title(Some(t)),
                 ViewportCommand::StartDrag => {
-                    let (b, x, y, t) = input.borrow().press;
-                    win.begin_move_drag(b.max(1) as i32, x as i32, y as i32, t);
+                    let i = input.borrow();
+                    let (b, x, y, t) = i.press;
+                    if let (Some(top), Some(dev)) = (&toplevel, &i.device) {
+                        top.begin_move(dev, b.max(1) as i32, x, y, t);
+                    }
                 }
                 ViewportCommand::BeginResize(dir) => {
                     use egui::ResizeDirection as D;
                     let edge = match dir {
-                        D::North => gdk::WindowEdge::North,
-                        D::South => gdk::WindowEdge::South,
-                        D::East => gdk::WindowEdge::East,
-                        D::West => gdk::WindowEdge::West,
-                        D::NorthEast => gdk::WindowEdge::NorthEast,
-                        D::NorthWest => gdk::WindowEdge::NorthWest,
-                        D::SouthEast => gdk::WindowEdge::SouthEast,
-                        D::SouthWest => gdk::WindowEdge::SouthWest,
+                        D::North => gdk::SurfaceEdge::North,
+                        D::South => gdk::SurfaceEdge::South,
+                        D::East => gdk::SurfaceEdge::East,
+                        D::West => gdk::SurfaceEdge::West,
+                        D::NorthEast => gdk::SurfaceEdge::NorthEast,
+                        D::NorthWest => gdk::SurfaceEdge::NorthWest,
+                        D::SouthEast => gdk::SurfaceEdge::SouthEast,
+                        D::SouthWest => gdk::SurfaceEdge::SouthWest,
                     };
-                    let (b, x, y, t) = input.borrow().press;
-                    win.begin_resize_drag(edge, b.max(1) as i32, x as i32, y as i32, t);
+                    let i = input.borrow();
+                    let (b, x, y, t) = i.press;
+                    if let Some(top) = &toplevel {
+                        top.begin_resize(edge, i.device.as_ref(), b.max(1) as i32, x, y, t);
+                    }
                 }
                 ViewportCommand::Maximized(true) => win.maximize(),
                 ViewportCommand::Maximized(false) => win.unmaximize(),
-                ViewportCommand::Minimized(true) => win.iconify(),
+                ViewportCommand::Minimized(true) => win.minimize(),
                 ViewportCommand::Fullscreen(true) => win.fullscreen(),
                 ViewportCommand::Fullscreen(false) => win.unfullscreen(),
                 ViewportCommand::Focus => win.present(),
@@ -1196,49 +1308,12 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
         }
     }
 
-    // draw
+    // keep the picture for GTK, which draws it next
     let mut full = full;
     let prims = ctx.tessellate(std::mem::take(&mut full.shapes), full.pixels_per_point);
-    let size_px = [(w as f32 * scale) as u32, (h as f32 * scale) as u32];
-    if let Some(p) = g.painter.as_mut() {
-        p.clear(size_px, [0.0, 0.0, 0.0, 1.0]);
-        p.paint_and_update_textures(size_px, full.pixels_per_point, &prims, &mut full.textures_delta);
-    }
-    if let (Some(gl), true) = (&g.gl, std::env::var_os("SANAGA_DEBUG_GL").is_some()) {
-        use glow::HasContext;
-        let e = unsafe { gl.get_error() };
-        if e != 0 {
-            eprintln!("GL error 0x{e:x}");
-        }
-    }
-    if let Some(gl) = &g.gl {
-        // the window is opaque: blended text left see-through pixels behind
-        use glow::HasContext;
-        unsafe {
-            gl.disable(glow::SCISSOR_TEST);
-            gl.color_mask(false, false, false, true);
-            gl.clear_color(0.0, 0.0, 0.0, 1.0);
-            gl.clear(glow::COLOR_BUFFER_BIT);
-            gl.color_mask(true, true, true, true);
-        }
-    }
-    if let (Some(gl), Ok(path)) = (&g.gl, std::env::var("SANAGA_DEBUG_GLSHOT")) {
-        // test aid: what Sanaga itself drew (before GTK puts the window together)
-        if g.app.frame_count() == std::env::var("SANAGA_DEBUG_GLSHOT_AT").ok().and_then(|v| v.parse().ok()).unwrap_or(40) {
-            use glow::HasContext;
-            let (pw, ph) = (size_px[0] as usize, size_px[1] as usize);
-            let mut px = vec![0u8; pw * ph * 4];
-            unsafe {
-                gl.read_pixels(0, 0, pw as i32, ph as i32, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelPackData::Slice(Some(&mut px)));
-            }
-            let mut flipped = Vec::with_capacity(px.len());
-            for row in px.chunks_exact(pw * 4).rev() {
-                flipped.extend_from_slice(row);
-            }
-            let _ = image::save_buffer(&path, &flipped, pw as u32, ph as u32, image::ColorType::Rgba8);
-            eprintln!("gl shot {path}");
-        }
-    }
+    g.delta.append(std::mem::take(&mut full.textures_delta));
+    g.frame = Some(Frame { prims, ppp: full.pixels_per_point, size: [w, h] });
+    area.queue_render();
     if close {
         if g.app.take_quit_all() {
             glib::idle_add_local_once(quit_all);
@@ -1249,10 +1324,45 @@ fn paint(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, next: &Rc<
         }
         return;
     }
-    schedule(area, next, repaint);
+    if std::env::var_os("SANAGA_DEBUG_FRAMES").is_some() {
+        eprintln!("frame t={:.2} next in {:?}", g.start.elapsed().as_secs_f64(), repaint);
+    }
+    schedule(host, repaint);
     if let Some(path) = host.shot.borrow_mut().take() {
         let win = host.window.clone();
         glib::idle_add_local_once(move || save_shot(&win, &path));
+    }
+}
+
+/// GTK draws the window: Sanaga's interface goes into the GL area.
+fn draw(g: &mut Gui, area: &gtk::GLArea) {
+    if std::env::var_os("SANAGA_DEBUG_FRAMES").is_some() {
+        eprintln!("draw {}x{} mapped={} has_frame={}", area.width(), area.height(), area.is_mapped(), g.frame.is_some());
+    }
+    let Some(frame) = g.frame.as_ref() else { return };
+    let Some(p) = g.painter.as_mut() else { return };
+    let scale = area.scale_factor().max(1) as f32;
+    let (w, h) = (area.width().max(1), area.height().max(1));
+    let size_px = [(w as f32 * scale) as u32, (h as f32 * scale) as u32];
+    let mut delta = std::mem::take(&mut g.delta);
+    p.clear(size_px, [0.0, 0.0, 0.0, 1.0]);
+    p.paint_and_update_textures(size_px, frame.ppp, &frame.prims, &mut delta);
+    if let Some(gl) = &g.gl {
+        use glow::HasContext;
+        if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
+            let e = unsafe { gl.get_error() };
+            if e != 0 {
+                eprintln!("GL error 0x{e:x}");
+            }
+        }
+        // the window is opaque: blended text left see-through pixels behind
+        unsafe {
+            gl.disable(glow::SCISSOR_TEST);
+            gl.color_mask(false, false, false, true);
+            gl.clear_color(0.0, 0.0, 0.0, 1.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
+            gl.color_mask(true, true, true, true);
+        }
     }
 }
 

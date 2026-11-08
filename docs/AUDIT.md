@@ -28,7 +28,7 @@ Legend: ✅ Sanaga does not have the problem · 🟡 partly · ❌ not yet
 |---|---|---|
 | Huge memory use with many tabs | Chrome, Firefox | ✅ Tabs only start when first shown; memory saver puts idle tabs to sleep. **Measured**: 10 tabs restored, one shown: ~510 MB for everything (browser 160 MB + engine processes); 100 tabs open: under 200 MB for the interface. |
 | Sleeping tabs lose what you typed | Chrome (Memory Saver) | ✅ **Fixed**: a tab with text typed in a form, a pinned tab, a tab playing sound or in a call (camera / micro on) never sleeps. |
-| Battery drain / CPU when idle | Chrome, Firefox | 🟡 The interface redraws only when something changes (~1 frame/s when idle). **Measured**: static page ≈ 2 % of one core; a page with a looping animation ≈ 16–19 % — GTK 3 copies every page frame into the window. The GTK 4 / WebKitGTK 6 port (see PRODUCTION.md) removes that copy. |
+| Battery drain / CPU when idle | Chrome, Firefox | ✅ The interface redraws only when something changes (~1 frame/s when idle). **Measured on GTK 4 / WebKitGTK 6**: still page 0 % of one core; a page with an endless animation 6–10 % (11–16 % with the page's own processes) — WebKit drawing 60 frames a second. |
 | One tab crashes and leaves a blank page | Safari, older Chrome | ✅ **Fixed**: a page whose process crashed or ran out of memory shows “This page stopped working” with *Reload*; the other tabs are untouched (each page has its own process and sandbox). |
 | Unusable with very many tabs | Safari, Chrome | ✅ Tabs keep a readable width; arrows and a counter button open the searchable list of all tabs; vertical tabs available. Closing works with 40+ tabs (fixed earlier). |
 | Startup restores everything at once and freezes | Chrome, Firefox | ✅ Restored tabs load only when shown. |
@@ -66,5 +66,5 @@ Legend: ✅ Sanaga does not have the problem · 🟡 partly · ❌ not yet
 5. Memory saver never puts to sleep tabs with typed text, calls, sound, or pinned tabs.
 6. Built-in “No cookie banners” extension (on by default for new profiles).
 7. Translation menu says it uses Google.
-8. CPU and memory measured (above); the animated-page CPU cost is documented and
-   tied to the GTK 4 port.
+8. CPU and memory measured (above); Sanaga moved to GTK 4 / WebKitGTK 6
+   (docs/GTK4.md).

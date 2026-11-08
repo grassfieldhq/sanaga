@@ -9,7 +9,7 @@ use crate::frames;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
-use webkit2gtk::WebViewExt;
+use webkit6::prelude::*;
 
 const FPS: f64 = 20.0;
 
@@ -188,7 +188,7 @@ impl Sanaga {
         let (size, latest, busy) = (r.size.clone(), r.latest.clone(), r.busy.clone());
         *busy.borrow_mut() = true;
         let ctx = self.ctx.clone();
-        w.webview().snapshot(webkit2gtk::SnapshotRegion::Visible, webkit2gtk::SnapshotOptions::NONE, None::<&webkit2gtk::gio::Cancellable>, move |res| {
+        w.webview().snapshot(webkit6::SnapshotRegion::Visible, webkit6::SnapshotOptions::NONE, None::<&webkit6::gio::Cancellable>, move |res| {
             *busy.borrow_mut() = false;
             let Ok(page) = res else { return };
             let look = frames::Page { browser, domain: &domain, title: &title, secure };

@@ -5,11 +5,11 @@ use super::chrome::site_badge;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, RichText, ScrollArea, Sense};
-use webkit2gtk::{SnapshotOptions, SnapshotRegion, WebViewExt};
+use webkit6::prelude::*;
 
 /// Turn a WebKit snapshot into a small picture for the overview.
-fn surface_to_image(s: cairo::Surface) -> Option<egui::ColorImage> {
-    let mut img = cairo::ImageSurface::try_from(s).ok()?;
+fn surface_to_image(s: gtk::gdk::Texture) -> Option<egui::ColorImage> {
+    let mut img = crate::page::texture_to_surface(&s)?;
     let (w, h, stride) = (img.width() as usize, img.height() as usize, img.stride() as usize);
     if w == 0 || h == 0 {
         return None;
@@ -29,8 +29,8 @@ fn surface_to_image(s: cairo::Surface) -> Option<egui::ColorImage> {
 }
 
 /// Full-size picture of the page (shown under menus).
-pub(super) fn surface_to_full_image(s: cairo::Surface) -> Option<egui::ColorImage> {
-    let mut img = cairo::ImageSurface::try_from(s).ok()?;
+pub(super) fn surface_to_full_image(s: gtk::gdk::Texture) -> Option<egui::ColorImage> {
+    let mut img = crate::page::texture_to_surface(&s)?;
     let (w, h, stride) = (img.width() as usize, img.height() as usize, img.stride() as usize);
     if w == 0 || h == 0 {
         return None;
@@ -475,7 +475,7 @@ impl Sanaga {
             let tx = self.thumb_tx.clone();
             let id = t.id;
             let ctx = self.ctx.clone();
-            w.webview().snapshot(SnapshotRegion::Visible, SnapshotOptions::NONE, None::<&webkit2gtk::gio::Cancellable>, move |res| {
+            w.webview().snapshot(webkit6::SnapshotRegion::Visible, webkit6::SnapshotOptions::NONE, None::<&webkit6::gio::Cancellable>, move |res| {
                 if let Some(img) = res.ok().and_then(surface_to_image) {
                     let _ = tx.send((id, img));
                     ctx.request_repaint();

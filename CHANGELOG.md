@@ -34,12 +34,19 @@ All notable changes to Sanaga are listed here. The format follows
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
 ### Changed
+- Sanaga now runs on **GTK 4 and WebKitGTK 6** (it needs `gtk4` and
+  `webkitgtk-6.0`): pages are composed on the graphics card, an idle page costs
+  nothing, animated pages cost less, and screen readers can read the pages as
+  well as the interface. See `docs/GTK4.md`.
+- The web inspector shortcut closes the inspector when pressed again.
 - Sanaga's own pages have English addresses (`sanaga://settings`,
   `sanaga://newtab`…); the old French ones still work.
 - Data files are written safely (copy, then swap) so a crash cannot corrupt them.
 - Ctrl+N opens a new window (it opened a tab).
 
 ### Fixed
+- A file the browser cannot show (archive, installer, unknown type) sent
+  without a “download” header was silently ignored; it is now downloaded.
 - Clicking an address suggestion did nothing.
 - A page could ask for the saved password of another site (the site is now
   checked against the page really shown).

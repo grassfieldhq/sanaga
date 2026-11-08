@@ -77,8 +77,8 @@ Sanaga runs on Linux (Wayland or X11). You need:
 | What | Arch / Manjaro | Debian / Ubuntu (24.04+) | Fedora |
 |---|---|---|---|
 | Rust 1.88+ | `rustup` | `rustup` | `rustup` |
-| GTK 3 | `gtk3` | `libgtk-3-dev` | `gtk3-devel` |
-| WebKitGTK 4.1 | `webkit2gtk-4.1` | `libwebkit2gtk-4.1-dev` | `webkit2gtk4.1-devel` |
+| GTK 4 | `gtk4` | `libgtk-4-dev` | `gtk4-devel` |
+| WebKitGTK 6 | `webkitgtk-6.0` | `libwebkitgtk-6.0-dev` | `webkitgtk6.0-devel` |
 | *(optional)* passwords | `libsecret` (`secret-tool`) | `libsecret-tools` | `libsecret` |
 | *(optional)* video recording | `ffmpeg` | `ffmpeg` | `ffmpeg` |
 
@@ -149,7 +149,7 @@ there: they go to the system keyring.
 
 | Part | Files |
 |---|---|
-| Native window: GTK 3 window, the interface drawn by [egui](https://github.com/emilk/egui) in a GL area, pages as WebKit widgets on top, input and window commands | `src/shell.rs` |
+| Native window: GTK 4 window, the interface drawn by [egui](https://github.com/emilk/egui) in a GL area, pages as WebKit widgets on top, input and window commands | `src/shell.rs` |
 | One web page (WebKitGTK view, scripts, downloads, signals) | `src/page.rs` |
 | The interface (tabs, toolbar, menus, internal pages, simulator…) | `src/app/` |
 | Light engine (HTML to blocks, Reader) | `src/html.rs`, `src/net.rs` |
@@ -165,7 +165,7 @@ web engine). Comments in the code explain *why* things are done the way they are
 | System | Status |
 |---|---|
 | Linux (Wayland, X11) | ✅ Supported |
-| FreeBSD and other BSDs | Should work (GTK 3 and WebKitGTK are available), untested |
+| FreeBSD and other BSDs | Should work (GTK 4 and WebKitGTK are available), untested |
 | Windows | ❌ Not yet — planned, see [docs/PORTING.md](docs/PORTING.md) |
 | macOS | ❌ Not yet — planned, see [docs/PORTING.md](docs/PORTING.md) |
 
@@ -175,10 +175,7 @@ engine bridge and a few system services.
 
 ## Known limitations
 
-- Linux only for now (GTK 3 + WebKitGTK 4.1) — see [Platforms](#platforms).
-- Pages with endless animations cost more CPU than in Chrome or Firefox: GTK 3
-  copies every page frame into the window. Moving to GTK 4 / WebKitGTK 6 would
-  remove that copy.
+- Linux only for now (GTK 4 + WebKitGTK 6) — see [Platforms](#platforms).
 - Extensions are simple page scripts and styles; Chrome Web Store extensions are
   not supported.
 - Video recording has no sound; its size is the device's size on screen (use

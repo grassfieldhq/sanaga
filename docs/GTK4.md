@@ -1,46 +1,58 @@
-# Moving Sanaga to GTK 4 and WebKitGTK 6
+# Sanaga on GTK 4 and WebKitGTK 6
 
-Status: **started** — plan and prerequisites ready; the build needs the
-WebKitGTK 6 development files, which are not installed on the development
-machine yet.
+Status: **done** (November 2026). Sanaga's window is GTK 4 and its pages are
+WebKitGTK 6; the GTK 3 / WebKitGTK 4.1 version is retired.
 
-## Why
+## What it brings
 
-GTK 3 copies every frame of a page into the window. On pages with animations
-this keeps one processor core busy at 16–19 %. GTK 4 composes the page on the
-graphics card (GSK): the same page should cost about as much as a still one
-(≈ 2 %). GTK 4 also brings smooth fractional scaling (125 %, 150 %) and is
-where WebKitGTK's new features land.
+- **The page is composed by GTK 4 on the graphics card** (GSK). GTK 3 copied
+  every page frame into the window.
+- **Screen readers see the pages too**: GTK 4 publishes the page's content
+  (headings, links, fields) next to Sanaga's own interface (AccessKit).
+- WebKitGTK 6 is where WebKit's new features land (it always runs pages in
+  their sandbox).
+- Smooth fractional scaling comes with GTK 4.
 
-## Prerequisites
+### Measured (Omarchy / Hyprland, Intel UHD laptop, release build, 10 s)
 
-```sh
-sudo pacman -S webkitgtk-6.0      # Arch / Omarchy (gtk4 is already installed)
-# Debian / Ubuntu 24.04+: sudo apt install libwebkitgtk-6.0-dev libgtk-4-dev
-# Fedora:                 sudo dnf install webkitgtk6.0-devel gtk4-devel
-```
+| Page | GTK 3 / WebKitGTK 4.1 | GTK 4 / WebKitGTK 6 |
+|---|---|---|
+| Still page — Sanaga | ≈ 2 % | **0 %** |
+| Page with an endless animation — Sanaga | 7–13 % | **6–10 %** |
+| Same, with the page's own processes | 11–17 % | 11–16 % |
 
-Rust crates: `gtk4` (0.9+), `webkit6` (0.4+), `glib` / `gio` 0.20.
+The interface itself only wakes when something changes (about once a second
+when idle). Most of what remains on animated pages is WebKit drawing the page
+60 times a second, as in any browser.
 
-## Plan (one step at a time, GTK 3 stays the default until the end)
+## Needed to build
 
-1. **Second window shell behind a feature** (`cargo build --features gtk4`):
-   a GTK 4 `ApplicationWindow` with a `GLArea` drawing egui (egui_glow works the
-   same), and a `WebView` (WebKit 6) placed over the page area with a
-   `GtkOverlay` / `GtkFixed`. Measure the processor on an animated page.
-2. **Input**: GTK 4 event controllers (`EventControllerKey`, `GestureClick`,
-   `EventControllerScroll`, `EventControllerMotion`) feeding egui, the input
-   method (`IMMulticontext`), touchpad swipes (`GestureSwipe`).
-3. **Pages**: `page.rs` on WebKit 6 — `NetworkSession` instead of the website
-   data manager, asynchronous JavaScript (`evaluate_javascript`), new
-   permission, download and policy objects, user scripts unchanged.
-4. **Windows and extras**: several windows, the single-instance socket,
-   tooltips, the simulator's device frame (a `GtkDrawingArea` above the page
-   with input passing through), page snapshots for menus.
-5. **Screen readers**: GTK 4 exposes its own accessibility (`GtkAccessible`);
-   the AccessKit bridge added for GTK 3 keeps working.
-6. **Switch**: GTK 4 becomes the default; GTK 3 kept for distributions without
-   WebKitGTK 6 for one release, then removed.
+| | Arch / Omarchy | Debian 13 / Ubuntu 24.04+ | Fedora |
+|---|---|---|---|
+| GTK 4 | `gtk4` | `libgtk-4-dev` | `gtk4-devel` |
+| WebKitGTK 6 | `webkitgtk-6.0` | `libwebkitgtk-6.0-dev` | `webkitgtk6.0-devel` |
 
-The interface (`src/app/`, egui) does not change: only `src/shell.rs`,
-`src/page.rs` and the WebKit calls in a few app files do.
+Rust crates: `gtk4` 0.11, `webkit6` 0.6 (WebKitGTK 2.48+), `cairo-rs` 0.22.
+
+## How the window works
+
+- `src/shell.rs`: one `gtk::Window` holding a `GtkOverlay`. Its main child is
+  a `GtkGLArea` where egui draws the whole interface; each web page is an
+  overlay child placed over the page area with margins; the simulator's device
+  frame (a `GtkDrawingArea` that lets clicks through) and the swipe arrow stay
+  above the pages.
+- **The interface runs outside GTK's drawing**: GTK 4 does not allow adding or
+  moving a page while it draws. Input, timers and other threads *wake* the
+  window; the interface runs when GTK is idle (or with the screen's next
+  refresh during animations, or within 200 ms if the window is not on screen),
+  then GTK draws the result.
+- Input comes from GTK 4 event controllers (keys with the input method, click,
+  motion, scroll); the mouse's back / forward buttons and two-finger swipes
+  are caught on the pages.
+- Window moves and resizes use `gdk::Toplevel::begin_move / begin_resize`.
+- `src/page.rs`: each profile has an *engine* — a `WebContext` and a
+  `NetworkSession` (cookies, cache, downloads, tracking prevention). Private
+  tabs share one ephemeral session. Page pictures are GDK textures.
+- File dialogs use `gtk::FileDialog`.
+- Test pictures (`SANAGA_LIVE_TEST` … `shot`) are made by GTK's own renderer
+  from the window's content, never from the screen.

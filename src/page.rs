@@ -1,15 +1,13 @@
-//! One web page shown by WebKit, as a normal part of Sanaga's GTK window
-//! (no separate window glued on top any more: GTK draws the page and the rest
-//! of the window together, in the same frame).
+//! One web page shown by WebKit (WebKitGTK 6, GTK 4), as a normal part of
+//! Sanaga's window: GTK composes the page and the rest of the window together
+//! on the graphics card, in the same frame.
 
 use gtk::prelude::*;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use webkit2gtk::{
-    CookieManagerExt, CookiePersistentStorage, DownloadExt, LoadEvent, SettingsExt, URIRequestExt, UserContentInjectedFrames, UserContentManager,
-    UserContentManagerExt, UserScript, UserScriptInjectionTime, WebContext, WebContextExt, WebInspectorExt, WebView, WebViewExt, WebsiteDataManager, WebsiteDataManagerExt,
-};
+use webkit6::prelude::*;
+use webkit6::{CookiePersistentStorage, LoadEvent, NetworkSession, UserContentInjectedFrames, UserContentManager, UserScript, UserScriptInjectionTime, WebContext, WebView};
 
 pub type R<T> = Result<T, ()>;
 
@@ -28,15 +26,25 @@ pub enum PageSignal {
 
 /// Makes the page a site opens with `window.open` (sign-in, payment windows):
 /// it gets the opener's page as its related view, so the two can talk to each
-/// other as on any browser. Returns the new page's widget.
+/// other as on any browser. Returns the new page.
 pub type PopupMaker = Rc<dyn Fn(&WebView) -> Option<WebView>>;
+
+/// The web engine of one profile: its processes (context) and its network
+/// session (cookies, cache, site data, downloads).
+#[derive(Clone, PartialEq)]
+pub struct Engine {
+    pub ctx: WebContext,
+    pub session: NetworkSession,
+}
 
 thread_local! {
     /// One web engine per profile folder, shared by all of Sanaga's windows
     /// (two engines must never write the same cookies and site data).
-    static CONTEXTS: RefCell<Vec<(std::path::PathBuf, WebContext)>> = const { RefCell::new(Vec::new()) };
-    /// Engines whose downloads are already followed.
-    static WATCHED: RefCell<Vec<WebContext>> = const { RefCell::new(Vec::new()) };
+    static ENGINES: RefCell<Vec<(PathBuf, Engine)>> = const { RefCell::new(Vec::new()) };
+    /// The session of private tabs: nothing kept on disk.
+    static PRIVATE: RefCell<Option<NetworkSession>> = const { RefCell::new(None) };
+    /// Sessions whose downloads are already followed.
+    static WATCHED: RefCell<Vec<NetworkSession>> = const { RefCell::new(Vec::new()) };
     /// Where finished downloads are reported: one receiver per window.
     static DOWNLOAD_SINKS: RefCell<Vec<(usize, DownloadSink)>> = const { RefCell::new(Vec::new()) };
 }
@@ -67,45 +75,53 @@ fn report_download(url: String, path: Option<PathBuf>, ok: bool) {
     }
 }
 
-/// Follow the downloads of this engine (once, whatever the number of windows).
-pub fn follow_downloads(ctx: &WebContext, pick: impl Fn(&str) -> PathBuf + 'static) {
-    let known = WATCHED.with(|w| w.borrow().iter().any(|c| c == ctx));
-    if !known {
-        WATCHED.with(|w| w.borrow_mut().push(ctx.clone()));
-        watch_downloads(ctx, pick, report_download);
+/// Follow the downloads of this engine (once, whatever the number of windows),
+/// and of private tabs.
+pub fn follow_downloads(engine: &Engine, pick: impl Fn(&str) -> PathBuf + 'static) {
+    let pick = Rc::new(pick);
+    for session in [engine.session.clone(), private_session()] {
+        let known = WATCHED.with(|w| w.borrow().contains(&session));
+        if !known {
+            WATCHED.with(|w| w.borrow_mut().push(session.clone()));
+            let p = pick.clone();
+            watch_downloads(&session, move |u| p(u), report_download);
+        }
     }
 }
 
-/// The engine settings shared by the pages of one profile (cookies, cache,
-/// site data are kept in `dir`), made once and shared by all the windows.
-pub fn profile_context(dir: &Path) -> WebContext {
-    if let Some(c) = CONTEXTS.with(|c| c.borrow().iter().find(|(d, _)| d == dir).map(|(_, c)| c.clone())) {
-        return c;
+/// The engine of a profile folder (made once, then shared by the windows).
+pub fn profile_context(dir: &Path) -> Engine {
+    if let Some(e) = ENGINES.with(|c| c.borrow().iter().find(|(d, _)| d == dir).map(|(_, e)| e.clone())) {
+        return e;
     }
-    let c = new_profile_context(dir);
-    CONTEXTS.with(|cs| cs.borrow_mut().push((dir.to_path_buf(), c.clone())));
-    c
-}
-
-fn new_profile_context(dir: &Path) -> WebContext {
     let _ = std::fs::create_dir_all(dir);
-    let dm = WebsiteDataManager::builder().base_cache_directory(dir.to_string_lossy()).base_data_directory(dir.to_string_lossy()).build();
-    if let Some(cm) = dm.cookie_manager() {
+    let d = dir.to_string_lossy().to_string();
+    let session = NetworkSession::new(Some(&d), Some(&d));
+    if let Some(cm) = session.cookie_manager() {
         cm.set_persistent_storage(&dir.join("cookies").to_string_lossy(), CookiePersistentStorage::Text);
     }
-    let ctx = WebContext::builder().website_data_manager(&dm).build();
-    secure_context(&ctx);
-    ctx
+    let engine = Engine { ctx: WebContext::new(), session };
+    secure_context(&engine);
+    ENGINES.with(|cs| cs.borrow_mut().push((dir.to_path_buf(), engine.clone())));
+    engine
 }
 
-/// Spell checking, and pages walled off from the rest of the computer
-/// (bubblewrap sandbox, as in GNOME Web) when the system provides it.
-pub fn secure_context(ctx: &WebContext) {
-    enable_spell_checking(ctx);
-    let has = |tool: &str| std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(tool).is_file()));
-    if has("bwrap") && has("xdg-dbus-proxy") && std::env::var_os("SANAGA_NO_SANDBOX").is_none() {
-        ctx.set_sandbox_enabled(true);
-    }
+/// An engine that keeps nothing (no profile folder: tests, screenshots).
+pub fn ephemeral_engine() -> Engine {
+    let engine = Engine { ctx: WebContext::new(), session: NetworkSession::new_ephemeral() };
+    secure_context(&engine);
+    engine
+}
+
+/// The session shared by private tabs.
+fn private_session() -> NetworkSession {
+    PRIVATE.with(|p| p.borrow_mut().get_or_insert_with(NetworkSession::new_ephemeral).clone())
+}
+
+/// Spell checking. (With WebKitGTK 6 every page always runs in its sandbox,
+/// walled off from the rest of the computer.)
+pub fn secure_context(engine: &Engine) {
+    enable_spell_checking(&engine.ctx);
 }
 
 /// Spell checking in text fields: the interface language and English.
@@ -123,22 +139,30 @@ pub fn enable_spell_checking(ctx: &WebContext) {
 }
 
 /// Where downloads go, and who is told when one ends.
-pub fn watch_downloads(ctx: &WebContext, pick: impl Fn(&str) -> PathBuf + 'static, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
+pub fn watch_downloads(session: &NetworkSession, pick: impl Fn(&str) -> PathBuf + 'static, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
     let pick = Rc::new(pick);
     let done = Rc::new(done);
-    ctx.connect_download_started(move |_, download| {
+    session.connect_download_started(move |_, download| {
+        if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
+            eprintln!("download started {:?}", download.request().and_then(|r| r.uri()));
+        }
         let failed = Rc::new(RefCell::new(false));
         let dest: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
         let (pick, d2) = (pick.clone(), dest.clone());
         download.connect_decide_destination(move |download, _suggested| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
             let path = pick(&uri);
-            download.set_destination(&glib_file_uri(&path));
+            download.set_destination(&path.to_string_lossy());
             *d2.borrow_mut() = Some(path);
             true
         });
         let f2 = failed.clone();
-        download.connect_failed(move |_, _| *f2.borrow_mut() = true);
+        download.connect_failed(move |_, e| {
+            if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
+                eprintln!("download failed: {e}");
+            }
+            *f2.borrow_mut() = true;
+        });
         let done = done.clone();
         download.connect_finished(move |download| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
@@ -147,12 +171,14 @@ pub fn watch_downloads(ctx: &WebContext, pick: impl Fn(&str) -> PathBuf + 'stati
     });
 }
 
-fn glib_file_uri(p: &Path) -> String {
-    gtk::glib::filename_to_uri(p, None).map(|s| s.to_string()).unwrap_or_else(|_| format!("file://{}", p.display()))
-}
-
 /// Script that gives pages `window.ipc.postMessage(...)` (Sanaga's page scripts use it).
 const IPC_JS: &str = "Object.defineProperty(window, 'ipc', { value: Object.freeze({ postMessage: function(x) { window.webkit.messageHandlers['ipc'].postMessage(x) } }) })";
+
+fn add_scripts(ucm: &UserContentManager, scripts: &[&str]) {
+    for js in std::iter::once(IPC_JS).chain(scripts.iter().copied()) {
+        ucm.add_script(&UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]));
+    }
+}
 
 pub struct PageView {
     view: WebView,
@@ -162,30 +188,28 @@ impl PageView {
     /// A new page. `scripts` run at the start of every page (top frame).
     /// `opener`: the page that opened this one (its windows share the engine).
     /// `popups`: makes the pages this one opens; without it they open as new tabs.
-    pub fn new(ctx: Option<&WebContext>, private: bool, scripts: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
+    pub fn new(engine: Option<&Engine>, private: bool, scripts: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
         let ucm = UserContentManager::new();
-        for js in std::iter::once(IPC_JS).chain(scripts.iter().copied()) {
-            ucm.add_script(&UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]));
-        }
+        add_scripts(&ucm, scripts);
         let on = Rc::new(on);
         let o = on.clone();
-        ucm.connect_script_message_received(Some("ipc"), move |_, msg| {
-            if let Some(v) = msg.js_value() {
-                o(PageSignal::Message(v.to_string()));
-            }
+        ucm.connect_script_message_received(Some("ipc"), move |_, value| {
+            o(PageSignal::Message(value.to_str().to_string()));
         });
-        ucm.register_script_message_handler("ipc");
+        ucm.register_script_message_handler("ipc", None);
         // Like Safari: videos may start by themselves only without sound
         // (no page shouting at you when it opens)
-        let policies = webkit2gtk::WebsitePolicies::builder().autoplay(webkit2gtk::AutoplayPolicy::AllowWithoutSound).build();
+        let policies = webkit6::WebsitePolicies::builder().autoplay(webkit6::AutoplayPolicy::AllowWithoutSound).build();
         let mut b = WebView::builder().user_content_manager(&ucm).website_policies(&policies);
         match opener {
             // same engine process and data as the opener
             Some(o) => b = b.related_view(o),
             None => {
-                b = b.is_ephemeral(private);
-                if let Some(c) = ctx {
-                    b = b.web_context(c);
+                if let Some(e) = engine {
+                    b = b.web_context(&e.ctx);
+                    b = b.network_session(&if private { private_session() } else { e.session.clone() });
+                } else if private {
+                    b = b.network_session(&private_session());
                 }
             }
         }
@@ -206,9 +230,6 @@ impl PageView {
             st.set_enable_developer_extras(true);
             // Sanaga handles the two-finger swipe itself (shell.rs)
             st.set_enable_back_forward_navigation_gestures(false);
-        }
-        if let Some(c) = view.context() {
-            c.set_use_system_appearance_for_scrollbars(false);
         }
         let o = on.clone();
         view.connect_load_changed(move |v, ev| {
@@ -241,11 +262,24 @@ impl PageView {
         // asked for. A simulated device's identity is left alone.
         let default_ua = WebViewExt::settings(&view).and_then(|s| s.user_agent()).map(|u| u.to_string()).unwrap_or_default();
         view.connect_decide_policy(move |v, decision, kind| {
-            if kind != webkit2gtk::PolicyDecisionType::NavigationAction {
+            // A file the browser cannot show (archive, installer, unknown
+            // type): downloaded, as in Chrome (WebKit would just ignore it).
+            if kind == webkit6::PolicyDecisionType::Response {
+                if let Some(r) = decision.downcast_ref::<webkit6::ResponsePolicyDecision>() {
+                    if r.is_main_frame_main_resource() && !r.is_mime_type_supported() {
+                        let status = r.response().map(|x| x.status_code()).unwrap_or(200);
+                        if (200..300).contains(&status) {
+                            decision.download();
+                            return true;
+                        }
+                    }
+                }
                 return false;
             }
-            use webkit2gtk::{NavigationPolicyDecisionExt, URIRequestExt};
-            let Some(nav) = decision.downcast_ref::<webkit2gtk::NavigationPolicyDecision>() else { return false };
+            if kind != webkit6::PolicyDecisionType::NavigationAction {
+                return false;
+            }
+            let Some(nav) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() else { return false };
             let Some(req) = nav.navigation_action().and_then(|a| a.request()) else { return false };
             let uri = req.uri().map(|u| u.to_string()).unwrap_or_default();
             let Some(host) = url::Url::parse(&uri).ok().and_then(|u| u.host_str().map(|h| h.to_string())) else { return false };
@@ -262,7 +296,6 @@ impl PageView {
             st.set_user_agent(Some(&want));
             // ask again with the new identity (a form being sent goes on as it is)
             if req.http_method().is_none_or(|m| m == "GET") {
-                use webkit2gtk::PolicyDecisionExt;
                 decision.ignore();
                 v.load_uri(&uri);
                 return true;
@@ -277,8 +310,8 @@ impl PageView {
         // other tabs are not touched); ending it on purpose is not a crash
         let o = on.clone();
         view.connect_web_process_terminated(move |_, reason| match reason {
-            webkit2gtk::WebProcessTerminationReason::ExceededMemoryLimit => o(PageSignal::Crashed(true)),
-            webkit2gtk::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
+            webkit6::WebProcessTerminationReason::ExceededMemoryLimit => o(PageSignal::Crashed(true)),
+            webkit6::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
             _ => {}
         });
         PageView { view }
@@ -297,9 +330,7 @@ impl PageView {
         if let Some(ucm) = self.view.user_content_manager() {
             ucm.remove_all_scripts();
             ucm.remove_all_style_sheets();
-            for js in std::iter::once(IPC_JS).chain(scripts.iter().copied()) {
-                ucm.add_script(&UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]));
-            }
+            add_scripts(&ucm, scripts);
             self.view.reload();
         }
     }
@@ -307,9 +338,8 @@ impl PageView {
         self.view.load_uri(url);
         Ok(())
     }
-    #[allow(deprecated)]
     pub fn evaluate_script(&self, js: &str) -> R<()> {
-        self.view.run_javascript(js, None::<&webkit2gtk::gio::Cancellable>, |_| {});
+        self.view.evaluate_javascript(js, None, None, None::<&gtk::gio::Cancellable>, |_| {});
         Ok(())
     }
     pub fn zoom(&self, z: f64) -> R<()> {
@@ -335,9 +365,9 @@ impl PageView {
         Ok(self.view.can_go_forward())
     }
     pub fn print(&self) -> R<()> {
-        let op = webkit2gtk::PrintOperation::new(&self.view);
-        let parent = self.view.toplevel().and_then(|t| t.downcast::<gtk::Window>().ok());
-        webkit2gtk::PrintOperationExt::run_dialog(&op, parent.as_ref());
+        let op = webkit6::PrintOperation::new(&self.view);
+        let parent = self.view.root().and_then(|r| r.downcast::<gtk::Window>().ok());
+        op.run_dialog(parent.as_ref());
         Ok(())
     }
     pub fn open_devtools(&self) {
@@ -354,9 +384,29 @@ impl PageView {
 impl Drop for PageView {
     fn drop(&mut self) {
         // the page leaves the window (and its engine process ends)
-        if let Some(p) = self.view.parent().and_then(|p| p.downcast::<gtk::Container>().ok()) {
-            p.remove(&self.view);
+        if let Some(o) = self.view.parent().and_then(|p| p.downcast::<gtk::Overlay>().ok()) {
+            o.remove_overlay(&self.view);
+        } else if self.view.parent().is_some() {
+            self.view.unparent();
         }
-        unsafe { self.view.destroy() };
+        self.view.terminate_web_process();
     }
+}
+
+/// A WebKit snapshot (GDK texture) as a cairo picture (to draw a device
+/// frame around it, or make thumbnails).
+pub fn texture_to_surface(tex: &gtk::gdk::Texture) -> Option<gtk::cairo::ImageSurface> {
+    let (w, h) = (tex.width(), tex.height());
+    if w <= 0 || h <= 0 {
+        return None;
+    }
+    let mut surf = gtk::cairo::ImageSurface::create(gtk::cairo::Format::ARgb32, w, h).ok()?;
+    let stride = surf.stride() as usize;
+    {
+        let mut data = surf.data().ok()?;
+        // cairo's ARGB32 is premultiplied B, G, R, A in memory on little-endian machines
+        tex.download(&mut data, stride);
+    }
+    surf.mark_dirty();
+    Some(surf)
 }

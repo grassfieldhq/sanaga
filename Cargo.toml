@@ -30,12 +30,12 @@ pbkdf2 = "0.12"
 hmac = "0.12"
 sha1 = "0.10"
 
-# The window and the web engine: GTK 3 + WebKitGTK, on Linux and the BSDs.
+# The window and the web engine: GTK 4 + WebKitGTK 6, on Linux and the BSDs.
 # (On Windows and macOS the build stops with a clear message: docs/PORTING.md.)
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "android")))'.dependencies]
-gtk = "0.18"
-webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
-cairo-rs = { version = "0.18", features = ["png"] }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
+webkit6 = { version = "0.6.1", features = ["v2_48"] }
+cairo-rs = { version = "0.22", features = ["png"] }
 egui_glow = "0.37"
 glow = "0.17"
 libloading = "0.8"

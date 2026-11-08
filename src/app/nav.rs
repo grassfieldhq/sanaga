@@ -178,11 +178,11 @@ impl Sanaga {
             tab.loading = true;
             tab.view = View::Loading;
             let (id, nav) = (tab.id, tab.nav);
-            use webkit2gtk::WebViewExt;
+            use webkit6::prelude::*;
             let open_page = self.tabs.iter().filter_map(|t| t.web.as_ref()).map(|w| w.webview()).find(|w| w.uri().map(|u| u.as_str() == inner).unwrap_or(false));
             if let Some(res) = open_page.and_then(|w| w.main_resource()) {
                 let (tx, ctx, u) = (self.tx.clone(), self.ctx.clone(), inner.to_string());
-                webkit2gtk::WebResourceExt::data(&res, None::<&webkit2gtk::gio::Cancellable>, move |r| {
+                res.data(None::<&webkit6::gio::Cancellable>, move |r| {
                     let result = r.map(|b| String::from_utf8_lossy(&b).into_owned()).map_err(|e| e.to_string());
                     let _ = tx.send(NetMsg::Source { tab: id, nav, url: u, result });
                     ctx.request_repaint();
