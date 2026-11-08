@@ -472,6 +472,12 @@ impl Store {
                 s.save_bookmarks();
             }
         }
+        // the favourites of earlier versions, never changed by the person:
+        // replaced by today's
+        if is_old_default(&s.bookmarks) {
+            s.bookmarks = default_bookmarks(&s.settings.language);
+            s.save_bookmarks();
+        }
         if first_run {
             s.save_settings();
         }
@@ -751,16 +757,23 @@ pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> 
 }
 
 /// First bookmarks, in the interface language (Wikipedia in that language too).
+/// Exactly the favourites Sanaga used to start with (any language).
+fn is_old_default(list: &[Bookmark]) -> bool {
+    let urls: Vec<&str> = list.iter().map(|b| b.url.trim_end_matches('/')).collect();
+    urls.len() == 6
+        && urls[0].starts_with("https://")
+        && urls[0].ends_with(".wikipedia.org")
+        && urls[1..] == ["https://html.duckduckgo.com/html", "https://news.ycombinator.com", "https://text.npr.org", "https://lite.cnn.com", "sanaga://welcome"]
+}
+
 fn default_bookmarks(lang: &str) -> Vec<Bookmark> {
     crate::i18n::set_language(lang);
-    let wiki = format!("https://{}.wikipedia.org/", if lang.is_empty() { "en" } else { lang });
     [
-        (wiki.as_str(), crate::i18n::tr("Wikipédia")),
-        ("https://html.duckduckgo.com/html/", "DuckDuckGo"),
-        ("https://news.ycombinator.com/", "Hacker News"),
-        ("https://text.npr.org/", crate::i18n::tr("NPR Texte")),
-        ("https://lite.cnn.com/", "CNN Lite"),
-        ("sanaga://welcome", crate::i18n::tr("Bienvenue")),
+        ("https://wajub.com/", "Wajub"),
+        ("https://komerxe.com/", "Komerxe"),
+        ("https://moniwa.app/", "Moniwa"),
+        ("https://lekalao.com/", "Lekalao"),
+        ("https://grassfield.site/", "Grassfield"),
     ]
     .iter()
     .map(|(u, t)| Bookmark { url: u.to_string(), title: t.to_string() })
