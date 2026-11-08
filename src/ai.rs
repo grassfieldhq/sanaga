@@ -52,7 +52,8 @@ pub fn page_content_allowed(provider: &Provider) -> Result<(), String> {
 }
 
 fn agent(read_secs: u64) -> ureq::Agent {
-    ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
+    // (the system's certificate authorities: see net::builder)
+    crate::net::builder().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
 }
 
 /// The models installed in Ollama (empty when Ollama is not running).

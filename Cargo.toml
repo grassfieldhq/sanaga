@@ -34,6 +34,9 @@ flate2 = "1"
 # file flags (O_NOFOLLOW), the download mark (extended attributes) and the
 # single-instance socket's peer check (already built for other crates)
 libc = "0.2"
+# TLS for Sanaga's own requests with the system's certificate authorities
+# (already built for ureq: same version and features, no new crate)
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 
 # The window and the web engine: GTK 4 + WebKitGTK 6, on Linux and the BSDs.
 # (On Windows and macOS the build stops with a clear message: docs/PORTING.md.)

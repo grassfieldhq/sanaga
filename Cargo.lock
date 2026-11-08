@@ -3197,6 +3197,7 @@ dependencies = [
  "percent-encoding",
  "qrcode",
  "rusqlite",
+ "rustls",
  "sha1",
  "ureq",
  "url",

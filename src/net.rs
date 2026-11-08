@@ -31,8 +31,70 @@ fn accept_language() -> String {
     }
 }
 
+/// Where distributions keep the certificate authorities the system trusts
+/// (one PEM bundle); $SSL_CERT_FILE first, as OpenSSL does.
+fn ca_bundles() -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = std::env::var_os("SSL_CERT_FILE").map(PathBuf::from).into_iter().collect();
+    v.extend(
+        [
+            "/etc/ssl/certs/ca-certificates.crt",                // Arch, Debian, Ubuntu, Gentoo
+            "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem", // Fedora, RHEL
+            "/etc/pki/tls/certs/ca-bundle.crt",                  // older Fedora, RHEL
+            "/etc/ssl/ca-bundle.pem",                            // openSUSE
+            "/etc/ssl/cert.pem",                                 // Alpine, OpenBSD
+            "/usr/local/share/certs/ca-root-nss.crt",            // FreeBSD
+        ]
+        .map(PathBuf::from),
+    );
+    v
+}
+
+/// The system's certificate authorities, read from the first bundle found.
+fn system_roots() -> rustls::RootCertStore {
+    use rustls::pki_types::{pem::PemObject, CertificateDer};
+    let mut roots = rustls::RootCertStore::empty();
+    for path in ca_bundles() {
+        let Ok(bytes) = std::fs::read(&path) else { continue };
+        let (added, _) = roots.add_parsable_certificates(CertificateDer::pem_slice_iter(&bytes).filter_map(|c| c.ok()));
+        if added > 0 {
+            break;
+        }
+    }
+    if roots.is_empty() {
+        eprintln!("Sanaga: no system certificate store found; secure requests made by Sanaga itself will fail");
+    }
+    roots
+}
+
+/// TLS for the requests Sanaga makes itself (Reader, page source, AI
+/// services): the system's certificate authorities, the same list the rest
+/// of the system trusts (an organisation's own, the distribution's
+/// removals), never a list built into Sanaga.
+fn system_tls() -> Option<Arc<rustls::ClientConfig>> {
+    static CONFIG: std::sync::OnceLock<Option<Arc<rustls::ClientConfig>>> = std::sync::OnceLock::new();
+    CONFIG
+        .get_or_init(|| {
+            let config = rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+                .with_safe_default_protocol_versions()
+                .ok()?
+                .with_root_certificates(system_roots())
+                .with_no_client_auth();
+            Some(Arc::new(config))
+        })
+        .clone()
+}
+
+/// A builder for Sanaga's own requests, with the system's certificates.
+pub fn builder() -> ureq::AgentBuilder {
+    let b = ureq::AgentBuilder::new();
+    match system_tls() {
+        Some(tls) => b.tls_config(tls),
+        None => b,
+    }
+}
+
 pub fn agent() -> ureq::Agent {
-    ureq::AgentBuilder::new()
+    builder()
         .user_agent(USER_AGENT)
         .timeout_connect(Duration::from_secs(10))
         .timeout_read(Duration::from_secs(20))
@@ -479,6 +541,16 @@ mod tests {
         assert!(n.ends_with(".pdf"));
         let long = "x".repeat(400);
         assert_eq!(safe_download_name(&long).len(), MAX_NAME);
+    }
+
+    #[test]
+    fn requests_trust_the_systems_certificates() {
+        assert!(ca_bundles().iter().any(|p| p.ends_with("ca-certificates.crt")));
+        // (only where the usual bundle is installed)
+        if std::path::Path::new("/etc/ssl/certs/ca-certificates.crt").is_file() && std::env::var_os("SSL_CERT_FILE").is_none() {
+            assert!(system_roots().len() > 10);
+            assert!(system_tls().is_some());
+        }
     }
 
     #[test]
