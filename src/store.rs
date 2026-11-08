@@ -746,6 +746,54 @@ fn changed() {
     CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// $XDG_RUNTIME_DIR, when it is a real folder of this user's, closed to
+/// everyone else (the place for sockets and short-lived private files).
+pub fn runtime_dir() -> Option<PathBuf> {
+    use std::os::unix::fs::MetadataExt;
+    let d = PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?);
+    let m = std::fs::symlink_metadata(&d).ok()?;
+    // SAFETY: getuid has no preconditions and cannot fail.
+    let me = unsafe { libc::getuid() };
+    (d.is_absolute() && m.is_dir() && m.uid() == me && m.mode() & 0o077 == 0).then_some(d)
+}
+
+/// A new, empty folder only this user can enter (mode 0700), removed when
+/// dropped: in $XDG_RUNTIME_DIR when there is one, else in the temp folder,
+/// under a random name created atomically (like mkdtemp: never a folder
+/// that already exists, never through a link).
+pub struct PrivateDir(PathBuf);
+
+impl PrivateDir {
+    pub fn new(prefix: &str) -> std::io::Result<PrivateDir> {
+        use std::hash::{BuildHasher, Hasher};
+        use std::os::unix::fs::DirBuilderExt;
+        let base = runtime_dir().unwrap_or_else(std::env::temp_dir);
+        for n in 0..16u32 {
+            let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+            h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+            h.write_u32(std::process::id());
+            h.write_u32(n);
+            let path = base.join(format!("{prefix}-{:016x}", h.finish()));
+            match std::fs::DirBuilder::new().mode(0o700).create(&path) {
+                Ok(()) => return Ok(PrivateDir(path)),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        Err(std::io::Error::other("no free name for a private folder"))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for PrivateDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// Write a data file safely: into a copy first, then put in place in one go,
 /// so a crash or power cut while writing never leaves a half-written file.
 pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
@@ -820,6 +868,19 @@ pub fn day_group(t: u64) -> &'static str {
 
 #[cfg(test)]
 mod write_tests {
+    #[test]
+    fn private_folders_are_closed_and_new() {
+        use std::os::unix::fs::PermissionsExt;
+        let a = PrivateDir::new("sanaga-test").unwrap();
+        let b = PrivateDir::new("sanaga-test").unwrap();
+        assert_ne!(a.path(), b.path());
+        let mode = std::fs::metadata(a.path()).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
+        let kept = a.path().to_path_buf();
+        drop(a);
+        assert!(!kept.exists());
+    }
+
     #[test]
     fn atomic_write_replaces_the_file_and_leaves_no_copy() {
         let dir = std::env::temp_dir().join(format!("sanaga-atomic-{}", std::process::id()));
