@@ -50,6 +50,74 @@ impl Sanaga {
         if self.window_buttons_in() == super::layout::WindowButtonsIn::TabRow {
             left = window_buttons(ui, full.left() + 18.0, cy) + 14.0;
         }
+        // the group shown, at the start of the bar, when there are groups:
+        // its menu switches group, makes one, or shows them all in the sidebar
+        if self.groups.len() > 1 {
+            let g = self.current_group;
+            let name = if g == 0 { tr("Onglets").to_string() } else { self.group_label(g) };
+            let gal = ui.painter().layout_no_wrap(name.clone(), FontId::new(12.5, bold()), th.text);
+            let cw = (gal.size().x + 54.0).min(210.0);
+            let chip = Rect::from_min_size(pos2(left, cy - TRACK_H / 2.0), vec2(cw, TRACK_H));
+            let cresp = ui.interact(chip, egui::Id::new("tabbar-group"), Sense::click());
+            ui.painter().rect_filled(chip, CornerRadius::same((TRACK_H / 2.0) as u8), if cresp.hovered() { th.track.gamma_multiply(1.6) } else { th.track });
+            let dot = pos2(chip.left() + 14.0, cy);
+            if g == 0 {
+                icons::paint(ui.painter(), Rect::from_center_size(dot, vec2(12.0, 12.0)), Icon::Grid, th.accent);
+            } else {
+                ui.painter().rect_filled(Rect::from_center_size(dot, vec2(11.0, 11.0)), CornerRadius::same(3), self.group_color(g));
+            }
+            ui.painter().with_clip_rect(chip.shrink2(vec2(24.0, 0.0))).galley(pos2(chip.left() + 26.0, cy - gal.size().y / 2.0), gal, th.text);
+            icons::paint(ui.painter(), Rect::from_center_size(pos2(chip.right() - 12.0, cy), vec2(9.0, 9.0)), Icon::Down, th.sub);
+            let mut pick: Option<usize> = None;
+            let mut make = false;
+            let mut sidebar = false;
+            cresp.tip(tr("Groupe d'onglets")).menu_on_press(|ui| {
+                ui.set_min_width(230.0);
+                for k in 0..self.groups.len() {
+                    let label = if k == 0 { tr("Onglets").to_string() } else { self.group_label(k) };
+                    let n = self.tabs.iter().filter(|t| t.group == k && !t.pinned).count();
+                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width().max(220.0), 28.0), Sense::click());
+                    let accent = ui.visuals().selection.stroke.color;
+                    if resp.hovered() {
+                        ui.painter().rect_filled(r, CornerRadius::same(6), accent);
+                    }
+                    let col = if resp.hovered() { Color32::WHITE } else { ui.visuals().text_color() };
+                    if k == g {
+                        ui.painter().text(pos2(r.left() + 10.0, r.center().y), Align2::LEFT_CENTER, "✓", FontId::proportional(12.0), col);
+                    }
+                    if k == 0 {
+                        icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 30.0, r.center().y), vec2(12.0, 12.0)), Icon::Grid, col);
+                    } else {
+                        ui.painter().rect_filled(Rect::from_center_size(pos2(r.left() + 30.0, r.center().y), vec2(11.0, 11.0)), CornerRadius::same(3), self.group_color(k));
+                    }
+                    ui.painter().text(pos2(r.left() + 44.0, r.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), col);
+                    ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, n.to_string(), FontId::proportional(12.0), if resp.hovered() { Color32::WHITE } else { th.sub });
+                    if resp.clicked() {
+                        pick = Some(k);
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                if super::sidebar::menu_item(ui, Icon::Plus, tr("Nouveau groupe d'onglets")) {
+                    make = true;
+                }
+                if super::sidebar::menu_item(ui, Icon::Sidebar, tr("Afficher les groupes dans la barre latérale")) {
+                    sidebar = true;
+                }
+            });
+            if let Some(k) = pick {
+                self.switch_group(k);
+            }
+            if make {
+                self.new_group("");
+                self.sidebar_open = true;
+                self.group_renaming = Some(self.groups.len() - 1);
+            }
+            if sidebar {
+                self.sidebar_open = true;
+            }
+            left = chip.right() + 6.0;
+        }
         let plus_d = TRACK_H;
         // the tabs shown: pinned first, a folded group keeps only the tab shown
         let order = self.strip_tabs();
@@ -151,7 +219,9 @@ impl Sanaga {
             let tab = &self.tabs[i];
             let resp = ui.interact(rect, ui.id().with(("tab", tab.id)), Sense::click_and_drag());
             let active = i == self.active;
-            let hovered = resp.hovered();
+            // (by position: the close button over the tab must not hide itself
+            // by taking the hover from the tab)
+            let hovered = ui.rect_contains_pointer(rect) && !ui.ctx().is_being_dragged(resp.id) && ui.ctx().dragged_id().is_none();
             let tth = theme(self.store.settings.dark, tab.private);
             let pill = rect.shrink(PILL_INSET);
             let p = ui.painter();

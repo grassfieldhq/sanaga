@@ -120,66 +120,6 @@ impl Sanaga {
         self.apply_go(go);
     }
 
-    pub(super) fn page_bookmarks(&mut self, ui: &mut Ui, th: &Theme) {
-        let mut go: Option<(String, bool)> = None;
-        let mut remove: Option<usize> = None;
-        let mut import: Option<std::path::PathBuf> = None;
-        let mut pick_file = false;
-        let sources = crate::import::chrome_family_sources();
-        let mut open_import = false;
-        let store = &self.store;
-        centered_column(ui, |ui| {
-            page_title(ui, th, tr("Favoris"));
-            // import from another browser
-            ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(tr("Importer :")).size(13.0).color(th.sub));
-                for (name, path) in &sources {
-                    if ui.button(tf("depuis {}", &[name])).clicked() {
-                        import = Some(path.clone());
-                    }
-                }
-                if ui.button(tr("un fichier HTML (Firefox, Safari…)")).clicked() {
-                    pick_file = true;
-                }
-                if ui.link(tr("Importer depuis un autre navigateur (Chrome, Firefox…)")).clicked() {
-                    open_import = true;
-                }
-            });
-            ui.add_space(10.0);
-            if store.bookmarks.is_empty() {
-                ui.label(RichText::new(tr("Cliquez sur l'étoile de la barre d'adresse pour ajouter une page.")).color(th.sub));
-            }
-            for (i, b) in store.bookmarks.iter().enumerate() {
-                list_row(ui, th, &b.url, &b.title, "", &mut go, &mut remove, i);
-            }
-        });
-        if let Some(i) = remove {
-            self.store.bookmarks.remove(i);
-            self.store.save_bookmarks();
-        }
-        if open_import {
-            self.navigate(self.active, "sanaga://import".into(), None, true);
-        }
-        if pick_file {
-            import = self.choose_file(tr("Importer des favoris (fichier HTML)"), &["*.html", "*.htm"], tr("Favoris (HTML)"));
-        }
-        if let Some(path) = import {
-            let text = std::fs::read_to_string(&path).unwrap_or_default();
-            let found = if text.trim_start().starts_with('{') { crate::import::parse_chrome(&text) } else { crate::import::parse_html(&text) };
-            let mut added = 0;
-            for (url, title) in found {
-                if !self.store.is_bookmarked(&url) {
-                    let title = if title.trim().is_empty() { url.clone() } else { title };
-                    self.store.bookmarks.push(crate::store::Bookmark { url, title });
-                    added += 1;
-                }
-            }
-            self.store.save_bookmarks();
-            self.notice = Some((tf("Favoris importés : {}", &[&added]), ui.input(|i| i.time)));
-        }
-        self.apply_go(go);
-    }
-
     /// The system's file picker (GTK), when WebKit/GTK is running.
     pub(super) fn choose_file(&mut self, title: &str, patterns: &[&str], filter_name: &str) -> Option<std::path::PathBuf> {
         use gtk::prelude::*;

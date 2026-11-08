@@ -14,6 +14,8 @@ mod pages;
 mod settings;
 mod layout;
 mod tabbar;
+mod sidebar;
+mod bookmarks;
 mod intelligence;
 mod extras;
 mod importer;
@@ -357,7 +359,6 @@ pub struct Sanaga {
     group_collapsed: Vec<bool>,
     /// Group whose name field should take the keyboard (just created).
     group_editing: Option<usize>,
-    new_group_name: String,
     /// Tab overview (all tabs as thumbnails).
     overview_open: bool,
     share_open: bool,
@@ -392,6 +393,19 @@ pub struct Sanaga {
     settings_back: Vec<settings::Section>,
     settings_fwd: Vec<settings::Section>,
     settings_confirm: Option<f64>,
+    /// Sidebar: its search, the group being renamed in place.
+    sidebar_filter: String,
+    group_renaming: Option<usize>,
+    /// Favourites: the one edited in place (name, address), the one just
+    /// removed (to undo), the star's bubble (open, name typed), the search
+    /// of the Favourites page, the row being dragged.
+    bm_editing: Option<usize>,
+    bm_edit: (String, String),
+    bm_undo: Option<(usize, crate::store::Bookmark, f64)>,
+    bm_popover: bool,
+    bm_pop_title: String,
+    bm_filter: String,
+    bm_drag: Option<usize>,
     pw_shown: Option<(usize, String)>,
     new_profile_name: String,
     web_context: Option<webkit2gtk::WebContext>,
@@ -593,7 +607,6 @@ impl Sanaga {
             group_colors: Vec::new(),
             group_collapsed: Vec::new(),
             group_editing: None,
-            new_group_name: String::new(),
             overview_open: false,
             share_open: false,
             share_rect: Rect::NOTHING,
@@ -618,6 +631,15 @@ impl Sanaga {
             settings_back: Vec::new(),
             settings_fwd: Vec::new(),
             settings_confirm: None,
+            sidebar_filter: String::new(),
+            group_renaming: None,
+            bm_editing: None,
+            bm_edit: (String::new(), String::new()),
+            bm_undo: None,
+            bm_popover: false,
+            bm_pop_title: String::new(),
+            bm_filter: String::new(),
+            bm_drag: None,
             pw_shown: None,
             new_profile_name: String::new(),
             web_context,
@@ -1155,6 +1177,12 @@ impl Sanaga {
             self.quit_app();
         }
         self.update_find();
+        // the group shown is the one of the tab shown (Safari's tab groups)
+        if let Some(t) = self.tabs.get(self.active) {
+            if !t.pinned {
+                self.current_group = t.group;
+            }
+        }
         let th = self.theme();
         let base_th = theme(self.store.settings.dark, false);
         let ctx = ui.ctx().clone();
@@ -1187,9 +1215,9 @@ impl Sanaga {
         }
         if self.sidebar_open {
             egui::Panel::left("sidebar")
-                .default_size(250.0)
-                .size_range(180.0..=420.0)
-                .frame(Frame::NONE.fill(th.sidebar))
+                .exact_size(264.0)
+                .show_separator_line(false)
+                .frame(Frame::NONE.fill(th.page))
                 .show(ui, |ui| {
                     self.sidebar(ui, &th);
                 });
@@ -1210,6 +1238,8 @@ impl Sanaga {
         self.share_popover(&ctx, &th);
         self.tab_search(&ctx, &th);
         self.show_notice(&ctx, content, &th);
+        self.undo_bar(&ctx, content, &th);
+        self.star_popover(&ctx, &th);
         let t_sync = std::time::Instant::now();
         self.sync_web(content);
         let sync_ms = t_sync.elapsed().as_secs_f64() * 1000.0;

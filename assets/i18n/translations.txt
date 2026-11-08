@@ -664,3 +664,27 @@ Historique effacé.⟂History cleared.⟂Historial borrado.⟂Histórico limpo.�
 Onglets précédents⟂Previous tabs⟂Pestañas anteriores⟂Separadores anteriores⟂Vorherige Tabs
 Onglets suivants⟂Next tabs⟂Pestañas siguientes⟂Separadores seguintes⟂Nächste Tabs
 Tous les onglets — rechercher et choisir (Ctrl+Maj+A)⟂All tabs — search and pick (Ctrl+Shift+A)⟂Todas las pestañas — buscar y elegir (Ctrl+Mayús+A)⟂Todos os separadores — procurar e escolher (Ctrl+Shift+A)⟂Alle Tabs — suchen und wählen (Strg+Umschalt+A)
+Ajouté aux favoris⟂Added to Favourites⟂Añadido a favoritos⟂Adicionado aos favoritos⟂Zu Favoriten hinzugefügt
+OK⟂Done⟂Listo⟂OK⟂Fertig
+Importer…⟂Import…⟂Importar…⟂Importar…⟂Importieren…
+Depuis {}⟂From {}⟂Desde {}⟂De {}⟂Aus {}
+Un fichier HTML (Firefox, Safari…)⟂An HTML file (Firefox, Safari…)⟂Un archivo HTML (Firefox, Safari…)⟂Um ficheiro HTML (Firefox, Safari…)⟂Eine HTML-Datei (Firefox, Safari…)
+Aucun favori pour l'instant⟂No favourites yet⟂Aún no hay favoritos⟂Ainda não há favoritos⟂Noch keine Favoriten
+Aucun résultat⟂No results⟂Sin resultados⟂Sem resultados⟂Keine Ergebnisse
+Glisser pour déplacer⟂Drag to move⟂Arrastra para mover⟂Arraste para mover⟂Zum Verschieben ziehen
+Plus⟂More⟂Más⟂Mais⟂Mehr
+Modifier⟂Edit⟂Editar⟂Editar⟂Bearbeiten
+Double-cliquez pour renommer · glissez la poignée pour réordonner · clic droit pour plus d'actions⟂Double-click to rename · drag the handle to reorder · right-click for more actions⟂Doble clic para renombrar · arrastra el asa para reordenar · clic derecho para más acciones⟂Duplo clique para renomear · arraste a pega para reordenar · clique direito para mais ações⟂Doppelklick zum Umbenennen · am Griff ziehen zum Sortieren · Rechtsklick für mehr Aktionen
+Adresse copiée.⟂Address copied.⟂Dirección copiada.⟂Endereço copiado.⟂Adresse kopiert.
+Ouvrir⟂Open⟂Abrir⟂Abrir⟂Öffnen
+Copier l'adresse⟂Copy address⟂Copiar la dirección⟂Copiar o endereço⟂Adresse kopieren
+Modifier…⟂Edit…⟂Editar…⟂Editar…⟂Bearbeiten…
+Groupes d'onglets⟂Tab Groups⟂Grupos de pestañas⟂Grupos de separadores⟂Tabgruppen
+Afficher ce groupe⟂Show this group⟂Mostrar este grupo⟂Mostrar este grupo⟂Diese Gruppe zeigen
+Renommer⟂Rename⟂Renombrar⟂Renomear⟂Umbenennen
+Dissocier les onglets⟂Ungroup the tabs⟂Desagrupar las pestañas⟂Desagrupar os separadores⟂Tabs aus der Gruppe lösen
+Gérer les favoris⟂Manage favourites⟂Gestionar favoritos⟂Gerir favoritos⟂Favoriten verwalten
+Historique récent⟂Recent history⟂Historial reciente⟂Histórico recente⟂Letzter Verlauf
+« {} » retiré des favoris⟂“{}” removed from Favourites⟂«{}» quitado de favoritos⟂«{}» retirado dos favoritos⟂„{}“ aus Favoriten entfernt
+Groupe d'onglets⟂Tab group⟂Grupo de pestañas⟂Grupo de separadores⟂Tabgruppe
+Afficher les groupes dans la barre latérale⟂Show the groups in the sidebar⟂Mostrar los grupos en la barra lateral⟂Mostrar os grupos na barra lateral⟂Gruppen in der Seitenleiste zeigen

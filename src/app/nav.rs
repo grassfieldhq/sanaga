@@ -42,9 +42,8 @@ impl Sanaga {
             reader: false,
             reader_skip: Vec::new(),
             pinned: false,
-            // new empty tabs start outside groups (Chrome); pages opened from a
-            // grouped tab join its group
-            group: if url.starts_with("sanaga://newtab") { 0 } else { self.current_group },
+            // a new tab joins the group shown (Safari's tab groups)
+            group: self.current_group,
             muted: false,
             audio: false,
             thumb: None,
@@ -591,7 +590,11 @@ impl Sanaga {
                 "back" => self.go_history(a, -1),
                 "fwd" => self.go_history(a, 1),
                 "home" => self.go_home(a),
-                "bookmark" => self.toggle_bookmark(),
+                "bookmark" => {
+                    // Ctrl+D: as a click on the star (add, then name it in the bubble)
+                    let star = self.ctx.data(|d| d.get_temp::<Rect>(egui::Id::new("star-rect"))).unwrap_or(Rect::NOTHING);
+                    self.star_clicked(star);
+                }
                 "reader" => self.toggle_reader(a),
                 "overview" => self.toggle_overview(),
                 "contacts" => self.fill_contacts(),

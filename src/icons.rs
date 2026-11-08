@@ -42,6 +42,9 @@ pub enum Icon {
     Record,
     Sparkle,
     Puzzle,
+    Pencil,
+    More,
+    Folder,
 }
 
 pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
@@ -190,6 +193,25 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             };
             star(c.x - s * 0.15, c.y + s * 0.12, s * 0.78);
             star(c.x + s * 0.62, c.y - s * 0.6, s * 0.32);
+        }
+        Icon::Pencil => {
+            let w = Stroke::new(st.width * 0.9, color);
+            let a = pos2(c.x - s * 0.7, c.y + s * 0.7);
+            let b = pos2(c.x + s * 0.45, c.y - s * 0.45);
+            p.line_segment([a, b], Stroke::new(st.width * 2.2, color));
+            p.line_segment([pos2(b.x + s * 0.12, b.y - s * 0.12), pos2(b.x + s * 0.3, b.y - s * 0.3)], Stroke::new(st.width * 2.2, color));
+            p.line_segment([pos2(a.x - s * 0.08, a.y + s * 0.08), pos2(a.x + s * 0.25, a.y + s * 0.02)], w);
+        }
+        Icon::More => {
+            for k in [-1.0f32, 0.0, 1.0] {
+                p.circle_filled(pos2(c.x + k * s * 0.62, c.y), s * 0.16, color);
+            }
+        }
+        Icon::Folder => {
+            let w = Stroke::new(st.width * 0.9, color);
+            let r = Rect::from_center_size(pos2(c.x, c.y + s * 0.08), vec2(s * 1.7, s * 1.25));
+            p.rect_stroke(r, s * 0.18, w, egui::StrokeKind::Middle);
+            p.line_segment([pos2(r.left(), r.top() + s * 0.32), pos2(r.right(), r.top() + s * 0.32)], w);
         }
         Icon::Puzzle => {
             let w = Stroke::new(st.width * 0.9, color);

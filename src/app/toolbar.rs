@@ -1,10 +1,10 @@
 //! Safari-style top of the window: window buttons, sidebar toggle, back/forward,
 //! a centred address field, the tab bar below, and the sidebar.
 
-use super::chrome::{select_all, site_badge};
+use super::chrome::select_all;
 use super::*;
 use crate::icons::{self, Icon};
-use eframe::egui::{Align, Align2, Color32, Response, RichText, ScrollArea, Sense, TextEdit};
+use eframe::egui::{Align, Align2, Color32, Response, RichText, Sense, TextEdit};
 
 /// A toolbar button inside a capsule (macOS 27): a soft round highlight on
 /// hover, the accent colour when switched on.
@@ -111,13 +111,6 @@ pub(super) fn window_buttons(ui: &mut Ui, x: f32, cy: f32) -> f32 {
     }
     x + 47.0
 }
-enum GroupAction {
-    New(String),
-    Switch(usize),
-    Rename(usize, String),
-    Close(usize),
-}
-
 /// The name of a toolbar button, as shown in the settings and menus.
 pub(super) fn toolbar_button_label(key: &str) -> &str {
     match key {
@@ -392,6 +385,7 @@ impl Sanaga {
 
         // bookmark star on the left, reload / stop on the right
         let star_r = Rect::from_center_size(pos2(rect.left() + 18.0, rect.center().y), vec2(24.0, 24.0));
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("star-rect"), star_r));
         if is_ntp {
             icons::paint(ui.painter(), star_r.shrink(6.0), Icon::Search, th.sub);
         } else if (url.starts_with("sanaga://") && url != "sanaga://welcome") || !self.tb("star") {
@@ -406,7 +400,7 @@ impl Sanaga {
             let (icon, col) = if bookmarked { (Icon::StarFilled, th.accent) } else { (Icon::Star, th.sub) };
             icons::paint(ui.painter(), star_r.shrink(5.0), icon, if sresp.hovered() && !bookmarked { th.text } else { col });
             if sresp.clicked() {
-                self.toggle_bookmark();
+                self.star_clicked(star_r);
             }
         }
         let mut text_right = rect.right() - 6.0;
@@ -564,165 +558,6 @@ impl Sanaga {
     pub(super) fn toolbar_menu(&mut self, ui: &mut Ui) {
         if toolbar_checkboxes(ui, &mut self.store.settings.toolbar) {
             self.store.save_settings();
-        }
-    }
-
-    /// Sidebar with bookmarks and recent history.
-    pub(super) fn sidebar(&mut self, ui: &mut Ui, th: &Theme) {
-        let mut go: Option<(String, bool)> = None;
-        let mut open_page: Option<&'static str> = None;
-        let mut remove_reading: Option<String> = None;
-        let mut group_action: Option<GroupAction> = None;
-        ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-            ui.add_space(10.0);
-            let section = |ui: &mut Ui, title: &str| {
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(16.0);
-                    ui.label(RichText::new(title).size(11.0).family(bold()).color(th.sub));
-                });
-                ui.add_space(2.0);
-            };
-            let row = |ui: &mut Ui, url: &str, title: &str, go: &mut Option<(String, bool)>| {
-                let w = ui.available_width();
-                let (r, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::click());
-                let r2 = r.shrink2(vec2(8.0, 1.0));
-                if resp.hovered() {
-                    ui.painter().rect_filled(r2, CornerRadius::same(6), th.omnibox_hover);
-                }
-                site_badge(ui.painter(), pos2(r2.left() + 14.0, r.center().y), 7.0, url, title);
-                let clip = Rect::from_min_max(pos2(r2.left() + 28.0, r.top()), pos2(r2.right() - 6.0, r.bottom()));
-                let t = if title.is_empty() { url } else { title };
-                ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
-                let resp = resp.tip(url);
-                if resp.middle_clicked() || (resp.clicked() && ui.input(|i| i.modifiers.command)) {
-                    *go = Some((url.to_string(), true));
-                } else if resp.clicked() {
-                    *go = Some((url.to_string(), false));
-                }
-                r
-            };
-            section(ui, tr("LISTE DE LECTURE"));
-            if self.store.reading.is_empty() {
-                egui::Frame::new().inner_margin(egui::Margin { left: 16, right: 12, top: 0, bottom: 0 }).show(ui, |ui| {
-                    ui.add(egui::Label::new(RichText::new(tr("Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).")).size(12.0).color(th.sub)).wrap());
-                });
-            }
-            for b in &self.store.reading {
-                let r = row(ui, &b.url, &b.title, &mut go);
-                if ui.rect_contains_pointer(r) {
-                    let xr = Rect::from_center_size(pos2(r.right() - 22.0, r.center().y), vec2(20.0, 20.0));
-                    let xresp = ui.interact(xr, egui::Id::new(("rl-rm", &b.url)), Sense::click());
-                    ui.painter().rect_filled(xr, CornerRadius::same(5), if xresp.hovered() { th.border } else { th.sidebar });
-                    icons::paint(ui.painter(), xr.shrink(5.0), Icon::Close, th.sub);
-                    if xresp.tip(tr("Retirer de la liste de lecture")).clicked() {
-                        remove_reading = Some(b.url.clone());
-                    }
-                }
-            }
-            section(ui, tr("GROUPES D'ONGLETS"));
-            let mut switch: Option<usize> = None;
-            let mut rename: Option<(usize, String)> = None;
-            for g in 0..self.groups.len() {
-                let n = self.tabs.iter().filter(|t| t.group == g).count();
-                let w = ui.available_width();
-                let (r, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::click());
-                let r2 = r.shrink2(vec2(8.0, 1.0));
-                let current = g == self.current_group;
-                if current {
-                    ui.painter().rect_filled(r2, CornerRadius::same(6), th.accent.gamma_multiply(0.18));
-                } else if resp.hovered() {
-                    ui.painter().rect_filled(r2, CornerRadius::same(6), th.omnibox_hover);
-                }
-                if g == 0 {
-                    icons::paint(ui.painter(), Rect::from_center_size(pos2(r2.left() + 14.0, r.center().y), vec2(13.0, 13.0)), Icon::Grid, if current { th.accent } else { th.sub });
-                } else {
-                    ui.painter().circle_filled(pos2(r2.left() + 14.0, r.center().y), 5.5, self.group_color(g));
-                }
-                ui.painter().text(pos2(r2.left() + 28.0, r.center().y), Align2::LEFT_CENTER, self.group_label(g), FontId::proportional(13.0), th.text);
-                ui.painter().text(pos2(r2.right() - 6.0, r.center().y), Align2::RIGHT_CENTER, n.to_string(), FontId::proportional(12.0), th.sub);
-                if resp.clicked() {
-                    switch = Some(g);
-                }
-                if g > 0 {
-                    resp.menu_on_press(|ui| {
-                        if ui.button(tr("Renommer avec le nom saisi ci-dessous")).clicked() && !self.new_group_name.trim().is_empty() {
-                            rename = Some((g, self.new_group_name.trim().to_string()));
-                            ui.close();
-                        }
-                        if ui.button(tr("Fermer le groupe et ses onglets")).clicked() {
-                            rename = Some((g, String::new()));
-                            ui.close();
-                        }
-                    });
-                }
-            }
-            let mut create = false;
-            ui.horizontal(|ui| {
-                ui.add_space(14.0);
-                let resp = ui.add(egui::TextEdit::singleline(&mut self.new_group_name).hint_text(tr("Nom du nouveau groupe")).desired_width(ui.available_width() - 60.0));
-                if (resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) | ui.button("+").tip(tr("Nouveau groupe d'onglets")).clicked() {
-                    create = true;
-                }
-            });
-            if create {
-                let name = std::mem::take(&mut self.new_group_name);
-                group_action = Some(GroupAction::New(name));
-            } else if let Some((g, name)) = rename {
-                group_action = Some(if name.is_empty() { GroupAction::Close(g) } else { GroupAction::Rename(g, name) });
-            } else if let Some(g) = switch {
-                group_action = Some(GroupAction::Switch(g));
-            }
-            section(ui, tr("FAVORIS"));
-            for b in &self.store.bookmarks {
-                row(ui, &b.url, &b.title, &mut go);
-            }
-            section(ui, tr("HISTORIQUE RÉCENT"));
-            let mut seen = HashSet::new();
-            for v in self.store.history.iter().rev() {
-                if seen.len() >= 15 {
-                    break;
-                }
-                if seen.insert(v.url.clone()) {
-                    row(ui, &v.url, &v.title, &mut go);
-                }
-            }
-            if self.store.history.is_empty() {
-                ui.horizontal(|ui| {
-                    ui.add_space(16.0);
-                    ui.label(RichText::new(tr("Aucune page visitée")).size(12.5).color(th.sub));
-                });
-            }
-            ui.add_space(12.0);
-            for (label, page) in [(tr("Tout l'historique"), "sanaga://history"), (tr("Téléchargements"), "sanaga://downloads"), (tr("Paramètres"), "sanaga://settings")] {
-                ui.horizontal(|ui| {
-                    ui.add_space(16.0);
-                    if ui.link(RichText::new(label).size(12.5).color(th.accent)).clicked() {
-                        open_page = Some(page);
-                    }
-                });
-            }
-        });
-        match group_action {
-            Some(GroupAction::New(name)) => self.new_group(&name),
-            Some(GroupAction::Switch(g)) => {
-                self.overview_open = false;
-                self.switch_group(g);
-            }
-            Some(GroupAction::Rename(g, name)) => {
-                self.groups[g] = name;
-                self.save_session();
-            }
-            Some(GroupAction::Close(g)) => self.close_group(g),
-            None => {}
-        }
-        if let Some(u) = remove_reading {
-            self.store.reading.retain(|b| b.url != u);
-            self.store.save_reading();
-        }
-        self.apply_go(go);
-        if let Some(p) = open_page {
-            self.navigate(self.active, p.to_string(), None, true);
         }
     }
 }

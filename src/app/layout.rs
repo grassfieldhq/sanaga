@@ -226,7 +226,7 @@ impl Sanaga {
                 } else {
                     site_badge(ui.painter(), ic, 8.0, tab.url(), &title);
                 }
-                let show_close = active || resp.hovered();
+                let show_close = active || ui.rect_contains_pointer(r);
                 let text_right = r.right() - if show_close { 30.0 } else { 10.0 };
                 let clip = Rect::from_min_max(pos2(ic.x + 14.0, r.top()), pos2(text_right, r.bottom()));
                 ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, &title, FontId::proportional(13.0), if active { th.text } else { th.text.gamma_multiply(0.85) });

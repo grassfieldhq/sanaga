@@ -81,7 +81,10 @@ impl Sanaga {
     /// The tabs shown in the tab bar (a folded group shows only its label;
     /// the shown tab always stays visible).
     pub(super) fn strip_tabs(&self) -> Vec<usize> {
-        self.visible_tabs().into_iter().filter(|&i| i == self.active || !self.group_folded(self.tabs[i].group)).collect()
+        // Safari's tab groups: the tab bar shows the group of the tab shown
+        // (and the pinned tabs, in every group)
+        let g = self.tabs.get(self.active).filter(|t| !t.pinned).map(|t| t.group).unwrap_or(self.current_group);
+        self.visible_tabs().into_iter().filter(|&i| i == self.active || self.tabs[i].pinned || self.tabs[i].group == g).collect()
     }
 
     /// A group's name for lists ("Groupe 2" when it has none).
