@@ -3191,6 +3191,7 @@ dependencies = [
  "gtk4",
  "hmac",
  "image",
+ "libc",
  "libloading",
  "pbkdf2",
  "percent-encoding",

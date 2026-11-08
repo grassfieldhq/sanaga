@@ -31,6 +31,9 @@ hmac = "0.12"
 sha1 = "0.10"
 # extensions from other browsers (.xpi, .crx, .zip)
 flate2 = "1"
+# file flags (O_NOFOLLOW), the download mark (extended attributes) and the
+# single-instance socket's peer check (already built for other crates)
+libc = "0.2"
 
 # The window and the web engine: GTK 4 + WebKitGTK 6, on Linux and the BSDs.
 # (On Windows and macOS the build stops with a clear message: docs/PORTING.md.)

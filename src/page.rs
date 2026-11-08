@@ -56,6 +56,8 @@ thread_local! {
     static NO_FONTS: RefCell<Option<webkit6::UserContentFilter>> = const { RefCell::new(None) };
     /// The open pages (to give them the blocker once it is ready).
     static VIEWS: RefCell<Vec<gtk::glib::WeakRef<WebView>>> = const { RefCell::new(Vec::new()) };
+    /// Download names picked whose files are not created yet.
+    static RESERVED: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
 }
 
 /// The blocker is ready: the pages already open get it (from their next request).
@@ -156,16 +158,39 @@ fn report_download(url: String, path: Option<PathBuf>, ok: bool) {
 
 /// Follow the downloads of this engine (once, whatever the number of windows),
 /// and of private tabs.
-pub fn follow_downloads(engine: &Engine, pick: impl Fn(&str) -> PathBuf + 'static) {
-    let pick = Rc::new(pick);
+pub fn follow_downloads(engine: &Engine) {
     for session in [engine.session.clone(), private_session()] {
         let known = WATCHED.with(|w| w.borrow().contains(&session));
         if !known {
             WATCHED.with(|w| w.borrow_mut().push(session.clone()));
-            let p = pick.clone();
-            watch_downloads(&session, move |u| p(u), report_download);
+            watch_downloads(&session, report_download);
         }
     }
+}
+
+/// A download name picked but whose file WebKit has not created yet: no
+/// other download may take it meanwhile.
+fn is_reserved(p: &Path) -> bool {
+    RESERVED.with(|r| r.borrow().iter().any(|x| x == p))
+}
+
+fn reserve(p: &Path) {
+    RESERVED.with(|r| r.borrow_mut().push(p.to_path_buf()));
+}
+
+fn release(p: &Path) {
+    RESERVED.with(|r| r.borrow_mut().retain(|x| x != p));
+}
+
+/// Where a download goes: the Downloads folder, under a safe, free name
+/// made from WebKit's suggestion. WebKit creates the file only if nothing
+/// is there (it never replaces a file).
+fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str) -> PathBuf {
+    let path = crate::net::download_destination(suggested, uri, is_reserved);
+    reserve(&path);
+    download.set_allow_overwrite(false);
+    download.set_destination(&path.to_string_lossy());
+    path
 }
 
 /// The engine of a profile folder (made once, then shared by the windows).
@@ -247,8 +272,7 @@ pub fn enable_spell_checking(ctx: &WebContext) {
 }
 
 /// Where downloads go, and who is told when one ends.
-pub fn watch_downloads(session: &NetworkSession, pick: impl Fn(&str) -> PathBuf + 'static, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
-    let pick = Rc::new(pick);
+pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
     let done = Rc::new(done);
     session.connect_download_started(move |_, download| {
         if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
@@ -256,11 +280,10 @@ pub fn watch_downloads(session: &NetworkSession, pick: impl Fn(&str) -> PathBuf 
         }
         let failed = Rc::new(RefCell::new(false));
         let dest: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
-        let (pick, d2) = (pick.clone(), dest.clone());
-        download.connect_decide_destination(move |download, _suggested| {
+        let d2 = dest.clone();
+        download.connect_decide_destination(move |download, suggested| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
-            let path = pick(&uri);
-            download.set_destination(&path.to_string_lossy());
+            let path = choose_destination(download, suggested, &uri);
             *d2.borrow_mut() = Some(path);
             true
         });
@@ -274,7 +297,11 @@ pub fn watch_downloads(session: &NetworkSession, pick: impl Fn(&str) -> PathBuf 
         let done = done.clone();
         download.connect_finished(move |download| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
-            done(uri, dest.borrow().clone(), !*failed.borrow());
+            let path = dest.borrow().clone();
+            if let Some(p) = &path {
+                release(p);
+            }
+            done(uri, path, !*failed.borrow());
         });
     });
 }

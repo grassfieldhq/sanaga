@@ -162,7 +162,7 @@ impl PageMaker {
         let base = self.base.as_ref()?;
         let safe: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
         let e = crate::page::profile_context(&base.join("containers").join(safe));
-        crate::page::follow_downloads(&e, net::download_path_for);
+        crate::page::follow_downloads(&e);
         Some(e)
     }
 
@@ -357,7 +357,8 @@ impl Sanaga {
             }
             WebEvent::Privacy(list) => self.privacy = list,
             WebEvent::DownloadDone { url, path, ok } => {
-                let path = path.unwrap_or_else(|| net::download_path_for(&url));
+                // (a download that never got a place: only its address is known)
+                let path = path.unwrap_or_else(|| net::download_dir().join(net::safe_download_name(url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).unwrap_or(""))));
                 let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
                 let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| tr("téléchargement").into());
                 let error = if ok { String::new() } else { tr("le téléchargement n'a pas abouti").into() };

@@ -607,7 +607,7 @@ impl Sanaga {
                 None => crate::page::ephemeral_engine(),
             };
             let (t, r) = (web_tx.clone(), egui_ctx.clone());
-            crate::page::follow_downloads(&c, net::download_path_for);
+            crate::page::follow_downloads(&c);
             crate::page::add_download_sink(slot, move |url, path, ok| {
                 let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
                 r.request_repaint();

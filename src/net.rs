@@ -5,7 +5,7 @@ use crate::i18n::{tf, tr};
 use eframe::egui;
 use crate::html::{self, Document};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::time::Duration;
@@ -64,33 +64,115 @@ pub fn download_dir() -> PathBuf {
     p
 }
 
-/// Where a download from `url` is saved (a new name if the file already exists).
-pub fn download_path_for(url: &str) -> PathBuf {
-    let name = url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).filter(|s| !s.is_empty()).unwrap_or("telechargement");
-    let name = percent_decode(name);
-    unique_path(&download_dir(), &name)
+/// The extensions the desktop treats as programs or services: a download
+/// with one of them gets ".download" added, so opening it never runs it.
+const INERT_EXTENSIONS: [&str; 9] = ["desktop", "service", "socket", "timer", "path", "mount", "automount", "target", "directory"];
+
+/// Longest file name kept (in bytes; file systems allow 255).
+const MAX_NAME: usize = 200;
+
+/// Characters that change the direction of the text: they can make
+/// "photo\u{202E}gpj.exe" look like "photoexe.jpg".
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{200E}' | '\u{200F}' | '\u{061C}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
 }
 
-fn percent_decode(s: &str) -> String {
-    url::form_urlencoded::parse(format!("x={}", s.replace('+', "%2B")).as_bytes()).next().map(|(_, v)| v.into_owned()).unwrap_or_else(|| s.to_string())
-}
-
-pub fn unique_path(dir: &std::path::Path, name: &str) -> PathBuf {
-    let p = dir.join(name);
-    if !p.exists() {
-        return p;
-    }
-    let (stem, ext) = match name.rfind('.') {
+/// "name.ext" → ("name", ".ext"); a name without a dot (or starting with
+/// one) has no extension.
+fn split_ext(name: &str) -> (&str, &str) {
+    match name.rfind('.') {
         Some(i) if i > 0 => (&name[..i], &name[i..]),
         _ => (name, ""),
-    };
-    for n in 1..1000 {
+    }
+}
+
+/// A safe name for a downloaded file, from the name WebKit or the site
+/// suggests: percent-decoded, then only its last part (a "/" or "\" can
+/// never choose another folder), without control or direction-changing
+/// characters, without leading or trailing dots and spaces (no hidden
+/// file, no ".."), not too long, and made inert when the desktop could run
+/// it (.desktop, .service…).
+pub fn safe_download_name(suggested: &str) -> String {
+    let decoded = percent_encoding::percent_decode_str(suggested).decode_utf8_lossy();
+    let base = decoded.rsplit(['/', '\\']).next().unwrap_or("");
+    let cleaned: String = base.chars().filter(|c| !c.is_control()).map(|c| if is_bidi_control(c) { '_' } else { c }).collect();
+    let mut name = cleaned.trim_matches(|c: char| c == '.' || c.is_whitespace()).to_string();
+    if name.is_empty() {
+        name = "telechargement".into();
+    }
+    if name.len() > MAX_NAME {
+        let (stem, ext) = split_ext(&name);
+        let ext = if ext.len() <= 16 { ext.to_string() } else { String::new() };
+        let mut cut = MAX_NAME.saturating_sub(ext.len());
+        while cut > 0 && !stem.is_char_boundary(cut.min(stem.len())) {
+            cut -= 1;
+        }
+        name = format!("{}{ext}", &stem[..cut.min(stem.len())]);
+    }
+    let ext = split_ext(&name).1.trim_start_matches('.').to_ascii_lowercase();
+    if INERT_EXTENSIONS.contains(&ext.as_str()) {
+        name.push_str(".download");
+    }
+    name
+}
+
+/// A free place for `name` in `dir`: the name itself, else "name (2).ext",
+/// "name (3).ext"… Anything already there counts as taken, even a link
+/// pointing nowhere, and so do the names `taken` reserves (downloads that
+/// have not created their file yet).
+pub fn unique_path_with(dir: &Path, name: &str, taken: impl Fn(&Path) -> bool) -> PathBuf {
+    let free = |p: &Path| std::fs::symlink_metadata(p).is_err() && !taken(p);
+    let first = dir.join(name);
+    if free(&first) {
+        return first;
+    }
+    let (stem, ext) = split_ext(name);
+    for n in 2..10_000 {
         let p = dir.join(format!("{stem} ({n}){ext}"));
-        if !p.exists() {
+        if free(&p) {
             return p;
         }
     }
-    dir.join(name)
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    dir.join(format!("{stem} ({stamp}){ext}"))
+}
+
+pub fn unique_path(dir: &Path, name: &str) -> PathBuf {
+    unique_path_with(dir, name, |_| false)
+}
+
+/// Where a download is saved: in the Downloads folder, under a safe name
+/// made from `suggested` (WebKit's suggestion: the site's
+/// Content-Disposition, else the address), or from the address itself.
+pub fn download_destination(suggested: &str, url: &str, taken: impl Fn(&Path) -> bool) -> PathBuf {
+    let from_url = url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).unwrap_or("");
+    let raw = if suggested.trim().is_empty() { from_url } else { suggested };
+    unique_path_with(&download_dir(), &safe_download_name(raw), taken)
+}
+
+/// A file Sanaga saves itself in the Downloads folder (a page kept with
+/// Ctrl+S): a safe, free name.
+pub fn download_path_named(name: &str) -> PathBuf {
+    unique_path(&download_dir(), &safe_download_name(name))
+}
+
+/// Create a new file in the Downloads folder for a download Sanaga makes
+/// itself: a safe name, and the file is created only if nothing is there
+/// (never replacing a file, never following a link: O_CREAT | O_EXCL |
+/// O_NOFOLLOW).
+pub fn create_download(suggested: &str) -> std::io::Result<(std::fs::File, PathBuf)> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let dir = download_dir();
+    let name = safe_download_name(suggested);
+    for _ in 0..32 {
+        let path = unique_path(&dir, &name);
+        match std::fs::OpenOptions::new().write(true).create_new(true).custom_flags(libc::O_NOFOLLOW).open(&path) {
+            Ok(f) => return Ok((f, path)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::other("no free file name in the Downloads folder"))
 }
 
 pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egui::Context) {
@@ -156,11 +238,12 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                     .filter(|n| !n.is_empty())
                     .or_else(|| final_url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).filter(|s| !s.is_empty()).map(|s| s.to_string()))
                     .unwrap_or_else(|| "telechargement".into());
-                let name: String = name.chars().map(|c| if c == '/' || c == '\\' { '_' } else { c }).collect();
-                let path = unique_path(&download_dir(), &name);
-                let result = std::fs::File::create(&path)
-                    .and_then(|mut f| std::io::copy(&mut resp.into_reader(), &mut f))
-                    .map_err(|e| e.to_string());
+                // (a safe name, a new file: never one that was already there)
+                let (path, result) = match create_download(&name) {
+                    Ok((mut f, path)) => (path, std::io::copy(&mut resp.into_reader(), &mut f).map_err(|e| e.to_string())),
+                    Err(e) => (download_dir().join(safe_download_name(&name)), Err(e.to_string())),
+                };
+                let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(name);
                 let bytes = *result.as_ref().unwrap_or(&0);
                 let _ = tx.send(NetMsg::Download { tab, nav, name, path, bytes, result: result.map(|_| ()) });
                 ctx.request_repaint();
@@ -291,5 +374,69 @@ pub fn human_bytes(b: u64) -> String {
         tf("{} Ko", &[&(b / 1024)])
     } else {
         tf("{} o", &[&b])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn download_names_stay_in_the_folder() {
+        // an encoded "/" or "\" can't choose the folder: only the last part is kept
+        assert_eq!(safe_download_name("..%2F..%2F.config%2Fautostart%2Fevil.desktop"), "evil.desktop.download");
+        assert_eq!(safe_download_name("a%2F..%2F..%2Fx.txt"), "x.txt");
+        assert_eq!(safe_download_name("..\\..\\x.txt"), "x.txt");
+        assert_eq!(safe_download_name("../../.local/share/applications/app.desktop"), "app.desktop.download");
+        // no hidden file, no "..", never empty
+        assert_eq!(safe_download_name(".bashrc"), "bashrc");
+        assert_eq!(safe_download_name(".."), "telechargement");
+        assert_eq!(safe_download_name("..."), "telechargement");
+        assert_eq!(safe_download_name(""), "telechargement");
+        assert_eq!(safe_download_name(" . report.pdf . "), "report.pdf");
+    }
+
+    #[test]
+    fn download_names_lose_control_characters_and_runnable_extensions() {
+        assert_eq!(safe_download_name("in\u{0}voice\n.pdf"), "invoice.pdf");
+        assert_eq!(safe_download_name("in%00voice%0A.pdf"), "invoice.pdf");
+        // a direction change can't disguise the extension
+        assert_eq!(safe_download_name("photo\u{202E}gpj.exe"), "photo_gpj.exe");
+        // the desktop never runs what was downloaded
+        assert_eq!(safe_download_name("Setup.DESKTOP"), "Setup.DESKTOP.download");
+        assert_eq!(safe_download_name("x.service"), "x.service.download");
+        assert_eq!(safe_download_name("x.desktop."), "x.desktop.download");
+        assert_eq!(safe_download_name("x.desktop%20"), "x.desktop.download");
+        // ordinary names are kept as they are
+        assert_eq!(safe_download_name("Rapport annuel 2026.pdf"), "Rapport annuel 2026.pdf");
+        assert_eq!(safe_download_name("archive%20(1).tar.gz"), "archive (1).tar.gz");
+        assert_eq!(safe_download_name("été.txt"), "été.txt");
+    }
+
+    #[test]
+    fn long_download_names_are_cut_on_a_character() {
+        let long = format!("{}.pdf", "é".repeat(300));
+        let n = safe_download_name(&long);
+        assert!(n.len() <= MAX_NAME);
+        assert!(n.ends_with(".pdf"));
+        let long = "x".repeat(400);
+        assert_eq!(safe_download_name(&long).len(), MAX_NAME);
+    }
+
+    #[test]
+    fn downloads_never_replace_a_file() {
+        let dir = std::env::temp_dir().join(format!("sanaga-download-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(unique_path(&dir, "a.pdf"), dir.join("a.pdf"));
+        std::fs::write(dir.join("a.pdf"), b"x").unwrap();
+        assert_eq!(unique_path(&dir, "a.pdf"), dir.join("a (2).pdf"));
+        // a link pointing nowhere is taken too
+        std::os::unix::fs::symlink(dir.join("nowhere"), dir.join("b.txt")).unwrap();
+        assert_eq!(unique_path(&dir, "b.txt"), dir.join("b (2).txt"));
+        // names reserved by downloads in progress
+        let reserved = dir.join("c (2)");
+        assert_eq!(unique_path_with(&dir, "c", |p| p == dir.join("c") || p == reserved), dir.join("c (3)"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

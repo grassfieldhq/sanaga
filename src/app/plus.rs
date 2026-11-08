@@ -319,7 +319,7 @@ impl Sanaga {
         };
         let name: String = t.title().chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
         let name = if name.trim().is_empty() { "page".to_string() } else { name.trim().chars().take(80).collect() };
-        let path = net::download_path_for(&format!("https://x/{name}.mhtml"));
+        let path = net::download_path_named(&format!("{name}.mhtml"));
         let tx = self.web_tx.clone();
         let p2 = path.clone();
         w.webview().save_to_file(&webkit6::gio::File::for_path(&path), webkit6::SaveMode::Mhtml, None::<&webkit6::gio::Cancellable>, move |res| {
