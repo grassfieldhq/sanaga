@@ -334,7 +334,9 @@ pub fn profile_context(dir: &Path) -> Engine {
     if let Some(e) = ENGINES.with(|c| c.borrow().iter().find(|(d, _)| d == dir).map(|(_, e)| e.clone())) {
         return e;
     }
-    let _ = std::fs::create_dir_all(dir);
+    // cookies and site data: closed to other users (folder 0700, files 0600)
+    crate::store::ensure_private_dir(dir);
+    crate::store::close_files(dir);
     let d = dir.to_string_lossy().to_string();
     let session = NetworkSession::new(Some(&d), Some(&d));
     if let Some(cm) = session.cookie_manager() {

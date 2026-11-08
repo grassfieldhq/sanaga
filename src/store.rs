@@ -332,7 +332,10 @@ impl Store {
     pub fn load_profile(profile: &str) -> Store {
         let dir = if profile.is_empty() { Self::root_dir() } else { Self::root_dir().join("profils").join(profile) };
         let first_run = !dir.join("settings.txt").exists();
-        let _ = std::fs::create_dir_all(&dir);
+        // the person's data: closed to other users (folders 0700, files 0600)
+        ensure_private_dir(&Self::root_dir());
+        ensure_private_dir(&dir);
+        close_files(&dir);
         let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new(), containers: Vec::new(), buttons: Vec::new() };
         if let Ok(t) = std::fs::read_to_string(dir.join("containers.tsv")) {
             s.containers = t.lines().filter_map(|l| l.split_once('\t')).map(|(n, c)| Container { name: n.to_string(), color: c.parse().unwrap_or(1) }).collect();
@@ -547,7 +550,8 @@ impl Store {
         }
         let v = Visit { time: now(), url: url.to_string(), title: title.to_string() };
         if let Some(dir) = &self.dir {
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("history.tsv")) {
+            use std::os::unix::fs::OpenOptionsExt;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(dir.join("history.tsv")) {
                 let _ = writeln!(f, "{}\t{}\t{}", v.time, clean(&v.url), clean(&v.title));
                 changed();
             }
@@ -794,13 +798,46 @@ impl Drop for PrivateDir {
     }
 }
 
+/// A folder of Sanaga's data (history, sessions, cookies…): created if
+/// needed, and closed to other users (0700).
+pub fn ensure_private_dir(dir: &Path) {
+    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+    let _ = std::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir);
+    if let Ok(m) = std::fs::symlink_metadata(dir) {
+        if m.is_dir() && m.permissions().mode() & 0o077 != 0 {
+            let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+        }
+    }
+}
+
+/// The files of a data folder that earlier versions left readable by
+/// others: closed (0600). Links are left alone.
+pub fn close_files(dir: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for e in rd.flatten() {
+        // (the entry's own metadata: a link is not followed)
+        let Ok(m) = e.metadata() else { continue };
+        let mode = m.permissions().mode();
+        if m.is_file() && mode & 0o077 != 0 {
+            let _ = std::fs::set_permissions(e.path(), std::fs::Permissions::from_mode(mode & 0o700));
+        }
+    }
+}
+
 /// Write a data file safely: into a copy first, then put in place in one go,
 /// so a crash or power cut while writing never leaves a half-written file.
+/// The copy is a new file only this user can read (0600, never a file or
+/// link that was already there).
 pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);
-    std::fs::write(&tmp, data)?;
+    let _ = std::fs::remove_file(&tmp);
+    let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
+    f.write_all(data.as_ref())?;
+    drop(f);
     std::fs::rename(&tmp, path)?;
     // (each window has its own session file: no need to tell the others)
     if !path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("session")) {
@@ -868,6 +905,26 @@ pub fn day_group(t: u64) -> &'static str {
 
 #[cfg(test)]
 mod write_tests {
+    #[test]
+    fn data_files_and_folders_are_closed_to_others() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("sanaga-perms-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let inner = dir.join("profils").join("Travail");
+        ensure_private_dir(&inner);
+        assert_eq!(std::fs::metadata(&inner).unwrap().permissions().mode() & 0o777, 0o700);
+        let f = inner.join("session.txt");
+        super::write_atomic(&f, "https://a.example/").unwrap();
+        assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
+        // a file an earlier version left open is closed
+        let old = inner.join("history.tsv");
+        std::fs::write(&old, "x").unwrap();
+        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o644)).unwrap();
+        close_files(&inner);
+        assert_eq!(std::fs::metadata(&old).unwrap().permissions().mode() & 0o777, 0o600);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn private_folders_are_closed_and_new() {
         use std::os::unix::fs::PermissionsExt;

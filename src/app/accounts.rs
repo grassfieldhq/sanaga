@@ -405,7 +405,7 @@ impl Sanaga {
         if create {
             let name: String = self.new_profile_name.trim().chars().filter(|c| !matches!(c, '/' | '\\' | '\t' | '\n')).collect();
             if !name.is_empty() && name != "Personnel" {
-                let _ = std::fs::create_dir_all(crate::store::Store::root_dir().join("profils").join(&name));
+                crate::store::ensure_private_dir(&crate::store::Store::root_dir().join("profils").join(&name));
                 self.new_profile_name.clear();
                 open = Some(name);
             }

@@ -94,9 +94,10 @@ fn log_crashes() {
     let default = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
         let dir = store::Store::root_dir();
-        let _ = std::fs::create_dir_all(&dir);
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("crash.log")) {
+        store::ensure_private_dir(&dir);
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(dir.join("crash.log")) {
             let place = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_default();
             let what = info.payload().downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| info.payload().downcast_ref::<String>().cloned()).unwrap_or_default();
             let _ = writeln!(f, "[{}] Sanaga {} crashed at {place}: {what}", store::now(), env!("CARGO_PKG_VERSION"));
