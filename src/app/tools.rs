@@ -199,6 +199,7 @@ impl Sanaga {
             "zap-done" => self.zapped(tab, arg),
             "edit-text" => self.toggle_edit_text(),
             "site-settings" => self.site_panel = true,
+            "media-unsupported" => self.codec_flag = Some(tab),
             // test aid: what a page answered (SANAGA_LIVE_TEST probe:)
             "probe" => eprintln!("live probe {arg}"),
             _ => {}

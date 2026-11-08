@@ -76,6 +76,13 @@ Legend: ✅ works · 🔧 a fault was found and fixed in this review · ⚠️ k
 - Keyboard shortcuts against desktop-wide ones: only the shortcuts listed
   above were tried, to avoid opening the person's applications.
 
+## Video and music (November 2026)
+
+| Site | What it needs | Sanaga |
+|---|---|---|
+| YouTube, Vimeo, Twitch… | GStreamer decoders: H.264, AAC (gst-libav), AV1, Opus parser (gst-plugins-bad), VP9 (gst-plugins-good) | 🔧 **YouTube said "can't play this video" on this computer**: H.264, AAC, AV1 and the Opus parser were missing from the system. Sanaga now checks the decoders, shows a bar on video sites and installs them in one click (the system asks for the password); Settings › General › Video and music. |
+| Netflix, Disney+, Prime Video, Spotify web… | Widevine (Google's DRM) — not available to WebKitGTK at all | ⚠️ can't be played inside Sanaga. Sanaga opens them in the Spotify app or in a browser that has Widevine, as an app window, by itself when "Open protected sites in a compatible browser" is on. |
+
 ## Known limits
 
 - Right-to-left text in Sanaga's own Reader / summary (see above).

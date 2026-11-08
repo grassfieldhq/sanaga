@@ -119,7 +119,25 @@ pub struct Handoff {
     pub app: bool,
 }
 
-/// What is installed to play `service` (its app first, then browsers).
+/// Can this browser play Widevine-protected video? Chrome, Edge, Brave and
+/// Vivaldi bring it; Firefox downloads it by itself; Chromium only when the
+/// Widevine module is there.
+fn has_widevine(program: &str) -> bool {
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_default();
+    let exists = |p: &std::path::Path| p.exists();
+    match program {
+        "chromium" => {
+            exists(std::path::Path::new("/usr/lib/chromium/WidevineCdm"))
+                || exists(std::path::Path::new("/usr/lib/chromium/libwidevinecdm.so"))
+                || exists(std::path::Path::new("/usr/lib64/chromium/WidevineCdm"))
+                || exists(&home.join(".config/chromium/WidevineCdm"))
+        }
+        _ => true,
+    }
+}
+
+/// What is installed to play `service` (its app first, then browsers that
+/// have Widevine).
 pub fn handoffs(service: &str) -> Vec<Handoff> {
     let mut out = Vec::new();
     let has = |p: &str| std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|d| d.join(p).is_file()));
@@ -140,11 +158,17 @@ pub fn handoffs(service: &str) -> Vec<Handoff> {
         ("firefox", "Firefox"),
         ("zen-browser", "Zen"),
     ] {
-        if has(p) {
+        if has(p) && has_widevine(p) {
             out.push(Handoff { label: crate::i18n::tf("Ouvrir dans {}", &[&name]), program: p.into(), app: false });
         }
     }
     out
+}
+
+/// Chrome-family browsers open the page as an app window of its own (no
+/// tabs, no address bar: it looks like part of the desktop).
+fn chrome_family(program: &str) -> bool {
+    ["google-chrome-stable", "chromium", "brave", "vivaldi-stable", "microsoft-edge-stable"].contains(&program)
 }
 
 /// Open the page with that browser or app.
@@ -155,6 +179,10 @@ pub fn open_with(h: &Handoff, url: &str) {
         let path = url.split("open.spotify.com/").nth(1).unwrap_or("").split('?').next().unwrap_or("");
         let uri = format!("spotify:{}", path.replace('/', ":"));
         cmd.arg(format!("--uri={uri}"));
+    } else if !h.app && chrome_family(&h.program) {
+        cmd.arg(format!("--app={url}"));
+    } else if !h.app && h.program == "firefox" {
+        cmd.args(["--new-window", url]);
     } else if !h.app {
         cmd.arg(url);
     }

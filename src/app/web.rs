@@ -37,6 +37,15 @@ pub(super) enum WebEvent {
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
+/// A video or sound the engine can't decode (missing codecs): Sanaga offers them.
+const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
+  var t = e.target;
+  if (t && (t.tagName === 'VIDEO' || t.tagName === 'AUDIO' || t.tagName === 'SOURCE') && window.ipc) {
+    var m = t.tagName === 'SOURCE' ? t.parentNode : t;
+    if (!m || !m.error || m.error.code === 4) window.ipc.postMessage('tool:media-unsupported:');
+  }
+}, true);"#;
+
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
   var k = (e.key || '').toLowerCase();
@@ -575,7 +584,7 @@ impl Sanaga {
         PageMaker {
             ctx: self.web_context.clone(),
             base: self.web_dir.clone(),
-            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), super::accounts::PASSWORD_JS.to_string(), extensions]),
+            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), super::accounts::PASSWORD_JS.to_string(), extensions]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
             popups: self.popups.clone(),

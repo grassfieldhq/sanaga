@@ -1082,6 +1082,18 @@ impl Sanaga {
 
         // ---------------- window, toolbar buttons, containers, site settings ----------------
         let mut changed_more = false;
+        if show.shows(Section::General, tr("Vidéo et musique"), &["YouTube", "Netflix", "Spotify", "codecs", tr("Codecs vidéo et audio")]) {
+            any = true;
+            ui.add_space(4.0);
+            ui.label(RichText::new(tr("Vidéo et musique")).size(13.0).family(bold()).color(th.text));
+            ui.add_space(6.0);
+            Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(12)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                changed_more |= self.media_settings(ui, th);
+            });
+            ui.add_space(6.0);
+            footnote(ui, th, tr("WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit."));
+        }
         if show.shows(Section::Appearance, tr("Fenêtre"), &[tr("Bordure de la fenêtre"), tr("Mode compact"), tr("Onglets en arbre"), tr("Mode focus")]) {
             any = true;
             let st = &mut self.store.settings;

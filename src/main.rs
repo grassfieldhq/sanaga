@@ -34,6 +34,7 @@ mod frames;
 mod page;
 mod shell;
 mod site_prefs;
+mod codecs;
 mod webext;
 mod store;
 mod theme;

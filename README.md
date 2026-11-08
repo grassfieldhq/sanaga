@@ -154,6 +154,7 @@ Sanaga runs on Linux (Wayland or X11). You need:
 | Rust 1.88+ | `rustup` | `rustup` | `rustup` |
 | GTK 4 | `gtk4` | `libgtk-4-dev` | `gtk4-devel` |
 | WebKitGTK 6 | `webkitgtk-6.0` | `libwebkitgtk-6.0-dev` | `webkitgtk6.0-devel` |
+| Video codecs (YouTube…) | `gst-libav` `gst-plugins-bad` `gst-plugin-va` | `gstreamer1.0-libav` `gstreamer1.0-plugins-bad` `gstreamer1.0-vaapi` | `gstreamer1-plugin-libav` `gstreamer1-plugins-bad-free` |
 | *(optional)* passwords | `libsecret` (`secret-tool`) | `libsecret-tools` | `libsecret` |
 | *(optional)* video recording | `ffmpeg` | `ffmpeg` | `ffmpeg` |
 
@@ -262,8 +263,14 @@ engine bridge and a few system services.
 - Chrome and Firefox extensions work when they act inside pages; those needing a
   background service or a pop-up (password managers…) are not supported
   (WebKitGTK has no extension API).
-- DRM video (Netflix, Disney+, Spotify web) can't play in WebKitGTK; Sanaga
-  offers to open it in an app or browser that can.
+- Video sites (YouTube…) need the GStreamer codecs above (H.264, AAC, AV1,
+  Opus). Sanaga checks them and installs them in one click (Settings ›
+  General › Video and music, or the bar shown on the site).
+- DRM video (Netflix, Disney+, Prime Video, Spotify web…) needs Widevine,
+  which no WebKitGTK browser has. Sanaga opens these sites in the Spotify app
+  or in an installed browser that has Widevine (Chrome, Chromium with
+  Widevine, Brave, Edge, Vivaldi, Firefox) — as an app window, and by itself
+  if you choose so.
 - Keeping a window on top and placing the floating video are done with
   Hyprland; on other desktops the desktop decides.
 - Emoji typed in Sanaga's own interface show as initials (its fonts have no

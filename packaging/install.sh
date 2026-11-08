@@ -51,3 +51,22 @@ case ":$PATH:" in
     *":$PREFIX/bin:"*) ;;
     *) echo "Note: $PREFIX/bin is not in your PATH; the launcher still works." ;;
 esac
+
+# Video: WebKit plays through GStreamer. Without these decoders, YouTube and
+# other sites say "your browser can't play this video".
+if command -v gst-inspect-1.0 >/dev/null 2>&1; then
+    missing=""
+    gst-inspect-1.0 --exists avdec_h264 || gst-inspect-1.0 --exists openh264dec || missing="$missing H.264"
+    gst-inspect-1.0 --exists avdec_aac || gst-inspect-1.0 --exists fdkaacdec || missing="$missing AAC"
+    gst-inspect-1.0 --exists dav1ddec || gst-inspect-1.0 --exists av1dec || missing="$missing AV1"
+    gst-inspect-1.0 --exists opusparse || missing="$missing Opus"
+    if [ -n "$missing" ]; then
+        echo
+        echo "Video codecs missing:$missing — YouTube and many sites won't play videos."
+        echo "Install them (once), e.g.:"
+        echo "  Arch / Omarchy:  pacman -S gst-libav gst-plugins-bad gst-plugin-va   (as root)"
+        echo "  Debian / Ubuntu: apt install gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-vaapi   (as root)"
+        echo "  Fedora:          dnf install gstreamer1-plugin-libav gstreamer1-plugins-bad-free   (as root)"
+        echo "Or in Sanaga: Settings › General › Video and music › Install."
+    fi
+fi

@@ -28,6 +28,7 @@ impl Sanaga {
         let ways = identity::handoffs(service);
         let mut open: Option<identity::Handoff> = None;
         let mut dismiss = false;
+        let mut always = false;
         ui.horizontal_centered(|ui| {
             ui.add_space(14.0);
             let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
@@ -44,6 +45,9 @@ impl Sanaga {
                 if ui.button(tr("Ignorer")).clicked() {
                     dismiss = true;
                 }
+                if !ways.is_empty() && ui.button(tr("Toujours ouvrir ainsi")).on_hover_text(tr("Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)")).clicked() {
+                    always = true;
+                }
                 for (k, w) in ways.iter().take(2).enumerate() {
                     let b = if k == 0 { egui::Button::new(RichText::new(&w.label).color(Color32::WHITE)).fill(th.accent) } else { egui::Button::new(&w.label) };
                     if ui.add(b.corner_radius(CornerRadius::same(8))).clicked() {
@@ -58,6 +62,10 @@ impl Sanaga {
         }
         if dismiss {
             self.drm_dismissed.insert(host_of(&url));
+        }
+        if always {
+            self.store.settings.drm_auto = true;
+            self.store.save_settings();
         }
     }
 

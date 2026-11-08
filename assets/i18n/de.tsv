@@ -913,3 +913,24 @@ Navigateur web Sanaga, avec les données de ce profil	Sanaga-Webbrowser mit den 
 Aperçu du lien	Link-Vorschau
 Ouvrir le lien dans un conteneur…	Link in einem Container öffnen…
 Cette extension n'agit pas dans les pages (elle a besoin d'une fenêtre ou d'un service que Sanaga n'a pas).	Diese Erweiterung wirkt nicht in den Seiten (sie braucht ein Fenster oder einen Dienst, den Sanaga nicht hat).
+Installation des codecs vidéo… (le système demande votre mot de passe)	Videocodecs werden installiert… (das System fragt nach Ihrem Passwort)
+Codecs installés. Rechargez la page pour lire la vidéo.	Codecs installiert. Laden Sie die Seite neu, um das Video abzuspielen.
+L'installation n'a pas abouti. Vous pouvez copier la commande et la lancer dans un terminal.	Die Installation wurde nicht abgeschlossen. Sie können den Befehl kopieren und in einem Terminal ausführen.
+Il manque des codecs pour lire les vidéos de ce site ({}). Ils s'installent une fois pour toutes.	Es fehlen Codecs, um die Videos dieser Website abzuspielen ({}). Sie werden einmalig installiert.
+Recharger	Neu laden
+Copier la commande	Befehl kopieren
+Installer	Installieren
+Commande copiée : {}	Befehl kopiert: {}
+Codecs vidéo et audio	Video- und Audiocodecs
+Vérification…	Wird geprüft…
+Tout est là : H.264, AV1, VP9, AAC, Opus, avec le décodage par la carte graphique.	Alles da: H.264, AV1, VP9, AAC, Opus, mit Dekodierung durch die Grafikkarte.
+Tout est là : H.264, AV1, VP9, AAC, Opus.	Alles da: H.264, AV1, VP9, AAC, Opus.
+Il manque : {} — YouTube et d'autres sites ne lisent pas leurs vidéos sans eux.	Fehlt: {} — YouTube und andere Websites spielen ihre Videos ohne sie nicht ab.
+Installation…	Wird installiert…
+Ouvrir les sites protégés dans un navigateur compatible	Geschützte Websites in einem kompatiblen Browser öffnen
+Netflix, Disney+, Spotify… ont besoin de Widevine, absent de WebKit : ils s'ouvrent tout seuls ({}).	Netflix, Disney+, Spotify… brauchen Widevine, das WebKit fehlt: Sie öffnen sich von selbst ({}).
+Netflix, Disney+, Spotify… ont besoin de Widevine, absent de WebKit. Installez Chromium, Chrome ou Firefox pour les regarder.	Netflix, Disney+, Spotify… brauchen Widevine, das WebKit fehlt. Installieren Sie Chromium, Chrome oder Firefox, um sie anzusehen.
+Vidéo et musique	Video und Musik
+WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit.	WebKit spielt Videos mit GStreamer ab: Die Codecs stammen aus den Paketen des Systems. Mit Widevine geschützte Videos (Netflix, Disney+, Spotify Web…) kann kein WebKit-Browser abspielen.
+Toujours ouvrir ainsi	Immer so öffnen
+Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)	Geschützte Websites öffnen sich direkt in diesem Browser (Einstellungen › Allgemein)

@@ -21,6 +21,7 @@ mod mainmenu;
 mod sidebar;
 mod bookmarks;
 mod buttons;
+mod media;
 mod containers;
 mod sitepanel;
 mod tools;
@@ -511,6 +512,11 @@ pub struct Sanaga {
     on_top: bool,
     /// The form adding a toolbar button (Settings › Appearance).
     button_form: buttons::ButtonForm,
+    /// Video codecs: the bar was dismissed, a page said it couldn't play a
+    /// video (tab id), and the install's progress.
+    codec_dismissed: bool,
+    codec_flag: Option<u64>,
+    codec_install: Arc<std::sync::atomic::AtomicU8>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -606,6 +612,8 @@ impl Sanaga {
                 let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
                 r.request_repaint();
             });
+            // which video formats the system can play (for YouTube & co.)
+            crate::codecs::check_in_background();
             // the network blocker of ads and trackers, compiled once
             crate::page::BLOCKER_ON.store(store.settings.blocker, Ordering::Relaxed);
             if let Some(d) = &web_dir_kept {
@@ -761,6 +769,9 @@ impl Sanaga {
             editing_text: None,
             on_top: false,
             button_form: Default::default(),
+            codec_dismissed: false,
+            codec_flag: None,
+            codec_install: Default::default(),
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -1377,6 +1388,12 @@ impl Sanaga {
         if self.permission_bar_visible() {
             egui::Panel::top("permbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.permission_bar(ui, &th);
+            });
+        }
+        self.media_step();
+        if self.codec_bar_visible() {
+            egui::Panel::top("codecbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.codec_bar(ui, &th);
             });
         }
         if self.drm_bar_service().is_some() {
