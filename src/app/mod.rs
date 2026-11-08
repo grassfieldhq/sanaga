@@ -411,6 +411,8 @@ pub struct Sanaga {
     /// A short message at the bottom of the window (e.g. web app created).
     notice: Option<(String, f64)>,
     pw_prompt: Option<accounts::PwPrompt>,
+    /// The saved-accounts bar the person dismissed (tab, site).
+    pw_fill_dismissed: Option<(u64, String)>,
     pw_filter: String,
     /// Settings page: the category shown, the search text, and whether
     /// Sanaga is the default browser (asked once).
@@ -709,6 +711,7 @@ impl Sanaga {
             customize_open: false,
             notice: None,
             pw_prompt: None,
+            pw_fill_dismissed: None,
             pw_filter: String::new(),
             settings_section: settings::Section::General,
             settings_filter: String::new(),

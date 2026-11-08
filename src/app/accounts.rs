@@ -7,7 +7,9 @@ use crate::icons::{self, Icon};
 use crate::keyring;
 use eframe::egui::{Align, Color32, Layout, Margin, RichText, Sense, TextEdit};
 
-/// Runs in every page: notices logins and fills fields when asked.
+/// Runs in every page (in Sanaga's world, top frame): notices logins and
+/// sign-in fields, and fills them when the person picks an account in
+/// Sanaga's bar.
 pub(super) const PASSWORD_JS: &str = include_str!("../../assets/passwords.js");
 
 pub(super) enum PwPrompt {
@@ -29,8 +31,8 @@ pub(super) fn origin_of(url: &str) -> String {
 }
 
 impl Sanaga {
-    /// Messages from the page script: a login was sent, a login form appeared,
-    /// or an account was picked in the list under the field.
+    /// Messages from the page script: a login was sent, or sign-in fields
+    /// appeared (the saved accounts are then offered in Sanaga's bar).
     pub(super) fn on_password_msg(&mut self, tab: u64, msg: &str) {
         if !self.store.settings.passwords {
             return;
@@ -56,45 +58,36 @@ impl Sanaga {
                 self.pw_prompt = Some(PwPrompt::Save { tab, site, user, pass });
             }
             Some("pw:get") if parts.len() >= 2 => {
+                // sign-in fields appeared: Sanaga offers its saved accounts in
+                // its own bar; nothing reaches the page before the person
+                // picks one there
                 let site = parts[1].clone();
                 let users: Vec<String> = self.store.logins.iter().filter(|(s, _)| *s == site).map(|(_, u)| u.clone()).collect();
-                if users.is_empty() {
+                if users.is_empty() || self.pw_fill_dismissed.as_ref().is_some_and(|(t, s)| *t == tab && *s == site) {
                     return;
                 }
-                // the names go to the page, for its list under the field
-                let list = format!("[{}]", users.iter().map(|u| keyring::js_str(u)).collect::<Vec<_>>().join(","));
-                if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
-                    let _ = w.evaluate_own(&format!("window.__sanagaLogins && window.__sanagaLogins({list});"));
-                }
-                if users.len() == 1 {
-                    // one account for this site: fill it at once (empty fields only)
-                    self.fill_login(tab, &site, &users[0], true);
-                } else if !matches!(self.pw_prompt, Some(PwPrompt::Save { .. })) {
+                if !matches!(self.pw_prompt, Some(PwPrompt::Save { .. })) {
                     self.pw_prompt = Some(PwPrompt::Fill { tab, site, users });
-                }
-            }
-            Some("pw:fill") if parts.len() >= 3 => {
-                let (site, user) = (parts[1].clone(), parts[2].clone());
-                if self.store.logins.iter().any(|(s, u)| *s == site && *u == user) {
-                    self.fill_login(tab, &site, &user, false);
-                    if matches!(self.pw_prompt, Some(PwPrompt::Fill { .. })) {
-                        self.pw_prompt = None;
-                    }
                 }
             }
             _ => {}
         }
     }
 
-    /// Put a saved login in the page's fields (`only_empty`: keep what was typed).
-    fn fill_login(&mut self, tab: u64, site: &str, user: &str, only_empty: bool) {
+    /// Put a saved login in the page's fields: only after the person picked
+    /// it in Sanaga's bar, only if the tab still shows that site, and the
+    /// page script checks the origin again when it fills (top frame only).
+    fn fill_login(&mut self, tab: u64, site: &str, user: &str) {
+        let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };
+        let Some(w) = t.web.as_ref() else { return };
+        if w.uri().map(|u| origin_of(&u)).as_deref() != Some(site) {
+            return;
+        }
         let Some(pass) = keyring::lookup(&self.store.profile, site, user) else {
             self.notice = Some((tr("Mot de passe introuvable dans le trousseau.").into(), self.ctx.input(|i| i.time)));
             return;
         };
-        if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
-            let _ = w.evaluate_own(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {only_empty});", keyring::js_str(user), keyring::js_str(&pass)));
-        }
+        let _ = w.evaluate_own(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {});", keyring::js_str(user), keyring::js_str(&pass), keyring::js_str(site)));
     }
 
     /// AutoFill the form of the page with the person's contact details.
@@ -163,6 +156,8 @@ impl Sanaga {
                         ui.add_space(12.0);
                         if ui.button(tr("Ignorer")).clicked() {
                             keep = false;
+                            // not offered again on this site in this tab
+                            self.pw_fill_dismissed = Some((*tab, site.clone()));
                         }
                         for u in users.iter().take(3) {
                             let label = if u.is_empty() { tr("Remplir").to_string() } else { tf("Remplir : {}", &[&u]) };
@@ -170,7 +165,7 @@ impl Sanaga {
                             if ui.add(b).clicked() {
                                 keep = false;
                                 let (tab, site, u) = (*tab, site.clone(), u.clone());
-                                self.fill_login(tab, &site, &u, false);
+                                self.fill_login(tab, &site, &u);
                             }
                         }
                     });

@@ -296,6 +296,10 @@ impl Sanaga {
                 if !finished {
                     // a new page: nothing typed in it yet
                     t.form_dirty = false;
+                    // its saved accounts may be offered again
+                    if self.pw_fill_dismissed.as_ref().is_some_and(|(id, _)| *id == tab) {
+                        self.pw_fill_dismissed = None;
+                    }
                 }
                 if t.entries[t.idx].url.starts_with("view-source:") && url == "about:blank" {
                     return; // Sanaga's own source page: the address stays
