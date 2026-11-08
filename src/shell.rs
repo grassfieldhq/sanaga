@@ -753,15 +753,83 @@ fn frame_for(slot: usize, delay: Duration) {
 }
 
 /// Where the running Sanaga listens for addresses opened from elsewhere (one
-/// per data folder and profile).
-fn instance_socket(urls: &[String]) -> std::path::PathBuf {
+/// per data folder and profile): in $XDG_RUNTIME_DIR only (the user's own
+/// closed folder). Without it, every launch runs on its own.
+fn instance_socket(urls: &[String]) -> Option<std::path::PathBuf> {
     use std::hash::{Hash, Hasher};
     let profile = urls.iter().find_map(|u| u.strip_prefix("profil:")).unwrap_or("");
     let mut h = std::collections::hash_map::DefaultHasher::new();
     crate::store::Store::root_dir().hash(&mut h);
     profile.hash(&mut h);
-    let dir = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    dir.join(format!("sanaga-{:016x}.sock", h.finish()))
+    Some(crate::store::runtime_dir()?.join(format!("sanaga-{:016x}.sock", h.finish())))
+}
+
+/// Largest message another launch may send, and how many it may send.
+const MAX_MESSAGE: usize = 64 * 1024;
+const MAX_LINES: usize = 64;
+const RATE_MAX: usize = 20;
+const RATE_WINDOW: Duration = Duration::from_secs(10);
+
+/// Is the other end of the socket this same user (SO_PEERCRED)?
+#[cfg(target_os = "linux")]
+fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
+    use std::os::unix::io::AsRawFd;
+    let mut cred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    // SAFETY: a valid socket, and a buffer of `len` bytes for the answer.
+    let rc = unsafe { libc::getsockopt(stream.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, (&mut cred as *mut libc::ucred).cast(), &mut len) };
+    // SAFETY: getuid has no preconditions and cannot fail.
+    rc == 0 && len as usize == std::mem::size_of::<libc::ucred>() && cred.uid == unsafe { libc::getuid() }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
+    use std::os::unix::io::AsRawFd;
+    let (mut uid, mut gid) = (0, 0);
+    // SAFETY: a valid socket and two places for the answer.
+    let rc = unsafe { libc::getpeereid(stream.as_raw_fd(), &mut uid, &mut gid) };
+    rc == 0 && uid == unsafe { libc::getuid() }
+}
+
+/// At most RATE_MAX messages in RATE_WINDOW: true when this one may pass.
+fn allow_message(times: &mut std::collections::VecDeque<Instant>, now: Instant) -> bool {
+    while times.front().is_some_and(|t| now.duration_since(*t) > RATE_WINDOW) {
+        times.pop_front();
+    }
+    if times.len() >= RATE_MAX {
+        return false;
+    }
+    times.push_back(now);
+    true
+}
+
+/// What another launch of Sanaga may hand over: web addresses (http,
+/// https, and file: for local pages opened from the file manager), text
+/// without a scheme (it becomes an https address or a search), and
+/// Sanaga's own flags. Anything else (javascript:, data:, sanaga://,
+/// view-source:…) is dropped.
+pub fn accept_forwarded(line: &str) -> Option<String> {
+    let line = line.trim();
+    if line.is_empty() || line.len() > 8192 || line.chars().any(|c| c.is_control()) {
+        return None;
+    }
+    if line == "nouvelle-fenetre:" || line == "apercu:" {
+        return Some(line.to_string());
+    }
+    for flag in ["lecteur:", "preview:"] {
+        if let Some(rest) = line.strip_prefix(flag) {
+            return accept_forwarded(rest).filter(|r| !r.ends_with(':')).map(|r| format!("{flag}{r}"));
+        }
+    }
+    match url::Url::parse(line) {
+        Ok(u) if matches!(u.scheme(), "http" | "https" | "file") => Some(line.to_string()),
+        // "localhost:8080/x", "example.org:8443": a host and port typed
+        // without a scheme (the parser takes the host for a scheme)
+        Ok(u) if (u.scheme() == "localhost" || u.scheme().contains('.')) && line.get(u.scheme().len() + 1..).is_some_and(|r| r.starts_with(|c: char| c.is_ascii_digit())) => Some(line.to_string()),
+        Ok(_) => None,
+        // no scheme ("example.com", "fleuve du Cameroun"): looked up as typed
+        Err(_) => Some(line.to_string()),
+    }
 }
 
 /// Sanaga already runs with this data: hand it the addresses (it opens them
@@ -774,9 +842,13 @@ fn forward_to_running(sock: &std::path::Path, urls: &[String]) -> bool {
     s.write_all(list.join("\n").as_bytes()).is_ok()
 }
 
-/// Addresses sent by another launch of Sanaga (on the main loop).
+/// Addresses sent by another launch of Sanaga (on the main loop): only what
+/// `accept_forwarded` lets through.
 fn incoming(text: String, profile: Vec<String>) {
-    let lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+    let lines: Vec<String> = text.lines().filter_map(accept_forwarded).take(MAX_LINES).collect();
+    if lines.is_empty() {
+        return;
+    }
     if lines.iter().any(|l| l == "nouvelle-fenetre:") {
         // `sanaga --new-window`: a window of its own
         let mut w: Vec<String> = lines.into_iter().filter(|l| l != "nouvelle-fenetre:").collect();
@@ -817,10 +889,12 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
 fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     // one Sanaga per data folder and profile (web apps run on their own; a
     // screenshot never talks to a running Sanaga)
-    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:"));
     let sock = instance_socket(&urls);
-    if single && forward_to_running(&sock, &urls) {
-        return Ok(());
+    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:")) && sock.is_some();
+    if let Some(sock) = sock.as_ref().filter(|_| single) {
+        if forward_to_running(sock, &urls) {
+            return Ok(());
+        }
     }
     glib::set_prgname(Some("sanaga"));
     glib::set_application_name("Sanaga");
@@ -837,18 +911,30 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     }
 
     // addresses sent by other launches of Sanaga (links opened from other apps)
-    if single {
-        let _ = std::fs::remove_file(&sock); // left by a Sanaga that did not close cleanly
-        if let Ok(listener) = std::os::unix::net::UnixListener::bind(&sock) {
+    if let Some(sock) = sock.as_ref().filter(|_| single) {
+        let _ = std::fs::remove_file(sock); // left by a Sanaga that did not close cleanly
+        if let Ok(listener) = std::os::unix::net::UnixListener::bind(sock) {
+            use std::os::unix::fs::PermissionsExt;
+            // only this user (the folder is closed already)
+            let _ = std::fs::set_permissions(sock, std::fs::Permissions::from_mode(0o600));
             let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
             std::thread::Builder::new()
                 .name("sanaga-instance".into())
                 .spawn(move || {
                     use std::io::Read;
+                    let mut recent = std::collections::VecDeque::new();
                     for stream in listener.incoming().flatten() {
-                        let mut text = String::new();
-                        let mut stream = stream;
-                        let _ = stream.read_to_string(&mut text);
+                        // the same user only, a few messages at a time, small ones
+                        if !same_user(&stream) || !allow_message(&mut recent, Instant::now()) {
+                            continue;
+                        }
+                        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                        let mut buf = Vec::new();
+                        let _ = (&stream).take(MAX_MESSAGE as u64 + 1).read_to_end(&mut buf);
+                        if buf.len() > MAX_MESSAGE {
+                            continue;
+                        }
+                        let text = String::from_utf8_lossy(&buf).to_string();
                         let profile = profile.clone();
                         glib::MainContext::default().invoke(move || incoming(text, profile));
                     }
@@ -882,8 +968,8 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     }
     drop(first);
     main.run();
-    if single {
-        let _ = std::fs::remove_file(&sock);
+    if let Some(sock) = sock.as_ref().filter(|_| single) {
+        let _ = std::fs::remove_file(sock);
     }
     WINDOWS.with(|w| w.borrow_mut().clear());
     HOST.with(|h| *h.borrow_mut() = None);
@@ -1517,5 +1603,39 @@ fn cursor_name(c: egui::CursorIcon) -> &'static str {
         C::ZoomOut => "zoom-out",
         C::None => "none",
         _ => "default",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn other_launches_hand_over_web_addresses_only() {
+        assert_eq!(accept_forwarded("https://example.org/a?b=1").as_deref(), Some("https://example.org/a?b=1"));
+        assert_eq!(accept_forwarded("http://example.org").as_deref(), Some("http://example.org"));
+        assert_eq!(accept_forwarded("file:///home/me/page.html").as_deref(), Some("file:///home/me/page.html"));
+        assert_eq!(accept_forwarded("example.org").as_deref(), Some("example.org"));
+        assert_eq!(accept_forwarded("localhost:8080/x").as_deref(), Some("localhost:8080/x"));
+        assert_eq!(accept_forwarded("fleuve du Cameroun").as_deref(), Some("fleuve du Cameroun"));
+        assert_eq!(accept_forwarded("nouvelle-fenetre:").as_deref(), Some("nouvelle-fenetre:"));
+        assert_eq!(accept_forwarded("apercu:").as_deref(), Some("apercu:"));
+        assert_eq!(accept_forwarded("preview:https://example.org/").as_deref(), Some("preview:https://example.org/"));
+        assert_eq!(accept_forwarded("lecteur:https://example.org/").as_deref(), Some("lecteur:https://example.org/"));
+        for bad in ["javascript:alert(1)", "data:text/html,<script>x</script>", "sanaga://settings", "view-source:https://a.org", "about:config", "preview:javascript:x", "preview:apercu:", "profil:Travail", "https://a.org/\u{0}x", ""] {
+            assert_eq!(accept_forwarded(bad), None, "{bad}");
+        }
+        assert_eq!(accept_forwarded(&format!("https://a.org/{}", "x".repeat(9000))), None);
+    }
+
+    #[test]
+    fn other_launches_are_rate_limited() {
+        let mut times = std::collections::VecDeque::new();
+        let now = Instant::now();
+        for _ in 0..RATE_MAX {
+            assert!(allow_message(&mut times, now));
+        }
+        assert!(!allow_message(&mut times, now));
+        assert!(allow_message(&mut times, now + RATE_WINDOW + Duration::from_secs(1)));
     }
 }
