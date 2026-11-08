@@ -96,26 +96,8 @@ fn mark_gesture(v: &WebView) {
 /// How long after the person's action a page may start its download.
 const GESTURE_WINDOW: Duration = Duration::from_secs(10);
 
-/// Safari's rule for downloads: they go straight to the Downloads folder
-/// when the person just acted on the page and no other download used that
-/// action; a site that starts a download by itself, or several at once,
-/// must be allowed first (unless the person already allowed that site).
-pub fn download_needs_ask(gesture_fresh: bool, gesture_used: bool, site_allowed: bool) -> bool {
-    !site_allowed && (!gesture_fresh || gesture_used)
-}
-
-/// The site named in "Allow downloads on …?": the page's, else the file's.
-pub fn download_site(referrer: &str, uri: &str) -> String {
-    let h = host_of_uri(referrer);
-    if !h.is_empty() {
-        return h;
-    }
-    let h = host_of_uri(uri);
-    if !h.is_empty() {
-        return h;
-    }
-    uri.split(':').next().unwrap_or("").to_string()
-}
+// (pure rules: see guard.rs, testable without GTK)
+pub use crate::guard::{download_needs_ask, download_site, is_shortcut_message, message_body};
 
 /// A download waiting for the person's answer.
 struct PendingDownload {
@@ -444,7 +426,7 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
             if let Some(state) = download.web_view().as_ref().and_then(view_state) {
                 let site = download_site(&site_ref, &uri);
                 let fresh = state.gesture.get().is_some_and(|t| t.elapsed() <= GESTURE_WINDOW);
-                let allowed = DOWNLOAD_SITES.with(|d| d.borrow().iter().any(|s| *s == site));
+                let allowed = DOWNLOAD_SITES.with(|d| d.borrow().contains(&site));
                 if download_needs_ask(fresh, state.gesture_used.get(), allowed) {
                     // the download waits (WebKit 2.40+) until the person answers
                     PENDING_DOWNLOADS.with(|q| {
@@ -513,23 +495,6 @@ fn add_scripts(ucm: &UserContentManager, own: &[&str], page: &[&str]) {
     for js in page {
         ucm.add_script(&UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]));
     }
-}
-
-fn without_fragment(u: &str) -> &str {
-    u.split('#').next().unwrap_or(u)
-}
-
-/// A message of Sanaga's page scripts ("address\nbody"): its body when it
-/// comes from the page the view shows now (the #fragment may differ),
-/// nothing when that page has navigated since.
-pub fn message_body<'a>(msg: &'a str, current: &str) -> Option<&'a str> {
-    let (from, body) = msg.split_once('\n')?;
-    (!current.is_empty() && without_fragment(from) == without_fragment(current)).then_some(body)
-}
-
-/// A keyboard shortcut forwarded by the page script ("cs:t", ":f5"…).
-pub fn is_shortcut_message(body: &str) -> bool {
-    body.split_once(':').is_some_and(|(mods, key)| !key.is_empty() && mods.chars().all(|c| matches!(c, 'c' | 's' | 'a')))
 }
 
 /// How long a key press in the page vouches for the shortcut message that
@@ -880,51 +845,4 @@ pub fn texture_to_surface(tex: &gtk::gdk::Texture) -> Option<gtk::cairo::ImageSu
     }
     surf.mark_dirty();
     Some(surf)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn downloads_follow_safaris_rule() {
-        // a click, one download: no question
-        assert!(!download_needs_ask(true, false, false));
-        // no click: asked
-        assert!(download_needs_ask(false, false, false));
-        // a second download from the same click: asked
-        assert!(download_needs_ask(true, true, false));
-        // a site the person allowed: never asked
-        assert!(!download_needs_ask(false, false, true));
-        assert!(!download_needs_ask(true, true, true));
-    }
-
-    #[test]
-    fn messages_from_a_page_that_navigated_are_dropped() {
-        assert_eq!(message_body("https://a.example/x\ntool:zap-done:#ad", "https://a.example/x"), Some("tool:zap-done:#ad"));
-        assert_eq!(message_body("https://a.example/x#top\nform:dirty", "https://a.example/x#end"), Some("form:dirty"));
-        assert_eq!(message_body("https://a.example/x\nform:dirty", "https://b.example/"), None);
-        assert_eq!(message_body("https://a.example/x\nform:dirty", ""), None);
-        assert_eq!(message_body("no address", "https://a.example/x"), None);
-        // the body may hold line breaks of its own
-        assert_eq!(message_body("about:blank\ntr:0\n[\"a\"]", "about:blank"), Some("tr:0\n[\"a\"]"));
-    }
-
-    #[test]
-    fn shortcut_messages_are_recognised() {
-        assert!(is_shortcut_message("cs:t"));
-        assert!(is_shortcut_message(":f5"));
-        assert!(is_shortcut_message("c:q"));
-        assert!(!is_shortcut_message("tool:zap-done:x"));
-        assert!(!is_shortcut_message("form:dirty"));
-        assert!(!is_shortcut_message("sum:x"));
-        assert!(!is_shortcut_message("c:"));
-    }
-
-    #[test]
-    fn download_question_names_the_site() {
-        assert_eq!(download_site("https://www.example.org/page", "https://cdn.example.net/f.zip"), "www.example.org");
-        assert_eq!(download_site("", "https://cdn.example.net/f.zip"), "cdn.example.net");
-        assert_eq!(download_site("about:blank", "data:text/plain,hi"), "data");
-    }
 }

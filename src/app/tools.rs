@@ -43,12 +43,7 @@ window.__sanagaStopTool=stop;document.addEventListener('mousemove',mv,true);docu
 
 const STOP_TOOL_JS: &str = "if(window.__sanagaStopTool)window.__sanagaStopTool();if(document.designMode==='on'){document.designMode='off';}window.__sanagaTool=null;";
 
-/// A selector the element remover could have made (it becomes part of the
-/// site's style sheet): short, one line, nothing that could end the rule.
-fn plausible_selector(s: &str) -> bool {
-    let s = s.trim();
-    !s.is_empty() && s.len() <= 512 && !s.chars().any(|c| c.is_control() || matches!(c, '{' | '}' | '<' | '@' | ';' | '\\'))
-}
+use crate::guard::plausible_selector;
 
 fn is_web(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
@@ -433,30 +428,6 @@ fn on_battery() -> bool {
     battery_discharging
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn element_remover_selectors_stay_selectors() {
-        assert!(plausible_selector("body > div.ad:nth-of-type(2)"));
-        assert!(plausible_selector("#banner"));
-        assert!(!plausible_selector(""));
-        assert!(!plausible_selector("x{} @import url(//evil)"));
-        assert!(!plausible_selector("a;b"));
-        assert!(!plausible_selector("a\nb"));
-        assert!(!plausible_selector(&"a".repeat(600)));
-    }
-
-    #[test]
-    fn finds_youtube_ids() {
-        assert_eq!(youtube_id("https://www.youtube.com/watch?v=abc_DEF-123&t=4").as_deref(), Some("abc_DEF-123"));
-        assert_eq!(youtube_id("https://youtu.be/xyz987").as_deref(), Some("xyz987"));
-        assert_eq!(youtube_id("https://m.youtube.com/shorts/q1w2e3").as_deref(), Some("q1w2e3"));
-        assert_eq!(youtube_id("https://example.com/watch?v=abc"), None);
-    }
-}
-
 /// Where Sanaga's icons are installed for this user (packaging/install.sh).
 fn icon_dir() -> Option<std::path::PathBuf> {
     let home = std::env::var_os("HOME").map(std::path::PathBuf::from)?;
@@ -519,5 +490,18 @@ impl Sanaga {
             Ok(()) => self.notice = Some((tf("« {} » ajouté à vos applications.", &[&name]), now)),
             Err(e) => self.notice = Some((e.to_string(), now)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_youtube_ids() {
+        assert_eq!(youtube_id("https://www.youtube.com/watch?v=abc_DEF-123&t=4").as_deref(), Some("abc_DEF-123"));
+        assert_eq!(youtube_id("https://youtu.be/xyz987").as_deref(), Some("xyz987"));
+        assert_eq!(youtube_id("https://m.youtube.com/shorts/q1w2e3").as_deref(), Some("q1w2e3"));
+        assert_eq!(youtube_id("https://example.com/watch?v=abc"), None);
     }
 }

@@ -1,0 +1,21 @@
+# Sanaga's security rules (src/guard.rs) and its codec module (src/codecs.rs)
+# built on their own, so their tests run where GTK 4 and WebKitGTK 6 are not
+# installed:
+#
+#     cargo test --manifest-path tools/guard-tests/Cargo.toml
+#
+# (The same tests also run with the whole browser: `cargo test`.)
+
+[package]
+name = "sanaga-guard-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+url = "2.5"
+percent-encoding = "2"
+libc = "0.2"

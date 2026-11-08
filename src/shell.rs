@@ -764,11 +764,8 @@ fn instance_socket(urls: &[String]) -> Option<std::path::PathBuf> {
     Some(crate::store::runtime_dir()?.join(format!("sanaga-{:016x}.sock", h.finish())))
 }
 
-/// Largest message another launch may send, and how many it may send.
-const MAX_MESSAGE: usize = 64 * 1024;
-const MAX_LINES: usize = 64;
-const RATE_MAX: usize = 20;
-const RATE_WINDOW: Duration = Duration::from_secs(10);
+// (message limits and checks: see guard.rs, testable without GTK)
+use crate::guard::{accept_forwarded, allow_message, MAX_LINES, MAX_MESSAGE};
 
 /// Is the other end of the socket this same user (SO_PEERCRED)?
 #[cfg(target_os = "linux")]
@@ -789,47 +786,6 @@ fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
     // SAFETY: a valid socket and two places for the answer.
     let rc = unsafe { libc::getpeereid(stream.as_raw_fd(), &mut uid, &mut gid) };
     rc == 0 && uid == unsafe { libc::getuid() }
-}
-
-/// At most RATE_MAX messages in RATE_WINDOW: true when this one may pass.
-fn allow_message(times: &mut std::collections::VecDeque<Instant>, now: Instant) -> bool {
-    while times.front().is_some_and(|t| now.duration_since(*t) > RATE_WINDOW) {
-        times.pop_front();
-    }
-    if times.len() >= RATE_MAX {
-        return false;
-    }
-    times.push_back(now);
-    true
-}
-
-/// What another launch of Sanaga may hand over: web addresses (http,
-/// https, and file: for local pages opened from the file manager), text
-/// without a scheme (it becomes an https address or a search), and
-/// Sanaga's own flags. Anything else (javascript:, data:, sanaga://,
-/// view-source:…) is dropped.
-pub fn accept_forwarded(line: &str) -> Option<String> {
-    let line = line.trim();
-    if line.is_empty() || line.len() > 8192 || line.chars().any(|c| c.is_control()) {
-        return None;
-    }
-    if line == "nouvelle-fenetre:" || line == "apercu:" {
-        return Some(line.to_string());
-    }
-    for flag in ["lecteur:", "preview:"] {
-        if let Some(rest) = line.strip_prefix(flag) {
-            return accept_forwarded(rest).filter(|r| !r.ends_with(':')).map(|r| format!("{flag}{r}"));
-        }
-    }
-    match url::Url::parse(line) {
-        Ok(u) if matches!(u.scheme(), "http" | "https" | "file") => Some(line.to_string()),
-        // "localhost:8080/x", "example.org:8443": a host and port typed
-        // without a scheme (the parser takes the host for a scheme)
-        Ok(u) if (u.scheme() == "localhost" || u.scheme().contains('.')) && line.get(u.scheme().len() + 1..).is_some_and(|r| r.starts_with(|c: char| c.is_ascii_digit())) => Some(line.to_string()),
-        Ok(_) => None,
-        // no scheme ("example.com", "fleuve du Cameroun"): looked up as typed
-        Err(_) => Some(line.to_string()),
-    }
 }
 
 /// Sanaga already runs with this data: hand it the addresses (it opens them
@@ -1603,39 +1559,5 @@ fn cursor_name(c: egui::CursorIcon) -> &'static str {
         C::ZoomOut => "zoom-out",
         C::None => "none",
         _ => "default",
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn other_launches_hand_over_web_addresses_only() {
-        assert_eq!(accept_forwarded("https://example.org/a?b=1").as_deref(), Some("https://example.org/a?b=1"));
-        assert_eq!(accept_forwarded("http://example.org").as_deref(), Some("http://example.org"));
-        assert_eq!(accept_forwarded("file:///home/me/page.html").as_deref(), Some("file:///home/me/page.html"));
-        assert_eq!(accept_forwarded("example.org").as_deref(), Some("example.org"));
-        assert_eq!(accept_forwarded("localhost:8080/x").as_deref(), Some("localhost:8080/x"));
-        assert_eq!(accept_forwarded("fleuve du Cameroun").as_deref(), Some("fleuve du Cameroun"));
-        assert_eq!(accept_forwarded("nouvelle-fenetre:").as_deref(), Some("nouvelle-fenetre:"));
-        assert_eq!(accept_forwarded("apercu:").as_deref(), Some("apercu:"));
-        assert_eq!(accept_forwarded("preview:https://example.org/").as_deref(), Some("preview:https://example.org/"));
-        assert_eq!(accept_forwarded("lecteur:https://example.org/").as_deref(), Some("lecteur:https://example.org/"));
-        for bad in ["javascript:alert(1)", "data:text/html,<script>x</script>", "sanaga://settings", "view-source:https://a.org", "about:config", "preview:javascript:x", "preview:apercu:", "profil:Travail", "https://a.org/\u{0}x", ""] {
-            assert_eq!(accept_forwarded(bad), None, "{bad}");
-        }
-        assert_eq!(accept_forwarded(&format!("https://a.org/{}", "x".repeat(9000))), None);
-    }
-
-    #[test]
-    fn other_launches_are_rate_limited() {
-        let mut times = std::collections::VecDeque::new();
-        let now = Instant::now();
-        for _ in 0..RATE_MAX {
-            assert!(allow_message(&mut times, now));
-        }
-        assert!(!allow_message(&mut times, now));
-        assert!(allow_message(&mut times, now + RATE_WINDOW + Duration::from_secs(1)));
     }
 }

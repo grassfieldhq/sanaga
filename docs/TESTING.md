@@ -1,8 +1,17 @@
 # Testing Sanaga by hand
 
-Unit tests run with `cargo test` and need no display. To check the real window,
-Sanaga reads a few switches (environment variables). They are only meant for
-development and do nothing unless set.
+Unit tests run with `cargo test` and need no display. The security rules
+(download names and marks, page-message checks, `.desktop` escaping, the
+single-instance socket's limits, private folders; `src/guard.rs`) and the codec
+module also build on their own, without GTK and WebKitGTK:
+
+```sh
+cargo test --manifest-path tools/guard-tests/Cargo.toml
+```
+
+To check the real window, Sanaga reads a few switches (environment variables).
+They are only meant for development, do nothing unless set, and exist in
+**debug builds only** (`cargo build`, not `--release`).
 
 ## Keep your own data out of it
 

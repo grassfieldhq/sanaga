@@ -31,6 +31,7 @@ mod icons;
 mod identity;
 mod net;
 mod frames;
+mod guard;
 mod page;
 mod shell;
 mod site_prefs;
