@@ -50,7 +50,7 @@ const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
   var k = (e.key || '').toLowerCase();
   var ctrl = e.ctrlKey || e.metaKey;
-  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','y'].indexOf(k) >= 0)
+  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','y','pagedown','pageup'].indexOf(k) >= 0)
     || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
     || k === 'f5' || k === 'f6' || k === 'f9' || k === 'f11' || k === 'f12'
     || (k === 'escape' && window.__sanagaTool);
@@ -90,6 +90,8 @@ fn shortcut_name(msg: &str) -> Option<&'static str> {
         (_, _, _, "f11") => "fullscreen",
         (true, true, _, "d") => "readinglist",
         (true, true, _, "tab") => "prev",
+        (true, _, _, "pagedown") => "tabright",
+        (true, _, _, "pageup") => "tableft",
         (true, false, _, "t") => "new",
         (true, false, _, "n") => "window",
         (true, _, _, "w") => "close",
@@ -372,7 +374,7 @@ impl Sanaga {
         if !self.web_ok {
             return;
         }
-        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || egui::Popup::is_any_open(&self.ctx);
+        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || self.switcher.is_some() || egui::Popup::is_any_open(&self.ctx);
         // A menu over a page: the page sits above Sanaga's drawing, so take a
         // picture of it first and show that picture while the menu is open
         // (instead of a blank page).

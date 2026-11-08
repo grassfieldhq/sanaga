@@ -131,6 +131,8 @@ pub struct Settings {
     /// Sites protected by a DRM (Netflix…) open by themselves in a browser
     /// that can play them.
     pub drm_auto: bool,
+    /// Ctrl+Tab shows the tabs used last as pictures (else: tab bar order).
+    pub tab_switcher: bool,
 }
 
 /// A container: tabs that keep their own cookies and logins, separate from
@@ -224,6 +226,7 @@ impl Default for Settings {
             app_icon: 0,
             profile_emoji: String::new(),
             drm_auto: false,
+            tab_switcher: true,
         }
     }
 }
@@ -437,6 +440,7 @@ impl Store {
                         "app_icon" => st.app_icon = v.parse().unwrap_or(0),
                         "profile_emoji" => st.profile_emoji = v.to_string(),
                         "drm_auto" => st.drm_auto = v == "1",
+                        "tab_switcher" => st.tab_switcher = v == "1",
                         "toolbar" => {
                             st.toolbar = v.to_string();
                             // buttons added since: shown unless switched off ("-key")
@@ -498,8 +502,8 @@ impl Store {
             clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model), b(st.notif_prompts), clean(&st.translate_with)
         );
         let more = format!(
-            "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\n",
-            st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto)
+            "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\n",
+            st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher)
         );
         let _ = write_atomic(&dir.join("settings.txt"), t + &more);
     }

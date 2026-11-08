@@ -34,6 +34,8 @@ All notable changes to Sanaga are listed here. The format follows
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
 ### Added (November 2026)
+- Tab switcher: Ctrl+Tab shows the tabs used last as pictures (most recent
+  first); Ctrl+Page Down / Up follow the tab bar.
 - Containers: tabs with their own cookies, logins and site data.
 - Network blocker of ads and trackers (WebKit content blocker), on by default,
   switchable per site.

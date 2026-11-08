@@ -21,6 +21,7 @@ mod mainmenu;
 mod sidebar;
 mod bookmarks;
 mod buttons;
+mod switcher;
 mod media;
 mod containers;
 mod sitepanel;
@@ -517,6 +518,11 @@ pub struct Sanaga {
     codec_dismissed: bool,
     codec_flag: Option<u64>,
     codec_install: Arc<std::sync::atomic::AtomicU8>,
+    /// Tabs by last use (most recent first), the Ctrl+Tab switcher, and the
+    /// page to give the keyboard back to once it is shown.
+    recent: Vec<u64>,
+    switcher: Option<switcher::Switcher>,
+    switcher_refocus: bool,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -772,6 +778,9 @@ impl Sanaga {
             codec_dismissed: false,
             codec_flag: None,
             codec_install: Default::default(),
+            recent: Vec::new(),
+            switcher: None,
+            switcher_refocus: false,
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -1447,6 +1456,8 @@ impl Sanaga {
         self.star_popover(&ctx, &th);
         self.translate_question(&ctx, &th);
         self.identity_chooser(&ctx, &th);
+        self.note_recent();
+        self.tab_switcher(&ctx, &th);
         self.site_settings_panel(&ctx, &th);
         self.container_chooser(&ctx, &th);
         self.overflow_menu(&ctx, &th);

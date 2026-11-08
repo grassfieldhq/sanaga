@@ -66,6 +66,8 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
   folding and naming, mute, duplicate, “new tab to the right”, reopen closed tab.
 - Many tabs: arrows and a counter open the searchable list of all tabs; tab
   overview with thumbnails (Ctrl+Shift+O); tab search (Ctrl+Shift+A).
+- Tab switcher: hold Ctrl and press Tab to see the tabs used last as
+  pictures; let go to show one (Ctrl+Page Down / Up follow the tab bar).
 - Vertical tabs as a **tree**: a tab opened from a page goes under it; fold a
   branch, close it in one go.
 - Several windows (Ctrl+N), all restored at start; move a tab or a whole tab
@@ -201,7 +203,8 @@ sanaga --screenshot out.png   # draw the window once, save a picture, quit
 | New window | Ctrl+N |
 | Reopen closed tab | Ctrl+Shift+T |
 | New private tab | Ctrl+Shift+N |
-| Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
+| Tab switcher (tabs used last) | Ctrl+Tab / Ctrl+Shift+Tab |
+| Next / previous tab in the bar | Ctrl+Page Down / Ctrl+Page Up |
 | Address bar | Ctrl+L, F6 |
 | Reload | Ctrl+R, F5 |
 | Back / forward / home | Alt+← / Alt+→ / Alt+Home |

@@ -1122,6 +1122,7 @@ impl Sanaga {
                 }
                 changed_more |= rows.switch(ui, tr("Mode compact"), tr("Barre d'outils et onglets plus bas : plus de place pour la page"), &mut st.compact);
                 changed_more |= rows.switch(ui, tr("Onglets en arbre"), tr("Onglets verticaux : un onglet ouvert depuis une page se range dessous"), &mut st.tree_tabs);
+                changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));
             let current = self.store.settings.app_icon as usize;

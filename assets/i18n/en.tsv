@@ -934,3 +934,6 @@ Vidéo et musique	Video and music
 WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit.	WebKit plays video with GStreamer: the codecs come from the system's packages. Videos protected by Widevine (Netflix, Disney+, Spotify web…) can't be played by any WebKit browser.
 Toujours ouvrir ainsi	Always open this way
 Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)	Protected sites will open straight in this browser (Settings › General)
+{} sur {}	{} of {}
+Sélecteur d'onglets (Ctrl+Tab)	Tab switcher (Ctrl+Tab)
+Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	The tabs used last, as pictures; Ctrl+Page Down follows the tab bar

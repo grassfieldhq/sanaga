@@ -934,3 +934,6 @@ Vidéo et musique	Vídeo y música
 WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit.	WebKit reproduce los vídeos con GStreamer: los códecs vienen de los paquetes del sistema. Los vídeos protegidos con Widevine (Netflix, Disney+, Spotify web…) no los puede reproducir ningún navegador WebKit.
 Toujours ouvrir ainsi	Abrir siempre así
 Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)	Los sitios protegidos se abrirán directamente en este navegador (Ajustes › General)
+{} sur {}	{} de {}
+Sélecteur d'onglets (Ctrl+Tab)	Selector de pestañas (Ctrl+Tab)
+Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	Las pestañas usadas por última vez, en imágenes; Ctrl+Av Pág sigue la barra de pestañas

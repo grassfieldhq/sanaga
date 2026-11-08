@@ -444,6 +444,22 @@ pub fn window_list() -> Vec<(usize, String)> {
     WINDOWS.with(|w| w.borrow().iter().map(|x| (x.host.slot, x.host.window.title().map(|t| t.to_string()).unwrap_or_default())).collect())
 }
 
+/// Is Ctrl held down right now? (The keyboard's real state, even while a
+/// page had the keyboard.)
+pub fn ctrl_held() -> Option<bool> {
+    gdk::Display::default()
+        .and_then(|d| d.default_seat())
+        .and_then(|s| s.keyboard())
+        .map(|k| k.modifier_state().contains(gdk::ModifierType::CONTROL_MASK))
+}
+
+/// Give the keyboard to Sanaga's interface (away from the page).
+pub fn focus_interface() {
+    if let Some(h) = host() {
+        h.area.grab_focus();
+    }
+}
+
 /// The title of the window being drawn now.
 pub fn window_title() -> String {
     host().and_then(|h| h.window.title()).map(|t| t.to_string()).unwrap_or_default()
@@ -1206,7 +1222,18 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         });
         let (input, a) = (input0.clone(), waker.clone());
         keys.connect_key_released(move |_, kv, _, state| {
-            let modifiers = modifiers_of(state);
+            // (GTK gives the state from before this key: a modifier let go
+            // is still in it)
+            let mut modifiers = modifiers_of(state);
+            match kv.name().as_deref() {
+                Some("Control_L" | "Control_R") => {
+                    modifiers.ctrl = false;
+                    modifiers.command = false;
+                }
+                Some("Shift_L" | "Shift_R") => modifiers.shift = false,
+                Some("Alt_L" | "Alt_R" | "Meta_L" | "Meta_R") => modifiers.alt = false,
+                _ => {}
+            }
             let mut i = input.borrow_mut();
             i.modifiers = modifiers;
             if let Some(key) = key_of(kv) {

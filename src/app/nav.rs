@@ -535,6 +535,8 @@ impl Sanaga {
                 (sc(c, Key::N), "window"),
                 (sc(c, Key::W), "close"),
                 (sc(c, Key::Tab), "next"),
+                (sc(c, Key::PageDown), "tabright"),
+                (sc(c, Key::PageUp), "tableft"),
                 (sc(c, Key::L), "addr"),
                 (sc(Modifiers::NONE, Key::F6), "addr"),
                 (sc(c, Key::R), "reload"),
@@ -590,14 +592,10 @@ impl Sanaga {
                 }
                 "translate" => self.translate_page(),
                 "close" => self.close_tab(a),
-                "next" | "prev" => {
-                    // within the tabs of the current group, in tab-bar order
-                    let order = self.visible_tabs();
-                    if let Some(p) = order.iter().position(|&x| x == a) {
-                        let n = order.len();
-                        self.active = order[if t == "next" { (p + 1) % n } else { (p + n - 1) % n }];
-                    }
-                }
+                // Ctrl+Tab: the tabs used last, as pictures (or the tab bar's order)
+                "next" | "prev" if self.store.settings.tab_switcher => self.switch_tabs(if t == "next" { 1 } else { -1 }),
+                "next" | "tabright" => self.tab_bar_step(true),
+                "prev" | "tableft" => self.tab_bar_step(false),
                 "addr" => self.focus_address = true,
                 "reload" => self.reload(a),
                 "back" => self.go_history(a, -1),
