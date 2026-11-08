@@ -3186,6 +3186,7 @@ dependencies = [
  "cbc",
  "eframe",
  "egui_glow",
+ "flate2",
  "glow",
  "gtk4",
  "hmac",

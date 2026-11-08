@@ -136,6 +136,33 @@ pub(super) fn toolbar_button_label(key: &str) -> &str {
     }
 }
 
+/// A toolbar button's place: 0 shown, 1 in the » menu, 2 hidden.
+pub(super) fn toolbar_state(toolbar: &str, key: &str) -> usize {
+    for k in toolbar.split(',') {
+        if k == key {
+            return 0;
+        }
+        if k.strip_prefix('~') == Some(key) {
+            return 1;
+        }
+        if k.strip_prefix('-') == Some(key) {
+            return 2;
+        }
+    }
+    2
+}
+
+pub(super) fn set_toolbar_state(toolbar: &mut String, key: &str, state: usize) {
+    let (off, over) = (format!("-{key}"), format!("~{key}"));
+    let mut keys: Vec<String> = toolbar.split(',').filter(|k| !k.is_empty() && *k != key && *k != off && *k != over).map(|k| k.to_string()).collect();
+    keys.push(match state {
+        0 => key.to_string(),
+        1 => over,
+        _ => off,
+    });
+    *toolbar = keys.join(",");
+}
+
 /// Tick boxes choosing the toolbar buttons; true when something changed.
 pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
     let mut changed = false;
@@ -143,10 +170,7 @@ pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
         let label = toolbar_button_label(key);
         let mut on = toolbar.split(',').any(|k| k == key);
         if ui.checkbox(&mut on, label).changed() {
-            let off = format!("-{key}");
-            let mut keys: Vec<String> = toolbar.split(',').filter(|k| !k.is_empty() && *k != key && *k != off).map(|k| k.to_string()).collect();
-            keys.push(if on { key.to_string() } else { off });
-            *toolbar = keys.join(",");
+            set_toolbar_state(toolbar, key, if on { 0 } else { 2 });
             changed = true;
         }
     }
@@ -231,11 +255,13 @@ impl Sanaga {
         }
         // profile badge (only for extra profiles, like Safari)
         if !self.store.profile.is_empty() {
-            let name = self.store.profile.clone();
+            let emoji = self.store.settings.profile_emoji.trim();
+            let drawable = !emoji.is_empty() && ui.painter().fonts_mut(|f| f.has_glyphs(&FontId::new(12.0, bold()), emoji));
+            let name = if drawable { format!("{emoji} {}", self.store.profile) } else { self.store.profile.clone() };
             let g = ui.painter().layout_no_wrap(name.clone(), FontId::new(12.0, bold()), Color32::WHITE);
             let pr = Rect::from_min_size(pos2(x + 6.0, cy - 12.0), vec2(g.size().x + 20.0, 24.0));
             let presp = ui.interact(pr, egui::Id::new("profile-chip"), Sense::click());
-            ui.painter().rect_filled(pr, CornerRadius::same(12), crate::theme::badge_color(&name));
+            ui.painter().rect_filled(pr, CornerRadius::same(12), crate::theme::badge_color(&self.store.profile));
             ui.painter().galley(pos2(pr.left() + 10.0, cy - g.size().y / 2.0), g, Color32::WHITE);
             if presp.tip(tr("Profil de cette fenêtre — cliquer pour gérer les profils")).clicked() {
                 let a = self.active;
@@ -257,8 +283,36 @@ impl Sanaga {
         let mresp = tool_button(ui, menu_r, Icon::Menu, true, self.menu_open, th).tip(tr("Menu de Sanaga"));
         if mresp.clicked() {
             self.menu_open = !self.menu_open;
+            self.overflow_open = false;
         }
         self.menu_rect = mresp.rect;
+        // the buttons tucked away (»)
+        if self.has_overflow() {
+            let r = slot_r(&mut rx, 30.0);
+            let resp = ui.interact(r, egui::Id::new("tb-overflow"), Sense::click());
+            if resp.hovered() || self.overflow_open {
+                ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(8), th.omnibox_hover);
+            }
+            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "»", FontId::proportional(17.0), th.text);
+            if resp.tip(tr("Autres boutons")).clicked() {
+                self.overflow_open = !self.overflow_open;
+                self.menu_open = false;
+            }
+            self.overflow_rect = r;
+        }
+        // the person's own buttons
+        for k in (0..self.store.buttons.len()).rev() {
+            let r = slot_r(&mut rx, 36.0);
+            let resp = ui.interact(r, egui::Id::new(("tb-custom", k)), Sense::click());
+            if resp.hovered() {
+                ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(8), th.omnibox_hover);
+            }
+            super::buttons::paint_symbol(ui.painter(), r, &self.store.buttons[k], th.text);
+            let tip = super::buttons::button_tip(&self.store.buttons[k]);
+            if resp.tip(tip).clicked() {
+                self.run_button(k);
+            }
+        }
         if self.tb("overview") {
             let ov_r = slot_r(&mut rx, 36.0);
             if tool_button(ui, ov_r, Icon::Grid, true, self.overview_open, th).tip(tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {

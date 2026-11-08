@@ -774,3 +774,146 @@ Certains sites refusent WebKit alors qu'ils fonctionnent avec lui : choisir Chro
 Automatique⟂Automatic⟂Automático⟂Automático⟂Automatisch
 Ouvrir dans l'application Spotify⟂Open in the Spotify app⟂Abrir en la aplicación de Spotify⟂Abrir na aplicação Spotify⟂In der Spotify-App öffnen
 Ouvrir dans {}⟂Open in {}⟂Abrir en {}⟂Abrir no {}⟂In {} öffnen
+Prairie⟂Meadow⟂Pradera⟂Pradaria⟂Wiese
+Crépuscule⟂Dusk⟂Atardecer⟂Crepúsculo⟂Abenddämmerung
+Lavande⟂Lavender⟂Lavanda⟂Lavanda⟂Lavendel
+Travail⟂Work⟂Trabajo⟂Trabalho⟂Arbeit
+Achats⟂Shopping⟂Compras⟂Compras⟂Einkaufen
+Banque⟂Bank⟂Banco⟂Banco⟂Bank
+Onglet privé⟂Private tab⟂Pestaña privada⟂Separador privado⟂Privater Tab
+Nouvel onglet dans un conteneur…⟂New tab in a container…⟂Nueva pestaña en un contenedor…⟂Novo separador num contentor…⟂Neuer Tab in einem Container…
+Rouvrir l'onglet fermé⟂Reopen closed tab⟂Reabrir pestaña cerrada⟂Reabrir separador fechado⟂Geschlossenen Tab wieder öffnen
+Mode focus⟂Focus mode⟂Modo concentración⟂Modo foco⟂Fokusmodus
+Garder la fenêtre au premier plan⟂Keep window on top⟂Mantener la ventana encima⟂Manter a janela por cima⟂Fenster im Vordergrund halten
+Vidéo flottante⟂Floating video⟂Vídeo flotante⟂Vídeo flutuante⟂Schwebendes Video
+Supprimer un élément de la page…⟂Remove an element from the page…⟂Quitar un elemento de la página…⟂Remover um elemento da página…⟂Element von der Seite entfernen…
+Modifier le texte de la page⟂Edit text on page⟂Editar el texto de la página⟂Editar o texto da página⟂Text der Seite bearbeiten
+Débloquer le copier-coller⟂Unlock copy and paste⟂Desbloquear copiar y pegar⟂Desbloquear copiar e colar⟂Kopieren und Einfügen freigeben
+Version archivée de la page⟂Archived version of the page⟂Versión archivada de la página⟂Versão arquivada da página⟂Archivierte Version der Seite
+Réglages de ce site…⟂Settings for this website…⟂Ajustes de este sitio…⟂Definições deste site…⟂Einstellungen für diese Website…
+script dans la page⟂script in the page⟂script en la página⟂script na página⟂Skript in der Seite
+Ce bouton agit sur une page web.⟂This button acts on a web page.⟂Este botón actúa sobre una página web.⟂Este botão atua numa página web.⟂Diese Taste wirkt auf eine Webseite.
+Rien ici pour l'instant.⟂Nothing here yet.⟂Nada aquí por ahora.⟂Nada aqui por agora.⟂Noch nichts hier.
+Choisir les boutons…⟂Choose buttons…⟂Elegir botones…⟂Escolher botões…⟂Tasten auswählen…
+Nom du bouton⟂Button name⟂Nombre del botón⟂Nome do botão⟂Name der Taste
+Commande de Sanaga⟂Sanaga command⟂Comando de Sanaga⟂Comando do Sanaga⟂Sanaga-Befehl
+Script dans la page⟂Script in the page⟂Script en la página⟂Script na página⟂Skript in der Seite
+Choisir une commande⟂Choose a command⟂Elegir un comando⟂Escolher um comando⟂Befehl auswählen
+Ajouter le bouton⟂Add button⟂Añadir botón⟂Adicionar botão⟂Taste hinzufügen
+Conteneur « {} » supprimé avec ses données.⟂Container “{}” deleted with its data.⟂Contenedor «{}» eliminado con sus datos.⟂Contentor «{}» eliminado com os seus dados.⟂Container „{}“ mit seinen Daten gelöscht.
+Nouveau conteneur…⟂New container…⟂Nuevo contenedor…⟂Novo contentor…⟂Neuer Container…
+Ouvrir dans un conteneur⟂Open in a container⟂Abrir en un contenedor⟂Abrir num contentor⟂In einem Container öffnen
+Chaque conteneur garde ses propres cookies et connexions : deux comptes d'un même site côte à côte.⟂Each container keeps its own cookies and logins: two accounts of the same site side by side.⟂Cada contenedor guarda sus propias cookies y sesiones: dos cuentas del mismo sitio una al lado de la otra.⟂Cada contentor guarda os seus próprios cookies e sessões: duas contas do mesmo site lado a lado.⟂Jeder Container hat eigene Cookies und Anmeldungen: zwei Konten derselben Website nebeneinander.
+Créez votre premier conteneur :⟂Create your first container:⟂Crea tu primer contenedor:⟂Crie o seu primeiro contentor:⟂Erstellen Sie Ihren ersten Container:
+Nouveau conteneur⟂New container⟂Nuevo contenedor⟂Novo contentor⟂Neuer Container
+Créer⟂Create⟂Crear⟂Criar⟂Erstellen
+Déplier⟂Expand⟂Desplegar⟂Expandir⟂Aufklappen
+Replier⟂Collapse⟂Plegar⟂Recolher⟂Zuklappen
+Quitter le mode focus⟂Leave focus mode⟂Salir del modo concentración⟂Sair do modo foco⟂Fokusmodus verlassen
+Ctrl+Maj+K⟂Ctrl+Shift+K⟂Ctrl+Mayús+K⟂Ctrl+Shift+K⟂Strg+Umschalt+K
+Ne plus garder au premier plan⟂Stop keeping on top⟂Dejar de mantener encima⟂Deixar de manter por cima⟂Nicht mehr im Vordergrund halten
+Garder au premier plan⟂Keep on top⟂Mantener encima⟂Manter por cima⟂Im Vordergrund halten
+Terminer la modification du texte⟂Finish editing text⟂Terminar la edición del texto⟂Terminar a edição do texto⟂Textbearbeitung beenden
+Rendre le copier-coller au site⟂Give copy and paste back to the site⟂Devolver copiar y pegar al sitio⟂Devolver copiar e colar ao site⟂Kopieren und Einfügen wieder der Website überlassen
+Version archivée⟂Archived version⟂Versión archivada⟂Versão arquivada⟂Archivierte Version
+Affiché⟂Shown⟂Visible⟂Visível⟂Angezeigt
+Masqué⟂Hidden⟂Oculto⟂Oculto⟂Ausgeblendet
+Menu »⟂» menu⟂Menú »⟂Menu »⟂Menü »
+« Menu » » range le bouton dans le menu » de la barre d'outils, pour la garder épurée. Aussi : clic droit sur la barre d'outils.⟂“» menu” tucks the button into the toolbar's » menu, to keep the toolbar clean. Also: right-click on the toolbar.⟂«Menú »» guarda el botón en el menú » de la barra de herramientas, para mantenerla despejada. También: clic derecho en la barra de herramientas.⟂«Menu »» guarda o botão no menu » da barra de ferramentas, para a manter limpa. Também: clique direito na barra de ferramentas.⟂„Menü »“ legt die Taste in das »-Menü der Symbolleiste, damit sie aufgeräumt bleibt. Auch: Rechtsklick auf die Symbolleiste.
+Bloquer les publicités et les traceurs⟂Block ads and trackers⟂Bloquear anuncios y rastreadores⟂Bloquear anúncios e rastreadores⟂Werbung und Tracker blockieren
+Les demandes vers les régies publicitaires et les traceurs ne partent jamais⟂Requests to ad networks and trackers never leave⟂Las solicitudes a redes publicitarias y rastreadores nunca salen⟂Os pedidos a redes de publicidade e rastreadores nunca saem⟂Anfragen an Werbenetzwerke und Tracker werden nie gesendet
+Mode économie d'énergie⟂Low power mode⟂Modo de bajo consumo⟂Modo de poupança de energia⟂Energiesparmodus
+Onglets inactifs mis en veille plus tôt, moins de réveils⟂Idle tabs sleep sooner, fewer wake-ups⟂Pestañas inactivas en reposo antes, menos activaciones⟂Separadores inativos suspensos mais cedo, menos ativações⟂Inaktive Tabs schlafen früher, weniger Aufwachvorgänge
+Sur batterie⟂On battery⟂Con batería⟂Na bateria⟂Im Akkubetrieb
+Toujours⟂Always⟂Siempre⟂Sempre⟂Immer
+Emoji du profil⟂Profile emoji⟂Emoji del perfil⟂Emoji do perfil⟂Profil-Emoji
+Sur son badge et l'icône de son lanceur⟂On its badge and its launcher icon⟂En su insignia y el icono de su lanzador⟂No seu emblema e no ícone do seu lançador⟂Auf seinem Abzeichen und dem Symbol seines Starters
+Ajouter ce profil à mes applications⟂Add this profile to my applications⟂Añadir este perfil a mis aplicaciones⟂Adicionar este perfil às minhas aplicações⟂Dieses Profil zu meinen Anwendungen hinzufügen
+Un lanceur à lui, avec son icône : vraiment séparé des autres⟂Its own launcher and icon: truly separate from the others⟂Su propio lanzador e icono: realmente separado de los demás⟂O seu próprio lançador e ícone: realmente separado dos outros⟂Eigener Starter mit eigenem Symbol: wirklich getrennt von den anderen
+Installer une extension…⟂Install an extension…⟂Instalar una extensión…⟂Instalar uma extensão…⟂Erweiterung installieren…
+Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)⟂Chrome (.crx, .zip, manifest.json), Firefox (.xpi), user scripts (.user.js)⟂Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts de usuario (.user.js)⟂Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts de utilizador (.user.js)⟂Chrome (.crx, .zip, manifest.json), Firefox (.xpi), Benutzerskripte (.user.js)
+Les extensions des autres navigateurs marchent quand elles agissent dans les pages (bloqueurs d'éléments, mises en forme, aides à la lecture…). Celles qui ont besoin d'une fenêtre à elles ou d'un service en arrière-plan ne sont pas prises en charge.⟂Extensions from other browsers work when they act inside pages (element blockers, restyling, reading aids…). Those that need a window of their own or a background service are not supported.⟂Las extensiones de otros navegadores funcionan cuando actúan dentro de las páginas (bloqueadores de elementos, estilos, ayudas de lectura…). Las que necesitan una ventana propia o un servicio en segundo plano no son compatibles.⟂As extensões de outros navegadores funcionam quando atuam nas páginas (bloqueadores de elementos, estilos, ajudas de leitura…). As que precisam de uma janela própria ou de um serviço em segundo plano não são suportadas.⟂Erweiterungen anderer Browser funktionieren, wenn sie in den Seiten wirken (Element-Blocker, Gestaltung, Lesehilfen…). Solche, die ein eigenes Fenster oder einen Hintergrunddienst brauchen, werden nicht unterstützt.
+Bordure de la fenêtre⟂Window border⟂Borde de la ventana⟂Contorno da janela⟂Fensterrahmen
+Mode compact⟂Compact mode⟂Modo compacto⟂Modo compacto⟂Kompaktmodus
+Onglets en arbre⟂Tree tabs⟂Pestañas en árbol⟂Separadores em árvore⟂Baum-Tabs
+Une couleur autour de la fenêtre⟂A colour around the window⟂Un color alrededor de la ventana⟂Uma cor à volta da janela⟂Eine Farbe um das Fenster
+Aucune⟂None⟂Ninguno⟂Nenhum⟂Keiner
+Dégradé⟂Gradient⟂Degradado⟂Gradiente⟂Verlauf
+Couleurs animées⟂Animated colours⟂Colores animados⟂Cores animadas⟂Animierte Farben
+Épaisseur de la bordure⟂Border width⟂Grosor del borde⟂Espessura do contorno⟂Rahmenbreite
+Opacité de la bordure⟂Border opacity⟂Opacidad del borde⟂Opacidade do contorno⟂Rahmendeckkraft
+Barre d'outils et onglets plus bas : plus de place pour la page⟂Lower toolbar and tabs: more room for the page⟂Barra de herramientas y pestañas más bajas: más espacio para la página⟂Barra de ferramentas e separadores mais baixos: mais espaço para a página⟂Niedrigere Symbolleiste und Tabs: mehr Platz für die Seite
+Onglets verticaux : un onglet ouvert depuis une page se range dessous⟂Vertical tabs: a tab opened from a page goes under it⟂Pestañas verticales: una pestaña abierta desde una página se coloca debajo⟂Separadores verticais: um separador aberto a partir de uma página fica por baixo dela⟂Vertikale Tabs: Ein aus einer Seite geöffneter Tab kommt darunter
+Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.⟂Focus mode (Ctrl+Shift+K or F9): only the page stays, nothing around it.⟂Modo concentración (Ctrl+Mayús+K o F9): solo queda la página, sin nada alrededor.⟂Modo foco (Ctrl+Shift+K ou F9): só fica a página, sem nada à volta.⟂Fokusmodus (Strg+Umschalt+K oder F9): Nur die Seite bleibt, nichts drumherum.
+Icône de l'application⟂Application icon⟂Icono de la aplicación⟂Ícone da aplicação⟂Anwendungssymbol
+Vos boutons⟂Your buttons⟂Tus botones⟂Os seus botões⟂Ihre Tasten
+Boutons programmables⟂Programmable buttons⟂Botones programables⟂Botões programáveis⟂Programmierbare Tasten
+Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page.⟂A toolbar button that opens an address, runs a Sanaga command (focus mode, floating video, container…) or runs your script in the page.⟂Un botón en la barra de herramientas que abre una dirección, lanza un comando de Sanaga (modo concentración, vídeo flotante, contenedor…) o ejecuta tu script en la página.⟂Um botão na barra de ferramentas que abre um endereço, executa um comando do Sanaga (modo foco, vídeo flutuante, contentor…) ou o seu script na página.⟂Eine Taste in der Symbolleiste, die eine Adresse öffnet, einen Sanaga-Befehl ausführt (Fokusmodus, schwebendes Video, Container…) oder Ihr Skript in der Seite ausführt.
+Conteneurs⟂Containers⟂Contenedores⟂Contentores⟂Container
+Conteneur⟂Container⟂Contenedor⟂Contentor⟂Container
+Comptes séparés⟂Separate accounts⟂Cuentas separadas⟂Contas separadas⟂Getrennte Konten
+Supprimer le conteneur et ses données⟂Delete the container and its data⟂Eliminar el contenedor y sus datos⟂Eliminar o contentor e os seus dados⟂Container und seine Daten löschen
+Travail, Achats…⟂Work, Shopping…⟂Trabajo, Compras…⟂Trabalho, Compras…⟂Arbeit, Einkaufen…
+Les onglets d'un conteneur ont leurs propres cookies et connexions : deux comptes d'un même site côte à côte, ou les achats tenus à l'écart du reste. Clic droit sur un onglet ou un lien › Ouvrir dans un conteneur.⟂Tabs in a container have their own cookies and logins: two accounts of the same site side by side, or shopping kept apart from the rest. Right-click a tab or a link › Open in a container.⟂Las pestañas de un contenedor tienen sus propias cookies y sesiones: dos cuentas del mismo sitio una al lado de la otra, o las compras apartadas del resto. Clic derecho en una pestaña o un enlace › Abrir en un contenedor.⟂Os separadores de um contentor têm os seus próprios cookies e sessões: duas contas do mesmo site lado a lado, ou as compras afastadas do resto. Clique direito num separador ou ligação › Abrir num contentor.⟂Tabs in einem Container haben eigene Cookies und Anmeldungen: zwei Konten derselben Website nebeneinander oder Einkäufe getrennt vom Rest. Rechtsklick auf einen Tab oder Link › In einem Container öffnen.
+Réglages par site⟂Website settings⟂Ajustes por sitio⟂Definições por site⟂Website-Einstellungen
+Polices⟂Fonts⟂Fuentes⟂Tipos de letra⟂Schriften
+Mode sombre⟂Dark mode⟂Modo oscuro⟂Modo escuro⟂Dunkelmodus
+Aucun réglage pour l'instant⟂No settings yet⟂Aún no hay ajustes⟂Ainda sem definições⟂Noch keine Einstellungen
+Menu ⋮ › Plus d'outils › Réglages de ce site…⟂Menu ⋮ › More tools › Settings for this website…⟂Menú ⋮ › Más herramientas › Ajustes de este sitio…⟂Menu ⋮ › Mais ferramentas › Definições deste site…⟂Menü ⋮ › Weitere Tools › Einstellungen für diese Website…
+sans JavaScript⟂no JavaScript⟂sin JavaScript⟂sem JavaScript⟂ohne JavaScript
+bloqueur coupé⟂blocker off⟂bloqueador desactivado⟂bloqueador desligado⟂Blocker aus
+sans ses polices⟂without its fonts⟂sin sus fuentes⟂sem os seus tipos de letra⟂ohne eigene Schriften
+sombre⟂dark⟂oscuro⟂escuro⟂dunkel
+sans bandeaux collants⟂no sticky bars⟂sin barras fijas⟂sem barras fixas⟂ohne fixierte Leisten
+copie débloquée⟂copy unlocked⟂copia desbloqueada⟂cópia desbloqueada⟂Kopieren freigegeben
+{} élément(s) retiré(s)⟂{} element(s) removed⟂{} elemento(s) quitado(s)⟂{} elemento(s) removido(s)⟂{} Element(e) entfernt
+Remettre les réglages par défaut⟂Reset to default settings⟂Restablecer los ajustes predeterminados⟂Repor as definições predefinidas⟂Auf Standardeinstellungen zurücksetzen
+JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…⟂JavaScript, fonts, blocker, dark mode, font, removed elements: site by site. Right-click in a page › Settings for this website…⟂JavaScript, fuentes, bloqueador, modo oscuro, tipo de letra, elementos quitados: sitio por sitio. Clic derecho en una página › Ajustes de este sitio…⟂JavaScript, tipos de letra, bloqueador, modo escuro, fonte, elementos removidos: site a site. Clique direito numa página › Definições deste site…⟂JavaScript, Schriften, Blocker, Dunkelmodus, Schriftart, entfernte Elemente: Website für Website. Rechtsklick in einer Seite › Einstellungen für diese Website…
+Installer une extension⟂Install an extension⟂Instalar una extensión⟂Instalar uma extensão⟂Erweiterung installieren
+Extension « {} » installée et activée.⟂Extension “{}” installed and turned on.⟂Extensión «{}» instalada y activada.⟂Extensão «{}» instalada e ativada.⟂Erweiterung „{}“ installiert und aktiviert.
+Impossible d'installer l'extension : {}⟂Could not install the extension: {}⟂No se pudo instalar la extensión: {}⟂Não foi possível instalar a extensão: {}⟂Erweiterung konnte nicht installiert werden: {}
+Fenêtres⟂Windows⟂Ventanas⟂Janelas⟂Fenster
+Les réglages de site concernent les pages web.⟂Website settings apply to web pages.⟂Los ajustes de sitio se aplican a las páginas web.⟂As definições de site aplicam-se às páginas web.⟂Website-Einstellungen gelten für Webseiten.
+Réglages de ce site⟂Settings for this website⟂Ajustes de este sitio⟂Definições deste site⟂Einstellungen für diese Website
+JavaScript⟂JavaScript⟂JavaScript⟂JavaScript⟂JavaScript
+Désactivé : pages plus légères, mais certains sites ne marchent plus⟂Off: lighter pages, but some sites stop working⟂Desactivado: páginas más ligeras, pero algunos sitios dejan de funcionar⟂Desligado: páginas mais leves, mas alguns sites deixam de funcionar⟂Aus: leichtere Seiten, aber manche Websites funktionieren nicht mehr
+Bloqueur de publicités et de traceurs⟂Ad and tracker blocker⟂Bloqueador de anuncios y rastreadores⟂Bloqueador de anúncios e rastreadores⟂Werbe- und Tracker-Blocker
+Polices du site⟂The site's fonts⟂Fuentes del sitio⟂Tipos de letra do site⟂Schriften der Website
+Désactivé : les polices de votre système, plus légères⟂Off: your system's fonts, lighter⟂Desactivado: las fuentes de tu sistema, más ligeras⟂Desligado: os tipos de letra do sistema, mais leves⟂Aus: die Schriften Ihres Systems, leichter
+Sans bandeaux collants⟂No sticky bars⟂Sin barras fijas⟂Sem barras fixas⟂Ohne fixierte Leisten
+Les en-têtes et barres fixés à l'écran défilent avec la page⟂Headers and bars stuck to the screen scroll with the page⟂Las cabeceras y barras fijas se desplazan con la página⟂Os cabeçalhos e barras fixos deslocam-se com a página⟂Fixierte Kopfzeilen und Leisten scrollen mit der Seite
+Copier-coller débloqué⟂Copy and paste unlocked⟂Copiar y pegar desbloqueado⟂Copiar e colar desbloqueado⟂Kopieren und Einfügen freigegeben
+Sélection, copie et clic droit même si le site les interdit⟂Selecting, copying and right-click even if the site forbids them⟂Selección, copia y clic derecho aunque el sitio los prohíba⟂Seleção, cópia e clique direito mesmo que o site os proíba⟂Markieren, Kopieren und Rechtsklick, auch wenn die Website es verbietet
+Police des pages⟂Page font⟂Tipo de letra de las páginas⟂Tipo de letra das páginas⟂Schriftart der Seiten
+Celle du site⟂The site's own⟂La del sitio⟂A do site⟂Die der Website
+Se présenter comme⟂Introduce itself as⟂Presentarse como⟂Apresentar-se como⟂Ausgeben als
+Aucun élément retiré⟂No elements removed⟂Ningún elemento quitado⟂Nenhum elemento removido⟂Keine Elemente entfernt
+Tout remettre⟂Restore all⟂Restaurar todo⟂Repor tudo⟂Alle wiederherstellen
+Retirer un élément…⟂Remove an element…⟂Quitar un elemento…⟂Remover um elemento…⟂Element entfernen…
+Terminé⟂Done⟂Hecho⟂Concluído⟂Fertig
+Fermer avec ses onglets enfants⟂Close with its child tabs⟂Cerrar con sus pestañas hijas⟂Fechar com os separadores filhos⟂Mit untergeordneten Tabs schließen
+Déplacer le groupe dans une nouvelle fenêtre⟂Move group to a new window⟂Mover el grupo a una ventana nueva⟂Mover o grupo para uma nova janela⟂Gruppe in ein neues Fenster verschieben
+Autres boutons⟂More buttons⟂Más botones⟂Mais botões⟂Weitere Tasten
+Mode focus — Ctrl+Maj+K ou F9 pour revenir.⟂Focus mode — Ctrl+Shift+K or F9 to come back.⟂Modo concentración — Ctrl+Mayús+K o F9 para volver.⟂Modo foco — Ctrl+Shift+K ou F9 para voltar.⟂Fokusmodus — Strg+Umschalt+K oder F9 zum Zurückkehren.
+Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).⟂On battery: low power mode (idle tabs sleep sooner).⟂Con batería: modo de bajo consumo (las pestañas inactivas entran en reposo antes).⟂Na bateria: modo de poupança de energia (separadores inativos suspensos mais cedo).⟂Im Akkubetrieb: Energiesparmodus (inaktive Tabs schlafen früher).
+Modification du texte terminée.⟂Text editing finished.⟂Edición del texto terminada.⟂Edição do texto terminada.⟂Textbearbeitung beendet.
+Aucune vidéo dans cette page.⟂No video on this page.⟂No hay vídeo en esta página.⟂Não há vídeo nesta página.⟂Kein Video auf dieser Seite.
+Sanaga — vidéo flottante⟂Sanaga — floating video⟂Sanaga — vídeo flotante⟂Sanaga — vídeo flutuante⟂Sanaga — schwebendes Video
+Cette vidéo ne peut pas quitter sa page : elle flotte dans un coin pendant que vous lisez.⟂This video can't leave its page: it floats in a corner while you read.⟂Este vídeo no puede salir de su página: flota en una esquina mientras lees.⟂Este vídeo não pode sair da sua página: flutua num canto enquanto lê.⟂Dieses Video kann seine Seite nicht verlassen: Es schwebt in einer Ecke, während Sie lesen.
+Cliquez sur ce qu'il faut retirer de la page — Échap pour annuler⟂Click what to remove from the page — Esc to cancel⟂Haz clic en lo que quieras quitar de la página — Esc para cancelar⟂Clique no que quer remover da página — Esc para cancelar⟂Klicken Sie auf das, was von der Seite entfernt werden soll — Esc zum Abbrechen
+Élément retiré de {} (aussi les prochaines fois). Pour le revoir : Réglages de ce site.⟂Element removed from {} (next times too). To see it again: Settings for this website.⟂Elemento quitado de {} (también las próximas veces). Para volver a verlo: Ajustes de este sitio.⟂Elemento removido de {} (também nas próximas vezes). Para o voltar a ver: Definições deste site.⟂Element von {} entfernt (auch künftig). Zum Wiederherstellen: Einstellungen für diese Website.
+Modifiez le texte directement dans la page. Échap pour terminer ; tout revient au rechargement.⟂Edit the text right in the page. Esc to finish; everything comes back on reload.⟂Edita el texto directamente en la página. Esc para terminar; todo vuelve al recargar.⟂Edite o texto diretamente na página. Esc para terminar; tudo volta ao recarregar.⟂Bearbeiten Sie den Text direkt in der Seite. Esc zum Beenden; beim Neuladen ist alles wieder da.
+Copier-coller débloqué sur ce site.⟂Copy and paste unlocked on this site.⟂Copiar y pegar desbloqueado en este sitio.⟂Copiar e colar desbloqueado neste site.⟂Kopieren und Einfügen auf dieser Website freigegeben.
+Copier-coller rendu au site.⟂Copy and paste given back to the site.⟂Copiar y pegar devuelto al sitio.⟂Copiar e colar devolvido ao site.⟂Kopieren und Einfügen wieder der Website überlassen.
+La fenêtre reste au premier plan.⟂The window stays on top.⟂La ventana se mantiene encima.⟂A janela fica por cima.⟂Das Fenster bleibt im Vordergrund.
+La fenêtre ne reste plus au premier plan.⟂The window no longer stays on top.⟂La ventana ya no se mantiene encima.⟂A janela já não fica por cima.⟂Das Fenster bleibt nicht mehr im Vordergrund.
+Votre bureau ne permet pas de garder une fenêtre au premier plan.⟂Your desktop can't keep a window on top.⟂Tu escritorio no permite mantener una ventana encima.⟂O seu ambiente de trabalho não permite manter uma janela por cima.⟂Ihr Desktop kann kein Fenster im Vordergrund halten.
+Sanaga — aperçu⟂Sanaga — preview⟂Sanaga — vista previa⟂Sanaga — pré-visualização⟂Sanaga — Vorschau
+Ouvrir dans un onglet⟂Open in a tab⟂Abrir en una pestaña⟂Abrir num separador⟂In einem Tab öffnen
+Icône changée dans Sanaga. Installez Sanaga (packaging/install.sh) pour la voir aussi dans vos applications.⟂Icon changed in Sanaga. Install Sanaga (packaging/install.sh) to see it in your applications too.⟂Icono cambiado en Sanaga. Instala Sanaga (packaging/install.sh) para verlo también en tus aplicaciones.⟂Ícone alterado no Sanaga. Instale o Sanaga (packaging/install.sh) para o ver também nas suas aplicações.⟂Symbol in Sanaga geändert. Installieren Sie Sanaga (packaging/install.sh), um es auch in Ihren Anwendungen zu sehen.
+Icône changée. Le dock et le menu des applications la montrent au prochain démarrage.⟂Icon changed. The dock and the applications menu show it at the next start.⟂Icono cambiado. El dock y el menú de aplicaciones lo muestran en el próximo inicio.⟂Ícone alterado. A dock e o menu de aplicações mostram-no no próximo arranque.⟂Symbol geändert. Dock und Anwendungsmenü zeigen es beim nächsten Start.
+Navigateur web Sanaga, avec les données de ce profil⟂Sanaga web browser, with this profile's data⟂Navegador web Sanaga, con los datos de este perfil⟂Navegador web Sanaga, com os dados deste perfil⟂Sanaga-Webbrowser mit den Daten dieses Profils
+« {} » ajouté à vos applications.⟂“{}” added to your applications.⟂«{}» añadido a tus aplicaciones.⟂«{}» adicionado às suas aplicações.⟂„{}“ zu Ihren Anwendungen hinzugefügt.
+Aperçu du lien⟂Preview link⟂Vista previa del enlace⟂Pré-visualizar ligação⟂Link-Vorschau
+Ouvrir le lien dans un conteneur…⟂Open link in a container…⟂Abrir el enlace en un contenedor…⟂Abrir a ligação num contentor…⟂Link in einem Container öffnen…
+Cette extension n'agit pas dans les pages (elle a besoin d'une fenêtre ou d'un service que Sanaga n'a pas).⟂This extension doesn't act inside pages (it needs a window or a service Sanaga doesn't have).⟂Esta extensión no actúa dentro de las páginas (necesita una ventana o un servicio que Sanaga no tiene).⟂Esta extensão não atua nas páginas (precisa de uma janela ou de um serviço que o Sanaga não tem).⟂Diese Erweiterung wirkt nicht in den Seiten (sie braucht ein Fenster oder einen Dienst, den Sanaga nicht hat).

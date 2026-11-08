@@ -64,7 +64,7 @@ body:has(#CybotCookiebotDialog), body:has(#tarteaucitronRoot), body:has(#axeptio
 "#;
 
 const DARK_CSS: &str = r#"
-html { filter: invert(0.92) hue-rotate(180deg) !important; background: #111 !important; }
+html { filter: invert(0.92) hue-rotate(180deg) !important; background: #fff !important; }
 img, video, picture, canvas, iframe, svg image, [style*="background-image"] { filter: invert(1) hue-rotate(180deg) !important; }
 "#;
 
@@ -153,7 +153,9 @@ pub fn all() -> Vec<Extension> {
         let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
         let name = header(&text, "@name").into_iter().next().unwrap_or_else(|| stem.clone());
         let description = header(&text, "@description").into_iter().next().unwrap_or_else(|| tf("Fichier {}", &[&p.file_name().unwrap_or_default().to_string_lossy()]));
-        let matches = header(&text, "@match");
+        // (user scripts also say where they run with @include)
+        let mut matches = header(&text, "@match");
+        matches.extend(header(&text, "@include"));
         let (js, css) = if ext == "js" { (text, String::new()) } else { (String::new(), text) };
         v.push(Extension { id: format!("fichier:{}", p.file_name().unwrap_or_default().to_string_lossy()), name, description, matches, js, css, builtin: false });
     }

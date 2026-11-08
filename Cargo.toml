@@ -29,6 +29,8 @@ cbc = "0.1"
 pbkdf2 = "0.12"
 hmac = "0.12"
 sha1 = "0.10"
+# extensions from other browsers (.xpi, .crx, .zip)
+flate2 = "1"
 
 # The window and the web engine: GTK 4 + WebKitGTK 6, on Linux and the BSDs.
 # (On Windows and macOS the build stops with a clear message: docs/PORTING.md.)

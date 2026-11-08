@@ -363,6 +363,9 @@ enum Act {
     SetPermission(String, String, Option<bool>),
     SetIdentity(String, Option<crate::identity::Identity>),
     Onboarding,
+    InstallExt,
+    ProfileLauncher,
+    ResetSite(String),
 }
 
 const SIDEBAR_W: f32 = 236.0;
@@ -715,21 +718,24 @@ impl Sanaga {
             footnote(ui, th, tr("Ctrl + molette ou Ctrl +/− change le zoom d'un site ; Sanaga s'en souvient."));
             group(ui, th, tr("Boutons de la barre d'outils"), |ui, rows| {
                 for (key, _) in crate::store::TOOLBAR_BUTTONS {
-                    let mut on = st.toolbar.split(',').any(|k| k == key);
-                    if rows.switch(ui, super::toolbar::toolbar_button_label(key), "", &mut on) {
-                        let off = format!("-{key}");
-                        let mut keys: Vec<String> = st.toolbar.split(',').filter(|k| !k.is_empty() && *k != key && *k != off).map(|k| k.to_string()).collect();
-                        keys.push(if on { key.to_string() } else { off });
-                        st.toolbar = keys.join(",");
-                        changed = true;
-                    }
+                    let state = super::toolbar::toolbar_state(&st.toolbar, key);
+                    rows.row(ui, super::toolbar::toolbar_button_label(key), "", false, |ui| {
+                        // (the memory figure has no menu entry: shown or hidden)
+                        let opts: &[&str] = if key == "memory" { &[tr("Affiché"), tr("Masqué")] } else { &[tr("Affiché"), tr("Menu »"), tr("Masqué")] };
+                        let cur = if key == "memory" { state.min(1) } else { state };
+                        if let Some(v) = segmented(ui, th, opts, cur) {
+                            let v = if key == "memory" && v == 1 { 2 } else { v };
+                            super::toolbar::set_toolbar_state(&mut st.toolbar, key, v);
+                            changed = true;
+                        }
+                    });
                 }
                 if rows.link(ui, tr("Rétablir les boutons d'origine"), "", "") {
                     st.toolbar = crate::store::default_toolbar();
                     changed = true;
                 }
             });
-            footnote(ui, th, tr("Aussi : clic droit sur la barre d'outils."));
+            footnote(ui, th, tr("« Menu » » range le bouton dans le menu » de la barre d'outils, pour la garder épurée. Aussi : clic droit sur la barre d'outils."));
         }
 
         // ---------------- Intelligence ----------------
@@ -834,9 +840,10 @@ impl Sanaga {
         }
 
         // ---------------- Privacy ----------------
-        if show.shows(Section::Privacy, tr("Suivi"), &[tr("Empêcher le suivi intersites"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")]) {
+        if show.shows(Section::Privacy, tr("Suivi"), &[tr("Bloquer les publicités et les traceurs"), tr("Empêcher le suivi intersites"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")]) {
             any = true;
             group(ui, th, "", |ui, rows| {
+                changed |= rows.switch(ui, tr("Bloquer les publicités et les traceurs"), tr("Les demandes vers les régies publicitaires et les traceurs ne partent jamais"), &mut st.blocker);
                 changed |= rows.switch(ui, tr("Empêcher le suivi intersites"), "", &mut st.itp);
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });
@@ -960,12 +967,18 @@ impl Sanaga {
         }
 
         // ---------------- Performance ----------------
-        if show.shows(Section::Performance, tr("Économiseur de mémoire"), &[tr("Moteur d'affichage des pages"), tr("Charger les images")]) {
+        if show.shows(Section::Performance, tr("Économiseur de mémoire"), &[tr("Mode économie d'énergie"), tr("Moteur d'affichage des pages"), tr("Charger les images")]) {
             any = true;
             group(ui, th, "", |ui, rows| {
                 rows.row(ui, tr("Économiseur de mémoire"), "", false, |ui| {
                     if let Some(v) = popup(ui, "memory", st.memory_saver, &[(0u8, tr("Désactivé")), (1, tr("Modéré")), (2, tr("Équilibré")), (3, tr("Maximal"))]) {
                         st.memory_saver = v;
+                        changed = true;
+                    }
+                });
+                rows.row(ui, tr("Mode économie d'énergie"), tr("Onglets inactifs mis en veille plus tôt, moins de réveils"), false, |ui| {
+                    if let Some(v) = popup(ui, "low-power", st.low_power, &[(0u8, tr("Désactivé")), (1, tr("Sur batterie")), (2, tr("Toujours"))]) {
+                        st.low_power = v;
                         changed = true;
                     }
                 });
@@ -986,7 +999,7 @@ impl Sanaga {
         }
 
         // ---------------- Sync and profiles ----------------
-        if show.shows(Section::Sync, tr("Synchronisation"), &[tr("Dossier"), tr("Profils")]) {
+        if show.shows(Section::Sync, tr("Synchronisation"), &[tr("Dossier"), tr("Profils"), tr("Emoji du profil"), tr("Ajouter ce profil à mes applications")]) {
             any = true;
             let state = if !sync.error.is_empty() {
                 sync.error.clone()
@@ -1008,11 +1021,19 @@ impl Sanaga {
                 if rows.link(ui, tr("Gérer les profils"), "", &profile) {
                     acts.push(Act::Go("sanaga://profiles"));
                 }
+                rows.row(ui, tr("Emoji du profil"), tr("Sur son badge et l'icône de son lanceur"), false, |ui| {
+                    if ui.add(TextEdit::singleline(&mut st.profile_emoji).hint_text("★").desired_width(60.0).char_limit(8)).changed() {
+                        changed = true;
+                    }
+                });
+                if rows.link(ui, tr("Ajouter ce profil à mes applications"), tr("Un lanceur à lui, avec son icône : vraiment séparé des autres"), "") {
+                    acts.push(Act::ProfileLauncher);
+                }
             });
         }
 
         // ---------------- Extensions ----------------
-        if show.shows(Section::Extensions, tr("Extensions"), &[tr("Créer une extension"), tr("Simulateur mobile")]) {
+        if show.shows(Section::Extensions, tr("Extensions"), &[tr("Créer une extension"), tr("Simulateur mobile"), tr("Installer une extension…"), "Chrome", "Firefox", ".xpi", ".crx"]) {
             any = true;
             group(ui, th, tr("Extensions installées"), |ui, rows| {
                 let mut m = mobile_on;
@@ -1049,10 +1070,174 @@ impl Sanaga {
                 if rows.link(ui, tr("Créer une extension"), tr("Décrivez ce que vous voulez : Sanaga l'écrit pour vous"), "") {
                     acts.push(Act::Go("sanaga://create-extension"));
                 }
+                if rows.link(ui, tr("Installer une extension…"), tr("Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)"), "") {
+                    acts.push(Act::InstallExt);
+                }
                 if rows.link(ui, tr("Ouvrir le dossier des extensions"), tr("Vos fichiers .js et .css"), "") {
                     acts.push(Act::OpenExtFolder);
                 }
             });
+            footnote(ui, th, tr("Les extensions des autres navigateurs marchent quand elles agissent dans les pages (bloqueurs d'éléments, mises en forme, aides à la lecture…). Celles qui ont besoin d'une fenêtre à elles ou d'un service en arrière-plan ne sont pas prises en charge."));
+        }
+
+        // ---------------- window, toolbar buttons, containers, site settings ----------------
+        let mut changed_more = false;
+        if show.shows(Section::Appearance, tr("Fenêtre"), &[tr("Bordure de la fenêtre"), tr("Mode compact"), tr("Onglets en arbre"), tr("Mode focus")]) {
+            any = true;
+            let st = &mut self.store.settings;
+            group(ui, th, tr("Fenêtre"), |ui, rows| {
+                rows.row(ui, tr("Bordure de la fenêtre"), tr("Une couleur autour de la fenêtre"), false, |ui| {
+                    if let Some(v) = popup(ui, "border", st.border, &[(0u8, tr("Aucune")), (1, tr("Couleur d'accent")), (2, tr("Dégradé")), (3, tr("Couleurs animées"))]) {
+                        st.border = v;
+                        changed_more = true;
+                    }
+                });
+                if st.border > 0 {
+                    rows.row(ui, tr("Épaisseur de la bordure"), "", false, |ui| {
+                        let mut v = st.border_size as f32;
+                        if ui.add(egui::Slider::new(&mut v, 1.0..=16.0).suffix(" pt")).changed() {
+                            st.border_size = v as u8;
+                            changed_more = true;
+                        }
+                    });
+                    rows.row(ui, tr("Opacité de la bordure"), "", false, |ui| {
+                        let mut v = st.border_alpha as f32;
+                        if ui.add(egui::Slider::new(&mut v, 10.0..=100.0).suffix(" %")).changed() {
+                            st.border_alpha = v as u8;
+                            changed_more = true;
+                        }
+                    });
+                }
+                changed_more |= rows.switch(ui, tr("Mode compact"), tr("Barre d'outils et onglets plus bas : plus de place pour la page"), &mut st.compact);
+                changed_more |= rows.switch(ui, tr("Onglets en arbre"), tr("Onglets verticaux : un onglet ouvert depuis une page se range dessous"), &mut st.tree_tabs);
+            });
+            footnote(ui, th, tr("Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour."));
+            let current = self.store.settings.app_icon as usize;
+            let mut pick_icon: Option<u8> = None;
+            group(ui, th, tr("Icône de l'application"), |ui, _rows| {
+                Frame::new().inner_margin(Margin::symmetric(10, 10)).show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for (k, (name, top, bottom, _)) in crate::icons::ICON_STYLES.iter().enumerate() {
+                            let (r, resp) = ui.allocate_exact_size(vec2(84.0, 84.0), Sense::click());
+                            let tile = Rect::from_center_size(pos2(r.center().x, r.top() + 30.0), vec2(48.0, 48.0));
+                            let mut mesh = egui::Mesh::default();
+                            let (t, b) = (Color32::from_rgb(top[0], top[1], top[2]), Color32::from_rgb(bottom[0], bottom[1], bottom[2]));
+                            mesh.colored_vertex(tile.left_top(), t);
+                            mesh.colored_vertex(tile.right_top(), t);
+                            mesh.colored_vertex(tile.right_bottom(), b);
+                            mesh.colored_vertex(tile.left_bottom(), b);
+                            mesh.add_triangle(0, 1, 2);
+                            mesh.add_triangle(0, 2, 3);
+                            ui.painter().rect_filled(tile, CornerRadius::same(11), b);
+                            ui.painter().add(egui::Shape::mesh(mesh));
+                            for dy in [-6.0f32, 6.0] {
+                                ui.painter().line_segment([pos2(tile.left() + 9.0, tile.center().y + dy), pos2(tile.right() - 9.0, tile.center().y + dy - 3.0)], Stroke::new(4.0, Color32::WHITE));
+                            }
+                            if k == current {
+                                ui.painter().rect_stroke(tile.expand(3.0), CornerRadius::same(13), Stroke::new(2.0, th.accent), egui::StrokeKind::Outside);
+                            }
+                            ui.painter().text(pos2(r.center().x, r.bottom() - 10.0), Align2::CENTER_CENTER, tr(name), FontId::proportional(11.5), if k == current { th.accent } else { th.text });
+                            if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() && k != current {
+                                pick_icon = Some(k as u8);
+                            }
+                        }
+                    });
+                });
+            });
+            if let Some(k) = pick_icon {
+                self.set_app_icon(k);
+            }
+        }
+        if show.shows(Section::Appearance, tr("Vos boutons"), &[tr("Boutons programmables"), tr("Ajouter le bouton")]) {
+            any = true;
+            ui.add_space(4.0);
+            ui.label(RichText::new(tr("Vos boutons")).size(13.0).family(bold()).color(th.text));
+            ui.add_space(6.0);
+            Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(12)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                changed_more |= self.buttons_settings(ui, th);
+            });
+            ui.add_space(6.0);
+            footnote(ui, th, tr("Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page."));
+        }
+        if show.shows(Section::Privacy, tr("Conteneurs"), &[tr("Conteneur"), tr("Comptes séparés")]) {
+            any = true;
+            let list = self.store.containers.clone();
+            let mut remove: Option<String> = None;
+            let mut add = false;
+            group(ui, th, tr("Conteneurs"), |ui, rows| {
+                for c in &list {
+                    let col = super::tabs::GROUP_COLORS.get(c.color as usize).map(|g| g.1).unwrap_or(Color32::GRAY);
+                    rows.row(ui, &format!("●  {}", c.name), "", false, |ui| {
+                        if small_icon_button(ui, th, Icon::Close, tr("Supprimer le conteneur et ses données")) {
+                            remove = Some(c.name.clone());
+                        }
+                        let (r, _) = ui.allocate_exact_size(vec2(12.0, 12.0), Sense::hover());
+                        ui.painter().circle_filled(r.center(), 5.0, col);
+                    });
+                }
+                rows.row(ui, tr("Nouveau conteneur"), "", false, |ui| {
+                    if ui.button(tr("Créer")).clicked() {
+                        add = true;
+                    }
+                    ui.add(TextEdit::singleline(&mut self.new_container_name).hint_text(tr("Travail, Achats…")).desired_width(180.0));
+                });
+            });
+            footnote(ui, th, tr("Les onglets d'un conteneur ont leurs propres cookies et connexions : deux comptes d'un même site côte à côte, ou les achats tenus à l'écart du reste. Clic droit sur un onglet ou un lien › Ouvrir dans un conteneur."));
+            if add {
+                let name = std::mem::take(&mut self.new_container_name);
+                self.add_container(&name);
+            }
+            if let Some(n) = remove {
+                self.remove_container(&n);
+            }
+        }
+        if show.shows(Section::Privacy, tr("Réglages par site"), &["JavaScript", tr("Polices"), tr("Mode sombre")]) {
+            any = true;
+            let sites = crate::site_prefs::all();
+            group(ui, th, tr("Réglages par site"), |ui, rows| {
+                if sites.is_empty() {
+                    rows.row(ui, tr("Aucun réglage pour l'instant"), tr("Menu ⋮ › Plus d'outils › Réglages de ce site…"), false, |_| {});
+                }
+                for (host, p) in &sites {
+                    let mut what: Vec<&str> = Vec::new();
+                    if !p.js {
+                        what.push(tr("sans JavaScript"));
+                    }
+                    if !p.blocker {
+                        what.push(tr("bloqueur coupé"));
+                    }
+                    if !p.fonts {
+                        what.push(tr("sans ses polices"));
+                    }
+                    if p.dark {
+                        what.push(tr("sombre"));
+                    }
+                    if p.no_sticky {
+                        what.push(tr("sans bandeaux collants"));
+                    }
+                    if p.unlock {
+                        what.push(tr("copie débloquée"));
+                    }
+                    let hidden = if p.hidden.is_empty() { String::new() } else { tf("{} élément(s) retiré(s)", &[&p.hidden.len()]) };
+                    let mut sub = what.join(" · ");
+                    if !hidden.is_empty() {
+                        if !sub.is_empty() {
+                            sub.push_str(" · ");
+                        }
+                        sub.push_str(&hidden);
+                    }
+                    rows.row(ui, host, &sub, false, |ui| {
+                        if small_icon_button(ui, th, Icon::Close, tr("Remettre les réglages par défaut")) {
+                            acts.push(Act::ResetSite(host.clone()));
+                        }
+                    });
+                }
+            });
+            footnote(ui, th, tr("JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…"));
+        }
+        if changed_more {
+            changed = true;
         }
 
         if !any {
@@ -1066,6 +1251,7 @@ impl Sanaga {
         }
         if changed {
             crate::i18n::set_language(&self.store.settings.language);
+            crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
             self.store.save_settings();
             if !self.store.settings.sync_dir.trim().is_empty() {
                 acts.push(Act::SyncNow);
@@ -1131,6 +1317,25 @@ impl Sanaga {
                 }
                 Act::SetPermission(site, kind, allow) => self.store.set_permission(&site, &kind, allow),
                 Act::SetIdentity(host, i) => self.set_identity(&host, i),
+                Act::InstallExt => {
+                    let pats = ["*.xpi", "*.crx", "*.zip", "*.js", "*.css", "manifest.json"];
+                    if let Some(path) = crate::shell::choose_file(tr("Installer une extension"), &pats, tr("Extensions"), None) {
+                        let now = self.ctx.input(|i| i.time);
+                        match crate::webext::install(&path) {
+                            Ok((name, id)) => {
+                                if !self.store.extensions_on.contains(&id) {
+                                    self.store.extensions_on.push(id);
+                                    self.store.save_extensions();
+                                }
+                                self.refresh_extensions();
+                                self.notice = Some((tf("Extension « {} » installée et activée.", &[&name]), now));
+                            }
+                            Err(e) => self.notice = Some((tf("Impossible d'installer l'extension : {}", &[&e]), now)),
+                        }
+                    }
+                }
+                Act::ProfileLauncher => self.add_profile_launcher(),
+                Act::ResetSite(host) => self.save_site(&host, crate::site_prefs::SitePrefs::default(), true),
                 Act::Onboarding => {
                     self.onboarding_step = 0;
                     self.navigate(self.active, "sanaga://start".into(), None, true);

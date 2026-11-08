@@ -771,3 +771,146 @@ Certains sites refusent WebKit alors qu'ils fonctionnent avec lui : choisir Chro
 Automatique	Automatic
 Ouvrir dans l'application Spotify	Open in the Spotify app
 Ouvrir dans {}	Open in {}
+Prairie	Meadow
+Crépuscule	Dusk
+Lavande	Lavender
+Travail	Work
+Achats	Shopping
+Banque	Bank
+Onglet privé	Private tab
+Nouvel onglet dans un conteneur…	New tab in a container…
+Rouvrir l'onglet fermé	Reopen closed tab
+Mode focus	Focus mode
+Garder la fenêtre au premier plan	Keep window on top
+Vidéo flottante	Floating video
+Supprimer un élément de la page…	Remove an element from the page…
+Modifier le texte de la page	Edit text on page
+Débloquer le copier-coller	Unlock copy and paste
+Version archivée de la page	Archived version of the page
+Réglages de ce site…	Settings for this website…
+script dans la page	script in the page
+Ce bouton agit sur une page web.	This button acts on a web page.
+Rien ici pour l'instant.	Nothing here yet.
+Choisir les boutons…	Choose buttons…
+Nom du bouton	Button name
+Commande de Sanaga	Sanaga command
+Script dans la page	Script in the page
+Choisir une commande	Choose a command
+Ajouter le bouton	Add button
+Conteneur « {} » supprimé avec ses données.	Container “{}” deleted with its data.
+Nouveau conteneur…	New container…
+Ouvrir dans un conteneur	Open in a container
+Chaque conteneur garde ses propres cookies et connexions : deux comptes d'un même site côte à côte.	Each container keeps its own cookies and logins: two accounts of the same site side by side.
+Créez votre premier conteneur :	Create your first container:
+Nouveau conteneur	New container
+Créer	Create
+Déplier	Expand
+Replier	Collapse
+Quitter le mode focus	Leave focus mode
+Ctrl+Maj+K	Ctrl+Shift+K
+Ne plus garder au premier plan	Stop keeping on top
+Garder au premier plan	Keep on top
+Terminer la modification du texte	Finish editing text
+Rendre le copier-coller au site	Give copy and paste back to the site
+Version archivée	Archived version
+Affiché	Shown
+Masqué	Hidden
+Menu »	» menu
+« Menu » » range le bouton dans le menu » de la barre d'outils, pour la garder épurée. Aussi : clic droit sur la barre d'outils.	“» menu” tucks the button into the toolbar's » menu, to keep the toolbar clean. Also: right-click on the toolbar.
+Bloquer les publicités et les traceurs	Block ads and trackers
+Les demandes vers les régies publicitaires et les traceurs ne partent jamais	Requests to ad networks and trackers never leave
+Mode économie d'énergie	Low power mode
+Onglets inactifs mis en veille plus tôt, moins de réveils	Idle tabs sleep sooner, fewer wake-ups
+Sur batterie	On battery
+Toujours	Always
+Emoji du profil	Profile emoji
+Sur son badge et l'icône de son lanceur	On its badge and its launcher icon
+Ajouter ce profil à mes applications	Add this profile to my applications
+Un lanceur à lui, avec son icône : vraiment séparé des autres	Its own launcher and icon: truly separate from the others
+Installer une extension…	Install an extension…
+Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)	Chrome (.crx, .zip, manifest.json), Firefox (.xpi), user scripts (.user.js)
+Les extensions des autres navigateurs marchent quand elles agissent dans les pages (bloqueurs d'éléments, mises en forme, aides à la lecture…). Celles qui ont besoin d'une fenêtre à elles ou d'un service en arrière-plan ne sont pas prises en charge.	Extensions from other browsers work when they act inside pages (element blockers, restyling, reading aids…). Those that need a window of their own or a background service are not supported.
+Bordure de la fenêtre	Window border
+Mode compact	Compact mode
+Onglets en arbre	Tree tabs
+Une couleur autour de la fenêtre	A colour around the window
+Aucune	None
+Dégradé	Gradient
+Couleurs animées	Animated colours
+Épaisseur de la bordure	Border width
+Opacité de la bordure	Border opacity
+Barre d'outils et onglets plus bas : plus de place pour la page	Lower toolbar and tabs: more room for the page
+Onglets verticaux : un onglet ouvert depuis une page se range dessous	Vertical tabs: a tab opened from a page goes under it
+Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.	Focus mode (Ctrl+Shift+K or F9): only the page stays, nothing around it.
+Icône de l'application	Application icon
+Vos boutons	Your buttons
+Boutons programmables	Programmable buttons
+Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page.	A toolbar button that opens an address, runs a Sanaga command (focus mode, floating video, container…) or runs your script in the page.
+Conteneurs	Containers
+Conteneur	Container
+Comptes séparés	Separate accounts
+Supprimer le conteneur et ses données	Delete the container and its data
+Travail, Achats…	Work, Shopping…
+Les onglets d'un conteneur ont leurs propres cookies et connexions : deux comptes d'un même site côte à côte, ou les achats tenus à l'écart du reste. Clic droit sur un onglet ou un lien › Ouvrir dans un conteneur.	Tabs in a container have their own cookies and logins: two accounts of the same site side by side, or shopping kept apart from the rest. Right-click a tab or a link › Open in a container.
+Réglages par site	Website settings
+Polices	Fonts
+Mode sombre	Dark mode
+Aucun réglage pour l'instant	No settings yet
+Menu ⋮ › Plus d'outils › Réglages de ce site…	Menu ⋮ › More tools › Settings for this website…
+sans JavaScript	no JavaScript
+bloqueur coupé	blocker off
+sans ses polices	without its fonts
+sombre	dark
+sans bandeaux collants	no sticky bars
+copie débloquée	copy unlocked
+{} élément(s) retiré(s)	{} element(s) removed
+Remettre les réglages par défaut	Reset to default settings
+JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…	JavaScript, fonts, blocker, dark mode, font, removed elements: site by site. Right-click in a page › Settings for this website…
+Installer une extension	Install an extension
+Extension « {} » installée et activée.	Extension “{}” installed and turned on.
+Impossible d'installer l'extension : {}	Could not install the extension: {}
+Fenêtres	Windows
+Les réglages de site concernent les pages web.	Website settings apply to web pages.
+Réglages de ce site	Settings for this website
+JavaScript	JavaScript
+Désactivé : pages plus légères, mais certains sites ne marchent plus	Off: lighter pages, but some sites stop working
+Bloqueur de publicités et de traceurs	Ad and tracker blocker
+Polices du site	The site's fonts
+Désactivé : les polices de votre système, plus légères	Off: your system's fonts, lighter
+Sans bandeaux collants	No sticky bars
+Les en-têtes et barres fixés à l'écran défilent avec la page	Headers and bars stuck to the screen scroll with the page
+Copier-coller débloqué	Copy and paste unlocked
+Sélection, copie et clic droit même si le site les interdit	Selecting, copying and right-click even if the site forbids them
+Police des pages	Page font
+Celle du site	The site's own
+Se présenter comme	Introduce itself as
+Aucun élément retiré	No elements removed
+Tout remettre	Restore all
+Retirer un élément…	Remove an element…
+Terminé	Done
+Fermer avec ses onglets enfants	Close with its child tabs
+Déplacer le groupe dans une nouvelle fenêtre	Move group to a new window
+Autres boutons	More buttons
+Mode focus — Ctrl+Maj+K ou F9 pour revenir.	Focus mode — Ctrl+Shift+K or F9 to come back.
+Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).	On battery: low power mode (idle tabs sleep sooner).
+Modification du texte terminée.	Text editing finished.
+Aucune vidéo dans cette page.	No video on this page.
+Sanaga — vidéo flottante	Sanaga — floating video
+Cette vidéo ne peut pas quitter sa page : elle flotte dans un coin pendant que vous lisez.	This video can't leave its page: it floats in a corner while you read.
+Cliquez sur ce qu'il faut retirer de la page — Échap pour annuler	Click what to remove from the page — Esc to cancel
+Élément retiré de {} (aussi les prochaines fois). Pour le revoir : Réglages de ce site.	Element removed from {} (next times too). To see it again: Settings for this website.
+Modifiez le texte directement dans la page. Échap pour terminer ; tout revient au rechargement.	Edit the text right in the page. Esc to finish; everything comes back on reload.
+Copier-coller débloqué sur ce site.	Copy and paste unlocked on this site.
+Copier-coller rendu au site.	Copy and paste given back to the site.
+La fenêtre reste au premier plan.	The window stays on top.
+La fenêtre ne reste plus au premier plan.	The window no longer stays on top.
+Votre bureau ne permet pas de garder une fenêtre au premier plan.	Your desktop can't keep a window on top.
+Sanaga — aperçu	Sanaga — preview
+Ouvrir dans un onglet	Open in a tab
+Icône changée dans Sanaga. Installez Sanaga (packaging/install.sh) pour la voir aussi dans vos applications.	Icon changed in Sanaga. Install Sanaga (packaging/install.sh) to see it in your applications too.
+Icône changée. Le dock et le menu des applications la montrent au prochain démarrage.	Icon changed. The dock and the applications menu show it at the next start.
+Navigateur web Sanaga, avec les données de ce profil	Sanaga web browser, with this profile's data
+« {} » ajouté à vos applications.	“{}” added to your applications.
+Aperçu du lien	Preview link
+Ouvrir le lien dans un conteneur…	Open link in a container…
+Cette extension n'agit pas dans les pages (elle a besoin d'une fenêtre ou d'un service que Sanaga n'a pas).	This extension doesn't act inside pages (it needs a window or a service Sanaga doesn't have).

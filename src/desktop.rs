@@ -125,6 +125,93 @@ pub fn hide_desktop_titlebar() {
         .ok();
 }
 
+/// One request to Hyprland, in its Lua form (Hyprland 0.55+) or else the
+/// classic one. True when Hyprland said "ok".
+fn dispatch(sock: &PathBuf, lua: &str, classic: &str) -> bool {
+    hypr(sock, &format!("dispatch {lua}")).is_some_and(|r| r.trim() == "ok") || hypr(sock, &format!("dispatch {classic}")).is_some_and(|r| r.trim() == "ok")
+}
+
+/// A field of the JSON object of one window or screen (Hyprland's answers).
+fn field<'a>(obj: &'a str, key: &str) -> Option<&'a str> {
+    Some(obj.split(&format!("\"{key}\":")).nth(1)?.trim_start().split([',', '}', '\n']).next()?.trim())
+}
+
+/// The screen in use: position and size (in points).
+fn focused_monitor(sock: &PathBuf) -> Option<(i64, i64, i64, i64)> {
+    let list = hypr(sock, "j/monitors")?;
+    // (each screen's object starts with its id and name; "description" follows,
+    // then its size, position and state)
+    let m = list.split("\"description\":").skip(1).find(|o| o.split("\"description\":").next().is_some_and(|x| field(x, "focused") == Some("true")))?;
+    let num = |k: &str| field(m, k).and_then(|v| v.parse::<f64>().ok());
+    let sc = num("scale").filter(|s| *s > 0.0).unwrap_or(1.0);
+    Some((num("x")? as i64, num("y")? as i64, (num("width")? / sc) as i64, (num("height")? / sc) as i64))
+}
+
+/// A small window of Sanaga's (link preview, floating video): floating, at its
+/// size, and above the others in the screen's corner when `pin` (Hyprland;
+/// elsewhere the desktop places it).
+pub fn float_window(title: &str, w: i32, h: i32, pin: bool) {
+    let Some(sock) = hypr_socket() else { return };
+    let title = title.to_string();
+    let pattern = title.replace(['(', ')', '^', '$', '|', '.', '*', '+', '?', '[', ']', '\''], ".");
+    std::thread::Builder::new()
+        .name("sanaga-float".into())
+        .spawn(move || {
+            // (the window needs a moment to appear)
+            std::thread::sleep(Duration::from_millis(400));
+            let lua_sel = format!("'title:^({pattern})$'");
+            let sel = format!("title:^({pattern})$");
+            dispatch(&sock, &format!("hl.dsp.window.float({{ action = 'enable', window = {lua_sel} }})"), &format!("setfloating {sel}"));
+            dispatch(&sock, &format!("hl.dsp.window.resize({{ x = {w}, y = {h}, exact = true, window = {lua_sel} }})"), &format!("resizewindowpixel exact {w} {h},{sel}"));
+            if pin {
+                // bottom-right corner of the screen in use, above everything
+                if let Some((mx, my, mw, mh)) = focused_monitor(&sock) {
+                    let (x, y) = (mx + mw - w as i64 - 24, my + mh - h as i64 - 24);
+                    dispatch(&sock, &format!("hl.dsp.window.move({{ x = {x}, y = {y}, window = {lua_sel} }})"), &format!("movewindowpixel exact {x} {y},{sel}"));
+                }
+                let pinned = hypr(&sock, "j/clients").is_some_and(|l| l.split("\"address\":").any(|o| o.contains(&format!("\"title\": \"{title}\"")) && o.contains("\"pinned\": true")));
+                if !pinned {
+                    dispatch(&sock, &format!("hl.dsp.window.pin({{ window = {lua_sel} }})"), &format!("pin {sel}"));
+                }
+            } else {
+                dispatch(&sock, &format!("hl.dsp.window.center({{ window = {lua_sel} }})"), &format!("centerwindow {sel}"));
+            }
+        })
+        .ok();
+}
+
+/// Keep Sanaga's window above the others (or let it go). False when the
+/// desktop can't (only Hyprland can be asked for now).
+pub fn keep_on_top(on: bool, title: &str) -> bool {
+    let Some(sock) = hypr_socket() else { return false };
+    let pid = std::process::id();
+    // this process's window used last (never another application's)
+    let Some(list) = hypr(&sock, "j/clients") else { return false };
+    let mine = list
+        .split("\"address\":")
+        .skip(1)
+        .filter(|o| o.contains(&format!("\"pid\": {pid},")) && o.contains(&format!("\"title\": \"{}\"", title.replace('"', "\\\""))))
+        .filter_map(|o| {
+            let addr = o.trim().trim_start_matches('"').split('"').next()?.to_string();
+            let focus: i64 = field(o, "focusHistoryID")?.parse().ok()?;
+            Some((focus, addr, o.contains("\"floating\": true"), o.contains("\"pinned\": true")))
+        })
+        .min_by_key(|w| w.0);
+    let Some((_, addr, floating, pinned)) = mine else { return false };
+    let (lua_sel, sel) = (format!("'address:{addr}'"), format!("address:{addr}"));
+    if on {
+        if !floating {
+            dispatch(&sock, &format!("hl.dsp.window.float({{ action = 'enable', window = {lua_sel} }})"), &format!("setfloating {sel}"));
+        }
+        pinned || dispatch(&sock, &format!("hl.dsp.window.pin({{ window = {lua_sel} }})"), &format!("pin {sel}"))
+    } else {
+        if pinned {
+            dispatch(&sock, &format!("hl.dsp.window.pin({{ window = {lua_sel} }})"), &format!("pin {sel}"));
+        }
+        true
+    }
+}
+
 static RESIZING: AtomicBool = AtomicBool::new(false);
 static MAXIMIZED: AtomicBool = AtomicBool::new(false);
 const MIN_W: i64 = 560;

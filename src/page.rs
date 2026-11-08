@@ -22,6 +22,9 @@ pub enum PageSignal {
     Close,
     /// The page's engine process stopped (a crash, or too much memory: true).
     Crashed(bool),
+    /// A page tool asked from the page's right-click menu: what, and the
+    /// address it is about (a link…).
+    Tool(&'static str, String),
 }
 
 /// Makes the page a site opens with `window.open` (sign-in, payment windows):
@@ -47,6 +50,82 @@ thread_local! {
     static WATCHED: RefCell<Vec<NetworkSession>> = const { RefCell::new(Vec::new()) };
     /// Where finished downloads are reported: one receiver per window.
     static DOWNLOAD_SINKS: RefCell<Vec<(usize, DownloadSink)>> = const { RefCell::new(Vec::new()) };
+    /// The ad and tracker blocker, and the rule that stops web fonts, once
+    /// WebKit has compiled them.
+    static BLOCKER: RefCell<Option<webkit6::UserContentFilter>> = const { RefCell::new(None) };
+    static NO_FONTS: RefCell<Option<webkit6::UserContentFilter>> = const { RefCell::new(None) };
+    /// The open pages (to give them the blocker once it is ready).
+    static VIEWS: RefCell<Vec<gtk::glib::WeakRef<WebView>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The blocker is ready: the pages already open get it (from their next request).
+fn blocker_ready() {
+    let views: Vec<WebView> = VIEWS.with(|v| {
+        let mut v = v.borrow_mut();
+        v.retain(|w| w.upgrade().is_some());
+        v.iter().filter_map(|w| w.upgrade()).collect()
+    });
+    for view in views {
+        let host = host_of_uri(&view.uri().map(|u| u.to_string()).unwrap_or_default());
+        apply_site(&view, &host);
+    }
+}
+
+/// The network blocker is switched on (Settings › Privacy).
+pub static BLOCKER_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Compile the blocker's rules (once; WebKit keeps them compiled in `dir`).
+pub fn prepare_filters(dir: &Path) {
+    if BLOCKER.with(|b| b.borrow().is_some()) {
+        return;
+    }
+    let _ = std::fs::create_dir_all(dir);
+    let store = webkit6::UserContentFilterStore::new(&dir.to_string_lossy());
+    let rules = gtk::glib::Bytes::from_owned(crate::site_prefs::blocker_rules().into_bytes());
+    store.save("sanaga-blocker", &rules, None::<&gtk::gio::Cancellable>, |res| match res {
+        Ok(f) => {
+            BLOCKER.with(|b| *b.borrow_mut() = Some(f));
+            blocker_ready();
+        }
+        Err(e) => eprintln!("bloqueur : {e}"),
+    });
+    let fonts = gtk::glib::Bytes::from_static(crate::site_prefs::no_fonts_rules().as_bytes());
+    store.save("sanaga-nofonts", &fonts, None::<&gtk::gio::Cancellable>, |res| {
+        if let Ok(f) = res {
+            NO_FONTS.with(|b| *b.borrow_mut() = Some(f));
+        }
+    });
+}
+
+/// The website settings of `host` go into the page about to load: its
+/// JavaScript, the blocker, its fonts, and its look.
+fn apply_site(v: &WebView, host: &str) {
+    let prefs = crate::site_prefs::for_host(host);
+    if let Some(st) = WebViewExt::settings(v) {
+        // (Sanaga's own scripts keep working: only the page's are stopped)
+        if st.enables_javascript_markup() != prefs.js {
+            st.set_enable_javascript_markup(prefs.js);
+        }
+    }
+    let Some(ucm) = v.user_content_manager() else { return };
+    let block = prefs.blocker && BLOCKER_ON.load(std::sync::atomic::Ordering::Relaxed);
+    BLOCKER.with(|b| match (block, b.borrow().as_ref()) {
+        (true, Some(f)) => ucm.add_filter(f),
+        _ => ucm.remove_filter_by_id("sanaga-blocker"),
+    });
+    NO_FONTS.with(|b| match (!prefs.fonts, b.borrow().as_ref()) {
+        (true, Some(f)) => ucm.add_filter(f),
+        _ => ucm.remove_filter_by_id("sanaga-nofonts"),
+    });
+    ucm.remove_all_style_sheets();
+    let css = prefs.css();
+    if !css.is_empty() {
+        ucm.add_style_sheet(&webkit6::UserStyleSheet::new(&css, UserContentInjectedFrames::AllFrames, webkit6::UserStyleLevel::User, &[], &[]));
+    }
+}
+
+fn host_of_uri(uri: &str) -> String {
+    url::Url::parse(uri).ok().and_then(|u| u.host_str().map(|h| h.to_string())).unwrap_or_default()
 }
 
 type DownloadSink = Rc<dyn Fn(String, Option<PathBuf>, bool)>;
@@ -100,6 +179,7 @@ pub fn profile_context(dir: &Path) -> Engine {
     if let Some(cm) = session.cookie_manager() {
         cm.set_persistent_storage(&dir.join("cookies").to_string_lossy(), CookiePersistentStorage::Text);
     }
+    accept_cookies(&session);
     let engine = Engine { ctx: WebContext::new(), session };
     secure_context(&engine);
     ENGINES.with(|cs| cs.borrow_mut().push((dir.to_path_buf(), engine.clone())));
@@ -108,14 +188,37 @@ pub fn profile_context(dir: &Path) -> Engine {
 
 /// An engine that keeps nothing (no profile folder: tests, screenshots).
 pub fn ephemeral_engine() -> Engine {
-    let engine = Engine { ctx: WebContext::new(), session: NetworkSession::new_ephemeral() };
+    let session = NetworkSession::new_ephemeral();
+    accept_cookies(&session);
+    let engine = Engine { ctx: WebContext::new(), session };
     secure_context(&engine);
     engine
 }
 
+/// Sites may keep cookies (logins…); other sites' cookies inside a page are
+/// refused (third-party: trackers). Said explicitly: WebKitGTK 6's default
+/// differs between versions.
+fn accept_cookies(session: &NetworkSession) {
+    if let Some(cm) = session.cookie_manager() {
+        let policy = match std::env::var("SANAGA_COOKIES").as_deref() {
+            Ok("always") => webkit6::CookieAcceptPolicy::Always,
+            _ => webkit6::CookieAcceptPolicy::NoThirdParty,
+        };
+        cm.set_accept_policy(policy);
+    }
+}
+
 /// The session shared by private tabs.
 fn private_session() -> NetworkSession {
-    PRIVATE.with(|p| p.borrow_mut().get_or_insert_with(NetworkSession::new_ephemeral).clone())
+    PRIVATE.with(|p| {
+        p.borrow_mut()
+            .get_or_insert_with(|| {
+                let s = NetworkSession::new_ephemeral();
+                accept_cookies(&s);
+                s
+            })
+            .clone()
+    })
 }
 
 /// Spell checking. (With WebKitGTK 6 every page always runs in its sandbox,
@@ -214,6 +317,7 @@ impl PageView {
             }
         }
         let view = b.build();
+        VIEWS.with(|v| v.borrow_mut().push(view.downgrade()));
         if let Some(st) = WebViewExt::settings(&view) {
             st.set_enable_webgl(true);
             st.set_enable_webaudio(true);
@@ -235,7 +339,15 @@ impl PageView {
         view.connect_load_changed(move |v, ev| {
             let uri = v.uri().map(|u| u.to_string()).unwrap_or_default();
             match ev {
-                LoadEvent::Committed => o(PageSignal::Started(uri)),
+                // website settings: before the new page is made
+                LoadEvent::Started | LoadEvent::Redirected => apply_site(v, &host_of_uri(&uri)),
+                LoadEvent::Committed => {
+                    let js = crate::site_prefs::for_host(&host_of_uri(&uri)).script();
+                    if !js.is_empty() {
+                        v.evaluate_javascript(&js, None, None, None::<&gtk::gio::Cancellable>, |_| {});
+                    }
+                    o(PageSignal::Started(uri))
+                }
                 LoadEvent::Finished => o(PageSignal::Finished(uri)),
                 _ => {}
             }
@@ -266,6 +378,9 @@ impl PageView {
             // type): downloaded, as in Chrome (WebKit would just ignore it).
             if kind == webkit6::PolicyDecisionType::Response {
                 if let Some(r) = decision.downcast_ref::<webkit6::ResponsePolicyDecision>() {
+                    if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
+                        eprintln!("response {:?} {:?} main={} shown={}", r.response().and_then(|x| x.mime_type()), r.response().and_then(|x| x.uri()), r.is_main_frame_main_resource(), r.is_mime_type_supported());
+                    }
                     if r.is_main_frame_main_resource() && !r.is_mime_type_supported() {
                         let status = r.response().map(|x| x.status_code()).unwrap_or(200);
                         if (200..300).contains(&status) {
@@ -299,6 +414,33 @@ impl PageView {
                 decision.ignore();
                 v.load_uri(&uri);
                 return true;
+            }
+            false
+        });
+        // the page's right-click menu: Sanaga's page tools at the end
+        let o = on.clone();
+        view.connect_context_menu(move |_, menu, hit| {
+            let add = |label: &str, what: &'static str, arg: String| {
+                let action = gtk::gio::SimpleAction::new(&format!("sanaga-{what}"), None);
+                let o = o.clone();
+                action.connect_activate(move |_, _| o(PageSignal::Tool(what, arg.clone())));
+                menu.append(&webkit6::ContextMenuItem::from_gaction(&action, label, None));
+            };
+            menu.append(&webkit6::ContextMenuItem::new_separator());
+            if hit.context_is_link() {
+                if let Some(link) = hit.link_uri() {
+                    add(crate::i18n::tr("Aperçu du lien"), "preview", link.to_string());
+                    add(crate::i18n::tr("Ouvrir le lien dans un conteneur…"), "container-link", link.to_string());
+                }
+            }
+            if hit.context_is_media() {
+                add(crate::i18n::tr("Vidéo flottante"), "pip", String::new());
+            }
+            add(crate::i18n::tr("Supprimer un élément de la page…"), "zap", String::new());
+            add(crate::i18n::tr("Modifier le texte de la page"), "edit-text", String::new());
+            add(crate::i18n::tr("Réglages de ce site…"), "site-settings", String::new());
+            if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
+                eprintln!("page menu: {} items", menu.n_items());
             }
             false
         });
@@ -391,6 +533,22 @@ impl Drop for PageView {
         }
         self.view.terminate_web_process();
     }
+}
+
+/// A plain page for a small window of its own (link preview, floating
+/// video), with the profile's cookies.
+pub fn plain_view(engine: Option<&Engine>) -> WebView {
+    let mut b = WebView::builder();
+    if let Some(e) = engine {
+        b = b.web_context(&e.ctx).network_session(&e.session);
+    }
+    let view = b.build();
+    if let Some(st) = WebViewExt::settings(&view) {
+        st.set_enable_mediasource(true);
+        st.set_enable_webgl(true);
+        st.set_media_playback_requires_user_gesture(false);
+    }
+    view
 }
 
 /// A WebKit snapshot (GDK texture) as a cairo picture (to draw a device

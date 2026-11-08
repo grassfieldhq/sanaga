@@ -213,6 +213,7 @@ impl Sanaga {
     pub(super) fn page_error(&mut self, ui: &mut Ui, th: &Theme, msg: &str) {
         let url = self.tabs[self.active].url().to_string();
         let mut retry = false;
+        let mut archive = false;
         ui.vertical_centered(|ui| {
             ui.add_space(ui.available_height() * 0.18);
             let (r, _) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
@@ -240,9 +241,19 @@ impl Sanaga {
             if ui.add(b).clicked() {
                 retry = true;
             }
+            // gone or not loading: the copy kept by the Internet Archive
+            if !crashed && (url.starts_with("http://") || url.starts_with("https://")) {
+                ui.add_space(8.0);
+                if ui.add(egui::Button::new(RichText::new(tr("Version archivée")).size(13.5)).corner_radius(CornerRadius::same(16)).min_size(vec2(120.0, 30.0))).clicked() {
+                    archive = true;
+                }
+            }
         });
         if retry {
             self.reload(self.active);
+        }
+        if archive {
+            self.open_archive();
         }
     }
 }

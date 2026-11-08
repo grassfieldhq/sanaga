@@ -26,7 +26,7 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Streaming video | 🟡 | Plain and adaptive (MSE) video work. **Netflix, Disney+, Spotify web and other DRM sites do not**: WebKitGTK has no Widevine. Nothing Sanaga can add. |
 | File upload, downloads, printing | ✅ | GTK dialogs. Next: a download manager with pause/resume and "open folder". |
 | Spell checking | 🟡 | On, in the interface language + English. Needs dictionaries: `sudo pacman -S hunspell-fr hunspell-en_us` (or your languages). |
-| Web extensions (uBlock Origin, Bitwarden…) | ❌ | Only Sanaga's simple script/style extensions. WebKitGTK has no WebExtensions API; a password-manager bridge would be the most useful first step. |
+| Web extensions (uBlock Origin, Bitwarden…) | 🟡 | Chrome / Firefox extensions install when they act inside pages (content scripts and styles, with a small `chrome.storage` stand-in); those needing a background page or a pop-up (password managers) don't — WebKitGTK has no WebExtensions API. Ads and trackers: built-in network blocker. |
 
 ## 3. Everyday comfort
 

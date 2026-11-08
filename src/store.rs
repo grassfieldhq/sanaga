@@ -111,6 +111,44 @@ pub struct Settings {
     /// Page translation: "" ask the first time, "google", or "ai" (the AI
     /// chosen for summaries).
     pub translate_with: String,
+    /// A border around the window: 0 none, 1 accent colour, 2 gradient,
+    /// 3 animated colours; its width (points) and opacity (%).
+    pub border: u8,
+    pub border_size: u8,
+    pub border_alpha: u8,
+    /// Compact mode: lower toolbar and tab bar, more room for the page.
+    pub compact: bool,
+    /// Network blocker of ads and trackers (requests never leave).
+    pub blocker: bool,
+    /// Low power mode: 0 off, 1 automatic on battery, 2 always.
+    pub low_power: u8,
+    /// Vertical tabs as a tree (tabs opened from a page under it).
+    pub tree_tabs: bool,
+    /// The application's icon (0 = the usual one).
+    pub app_icon: u8,
+    /// The profile's emoji (shown on its badge and its launcher icon).
+    pub profile_emoji: String,
+}
+
+/// A container: tabs that keep their own cookies and logins, separate from
+/// the other tabs of the same profile (two accounts of one site side by side).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Container {
+    pub name: String,
+    /// Colour (index in the tab-group colours).
+    pub color: u8,
+}
+
+/// A toolbar button made by the person: opens an address, runs one of
+/// Sanaga's commands, or runs a script in the page.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomButton {
+    pub label: String,
+    /// Emoji or one or two letters drawn on the button.
+    pub symbol: String,
+    /// 0 address, 1 Sanaga command, 2 script in the page.
+    pub kind: u8,
+    pub value: String,
 }
 
 /// Buttons the toolbar can show: key, shown by default.
@@ -173,6 +211,15 @@ impl Default for Settings {
             ai_model: String::new(),
             notif_prompts: false,
             translate_with: String::new(),
+            border: 0,
+            border_size: 4,
+            border_alpha: 90,
+            compact: false,
+            blocker: true,
+            low_power: 1,
+            tree_tabs: true,
+            app_icon: 0,
+            profile_emoji: String::new(),
         }
     }
 }
@@ -221,6 +268,10 @@ pub struct Store {
     pub first_run: bool,
     /// Browser identity chosen per site (host).
     pub identities: Vec<(String, crate::identity::Identity)>,
+    /// Containers of this profile.
+    pub containers: Vec<Container>,
+    /// The person's own toolbar buttons.
+    pub buttons: Vec<CustomButton>,
 }
 
 const MAX_HISTORY: usize = 5000;
@@ -242,6 +293,8 @@ impl Store {
             downloads: Vec::new(),
             first_run: false,
             identities: Vec::new(),
+            containers: Vec::new(),
+            buttons: Vec::new(),
         }
     }
 
@@ -276,7 +329,20 @@ impl Store {
         let dir = if profile.is_empty() { Self::root_dir() } else { Self::root_dir().join("profils").join(profile) };
         let first_run = !dir.join("settings.txt").exists();
         let _ = std::fs::create_dir_all(&dir);
-        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new() };
+        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new(), containers: Vec::new(), buttons: Vec::new() };
+        if let Ok(t) = std::fs::read_to_string(dir.join("containers.tsv")) {
+            s.containers = t.lines().filter_map(|l| l.split_once('\t')).map(|(n, c)| Container { name: n.to_string(), color: c.parse().unwrap_or(1) }).collect();
+        }
+        if let Ok(t) = std::fs::read_to_string(dir.join("buttons.tsv")) {
+            s.buttons = t
+                .lines()
+                .filter_map(|l| {
+                    let mut p = l.splitn(4, '\t');
+                    Some(CustomButton { label: p.next()?.to_string(), symbol: p.next()?.to_string(), kind: p.next()?.parse().ok()?, value: p.next()?.replace("\\n", "\n") })
+                })
+                .collect();
+        }
+        crate::site_prefs::set_all(std::fs::read_to_string(dir.join("sites.tsv")).map(|t| t.lines().filter_map(crate::site_prefs::SitePrefs::from_line).collect()).unwrap_or_default());
         if let Ok(t) = std::fs::read_to_string(dir.join("identity.tsv")) {
             s.identities = t.lines().filter_map(|l| l.split_once('\t')).map(|(h, k)| (h.to_string(), crate::identity::Identity::from_key(k))).collect();
         }
@@ -357,11 +423,20 @@ impl Store {
                         "ai_model" => st.ai_model = v.to_string(),
                         "notif_prompts" => st.notif_prompts = v == "1",
                         "translate_with" => st.translate_with = v.to_string(),
+                        "border" => st.border = v.parse().unwrap_or(0),
+                        "border_size" => st.border_size = v.parse().unwrap_or(4),
+                        "border_alpha" => st.border_alpha = v.parse().unwrap_or(90),
+                        "compact" => st.compact = v == "1",
+                        "blocker" => st.blocker = v == "1",
+                        "low_power" => st.low_power = v.parse().unwrap_or(1),
+                        "tree_tabs" => st.tree_tabs = v == "1",
+                        "app_icon" => st.app_icon = v.parse().unwrap_or(0),
+                        "profile_emoji" => st.profile_emoji = v.to_string(),
                         "toolbar" => {
                             st.toolbar = v.to_string();
                             // buttons added since: shown unless switched off ("-key")
                             for key in ["mobile", "summary"] {
-                                if !st.toolbar.split(',').any(|k| k == key || k.strip_prefix('-') == Some(key)) {
+                                if !st.toolbar.split(',').any(|k| k == key || k.strip_prefix('-') == Some(key) || k.strip_prefix('~') == Some(key)) {
                                     st.toolbar.push_str(&format!(",{key}"));
                                 }
                             }
@@ -411,7 +486,38 @@ impl Store {
             "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\naccent={}\ntheme={}\ntabs_pos={}\nbar_pos={}\nai={}\nai_model={}\nnotif_prompts={}\ntranslate_with={}\n",
             clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model), b(st.notif_prompts), clean(&st.translate_with)
         );
-        let _ = write_atomic(&dir.join("settings.txt"), t);
+        let more = format!(
+            "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\n",
+            st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji)
+        );
+        let _ = write_atomic(&dir.join("settings.txt"), t + &more);
+    }
+
+    pub fn save_containers(&self) {
+        let Some(dir) = &self.dir else { return };
+        let t: String = self.containers.iter().map(|c| format!("{}\t{}\n", clean(&c.name).replace('\t', " "), c.color)).collect();
+        let _ = write_atomic(&dir.join("containers.tsv"), t);
+        CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn save_buttons(&self) {
+        let Some(dir) = &self.dir else { return };
+        let t: String = self
+            .buttons
+            .iter()
+            .map(|b| format!("{}\t{}\t{}\t{}\n", b.label.replace(['\t', '\n'], " "), b.symbol.replace(['\t', '\n'], " "), b.kind, b.value.replace('\t', "    ").replace('\n', "\\n")))
+            .collect();
+        let _ = write_atomic(&dir.join("buttons.tsv"), t);
+        CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Website settings (JavaScript, fonts, blocker, look) of every site.
+    pub fn save_site_prefs(&self, list: &[(String, crate::site_prefs::SitePrefs)]) {
+        crate::site_prefs::set_all(list.to_vec());
+        let Some(dir) = &self.dir else { return };
+        let t: String = list.iter().filter(|(_, p)| !p.is_default()).map(|(h, p)| p.to_line(h) + "\n").collect();
+        let _ = write_atomic(&dir.join("sites.tsv"), t);
+        CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn add_visit(&mut self, url: &str, title: &str) {

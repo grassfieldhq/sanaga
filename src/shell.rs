@@ -385,6 +385,77 @@ pub fn set_page_area(insets: [i32; 4]) {
     }
 }
 
+/// A small window of its own: a link preview, or a floating video kept above
+/// the others (`pin`). `open_label`: a button that opens what it shows in a
+/// tab of the last window used. True when the window opened.
+#[allow(clippy::too_many_arguments)]
+pub fn float_window(engine: Option<&crate::page::Engine>, title: &str, url: Option<&str>, html: Option<(&str, &str)>, w: i32, h: i32, open_label: Option<&str>, pin: bool) -> bool {
+    use webkit6::prelude::*;
+    if host().is_none() {
+        return false;
+    }
+    let view = crate::page::plain_view(engine);
+    let win = gtk::Window::new();
+    win.set_title(Some(title));
+    win.set_default_size(w, h);
+    win.set_icon_name(Some("sanaga"));
+    let header = gtk::HeaderBar::new();
+    header.set_title_widget(Some(&gtk::Label::new(Some(title))));
+    if let Some(label) = open_label {
+        let b = gtk::Button::with_label(label);
+        b.add_css_class("suggested-action");
+        let (v, wn) = (view.clone(), win.clone());
+        b.connect_clicked(move |_| {
+            if let Some(u) = v.uri() {
+                open_in_last_window(u.to_string());
+            }
+            wn.close();
+        });
+        header.pack_end(&b);
+    }
+    win.set_titlebar(Some(&header));
+    win.set_child(Some(&view));
+    match (url, html) {
+        (Some(u), _) => view.load_uri(u),
+        (None, Some((page, base))) => view.load_html(page, Some(base)),
+        _ => return false,
+    }
+    let v = view.clone();
+    win.connect_close_request(move |_| {
+        v.terminate_web_process();
+        glib::Propagation::Proceed
+    });
+    win.present();
+    crate::desktop::float_window(title, w, h, pin);
+    true
+}
+
+/// The open windows: number and title (the sidebar lists them).
+pub fn window_list() -> Vec<(usize, String)> {
+    WINDOWS.with(|w| w.borrow().iter().map(|x| (x.host.slot, x.host.window.title().map(|t| t.to_string()).unwrap_or_default())).collect())
+}
+
+/// The title of the window being drawn now.
+pub fn window_title() -> String {
+    host().and_then(|h| h.window.title()).map(|t| t.to_string()).unwrap_or_default()
+}
+
+/// Bring window `slot` to the front.
+pub fn present_window(slot: usize) {
+    if let Some(h) = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| x.host.clone())) {
+        h.window.present();
+    }
+}
+
+/// Open an address in a new tab of the window used last.
+pub fn open_in_last_window(url: String) {
+    INCOMING.with(|i| i.borrow_mut().push(url));
+    if let Some(h) = last_used_window() {
+        h.window.present();
+        wake(&h);
+    }
+}
+
 /// Save a picture of the whole window (test aid).
 pub fn request_shot(path: String) {
     if let Some(h) = host() {
@@ -398,7 +469,15 @@ fn save_shot(window: &gtk::Window, path: &str) {
     let Some(content) = window.child() else { return };
     let snap = gtk::Snapshot::new();
     window.snapshot_child(&content, &snap);
-    let (node, renderer) = (snap.to_node(), window.renderer());
+    let mut node = snap.to_node();
+    if node.is_none() {
+        // (screen asleep: GTK has not laid the window out since a change)
+        content.allocate(w, h, -1, None);
+        let snap = gtk::Snapshot::new();
+        window.snapshot_child(&content, &snap);
+        node = snap.to_node();
+    }
+    let renderer = window.renderer();
     let (Some(node), Some(renderer)) = (node.as_ref(), renderer) else {
         eprintln!("live shot impossible ({w}x{h}, picture {}, drawing {})", node.is_some(), window.renderer().is_some());
         return;

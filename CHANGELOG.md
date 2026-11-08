@@ -33,6 +33,26 @@ All notable changes to Sanaga are listed here. The format follows
 - Follows the Grassfield system's accent colour and light / dark appearance
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
+### Added (November 2026)
+- Containers: tabs with their own cookies, logins and site data.
+- Network blocker of ads and trackers (WebKit content blocker), on by default,
+  switchable per site.
+- Website settings per site: JavaScript, web fonts, blocker, dark mode, page
+  font, no sticky bars, copy unlocked, removed elements; the identity and its
+  zoom in the same panel.
+- Page tools: floating video, remove an element, edit the page's text, unlock
+  copy and paste, archived version (Internet Archive), link preview window
+  (`--preview URL`), PDF reader (WebKit's built-in viewer).
+- Focus mode (Ctrl+Shift+K / F9), keep on top (Hyprland), compact mode,
+  window border (accent, gradient, animated), app icon colours, low power mode
+  (automatic on battery).
+- Programmable toolbar buttons and the » overflow menu.
+- Tree tabs in the vertical tab list; move a tab group to a new window;
+  windows listed in the sidebar.
+- Extensions from Chrome (.crx, .zip, manifest.json) and Firefox (.xpi), and
+  user scripts with `@include`.
+- Profile emoji and a launcher of its own per profile.
+
 ### Changed
 - Sanaga now runs on **GTK 4 and WebKitGTK 6** (it needs `gtk4` and
   `webkitgtk-6.0`): pages are composed on the graphics card, an idle page costs

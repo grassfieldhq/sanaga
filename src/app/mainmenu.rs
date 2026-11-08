@@ -24,6 +24,9 @@ impl Sanaga {
         let more = ctx.data(|d| d.get_temp::<bool>(more_id)).unwrap_or(false);
         let max_h = (ctx.content_rect().bottom() - pos.y - 24.0).max(200.0);
         let dark = self.store.settings.dark;
+        let (focus, on_top) = (self.focus_mode, self.on_top);
+        let editing = self.editing_text == Some(self.tabs[self.active].id);
+        let unlocked = crate::site_prefs::for_host(&host_of(&cur_url)).unlock;
         let area = egui::Area::new(egui::Id::new("main-menu")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
             Frame::new()
                 .fill(th.page)
@@ -123,6 +126,15 @@ impl Sanaga {
                                 });
                             };
                             sub(ui, Icon::Glasses, if in_list { tr("Retirer de la liste de lecture") } else { tr("Ajouter à la liste de lecture") }, tr("Ctrl+Maj+D"), "readinglist");
+                            sub(ui, Icon::Private, tr("Nouvel onglet dans un conteneur…"), "", "container");
+                            sub(ui, Icon::Reader, if focus { tr("Quitter le mode focus") } else { tr("Mode focus") }, tr("Ctrl+Maj+K"), "focus");
+                            sub(ui, Icon::Grid, if on_top { tr("Ne plus garder au premier plan") } else { tr("Garder au premier plan") }, "", "ontop");
+                            sub(ui, Icon::Camera, tr("Vidéo flottante"), "", "pip");
+                            sub(ui, Icon::Shield, tr("Réglages de ce site…"), "", "site");
+                            sub(ui, Icon::Close, tr("Supprimer un élément de la page…"), "", "zap");
+                            sub(ui, Icon::Reader, if editing { tr("Terminer la modification du texte") } else { tr("Modifier le texte de la page") }, "", "edittext");
+                            sub(ui, Icon::Lock, if unlocked { tr("Rendre le copier-coller au site") } else { tr("Débloquer le copier-coller") }, "", "unlock");
+                            sub(ui, Icon::Rotate, tr("Version archivée de la page"), "", "archive");
                             sub(ui, Icon::Download, tr("Enregistrer la page"), tr("Ctrl+S"), "savepage");
                             sub(ui, Icon::Grid, tr("Aperçu des onglets"), tr("Ctrl+Maj+O"), "overview");
                             sub(ui, Icon::Search, tr("Rechercher dans les onglets"), tr("Ctrl+Maj+A"), "tabsearch");
@@ -161,6 +173,7 @@ impl Sanaga {
                 self.group_renaming = Some(self.groups.len() - 1);
             }
             "overview" => self.toggle_overview(),
+            "container" | "focus" | "ontop" | "pip" | "site" | "zap" | "edittext" | "unlock" | "archive" => self.run_shortcut(id),
             "contacts" => self.fill_contacts(),
             "tabsearch" => {
                 self.tab_search_open = true;

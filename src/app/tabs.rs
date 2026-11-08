@@ -395,6 +395,15 @@ impl Sanaga {
             self.toggle_pin(i);
             done = true;
         }
+        if !self.tabs[i].private {
+            let url = self.tabs[i].url().to_string();
+            let url = if url.starts_with("sanaga://") { String::new() } else { url };
+            ui.menu_button(tr("Ouvrir dans un conteneur"), |ui| {
+                if self.container_items(ui, &url) {
+                    done = true;
+                }
+            });
+        }
         if web && ui.button(if muted { tr("Réactiver le son du site") } else { tr("Couper le son du site") }).clicked() {
             self.toggle_mute(i);
             done = true;
@@ -402,6 +411,11 @@ impl Sanaga {
         ui.separator();
         if ui.button(tr("Fermer")).clicked() {
             self.close_tab(i);
+            return true;
+        }
+        let id = self.tabs[i].id;
+        if self.tabs.iter().any(|t| t.parent == Some(id)) && ui.button(tr("Fermer avec ses onglets enfants")).clicked() {
+            self.close_tree(i);
             return true;
         }
         if ui.button(tr("Fermer les autres onglets")).clicked() {
@@ -457,6 +471,14 @@ impl Sanaga {
             }
             done = true;
         }
+        if ui.button(tr("Déplacer le groupe dans une nouvelle fenêtre")).clicked() {
+            let urls: Vec<String> = self.tabs.iter().filter(|t| t.group == g && !t.private && !t.entries.is_empty()).map(|t| t.url().to_string()).collect();
+            if !urls.is_empty() && urls.len() < self.tabs.len() {
+                self.new_window(urls);
+                self.close_group(g);
+            }
+            return true;
+        }
         if ui.button(tr("Dissocier")).clicked() {
             self.ungroup(g);
             return true;
@@ -466,6 +488,51 @@ impl Sanaga {
             return true;
         }
         done
+    }
+
+    /// Close a tab and every tab opened from it (its branch of the tree).
+    pub(super) fn close_tree(&mut self, i: usize) {
+        let mut ids = vec![self.tabs[i].id];
+        let mut k = 0;
+        while k < ids.len() {
+            let p = ids[k];
+            ids.extend(self.tabs.iter().filter(|t| t.parent == Some(p)).map(|t| t.id));
+            k += 1;
+        }
+        for id in ids.into_iter().rev() {
+            if let Some(j) = self.tabs.iter().position(|t| t.id == id) {
+                self.close_tab(j);
+            }
+        }
+    }
+
+    /// Tabs in tree order (each tab followed by the tabs opened from it), with
+    /// their depth; folded branches are left out (their root stays).
+    pub(super) fn tree_order(&self, list: &[usize]) -> Vec<(usize, usize, bool)> {
+        let in_list = |id: u64| list.iter().any(|&j| self.tabs[j].id == id);
+        let mut out = Vec::new();
+        fn walk(s: &Sanaga, list: &[usize], i: usize, depth: usize, out: &mut Vec<(usize, usize, bool)>) {
+            let id = s.tabs[i].id;
+            let kids: Vec<usize> = list.iter().copied().filter(|&j| s.tabs[j].parent == Some(id) && s.tabs[j].group == s.tabs[i].group).collect();
+            out.push((i, depth, !kids.is_empty()));
+            if s.tabs[i].tree_folded || depth > 12 {
+                return;
+            }
+            for j in kids {
+                walk(s, list, j, depth + 1, out);
+            }
+        }
+        for &i in list {
+            let t = &self.tabs[i];
+            let root = match t.parent {
+                Some(p) => !in_list(p) || self.tabs.iter().find(|x| x.id == p).is_none_or(|x| x.group != t.group),
+                None => true,
+            };
+            if root {
+                walk(self, list, i, 0, &mut out);
+            }
+        }
+        out
     }
 
     /// Ask WebKit for pictures of the pages (for the overview).

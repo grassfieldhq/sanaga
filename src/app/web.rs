@@ -32,6 +32,8 @@ pub(super) enum WebEvent {
     Privacy(Vec<(String, usize)>),
     /// The text of a page, for its summary.
     PageText { tab: u64, text: String },
+    /// A page tool (right-click menu, or an answer of a tool's script).
+    Tool { tab: u64, what: String, arg: String },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -39,9 +41,10 @@ const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
   var k = (e.key || '').toLowerCase();
   var ctrl = e.ctrlKey || e.metaKey;
-  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m'].indexOf(k) >= 0)
+  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','k','y'].indexOf(k) >= 0)
     || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
-    || k === 'f5' || k === 'f6' || k === 'f11' || k === 'f12';
+    || k === 'f5' || k === 'f6' || k === 'f9' || k === 'f11' || k === 'f12'
+    || (k === 'escape' && window.__sanagaTool);
   if (!ours || !window.ipc) return;
   e.preventDefault();
   e.stopPropagation();
@@ -70,6 +73,9 @@ fn shortcut_name(msg: &str) -> Option<&'static str> {
         (true, true, _, "i") => "inspector",
         (_, _, _, "f12") => "inspector",
         (true, true, _, "m") => "devices",
+        (true, true, _, "k") | (_, _, _, "f9") => "focus",
+        (true, true, _, "y") => "summary",
+        (_, _, _, "escape") => "esc",
         (true, false, false, "p") => "print",
         (true, false, false, "u") => "source",
         (_, _, _, "f11") => "fullscreen",
@@ -132,6 +138,8 @@ fn load_into(w: &PageView, url: &str) {
 #[derive(Clone)]
 pub(super) struct PageMaker {
     ctx: Option<crate::page::Engine>,
+    /// The profile's web data folder (containers keep theirs inside it).
+    base: Option<std::path::PathBuf>,
     scripts: Rc<Vec<String>>,
     tx: std::sync::mpsc::Sender<WebEvent>,
     repaint: egui::Context,
@@ -140,12 +148,22 @@ pub(super) struct PageMaker {
 }
 
 impl PageMaker {
-    pub(super) fn make(&self, id: u64, private: bool, opener: Option<&webkit6::WebView>) -> PageView {
+    /// The engine of a container: its own cookies, logins and site data.
+    pub(super) fn container_engine(&self, name: &str) -> Option<crate::page::Engine> {
+        let base = self.base.as_ref()?;
+        let safe: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
+        let e = crate::page::profile_context(&base.join("containers").join(safe));
+        crate::page::follow_downloads(&e, net::download_path_for);
+        Some(e)
+    }
+
+    pub(super) fn make(&self, id: u64, private: bool, opener: Option<&webkit6::WebView>, container: &str) -> PageView {
         let me = self.clone();
+        let cont = container.to_string();
         let popup: crate::page::PopupMaker = Rc::new(move |op: &webkit6::WebView| {
             let nid = me.ids.get();
             me.ids.set(nid + 1);
-            let pv = me.make(nid, private, Some(op));
+            let pv = me.make(nid, private, Some(op), &cont);
             let w = pv.webview();
             me.popups.borrow_mut().push((id, nid, pv));
             me.repaint.request_repaint();
@@ -153,7 +171,8 @@ impl PageMaker {
         });
         let (tx, repaint) = (self.tx.clone(), self.repaint.clone());
         let scripts: Vec<&str> = self.scripts.iter().map(|s| s.as_str()).collect();
-        PageView::new(self.ctx.as_ref(), private, &scripts, opener, Some(popup), move |sig| {
+        let engine = if container.is_empty() || private { self.ctx.clone() } else { self.container_engine(container).or_else(|| self.ctx.clone()) };
+        PageView::new(engine.as_ref(), private, &scripts, opener, Some(popup), move |sig| {
             let ev = match sig {
                 PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
                 PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
@@ -161,8 +180,11 @@ impl PageMaker {
                 PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
+                PageSignal::Tool(what, arg) => WebEvent::Tool { tab: id, what: what.to_string(), arg },
                 PageSignal::Message(body) => {
-                    if let Some(rest) = body.strip_prefix("tr:") {
+                    if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
+                        WebEvent::Tool { tab: id, what: what.to_string(), arg: arg.to_string() }
+                    } else if let Some(rest) = body.strip_prefix("tr:") {
                         WebEvent::Translate { tab: id, msg: rest.to_string() }
                     } else if body == "form:dirty" || body == "form:clean" {
                         WebEvent::FormDirty { tab: id, dirty: body == "form:dirty" }
@@ -214,7 +236,8 @@ impl Sanaga {
             }
             // (GTK runs WebKit on its own: these ticks only refresh Sanaga's
             // own state, e.g. the loading bar and the sound icon)
-            let wait = if self.tabs.iter().any(|t| t.loading) { 100 } else if now < self.web_busy_until { 250 } else { 1000 };
+            let idle = if self.low_power_active() { 3000 } else { 1000 };
+            let wait = if self.tabs.iter().any(|t| t.loading) { 100 } else if now < self.web_busy_until { 250 } else { idle };
             if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
                 eprintln!("tick t={now:.2} gtk_events={n} x={activity} web_event={got_event} loading={}", self.tabs.iter().any(|t| t.loading));
             }
@@ -274,9 +297,13 @@ impl Sanaga {
                 }
             }
             WebEvent::NewTab { tab, url } => {
-                let private = self.tabs.iter().find(|t| t.id == tab).map(|t| t.private).unwrap_or(false);
-                self.open_tab(&url, private);
+                let (private, container) = self.tabs.iter().find(|t| t.id == tab).map(|t| (t.private, t.container.clone())).unwrap_or_default();
+                let i = self.open_tab(&url, private);
+                // a tab opened from a page goes under it (tree tabs), in its container
+                self.tabs[i].parent = Some(tab);
+                self.tabs[i].container = container;
             }
+            WebEvent::Tool { tab, what, arg } => self.page_tool(tab, &what, &arg),
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
             WebEvent::Crashed { tab, memory } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
@@ -333,7 +360,7 @@ impl Sanaga {
         if !self.web_ok {
             return;
         }
-        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || egui::Popup::is_any_open(&self.ctx);
+        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || egui::Popup::is_any_open(&self.ctx);
         // A menu over a page: the page sits above Sanaga's drawing, so take a
         // picture of it first and show that picture while the menu is open
         // (instead of a blank page).
@@ -475,12 +502,14 @@ impl Sanaga {
     pub(super) fn adopt_popups(&mut self) {
         let list: Vec<(u64, u64, PageView)> = self.popups.borrow_mut().drain(..).collect();
         for (opener, id, pv) in list {
-            let (private, group) = self.tabs.iter().find(|t| t.id == opener).map(|t| (t.private, t.group)).unwrap_or((false, 0));
+            let (private, group, container) = self.tabs.iter().find(|t| t.id == opener).map(|t| (t.private, t.group, t.container.clone())).unwrap_or((false, 0, String::new()));
             let i = self.open_tab("sanaga://newtab", private);
             self.focus_address = false;
             let t = &mut self.tabs[i];
             t.id = id;
             t.group = group;
+            t.parent = Some(opener);
+            t.container = container;
             t.view = View::Web;
             t.loading = true;
             t.web_pending = None;
@@ -542,6 +571,7 @@ impl Sanaga {
         let extensions = crate::extensions::init_script(&self.store.extensions_on);
         PageMaker {
             ctx: self.web_context.clone(),
+            base: self.web_dir.clone(),
             scripts: Rc::new(vec![SHORTCUT_JS.to_string(), super::accounts::PASSWORD_JS.to_string(), extensions]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
@@ -552,7 +582,7 @@ impl Sanaga {
 
     fn build_webview(&self, i: usize) -> PageView {
         let tab = &self.tabs[i];
-        self.page_maker().make(tab.id, tab.private, None)
+        self.page_maker().make(tab.id, tab.private, None, &tab.container)
     }
 
     /// Find in a WebKit page (uses the page's own search).

@@ -28,6 +28,7 @@ enum Do {
     EditBookmark(usize),
     SaveBookmark(usize, String, String),
     Page(&'static str),
+    ShowWindow(usize),
 }
 
 /// The neutral selection and hover fills of the rows (macOS 27 Finder).
@@ -151,6 +152,26 @@ impl Sanaga {
                 ui.add_space(8.0);
             }
 
+            // ---------------- windows (when there are several) ----------------
+            let windows = crate::shell::window_list();
+            if q.is_empty() && windows.len() > 1 && self.section_header(ui, th, "sb-windows", tr("Fenêtres"), None) {
+                for (slot, title) in &windows {
+                    let this = *slot == self.slot;
+                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+                    if this {
+                        ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, true));
+                    } else if resp.hovered() {
+                        ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
+                    }
+                    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(15.0, 15.0)), Icon::Grid, th.accent);
+                    let label = title.trim_end_matches(" - Sanaga");
+                    let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
+                    ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), th.text);
+                    if resp.on_hover_cursor(CursorIcon::PointingHand).tip(title).clicked() && !this {
+                        acts.push(Do::ShowWindow(*slot));
+                    }
+                }
+            }
             // ---------------- favourites ----------------
             let favs: Vec<(usize, String, String)> = self.store.bookmarks.iter().enumerate().filter(|(_, b)| matches(&b.url, &b.title)).map(|(i, b)| (i, b.url.clone(), b.title.clone())).collect();
             if self.section_header(ui, th, "sb-favs", tr("Favoris"), None) {
@@ -295,6 +316,7 @@ impl Sanaga {
     fn sidebar_do(&mut self, acts: Vec<Do>) {
         for a in acts {
             match a {
+                Do::ShowWindow(slot) => crate::shell::present_window(slot),
                 Do::Open(u, new_tab) => {
                     if new_tab {
                         self.open_tab(&u, false);

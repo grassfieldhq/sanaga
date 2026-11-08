@@ -162,12 +162,15 @@ impl Sanaga {
         // the other tabs, by group
         let list_rect = Rect::from_min_max(pos2(full.left(), y), pos2(full.right(), full.bottom() - 44.0));
         let rest: Vec<usize> = order.iter().copied().filter(|&i| !self.tabs[i].pinned).collect();
+        // tree tabs: each tab under the one it was opened from
+        let tree: Vec<(usize, usize, bool)> = if self.store.settings.tree_tabs { self.tree_order(&rest) } else { rest.iter().map(|&i| (i, 0, false)).collect() };
+        let mut tree_fold: Option<usize> = None;
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(list_rect).id_salt("vtabs-list"));
         ScrollArea::vertical().id_salt("vtabs-scroll").auto_shrink(false).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.y = 2.0;
             let mut last_group = usize::MAX;
             let mut rows: Vec<(usize, Rect)> = Vec::new();
-            for &i in &rest {
+            for &(i, depth, has_kids) in &tree {
                 let g = self.tabs[i].group;
                 if g != last_group && g > 0 {
                     // group header: colour, name, number of tabs; click folds it
@@ -201,7 +204,7 @@ impl Sanaga {
                 if g > 0 && self.group_folded(g) && i != self.active {
                     continue;
                 }
-                let indent = if g > 0 { 10.0 } else { 0.0 };
+                let indent = if g > 0 { 10.0 } else { 0.0 } + depth.min(5) as f32 * 14.0;
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click_and_drag());
                 let r = Rect::from_min_max(pos2(r.left() + 8.0 + indent, r.top()), pos2(r.right() - 8.0, r.bottom()));
                 rows.push((i, r));
@@ -216,6 +219,21 @@ impl Sanaga {
                 }
                 if g > 0 {
                     ui.painter().rect_filled(Rect::from_min_size(pos2(r.left() - 6.0, r.top() + 8.0), vec2(2.5, r.height() - 16.0)), 1.0, self.group_color(g));
+                }
+                if has_kids {
+                    // the branch's fold arrow, just left of the icon
+                    let fr = Rect::from_center_size(pos2(r.left() + 2.0, r.center().y), vec2(12.0, 16.0));
+                    let fresp = ui.interact(fr, egui::Id::new(("vtree", tab.id)), Sense::click());
+                    let c = fr.center();
+                    let col = if fresp.hovered() { th.text } else { th.sub };
+                    let pts = if tab.tree_folded { vec![pos2(c.x - 2.0, c.y - 4.0), pos2(c.x + 3.0, c.y), pos2(c.x - 2.0, c.y + 4.0)] } else { vec![pos2(c.x - 4.0, c.y - 2.0), pos2(c.x + 4.0, c.y - 2.0), pos2(c.x, c.y + 3.0)] };
+                    ui.painter().add(egui::Shape::convex_polygon(pts, col, Stroke::NONE));
+                    if fresp.tip(if tab.tree_folded { tr("Déplier") } else { tr("Replier") }).clicked() {
+                        tree_fold = Some(i);
+                    }
+                }
+                if let Some(col) = self.container_color(&tab.container) {
+                    ui.painter().rect_filled(Rect::from_min_size(pos2(r.right() - 4.0, r.top() + 7.0), vec2(3.0, r.height() - 14.0)), 1.5, col);
                 }
                 let ic = pos2(r.left() + 16.0, r.center().y);
                 let title = tab.title();
@@ -311,6 +329,9 @@ impl Sanaga {
         if let Some(g) = fold {
             self.toggle_group_fold(g);
         }
+        if let Some(i) = tree_fold {
+            self.tabs[i].tree_folded = !self.tabs[i].tree_folded;
+        }
         if let Some(i) = select {
             self.active = i;
             self.current_group = self.tabs[i].group;
@@ -350,8 +371,10 @@ impl Sanaga {
         }
         // macOS 27 (Safari, Finder): the toolbar, then the tab bar under it,
         // in one band of the window's colour
+        // compact mode: lower bars, more room for the page
+        let (toolbar_h, tabbar_h) = if self.store.settings.compact { (TOOLBAR_H - 10.0, TABBAR_H - 6.0) } else { (TOOLBAR_H, TABBAR_H) };
         if bar == BarAt::Top {
-            egui::Panel::top("toolbar").exact_size(TOOLBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+            egui::Panel::top("toolbar").exact_size(toolbar_h).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
                 self.toolbar(ui, th);
             });
         }
@@ -362,14 +385,14 @@ impl Sanaga {
             });
         }
         if tabs == TabsAt::Top {
-            egui::Panel::top("tabstrip").exact_size(TABBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+            egui::Panel::top("tabstrip").exact_size(tabbar_h).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
                 self.tab_strip(ui, th);
             });
         }
         // bottom edge, from the outside in
         match bar {
             BarAt::Bottom => {
-                egui::Panel::bottom("toolbar").exact_size(TOOLBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+                egui::Panel::bottom("toolbar").exact_size(toolbar_h).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
                     self.toolbar(ui, th);
                 });
             }
@@ -381,7 +404,7 @@ impl Sanaga {
             BarAt::Top => {}
         }
         if tabs == TabsAt::Bottom {
-            egui::Panel::bottom("tabstrip").exact_size(TABBAR_H).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
+            egui::Panel::bottom("tabstrip").exact_size(tabbar_h).show_separator_line(false).frame(Frame::NONE.fill(th.toolbar)).show(ui, |ui| {
                 self.tab_strip(ui, th);
             });
         }

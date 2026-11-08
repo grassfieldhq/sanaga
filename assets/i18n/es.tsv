@@ -771,3 +771,146 @@ Certains sites refusent WebKit alors qu'ils fonctionnent avec lui : choisir Chro
 Automatique	Automático
 Ouvrir dans l'application Spotify	Abrir en la aplicación de Spotify
 Ouvrir dans {}	Abrir en {}
+Prairie	Pradera
+Crépuscule	Atardecer
+Lavande	Lavanda
+Travail	Trabajo
+Achats	Compras
+Banque	Banco
+Onglet privé	Pestaña privada
+Nouvel onglet dans un conteneur…	Nueva pestaña en un contenedor…
+Rouvrir l'onglet fermé	Reabrir pestaña cerrada
+Mode focus	Modo concentración
+Garder la fenêtre au premier plan	Mantener la ventana encima
+Vidéo flottante	Vídeo flotante
+Supprimer un élément de la page…	Quitar un elemento de la página…
+Modifier le texte de la page	Editar el texto de la página
+Débloquer le copier-coller	Desbloquear copiar y pegar
+Version archivée de la page	Versión archivada de la página
+Réglages de ce site…	Ajustes de este sitio…
+script dans la page	script en la página
+Ce bouton agit sur une page web.	Este botón actúa sobre una página web.
+Rien ici pour l'instant.	Nada aquí por ahora.
+Choisir les boutons…	Elegir botones…
+Nom du bouton	Nombre del botón
+Commande de Sanaga	Comando de Sanaga
+Script dans la page	Script en la página
+Choisir une commande	Elegir un comando
+Ajouter le bouton	Añadir botón
+Conteneur « {} » supprimé avec ses données.	Contenedor «{}» eliminado con sus datos.
+Nouveau conteneur…	Nuevo contenedor…
+Ouvrir dans un conteneur	Abrir en un contenedor
+Chaque conteneur garde ses propres cookies et connexions : deux comptes d'un même site côte à côte.	Cada contenedor guarda sus propias cookies y sesiones: dos cuentas del mismo sitio una al lado de la otra.
+Créez votre premier conteneur :	Crea tu primer contenedor:
+Nouveau conteneur	Nuevo contenedor
+Créer	Crear
+Déplier	Desplegar
+Replier	Plegar
+Quitter le mode focus	Salir del modo concentración
+Ctrl+Maj+K	Ctrl+Mayús+K
+Ne plus garder au premier plan	Dejar de mantener encima
+Garder au premier plan	Mantener encima
+Terminer la modification du texte	Terminar la edición del texto
+Rendre le copier-coller au site	Devolver copiar y pegar al sitio
+Version archivée	Versión archivada
+Affiché	Visible
+Masqué	Oculto
+Menu »	Menú »
+« Menu » » range le bouton dans le menu » de la barre d'outils, pour la garder épurée. Aussi : clic droit sur la barre d'outils.	«Menú »» guarda el botón en el menú » de la barra de herramientas, para mantenerla despejada. También: clic derecho en la barra de herramientas.
+Bloquer les publicités et les traceurs	Bloquear anuncios y rastreadores
+Les demandes vers les régies publicitaires et les traceurs ne partent jamais	Las solicitudes a redes publicitarias y rastreadores nunca salen
+Mode économie d'énergie	Modo de bajo consumo
+Onglets inactifs mis en veille plus tôt, moins de réveils	Pestañas inactivas en reposo antes, menos activaciones
+Sur batterie	Con batería
+Toujours	Siempre
+Emoji du profil	Emoji del perfil
+Sur son badge et l'icône de son lanceur	En su insignia y el icono de su lanzador
+Ajouter ce profil à mes applications	Añadir este perfil a mis aplicaciones
+Un lanceur à lui, avec son icône : vraiment séparé des autres	Su propio lanzador e icono: realmente separado de los demás
+Installer une extension…	Instalar una extensión…
+Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)	Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts de usuario (.user.js)
+Les extensions des autres navigateurs marchent quand elles agissent dans les pages (bloqueurs d'éléments, mises en forme, aides à la lecture…). Celles qui ont besoin d'une fenêtre à elles ou d'un service en arrière-plan ne sont pas prises en charge.	Las extensiones de otros navegadores funcionan cuando actúan dentro de las páginas (bloqueadores de elementos, estilos, ayudas de lectura…). Las que necesitan una ventana propia o un servicio en segundo plano no son compatibles.
+Bordure de la fenêtre	Borde de la ventana
+Mode compact	Modo compacto
+Onglets en arbre	Pestañas en árbol
+Une couleur autour de la fenêtre	Un color alrededor de la ventana
+Aucune	Ninguno
+Dégradé	Degradado
+Couleurs animées	Colores animados
+Épaisseur de la bordure	Grosor del borde
+Opacité de la bordure	Opacidad del borde
+Barre d'outils et onglets plus bas : plus de place pour la page	Barra de herramientas y pestañas más bajas: más espacio para la página
+Onglets verticaux : un onglet ouvert depuis une page se range dessous	Pestañas verticales: una pestaña abierta desde una página se coloca debajo
+Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.	Modo concentración (Ctrl+Mayús+K o F9): solo queda la página, sin nada alrededor.
+Icône de l'application	Icono de la aplicación
+Vos boutons	Tus botones
+Boutons programmables	Botones programables
+Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page.	Un botón en la barra de herramientas que abre una dirección, lanza un comando de Sanaga (modo concentración, vídeo flotante, contenedor…) o ejecuta tu script en la página.
+Conteneurs	Contenedores
+Conteneur	Contenedor
+Comptes séparés	Cuentas separadas
+Supprimer le conteneur et ses données	Eliminar el contenedor y sus datos
+Travail, Achats…	Trabajo, Compras…
+Les onglets d'un conteneur ont leurs propres cookies et connexions : deux comptes d'un même site côte à côte, ou les achats tenus à l'écart du reste. Clic droit sur un onglet ou un lien › Ouvrir dans un conteneur.	Las pestañas de un contenedor tienen sus propias cookies y sesiones: dos cuentas del mismo sitio una al lado de la otra, o las compras apartadas del resto. Clic derecho en una pestaña o un enlace › Abrir en un contenedor.
+Réglages par site	Ajustes por sitio
+Polices	Fuentes
+Mode sombre	Modo oscuro
+Aucun réglage pour l'instant	Aún no hay ajustes
+Menu ⋮ › Plus d'outils › Réglages de ce site…	Menú ⋮ › Más herramientas › Ajustes de este sitio…
+sans JavaScript	sin JavaScript
+bloqueur coupé	bloqueador desactivado
+sans ses polices	sin sus fuentes
+sombre	oscuro
+sans bandeaux collants	sin barras fijas
+copie débloquée	copia desbloqueada
+{} élément(s) retiré(s)	{} elemento(s) quitado(s)
+Remettre les réglages par défaut	Restablecer los ajustes predeterminados
+JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…	JavaScript, fuentes, bloqueador, modo oscuro, tipo de letra, elementos quitados: sitio por sitio. Clic derecho en una página › Ajustes de este sitio…
+Installer une extension	Instalar una extensión
+Extension « {} » installée et activée.	Extensión «{}» instalada y activada.
+Impossible d'installer l'extension : {}	No se pudo instalar la extensión: {}
+Fenêtres	Ventanas
+Les réglages de site concernent les pages web.	Los ajustes de sitio se aplican a las páginas web.
+Réglages de ce site	Ajustes de este sitio
+JavaScript	JavaScript
+Désactivé : pages plus légères, mais certains sites ne marchent plus	Desactivado: páginas más ligeras, pero algunos sitios dejan de funcionar
+Bloqueur de publicités et de traceurs	Bloqueador de anuncios y rastreadores
+Polices du site	Fuentes del sitio
+Désactivé : les polices de votre système, plus légères	Desactivado: las fuentes de tu sistema, más ligeras
+Sans bandeaux collants	Sin barras fijas
+Les en-têtes et barres fixés à l'écran défilent avec la page	Las cabeceras y barras fijas se desplazan con la página
+Copier-coller débloqué	Copiar y pegar desbloqueado
+Sélection, copie et clic droit même si le site les interdit	Selección, copia y clic derecho aunque el sitio los prohíba
+Police des pages	Tipo de letra de las páginas
+Celle du site	La del sitio
+Se présenter comme	Presentarse como
+Aucun élément retiré	Ningún elemento quitado
+Tout remettre	Restaurar todo
+Retirer un élément…	Quitar un elemento…
+Terminé	Hecho
+Fermer avec ses onglets enfants	Cerrar con sus pestañas hijas
+Déplacer le groupe dans une nouvelle fenêtre	Mover el grupo a una ventana nueva
+Autres boutons	Más botones
+Mode focus — Ctrl+Maj+K ou F9 pour revenir.	Modo concentración — Ctrl+Mayús+K o F9 para volver.
+Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).	Con batería: modo de bajo consumo (las pestañas inactivas entran en reposo antes).
+Modification du texte terminée.	Edición del texto terminada.
+Aucune vidéo dans cette page.	No hay vídeo en esta página.
+Sanaga — vidéo flottante	Sanaga — vídeo flotante
+Cette vidéo ne peut pas quitter sa page : elle flotte dans un coin pendant que vous lisez.	Este vídeo no puede salir de su página: flota en una esquina mientras lees.
+Cliquez sur ce qu'il faut retirer de la page — Échap pour annuler	Haz clic en lo que quieras quitar de la página — Esc para cancelar
+Élément retiré de {} (aussi les prochaines fois). Pour le revoir : Réglages de ce site.	Elemento quitado de {} (también las próximas veces). Para volver a verlo: Ajustes de este sitio.
+Modifiez le texte directement dans la page. Échap pour terminer ; tout revient au rechargement.	Edita el texto directamente en la página. Esc para terminar; todo vuelve al recargar.
+Copier-coller débloqué sur ce site.	Copiar y pegar desbloqueado en este sitio.
+Copier-coller rendu au site.	Copiar y pegar devuelto al sitio.
+La fenêtre reste au premier plan.	La ventana se mantiene encima.
+La fenêtre ne reste plus au premier plan.	La ventana ya no se mantiene encima.
+Votre bureau ne permet pas de garder une fenêtre au premier plan.	Tu escritorio no permite mantener una ventana encima.
+Sanaga — aperçu	Sanaga — vista previa
+Ouvrir dans un onglet	Abrir en una pestaña
+Icône changée dans Sanaga. Installez Sanaga (packaging/install.sh) pour la voir aussi dans vos applications.	Icono cambiado en Sanaga. Instala Sanaga (packaging/install.sh) para verlo también en tus aplicaciones.
+Icône changée. Le dock et le menu des applications la montrent au prochain démarrage.	Icono cambiado. El dock y el menú de aplicaciones lo muestran en el próximo inicio.
+Navigateur web Sanaga, avec les données de ce profil	Navegador web Sanaga, con los datos de este perfil
+« {} » ajouté à vos applications.	«{}» añadido a tus aplicaciones.
+Aperçu du lien	Vista previa del enlace
+Ouvrir le lien dans un conteneur…	Abrir el enlace en un contenedor…
+Cette extension n'agit pas dans les pages (elle a besoin d'une fenêtre ou d'un service que Sanaga n'a pas).	Esta extensión no actúa dentro de las páginas (necesita una ventana o un servicio que Sanaga no tiene).

@@ -771,3 +771,146 @@ Certains sites refusent WebKit alors qu'ils fonctionnent avec lui : choisir Chro
 Automatique	Automático
 Ouvrir dans l'application Spotify	Abrir na aplicação Spotify
 Ouvrir dans {}	Abrir no {}
+Prairie	Pradaria
+Crépuscule	Crepúsculo
+Lavande	Lavanda
+Travail	Trabalho
+Achats	Compras
+Banque	Banco
+Onglet privé	Separador privado
+Nouvel onglet dans un conteneur…	Novo separador num contentor…
+Rouvrir l'onglet fermé	Reabrir separador fechado
+Mode focus	Modo foco
+Garder la fenêtre au premier plan	Manter a janela por cima
+Vidéo flottante	Vídeo flutuante
+Supprimer un élément de la page…	Remover um elemento da página…
+Modifier le texte de la page	Editar o texto da página
+Débloquer le copier-coller	Desbloquear copiar e colar
+Version archivée de la page	Versão arquivada da página
+Réglages de ce site…	Definições deste site…
+script dans la page	script na página
+Ce bouton agit sur une page web.	Este botão atua numa página web.
+Rien ici pour l'instant.	Nada aqui por agora.
+Choisir les boutons…	Escolher botões…
+Nom du bouton	Nome do botão
+Commande de Sanaga	Comando do Sanaga
+Script dans la page	Script na página
+Choisir une commande	Escolher um comando
+Ajouter le bouton	Adicionar botão
+Conteneur « {} » supprimé avec ses données.	Contentor «{}» eliminado com os seus dados.
+Nouveau conteneur…	Novo contentor…
+Ouvrir dans un conteneur	Abrir num contentor
+Chaque conteneur garde ses propres cookies et connexions : deux comptes d'un même site côte à côte.	Cada contentor guarda os seus próprios cookies e sessões: duas contas do mesmo site lado a lado.
+Créez votre premier conteneur :	Crie o seu primeiro contentor:
+Nouveau conteneur	Novo contentor
+Créer	Criar
+Déplier	Expandir
+Replier	Recolher
+Quitter le mode focus	Sair do modo foco
+Ctrl+Maj+K	Ctrl+Shift+K
+Ne plus garder au premier plan	Deixar de manter por cima
+Garder au premier plan	Manter por cima
+Terminer la modification du texte	Terminar a edição do texto
+Rendre le copier-coller au site	Devolver copiar e colar ao site
+Version archivée	Versão arquivada
+Affiché	Visível
+Masqué	Oculto
+Menu »	Menu »
+« Menu » » range le bouton dans le menu » de la barre d'outils, pour la garder épurée. Aussi : clic droit sur la barre d'outils.	«Menu »» guarda o botão no menu » da barra de ferramentas, para a manter limpa. Também: clique direito na barra de ferramentas.
+Bloquer les publicités et les traceurs	Bloquear anúncios e rastreadores
+Les demandes vers les régies publicitaires et les traceurs ne partent jamais	Os pedidos a redes de publicidade e rastreadores nunca saem
+Mode économie d'énergie	Modo de poupança de energia
+Onglets inactifs mis en veille plus tôt, moins de réveils	Separadores inativos suspensos mais cedo, menos ativações
+Sur batterie	Na bateria
+Toujours	Sempre
+Emoji du profil	Emoji do perfil
+Sur son badge et l'icône de son lanceur	No seu emblema e no ícone do seu lançador
+Ajouter ce profil à mes applications	Adicionar este perfil às minhas aplicações
+Un lanceur à lui, avec son icône : vraiment séparé des autres	O seu próprio lançador e ícone: realmente separado dos outros
+Installer une extension…	Instalar uma extensão…
+Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)	Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts de utilizador (.user.js)
+Les extensions des autres navigateurs marchent quand elles agissent dans les pages (bloqueurs d'éléments, mises en forme, aides à la lecture…). Celles qui ont besoin d'une fenêtre à elles ou d'un service en arrière-plan ne sont pas prises en charge.	As extensões de outros navegadores funcionam quando atuam nas páginas (bloqueadores de elementos, estilos, ajudas de leitura…). As que precisam de uma janela própria ou de um serviço em segundo plano não são suportadas.
+Bordure de la fenêtre	Contorno da janela
+Mode compact	Modo compacto
+Onglets en arbre	Separadores em árvore
+Une couleur autour de la fenêtre	Uma cor à volta da janela
+Aucune	Nenhum
+Dégradé	Gradiente
+Couleurs animées	Cores animadas
+Épaisseur de la bordure	Espessura do contorno
+Opacité de la bordure	Opacidade do contorno
+Barre d'outils et onglets plus bas : plus de place pour la page	Barra de ferramentas e separadores mais baixos: mais espaço para a página
+Onglets verticaux : un onglet ouvert depuis une page se range dessous	Separadores verticais: um separador aberto a partir de uma página fica por baixo dela
+Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.	Modo foco (Ctrl+Shift+K ou F9): só fica a página, sem nada à volta.
+Icône de l'application	Ícone da aplicação
+Vos boutons	Os seus botões
+Boutons programmables	Botões programáveis
+Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page.	Um botão na barra de ferramentas que abre um endereço, executa um comando do Sanaga (modo foco, vídeo flutuante, contentor…) ou o seu script na página.
+Conteneurs	Contentores
+Conteneur	Contentor
+Comptes séparés	Contas separadas
+Supprimer le conteneur et ses données	Eliminar o contentor e os seus dados
+Travail, Achats…	Trabalho, Compras…
+Les onglets d'un conteneur ont leurs propres cookies et connexions : deux comptes d'un même site côte à côte, ou les achats tenus à l'écart du reste. Clic droit sur un onglet ou un lien › Ouvrir dans un conteneur.	Os separadores de um contentor têm os seus próprios cookies e sessões: duas contas do mesmo site lado a lado, ou as compras afastadas do resto. Clique direito num separador ou ligação › Abrir num contentor.
+Réglages par site	Definições por site
+Polices	Tipos de letra
+Mode sombre	Modo escuro
+Aucun réglage pour l'instant	Ainda sem definições
+Menu ⋮ › Plus d'outils › Réglages de ce site…	Menu ⋮ › Mais ferramentas › Definições deste site…
+sans JavaScript	sem JavaScript
+bloqueur coupé	bloqueador desligado
+sans ses polices	sem os seus tipos de letra
+sombre	escuro
+sans bandeaux collants	sem barras fixas
+copie débloquée	cópia desbloqueada
+{} élément(s) retiré(s)	{} elemento(s) removido(s)
+Remettre les réglages par défaut	Repor as definições predefinidas
+JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…	JavaScript, tipos de letra, bloqueador, modo escuro, fonte, elementos removidos: site a site. Clique direito numa página › Definições deste site…
+Installer une extension	Instalar uma extensão
+Extension « {} » installée et activée.	Extensão «{}» instalada e ativada.
+Impossible d'installer l'extension : {}	Não foi possível instalar a extensão: {}
+Fenêtres	Janelas
+Les réglages de site concernent les pages web.	As definições de site aplicam-se às páginas web.
+Réglages de ce site	Definições deste site
+JavaScript	JavaScript
+Désactivé : pages plus légères, mais certains sites ne marchent plus	Desligado: páginas mais leves, mas alguns sites deixam de funcionar
+Bloqueur de publicités et de traceurs	Bloqueador de anúncios e rastreadores
+Polices du site	Tipos de letra do site
+Désactivé : les polices de votre système, plus légères	Desligado: os tipos de letra do sistema, mais leves
+Sans bandeaux collants	Sem barras fixas
+Les en-têtes et barres fixés à l'écran défilent avec la page	Os cabeçalhos e barras fixos deslocam-se com a página
+Copier-coller débloqué	Copiar e colar desbloqueado
+Sélection, copie et clic droit même si le site les interdit	Seleção, cópia e clique direito mesmo que o site os proíba
+Police des pages	Tipo de letra das páginas
+Celle du site	A do site
+Se présenter comme	Apresentar-se como
+Aucun élément retiré	Nenhum elemento removido
+Tout remettre	Repor tudo
+Retirer un élément…	Remover um elemento…
+Terminé	Concluído
+Fermer avec ses onglets enfants	Fechar com os separadores filhos
+Déplacer le groupe dans une nouvelle fenêtre	Mover o grupo para uma nova janela
+Autres boutons	Mais botões
+Mode focus — Ctrl+Maj+K ou F9 pour revenir.	Modo foco — Ctrl+Shift+K ou F9 para voltar.
+Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).	Na bateria: modo de poupança de energia (separadores inativos suspensos mais cedo).
+Modification du texte terminée.	Edição do texto terminada.
+Aucune vidéo dans cette page.	Não há vídeo nesta página.
+Sanaga — vidéo flottante	Sanaga — vídeo flutuante
+Cette vidéo ne peut pas quitter sa page : elle flotte dans un coin pendant que vous lisez.	Este vídeo não pode sair da sua página: flutua num canto enquanto lê.
+Cliquez sur ce qu'il faut retirer de la page — Échap pour annuler	Clique no que quer remover da página — Esc para cancelar
+Élément retiré de {} (aussi les prochaines fois). Pour le revoir : Réglages de ce site.	Elemento removido de {} (também nas próximas vezes). Para o voltar a ver: Definições deste site.
+Modifiez le texte directement dans la page. Échap pour terminer ; tout revient au rechargement.	Edite o texto diretamente na página. Esc para terminar; tudo volta ao recarregar.
+Copier-coller débloqué sur ce site.	Copiar e colar desbloqueado neste site.
+Copier-coller rendu au site.	Copiar e colar devolvido ao site.
+La fenêtre reste au premier plan.	A janela fica por cima.
+La fenêtre ne reste plus au premier plan.	A janela já não fica por cima.
+Votre bureau ne permet pas de garder une fenêtre au premier plan.	O seu ambiente de trabalho não permite manter uma janela por cima.
+Sanaga — aperçu	Sanaga — pré-visualização
+Ouvrir dans un onglet	Abrir num separador
+Icône changée dans Sanaga. Installez Sanaga (packaging/install.sh) pour la voir aussi dans vos applications.	Ícone alterado no Sanaga. Instale o Sanaga (packaging/install.sh) para o ver também nas suas aplicações.
+Icône changée. Le dock et le menu des applications la montrent au prochain démarrage.	Ícone alterado. A dock e o menu de aplicações mostram-no no próximo arranque.
+Navigateur web Sanaga, avec les données de ce profil	Navegador web Sanaga, com os dados deste perfil
+« {} » ajouté à vos applications.	«{}» adicionado às suas aplicações.
+Aperçu du lien	Pré-visualizar ligação
+Ouvrir le lien dans un conteneur…	Abrir a ligação num contentor…
+Cette extension n'agit pas dans les pages (elle a besoin d'une fenêtre ou d'un service que Sanaga n'a pas).	Esta extensão não atua nas páginas (precisa de uma janela ou de um serviço que o Sanaga não tem).

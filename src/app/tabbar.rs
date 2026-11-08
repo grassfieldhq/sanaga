@@ -232,6 +232,10 @@ impl Sanaga {
             } else if hovered {
                 p.rect_filled(pill, CornerRadius::same((pill.height() / 2.0) as u8), th.pill.gamma_multiply(0.45));
             }
+            if let Some(col) = self.container_color(&tab.container) {
+                let y = pill.bottom() - 1.5;
+                ui.painter().line_segment([pos2(pill.left() + 12.0, y), pos2(pill.right() - 12.0, y)], Stroke::new(2.5, col));
+            }
             let title = tab.title();
             let text_col = if active { tth.text } else { th.sub };
             let icon_only = tab.pinned || rect.width() < MIN_W - 0.5;

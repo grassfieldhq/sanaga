@@ -205,7 +205,8 @@ impl Sanaga {
             }
         }
         // (minutes before a tab sleeps, most pages kept running at once)
-        let (minutes, cap) = match self.store.settings.memory_saver {
+        let level = if self.low_power_active() { 3 } else { self.store.settings.memory_saver };
+        let (minutes, cap) = match level {
             1 => (60.0, 12),
             2 => (20.0, 6),
             3 => (5.0, 3),

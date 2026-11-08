@@ -33,6 +33,8 @@ mod net;
 mod frames;
 mod page;
 mod shell;
+mod site_prefs;
+mod webext;
 mod store;
 mod theme;
 
@@ -135,6 +137,12 @@ fn main() -> eframe::Result {
             "--apercu" => urls.push("apercu:".into()),
             // a new window in the running Sanaga (or a normal start)
             "--new-window" | "--nouvelle-fenetre" => urls.push("nouvelle-fenetre:".into()),
+            // a link previewed in a small window (in the running Sanaga)
+            "--preview" => {
+                if let Some(u) = args.next() {
+                    urls.push(format!("preview:{u}"));
+                }
+            }
             "--profil" | "--profile" => {
                 if let Some(p) = args.next() {
                     urls.push(format!("profil:{p}"));
@@ -153,6 +161,7 @@ fn main() -> eframe::Result {
                      \x20 --profile NAME       use this profile (its own settings, history, cookies)\n\
                      \x20 --app URL            open one site on its own, as a web app\n\
                      \x20 --new-window         open a new window (in the running Sanaga)\n\
+                     \x20 --preview URL        preview a link in a small window\n\
                      \x20 --reader             open the addresses in Reader mode\n\
                      \x20 --apercu             start on the tab overview\n\
                      \x20 --screenshot FILE    draw the window once, save it as a PNG picture, quit\n\

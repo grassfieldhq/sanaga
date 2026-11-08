@@ -23,8 +23,9 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - **Native and smooth.** One native GTK window (Wayland or X11): the page and
   the interface are laid out and drawn together, so resizing stays smooth.
 - **Private and safe by default.** Pages run in a sandbox (bubblewrap),
-  cross-site tracking prevention, a privacy report, an optional ad blocker,
-  passwords kept in the system keyring, no telemetry.
+  cross-site tracking prevention, a network blocker of ads and trackers (the
+  requests never leave), containers, a privacy report, passwords kept in the
+  system keyring, no telemetry.
 
 ## Features
 
@@ -43,8 +44,26 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
   through any shared folder (Syncthing, Nextcloud, a USB key…).
 - Passwords and AutoFill (system keyring), import of bookmarks, history and
   passwords from Chrome, Chromium, Brave, Edge, Vivaldi and Firefox.
-- Simple script/style extensions (built-in: ad blocker, no autoplay, dark mode;
-  drop your own `.js`/`.css` files in the extensions folder).
+- Extensions: built-in ones (no cookie banners, no autoplay, dark mode), your
+  own `.js`/`.css` files, user scripts (`.user.js`), and extensions made for
+  Chrome (`.crx`, `.zip`, unpacked folder) or Firefox (`.xpi`) that act inside
+  pages (Settings › Extensions › Install an extension…).
+- Containers: tabs with their own cookies and logins (two accounts of one site
+  side by side); right-click a tab or a link › Open in a container.
+- Website settings, site by site: JavaScript, web fonts, the blocker, dark
+  mode, another font, no sticky bars, copy unlocked, page parts removed for
+  good (right-click in a page › Settings for this website…).
+- Page tools: floating video (kept above the other windows), remove an
+  element, edit the page's text, unlock copy and paste, archived version
+  (Internet Archive), link preview in a small window (`sanaga --preview URL`
+  from other applications), built-in PDF reader.
+- Focus mode (Ctrl+Shift+K or F9: only the page), keep the window on top,
+  compact mode, a coloured / gradient / animated window border, a choice of
+  app icons, low power mode on battery.
+- Your own toolbar buttons (an address, a Sanaga command or your script), and
+  a » menu to tuck buttons away; vertical tabs as a tree (a tab under the page
+  it came from, foldable); move a tab group to its own window; profiles with
+  their own emoji and launcher.
 - Customisable toolbar (right-click it), touchpad swipe and mouse side buttons
   for back/forward, native tooltips.
 - Web inspector (Ctrl+Shift+I or F12), docked or in its own window.

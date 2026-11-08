@@ -355,8 +355,54 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
 
 /// Sanaga's logo, in the family of Grassfield's apps: a rounded square in
 /// Grassfield green (lighter at the top), with the Sanaga river flowing across.
-const LOGO_TOP: [f32; 3] = [0x5F as f32, 0xB8 as f32, 0x66 as f32];
-const LOGO_BOTTOM: [f32; 3] = [0x3B as f32, 0x87 as f32, 0x44 as f32];
+/// The icon's colours the person can choose (Settings › Appearance): name,
+/// top and bottom of the square, the upper wave.
+pub const ICON_STYLES: [(&str, [u8; 3], [u8; 3], [u8; 3]); 5] = [
+    ("Prairie", [0x5F, 0xB8, 0x66], [0x3B, 0x87, 0x44], [0xD8, 0xF5, 0xDA]),
+    ("Océan", [0x5A, 0xA2, 0xF0], [0x2A, 0x5D, 0xB0], [0xD6, 0xE8, 0xFD]),
+    ("Crépuscule", [0xF6, 0xA3, 0x5C], [0xD2, 0x53, 0x2A], [0xFD, 0xE3, 0xCF]),
+    ("Nuit", [0x4A, 0x51, 0x60], [0x1C, 0x1F, 0x26], [0xC9, 0xD1, 0xDD]),
+    ("Lavande", [0xB3, 0x9D, 0xFB], [0x6D, 0x3F, 0xD9], [0xE9, 0xE1, 0xFE]),
+];
+
+/// The icon style in use (index in `ICON_STYLES`).
+pub static ICON_STYLE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+fn style() -> (&'static str, [u8; 3], [u8; 3], [u8; 3]) {
+    ICON_STYLES[(ICON_STYLE.load(std::sync::atomic::Ordering::Relaxed) as usize).min(ICON_STYLES.len() - 1)]
+}
+
+fn f3(c: [u8; 3]) -> [f32; 3] {
+    [c[0] as f32, c[1] as f32, c[2] as f32]
+}
+
+/// The logo as an SVG picture in a style, with an optional badge (an emoji,
+/// for a profile's own launcher).
+pub fn logo_svg(style_index: usize, badge: &str) -> String {
+    let (_, top, bottom, wave) = ICON_STYLES[style_index.min(ICON_STYLES.len() - 1)];
+    let hex = |c: [u8; 3]| format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]);
+    let pts = |k: f32| (0..=48).map(|i| {
+        let t = 0.14 + 0.72 * i as f32 / 48.0;
+        format!("{:.2},{:.2}", 8.96 + t * 238.08, 8.96 + wave_y(t, k) * 238.08)
+    }).collect::<Vec<_>>().join(" ");
+    let badge_svg = if badge.trim().is_empty() {
+        String::new()
+    } else {
+        let b = badge.replace('&', "&amp;").replace('<', "&lt;");
+        format!("<circle cx=\"196\" cy=\"196\" r=\"54\" fill=\"#FFFFFF\" stroke=\"{}\" stroke-width=\"6\"/><text x=\"196\" y=\"214\" font-size=\"60\" text-anchor=\"middle\">{b}</text>", hex(bottom))
+    };
+    format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"256\" height=\"256\" viewBox=\"0 0 256 256\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"{}\"/><stop offset=\"1\" stop-color=\"{}\"/></linearGradient></defs>\
+<rect x=\"8.96\" y=\"8.96\" width=\"238.08\" height=\"238.08\" rx=\"54.76\" fill=\"url(#g)\"/>\
+<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"20.24\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\
+<polyline points=\"{}\" fill=\"none\" stroke=\"#FFFFFF\" stroke-width=\"20.24\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>{badge_svg}</svg>\n",
+        hex(top),
+        hex(bottom),
+        pts(WAVES[0].0),
+        hex(wave),
+        pts(WAVES[1].0)
+    )
+}
 
 /// The river's two waves: (height from the middle, thickness), as parts of the
 /// logo's size; the upper one light mint, the lower one white.
@@ -388,7 +434,8 @@ pub fn logo(p: &Painter, center: Pos2, radius: f32) {
     p.rect_filled(Rect::from_min_max(rect.left_top(), pos2(rect.right(), inner.top() + 1.0)), egui::CornerRadius { nw: corner, ne: corner, sw: 0, se: 0 }, top);
     p.rect_filled(Rect::from_min_max(pos2(rect.left(), inner.bottom() - 1.0), rect.right_bottom()), egui::CornerRadius { nw: 0, ne: 0, sw: corner, se: corner }, bottom);
     p.add(Shape::mesh(mesh));
-    for (k, w, col) in WAVES {
+    let (_, _, _, wave) = style();
+    for (k, w, col) in [(WAVES[0].0, WAVES[0].1, wave), WAVES[1]] {
         let pts: Vec<Pos2> = (0..=48)
             .map(|i| {
                 let t = 0.14 + 0.72 * i as f32 / 48.0;
@@ -404,13 +451,18 @@ pub fn logo(p: &Painter, center: Pos2, radius: f32) {
 }
 
 fn lerp_col(t: f32) -> Color32 {
-    let c = |i: usize| (LOGO_TOP[i] + (LOGO_BOTTOM[i] - LOGO_TOP[i]) * t) as u8;
+    let (_, top, bottom, _) = style();
+    let (top, bottom) = (f3(top), f3(bottom));
+    let c = |i: usize| (top[i] + (bottom[i] - top[i]) * t) as u8;
     Color32::from_rgb(c(0), c(1), c(2))
 }
 
 /// RGBA pixels for the window and launcher icon (same logo, with a little
 /// margin like the other Grassfield icons), drawn with smooth edges.
 pub fn window_icon(size: u32) -> egui::IconData {
+    let (_, top, bottom, wave) = style();
+    let (logo_top, logo_bottom) = (f3(top), f3(bottom));
+    let waves = [(WAVES[0].0, WAVES[0].1, wave), WAVES[1]];
     let mut rgba = vec![0u8; (size * size * 4) as usize];
     let s = size as f32;
     let margin = s * 0.035;
@@ -437,9 +489,9 @@ pub fn window_icon(size: u32) -> egui::IconData {
                     let (u, v) = (lx / box_size, ly / box_size);
                     let mut col = [0f32; 3];
                     for (i, c) in col.iter_mut().enumerate() {
-                        *c = LOGO_TOP[i] + (LOGO_BOTTOM[i] - LOGO_TOP[i]) * v;
+                        *c = logo_top[i] + (logo_bottom[i] - logo_top[i]) * v;
                     }
-                    for (k, w, wc) in WAVES {
+                    for (k, w, wc) in waves {
                         if (0.14..=0.86).contains(&u) || ((u - 0.14).abs() * box_size).hypot((v - wave_y(0.14, k)) * box_size) < w * box_size / 2.0 || ((u - 0.86).abs() * box_size).hypot((v - wave_y(0.86, k)) * box_size) < w * box_size / 2.0 {
                             let uu = u.clamp(0.14, 0.86);
                             let d = (v - wave_y(uu, k)).abs();

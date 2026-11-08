@@ -20,6 +20,10 @@ mod translate;
 mod mainmenu;
 mod sidebar;
 mod bookmarks;
+mod buttons;
+mod containers;
+mod sitepanel;
+mod tools;
 mod intelligence;
 mod extras;
 mod importer;
@@ -200,6 +204,12 @@ struct Tab {
     form_dirty: bool,
     /// Light-engine page to fetch when the tab is first shown.
     lite_pending: Option<net::Request>,
+    /// Container (own cookies and logins; "" = the profile's).
+    container: String,
+    /// The tab it was opened from (vertical tabs show it underneath).
+    parent: Option<u64>,
+    /// Its tabs underneath are folded away (tree tabs).
+    tree_folded: bool,
 }
 
 impl Tab {
@@ -481,6 +491,26 @@ pub struct Sanaga {
     tab_scroll_seen: (usize, usize),
     restoring: bool,
     shot_private: bool,
+    /// The profile's web data folder (containers keep theirs inside).
+    web_dir: Option<std::path::PathBuf>,
+    /// Focus mode: the whole interface hidden, only the page.
+    focus_mode: bool,
+    /// Battery: when last checked, and whether the computer runs on it.
+    on_battery: (f64, bool),
+    /// The website settings panel of the page shown.
+    site_panel: bool,
+    /// Open this address (or a new tab: "") in a container: the chooser.
+    container_ask: Option<String>,
+    new_container_name: String,
+    /// The » menu of the toolbar (buttons tucked away).
+    overflow_open: bool,
+    overflow_rect: Rect,
+    /// Text of the page being edited (tab id).
+    editing_text: Option<u64>,
+    /// The window kept above the others.
+    on_top: bool,
+    /// The form adding a toolbar button (Settings › Appearance).
+    button_form: buttons::ButtonForm,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -546,6 +576,8 @@ impl Sanaga {
         let store = if screenshot.is_some() { Store::ephemeral() } else { Store::load_profile(&profile) };
         // WebKit keeps cookies and site data per profile
         let web_dir = store.data_dir().map(|d| d.join("webkit"));
+        let web_dir_kept = web_dir.clone();
+        crate::icons::ICON_STYLE.store(store.settings.app_icon, Ordering::Relaxed);
         let (tx, rx) = channel();
         let (web_tx, web_rx) = channel();
         let (thumb_tx, thumb_rx) = channel();
@@ -574,6 +606,11 @@ impl Sanaga {
                 let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
                 r.request_repaint();
             });
+            // the network blocker of ads and trackers, compiled once
+            crate::page::BLOCKER_ON.store(store.settings.blocker, Ordering::Relaxed);
+            if let Some(d) = &web_dir_kept {
+                crate::page::prepare_filters(&d.join("filters"));
+            }
             Some(c)
         } else {
             None
@@ -713,6 +750,17 @@ impl Sanaga {
             tab_scroll_seen: (usize::MAX, 0),
             restoring: false,
             shot_private: false,
+            web_dir: web_dir_kept,
+            focus_mode: false,
+            on_battery: (-100.0, false),
+            site_panel: false,
+            container_ask: None,
+            new_container_name: String::new(),
+            overflow_open: false,
+            overflow_rect: Rect::NOTHING,
+            editing_text: None,
+            on_top: false,
+            button_form: Default::default(),
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -731,7 +779,8 @@ impl Sanaga {
         }
         // `--apercu`: start on the tab overview
         let overview = urls.iter().any(|u| u == "apercu:");
-        let urls: Vec<String> = urls.into_iter().filter(|u| u != "apercu:").collect();
+        // (a link to preview, with no Sanaga running yet: simply opened)
+        let urls: Vec<String> = urls.into_iter().filter(|u| u != "apercu:").map(|u| u.strip_prefix("preview:").map(|x| x.to_string()).unwrap_or(u)).collect();
         if app.screenshot.is_some() && urls.is_empty() {
             // A fixed scene for the picture: the welcome page, a site tab and a new tab.
             app.open_tab("sanaga://welcome", false);
@@ -782,6 +831,7 @@ impl Sanaga {
             let group = parts.next().unwrap_or("").to_string();
             let pinned = parts.next() == Some("1");
             let saved_title = parts.next().unwrap_or("").to_string();
+            let container = parts.next().unwrap_or("").to_string();
             app.current_group = if group.is_empty() || group == app.groups[0] {
                 0
             } else if let Some(g) = app.groups.iter().position(|x| *x == group) {
@@ -797,6 +847,9 @@ impl Sanaga {
             let u = input_to_url(&u, app.store.settings.engine, &app.store.settings.home);
             let i = app.open_tab(&u, false);
             app.tabs[i].pinned = pinned;
+            if app.store.containers.iter().any(|c| c.name == container) {
+                app.tabs[i].container = container;
+            }
             app.tabs[i].group = app.current_group;
             // tabs load when shown: until then they keep their saved title
             if !saved_title.is_empty() && app.tabs[i].entries[app.tabs[i].idx].title.is_empty() {
@@ -949,6 +1002,11 @@ impl Sanaga {
             };
             if u == "apercu:" {
                 self.overview_open = true;
+                continue;
+            }
+            // `sanaga --preview URL` (a link from another application): a preview window
+            if let Some(link) = u.strip_prefix("preview:") {
+                self.preview_link(&input_to_url(link, engine, &home));
                 continue;
             }
             let i = self.open_tab(&input_to_url(&u, engine, &home), false);
@@ -1133,6 +1191,47 @@ impl Sanaga {
                             crate::shell::gtk_click(x, y, if kind == "gtkrclick" { 3 } else { 1 });
                         }
                         a if a.starts_with("type:") => crate::shell::inject(vec![egui::Event::Text(a[5..].to_string())]),
+                        // test aids: open a page in a container, a child tab, a preview,
+                        // install an extension file, choose the app icon
+                        a if a.starts_with("incontainer:") => {
+                            if let Some((name, url)) = a[12..].split_once('|') {
+                                self.add_container(name);
+                                self.open_in_container(url, name);
+                            }
+                        }
+                        a if a.starts_with("childtab:") => {
+                            let parent = self.tabs[self.active].id;
+                            let i = self.open_tab(&a[9..], false);
+                            self.tabs[i].parent = Some(parent);
+                        }
+                        a if a.starts_with("previewlink:") => self.preview_link(&a[12..]),
+                        a if a.starts_with("installext:") => match crate::webext::install(std::path::Path::new(&a[11..])) {
+                            Ok((name, id)) => {
+                                self.store.extensions_on.push(id.clone());
+                                self.store.save_extensions();
+                                self.refresh_extensions();
+                                eprintln!("live ext installed {name} {id}");
+                            }
+                            Err(e) => eprintln!("live ext error {e}"),
+                        },
+                        a if a.starts_with("appicon:") => self.set_app_icon(a[8..].parse().unwrap_or(0)),
+                        "moretools" => {
+                            self.menu_open = true;
+                            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("menu-more"), true));
+                        }
+                        "overflow" => self.overflow_open = !self.overflow_open,
+                        "launcher" => self.add_profile_launcher(),
+                        a if a.starts_with("settingsfind:") => {
+                            self.settings_filter = a[13..].to_string();
+                            let i = self.active;
+                            self.navigate(i, "sanaga://settings".into(), None, true);
+                        }
+                        a if a.starts_with("probe:") => {
+                            if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
+                                let _ = w.evaluate_script(&format!("try{{window.ipc.postMessage('tool:probe:'+String({}))}}catch(e){{window.ipc.postMessage('tool:probe:error '+e)}}", &a[6..]));
+                            }
+                        }
+                        "title" => eprintln!("live title {}", self.tabs[self.active].title()),
                         a if a.starts_with("key:") => {
                             if let Some(key) = egui::Key::from_name(&a[4..]) {
                                 let m = Default::default();
@@ -1238,8 +1337,21 @@ impl Sanaga {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         }
 
-        // tabs and address bar where the person put them (top by default)
-        self.window_parts(ui, &th, &base_th);
+        self.power_step(now);
+        // a border around the window (Settings › Appearance): the rest inside it
+        let border = self.draw_border(ui, now);
+        let mut inner_ui;
+        let ui: &mut Ui = if border > 0.0 {
+            inner_ui = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect().shrink(border)).id_salt("in-border"));
+            &mut inner_ui
+        } else {
+            ui
+        };
+        // tabs and address bar where the person put them (top by default);
+        // focus mode hides them all
+        if !self.focus_mode {
+            self.window_parts(ui, &th, &base_th);
+        }
         if self.permission_bar_visible() {
             egui::Panel::top("permbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.permission_bar(ui, &th);
@@ -1265,7 +1377,7 @@ impl Sanaga {
                 self.downloads_panel(ui, &th);
             });
         }
-        if self.sidebar_open {
+        if self.sidebar_open && !self.focus_mode {
             egui::Panel::left("sidebar")
                 .exact_size(264.0)
                 .show_separator_line(false)
@@ -1274,14 +1386,16 @@ impl Sanaga {
                     self.sidebar(ui, &th);
                 });
         }
-        if self.summary.is_some() {
+        if self.summary.is_some() && !self.focus_mode {
             egui::Panel::right("summary").exact_size(380.0).frame(Frame::NONE.fill(th.sidebar)).show(ui, |ui| {
                 self.summary_panel(ui, &th);
             });
         }
         let central = egui::CentralPanel::no_frame().frame(Frame::NONE.fill(th.page)).show(ui, |ui| {
             let r = ui.max_rect();
-            ui.painter().line_segment([r.left_top(), r.right_top()], Stroke::new(1.0, th.border));
+            if !self.focus_mode {
+                ui.painter().line_segment([r.left_top(), r.right_top()], Stroke::new(1.0, th.border));
+            }
             self.page_area(ui, &th);
             r
         });
@@ -1294,6 +1408,9 @@ impl Sanaga {
         self.star_popover(&ctx, &th);
         self.translate_question(&ctx, &th);
         self.identity_chooser(&ctx, &th);
+        self.site_settings_panel(&ctx, &th);
+        self.container_chooser(&ctx, &th);
+        self.overflow_menu(&ctx, &th);
         let t_sync = std::time::Instant::now();
         self.sync_web(content);
         let sync_ms = t_sync.elapsed().as_secs_f64() * 1000.0;

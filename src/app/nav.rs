@@ -51,6 +51,9 @@ impl Sanaga {
             sleeping: false,
             form_dirty: false,
             lite_pending: None,
+            container: String::new(),
+            parent: None,
+            tree_folded: false,
         });
         let i = self.tabs.len() - 1;
         self.active = i;
@@ -103,7 +106,7 @@ impl Sanaga {
             .tabs
             .iter()
             .filter(|t| !t.private && !t.entries.is_empty())
-            .map(|t| format!("{}\t{}\t{}\t{}", t.url(), self.groups.get(t.group).map(|g| g.replace('\t', " ")).unwrap_or_default(), if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " ")))
+            .map(|t| format!("{}\t{}\t{}\t{}\t{}", t.url(), self.groups.get(t.group).map(|g| g.replace('\t', " ")).unwrap_or_default(), if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " ")))
             .collect();
         self.store.save_session(self.slot, &urls);
     }
@@ -518,6 +521,8 @@ impl Sanaga {
                 (sc(Modifiers::NONE, Key::F12), "inspector"),
                 (sc(cs, Key::M), "devices"),
                 (sc(cs, Key::Y), "summary"),
+                (sc(cs, Key::K), "focus"),
+                (sc(Modifiers::NONE, Key::F9), "focus"),
                 (sc(c, Key::P), "print"),
                 (sc(c, Key::U), "source"),
                 (sc(Modifiers::NONE, Key::F11), "fullscreen"),
@@ -613,6 +618,15 @@ impl Sanaga {
                     self.open_tab("sanaga://clear", false);
                 }
                 "sidebar" => self.sidebar_open = !self.sidebar_open,
+                "focus" => self.toggle_focus_mode(),
+                "container" => self.container_ask = Some(String::new()),
+                "ontop" => self.toggle_on_top(),
+                "pip" => self.start_pip(),
+                "zap" => self.start_zapper(),
+                "edittext" => self.toggle_edit_text(),
+                "unlock" => self.unlock_copy(),
+                "archive" => self.open_archive(),
+                "site" => self.site_panel = true,
                 "inspector" => self.open_inspector(),
                 "summary" => self.summarize_page(),
                 "devices" => self.toggle_devices(),
@@ -638,7 +652,10 @@ impl Sanaga {
                     self.remember_zoom();
                 }
                 "esc" => {
-                    if self.tab_search_open {
+                    if self.stop_page_tool() {
+                    } else if self.focus_mode && !self.menu_open {
+                        self.toggle_focus_mode();
+                    } else if self.tab_search_open {
                         self.tab_search_open = false;
                     } else if self.overview_open || self.share_open {
                         self.overview_open = false;
