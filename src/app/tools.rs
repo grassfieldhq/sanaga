@@ -504,13 +504,15 @@ impl Sanaga {
         let name = if profile.is_empty() { "Sanaga".to_string() } else { format!("Sanaga — {profile}") };
         let safe: String = profile.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
         let file = data.join("applications").join(if profile.is_empty() { "sanaga-main.desktop".to_string() } else { format!("sanaga-profile-{safe}.desktop") });
-        let exe_q = exe.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
-        let args = if profile.is_empty() { String::new() } else { format!(" --profile \"{}\"", profile.replace('"', "")) };
+        // quoted and escaped as the Desktop Entry specification says
+        let args = if profile.is_empty() { String::new() } else { format!(" --profile {}", crate::desktop::exec_arg(&profile)) };
+        let shown = if emoji.is_empty() { name.clone() } else { format!("{name} {emoji}") };
         let text = format!(
-            "[Desktop Entry]\nType=Application\nName={name}{}\nComment={}\nExec=\"{exe_q}\"{args} %U\nIcon={}\nCategories=Network;WebBrowser;\nStartupNotify=true\n",
-            if emoji.is_empty() { String::new() } else { format!(" {emoji}") },
-            tr("Navigateur web Sanaga, avec les données de ce profil"),
-            icon.display()
+            "[Desktop Entry]\nType=Application\nName={}\nComment={}\nExec={}{args} %U\nIcon={}\nCategories=Network;WebBrowser;\nStartupNotify=true\n",
+            crate::desktop::desktop_value(&shown),
+            crate::desktop::desktop_value(tr("Navigateur web Sanaga, avec les données de ce profil")),
+            crate::desktop::exec_arg(&exe.to_string_lossy()),
+            crate::desktop::desktop_value(&icon.display().to_string())
         );
         let _ = std::fs::create_dir_all(file.parent().unwrap_or(&data));
         match std::fs::write(&file, text) {

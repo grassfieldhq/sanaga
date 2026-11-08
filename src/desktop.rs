@@ -361,9 +361,81 @@ pub fn resize_edges(ctx: &egui::Context) {
     }
 }
 
+/// One argument of a .desktop file's Exec key, as the Desktop Entry
+/// specification wants it: in double quotes, with a backslash before `"`,
+/// `` ` ``, `$` and `\`, and `%` doubled (else it would be a field code);
+/// then every backslash doubled again, because the whole value is also a
+/// key-file string. Control characters (a line break would start a new
+/// key) are dropped.
+pub fn exec_arg(arg: &str) -> String {
+    let mut quoted = String::from("\"");
+    for c in arg.chars() {
+        match c {
+            '"' | '`' | '$' | '\\' => {
+                quoted.push('\\');
+                quoted.push(c);
+            }
+            '%' => quoted.push_str("%%"),
+            c if c.is_control() => {}
+            c => quoted.push(c),
+        }
+    }
+    quoted.push('"');
+    quoted.replace('\\', "\\\\")
+}
+
+/// A plain value of a .desktop file (Name=, Comment=, Icon=): one line, its
+/// backslashes escaped.
+pub fn desktop_value(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect::<String>().replace('\\', "\\\\")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// How a desktop reads one quoted Exec argument back (key-file string
+    /// first, then the quoting rule, then %%).
+    fn read_exec_arg(v: &str) -> Option<String> {
+        let mut s = String::new();
+        let mut it = v.chars();
+        while let Some(c) = it.next() {
+            if c == '\\' {
+                match it.next()? {
+                    '\\' => s.push('\\'),
+                    's' => s.push(' '),
+                    o => {
+                        s.push('\\');
+                        s.push(o);
+                    }
+                }
+            } else {
+                s.push(c);
+            }
+        }
+        let inner = s.strip_prefix('"')?.strip_suffix('"')?;
+        let mut out = String::new();
+        let mut it = inner.chars();
+        while let Some(c) = it.next() {
+            match c {
+                '\\' => out.push(it.next()?),
+                '"' | '`' | '$' => return None, // unescaped: would end or expand
+                c => out.push(c),
+            }
+        }
+        Some(out.replace("%%", "%"))
+    }
+
+    #[test]
+    fn hostile_addresses_stay_one_exec_argument() {
+        let hostile = "https://e.example/\"; rm -rf ~; echo \"$HOME`id`%f\\x%20y\nExec=evil";
+        let q = exec_arg(hostile);
+        assert!(!q.contains('\n'));
+        assert_eq!(read_exec_arg(&q).as_deref(), Some("https://e.example/\"; rm -rf ~; echo \"$HOME`id`%f\\x%20yExec=evil"));
+        assert_eq!(exec_arg("https://a.example/?q=1%202"), "\"https://a.example/?q=1%%202\"");
+        assert_eq!(exec_arg("a$b"), "\"a\\\\$b\"");
+        assert_eq!(desktop_value("Site\nExec=evil \\o/"), "SiteExec=evil \\\\o/");
+    }
 
     #[test]
     fn reads_compositor_answers() {
