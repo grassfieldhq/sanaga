@@ -101,7 +101,7 @@ const GESTURE_WINDOW: Duration = Duration::from_secs(10);
 /// action; a site that starts a download by itself, or several at once,
 /// must be allowed first (unless the person already allowed that site).
 pub fn download_needs_ask(gesture_fresh: bool, gesture_used: bool, site_allowed: bool) -> bool {
-    !site_allowed && !(gesture_fresh && !gesture_used)
+    !site_allowed && (!gesture_fresh || gesture_used)
 }
 
 /// The site named in "Allow downloads on …?": the page's, else the file's.
@@ -371,10 +371,15 @@ pub fn ephemeral_engine() -> Engine {
 /// differs between versions.
 fn accept_cookies(session: &NetworkSession) {
     if let Some(cm) = session.cookie_manager() {
-        let policy = match std::env::var("SANAGA_COOKIES").as_deref() {
-            Ok("always") => webkit6::CookieAcceptPolicy::Always,
-            _ => webkit6::CookieAcceptPolicy::NoThirdParty,
-        };
+        #[allow(unused_mut)]
+        let mut policy = webkit6::CookieAcceptPolicy::NoThirdParty;
+        // test aid (debug builds only): SANAGA_COOKIES=always
+        #[cfg(debug_assertions)]
+        {
+            if std::env::var("SANAGA_COOKIES").as_deref() == Ok("always") {
+                policy = webkit6::CookieAcceptPolicy::Always;
+            }
+        }
         cm.set_accept_policy(policy);
     }
 }
@@ -596,9 +601,12 @@ impl PageView {
             st.set_enable_webrtc(true);
             st.set_enable_media_stream(true);
             st.set_enable_mediasource(true);
-            // test aid: let test pages open windows without a click
-            if std::env::var_os("SANAGA_TEST_POPUPS").is_some() {
-                st.set_javascript_can_open_windows_automatically(true);
+            // test aid (debug builds only): let test pages open windows without a click
+            #[cfg(debug_assertions)]
+            {
+                if std::env::var_os("SANAGA_TEST_POPUPS").is_some() {
+                    st.set_javascript_can_open_windows_automatically(true);
+                }
             }
             // (clipboard: WebKit's default, a page reads it only on a user gesture)
             st.set_enable_page_cache(true);

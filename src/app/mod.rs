@@ -1168,23 +1168,10 @@ impl Sanaga {
         self.store_seen = crate::store::CHANGES.load(Ordering::Relaxed);
     }
 
-    fn frame_body(&mut self, ui: &mut Ui) {
-        self.frame += 1;
-        let frame_start = std::time::Instant::now();
-        if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
-            eprintln!("frame t={:.2}", ui.input(|i| i.time));
-        }
-        self.apply_style();
-        self.poll_network();
-        let ctx0 = ui.ctx().clone();
-        let t_pump = std::time::Instant::now();
-        self.pump_web(&ctx0);
-        let pump_ms = t_pump.elapsed().as_secs_f64() * 1000.0;
-        self.poll_tab_extras();
-        self.poll_import();
-        self.poll_ai();
-        crate::favicon::pump(&ctx0);
-        let now = ctx0.input(|i| i.time);
+    /// Test aids driven by environment variables (SANAGA_BENCH_CYCLE,
+    /// SANAGA_LIVE_TEST): compiled into debug builds only.
+    #[cfg(debug_assertions)]
+    fn test_hooks(&mut self, ui: &mut Ui, ctx0: &egui::Context, now: f64) {
         // test aid: SANAGA_BENCH_CYCLE=n shows the next tab every 3 s, n times
         if let Some(n) = std::env::var("SANAGA_BENCH_CYCLE").ok().and_then(|v| v.parse::<u64>().ok()) {
             let step = (now / 3.0) as u64;
@@ -1342,6 +1329,30 @@ impl Sanaga {
             }
             ctx0.request_repaint_after(std::time::Duration::from_millis(100));
         }
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn test_hooks(&mut self, _ui: &mut Ui, _ctx0: &egui::Context, _now: f64) {}
+
+    fn frame_body(&mut self, ui: &mut Ui) {
+        self.frame += 1;
+        let frame_start = std::time::Instant::now();
+        if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
+            eprintln!("frame t={:.2}", ui.input(|i| i.time));
+        }
+        self.apply_style();
+        self.poll_network();
+        let ctx0 = ui.ctx().clone();
+        let t_pump = std::time::Instant::now();
+        self.pump_web(&ctx0);
+        let pump_ms = t_pump.elapsed().as_secs_f64() * 1000.0;
+        self.poll_tab_extras();
+        self.poll_import();
+        self.poll_ai();
+        crate::favicon::pump(&ctx0);
+        let now = ctx0.input(|i| i.time);
+        // test aids (debug builds only: not in a release build)
+        self.test_hooks(ui, &ctx0, now);
         self.memory_saver_step(now);
         // simulator video: stop with the simulator, feed the encoder
         if self.device.is_none() && self.recording.as_ref().is_some_and(|r| !r.stopping) {

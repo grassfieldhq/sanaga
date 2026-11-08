@@ -541,13 +541,16 @@ impl Sanaga {
             s.set_itp_enabled(self.store.settings.itp);
         }
         wk.set_is_muted(self.tabs[i].muted);
-        if let Some(st) = WebViewExt::settings(&wk) {
-            use webkit6::HardwareAccelerationPolicy as H;
-            // test aid: SANAGA_HWACCEL=never|always
-            match std::env::var("SANAGA_HWACCEL").as_deref() {
-                Ok("never") => st.set_hardware_acceleration_policy(H::Never),
-                Ok("always") => st.set_hardware_acceleration_policy(H::Always),
-                _ => {}
+        // test aid (debug builds only): SANAGA_HWACCEL=never|always
+        #[cfg(debug_assertions)]
+        {
+            if let Some(st) = WebViewExt::settings(&wk) {
+                use webkit6::HardwareAccelerationPolicy as H;
+                match std::env::var("SANAGA_HWACCEL").as_deref() {
+                    Ok("never") => st.set_hardware_acceleration_policy(H::Never),
+                    Ok("always") => st.set_hardware_acceleration_policy(H::Always),
+                    _ => {}
+                }
             }
         }
         // smaller caches: less memory per page
