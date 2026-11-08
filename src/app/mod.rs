@@ -517,6 +517,8 @@ pub struct Sanaga {
     codec_dismissed: bool,
     codec_flag: Option<u64>,
     codec_install: Arc<std::sync::atomic::AtomicU8>,
+    /// Sites waiting for "Allow downloads on …?" (Safari's question).
+    download_asks: Vec<String>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -610,6 +612,11 @@ impl Sanaga {
             crate::page::follow_downloads(&c);
             crate::page::add_download_sink(slot, move |url, path, ok| {
                 let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
+                r.request_repaint();
+            });
+            let (t, r) = (web_tx.clone(), egui_ctx.clone());
+            crate::page::add_download_ask_sink(slot, move |site| {
+                let _ = t.send(web::WebEvent::DownloadAsk { site });
                 r.request_repaint();
             });
             // which video formats the system can play (for YouTube & co.)
@@ -772,6 +779,7 @@ impl Sanaga {
             codec_dismissed: false,
             codec_flag: None,
             codec_install: Default::default(),
+            download_asks: Vec::new(),
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -1388,6 +1396,11 @@ impl Sanaga {
         if self.permission_bar_visible() {
             egui::Panel::top("permbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.permission_bar(ui, &th);
+            });
+        }
+        if !self.download_asks.is_empty() {
+            egui::Panel::top("downloadaskbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.download_ask_bar(ui, &th);
             });
         }
         self.media_step();

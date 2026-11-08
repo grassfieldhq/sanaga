@@ -28,6 +28,8 @@ pub(super) enum WebEvent {
     /// Login seen / login form found by the page script.
     Password { tab: u64, msg: String },
     DownloadDone { url: String, path: Option<std::path::PathBuf>, ok: bool },
+    /// A site started a download by itself, or several at once: ask first.
+    DownloadAsk { site: String },
     /// Privacy report: trackers kept from following the person.
     Privacy(Vec<(String, usize)>),
     /// The text of a page, for its summary.
@@ -356,6 +358,11 @@ impl Sanaga {
                 }
             }
             WebEvent::Privacy(list) => self.privacy = list,
+            WebEvent::DownloadAsk { site } => {
+                if !self.download_asks.contains(&site) {
+                    self.download_asks.push(site);
+                }
+            }
             WebEvent::DownloadDone { url, path, ok } => {
                 // (a download that never got a place: only its address is known)
                 let path = path.unwrap_or_else(|| net::download_dir().join(net::safe_download_name(url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).unwrap_or(""))));

@@ -934,3 +934,6 @@ Vidéo et musique	Video and music
 WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit.	WebKit plays video with GStreamer: the codecs come from the system's packages. Videos protected by Widevine (Netflix, Disney+, Spotify web…) can't be played by any WebKit browser.
 Toujours ouvrir ainsi	Always open this way
 Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)	Protected sites will open straight in this browser (Settings › General)
+Voulez-vous autoriser les téléchargements sur « {} » ?	Do you want to allow downloads on “{}”?
+Ne pas autoriser	Don't Allow
+Autoriser	Allow

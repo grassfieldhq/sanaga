@@ -310,6 +310,36 @@ impl Sanaga {
         }
     }
 
+    /// Safari's question when a site starts a download by itself, or
+    /// several at once: allowed, its downloads go on (and the site may
+    /// download until Sanaga quits); refused, they are cancelled.
+    pub(super) fn download_ask_bar(&mut self, ui: &mut Ui, th: &Theme) {
+        let Some(site) = self.download_asks.first().cloned() else { return };
+        let mut answer: Option<bool> = None;
+        let text = tf("Voulez-vous autoriser les téléchargements sur « {} » ?", &[&site]);
+        ui.horizontal_centered(|ui| {
+            ui.add_space(14.0);
+            let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+            icons::paint(ui.painter(), r, Icon::Shield, th.accent);
+            ui.add_space(6.0);
+            ui.label(RichText::new(text).size(13.0).color(th.text));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.add_space(12.0);
+                if ui.button(tr("Ne pas autoriser")).clicked() {
+                    answer = Some(false);
+                }
+                let b = egui::Button::new(RichText::new(tr("Autoriser")).color(Color32::WHITE)).fill(th.accent);
+                if ui.add(b).clicked() {
+                    answer = Some(true);
+                }
+            });
+        });
+        if let Some(allow) = answer {
+            self.download_asks.retain(|s| *s != site);
+            crate::page::answer_downloads(&site, allow);
+        }
+    }
+
     /// Ctrl+S: keep a copy of the page (one .mhtml file) in Téléchargements.
     pub(super) fn save_page(&mut self) {
         let t = &self.tabs[self.active];

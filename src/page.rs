@@ -3,9 +3,10 @@
 //! on the graphics card, in the same frame.
 
 use gtk::prelude::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 use webkit6::prelude::*;
 use webkit6::{CookiePersistentStorage, LoadEvent, NetworkSession, UserContentInjectedFrames, UserContentManager, UserScript, UserScriptInjectionTime, WebContext, WebView};
 
@@ -60,6 +61,11 @@ thread_local! {
     static RESERVED: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
     /// What Sanaga follows for each open page.
     static VIEW_STATES: RefCell<Vec<(gtk::glib::WeakRef<WebView>, Rc<ViewState>)>> = const { RefCell::new(Vec::new()) };
+    /// Downloads waiting for the person's answer, sites allowed to download
+    /// (until Sanaga quits), and the windows that ask.
+    static PENDING_DOWNLOADS: RefCell<Vec<PendingDownload>> = const { RefCell::new(Vec::new()) };
+    static DOWNLOAD_SITES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static DOWNLOAD_ASK_SINKS: RefCell<Vec<(usize, AskSink)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// What Sanaga follows for one open page.
@@ -67,6 +73,103 @@ thread_local! {
 struct ViewState {
     /// The address of the page shown (committed): the referrer of its downloads.
     committed: RefCell<String>,
+    /// When the person last acted on the page (a click that navigates, an
+    /// address opened from Sanaga's interface), and whether a download has
+    /// already used that action.
+    gesture: Cell<Option<Instant>>,
+    gesture_used: Cell<bool>,
+}
+
+/// The person acted on this page (a click that navigates, an address
+/// opened from Sanaga's interface): it may start one download.
+fn mark_gesture(v: &WebView) {
+    if let Some(s) = view_state(v) {
+        s.gesture.set(Some(Instant::now()));
+        s.gesture_used.set(false);
+    }
+}
+
+/// How long after the person's action a page may start its download.
+const GESTURE_WINDOW: Duration = Duration::from_secs(10);
+
+/// Safari's rule for downloads: they go straight to the Downloads folder
+/// when the person just acted on the page and no other download used that
+/// action; a site that starts a download by itself, or several at once,
+/// must be allowed first (unless the person already allowed that site).
+pub fn download_needs_ask(gesture_fresh: bool, gesture_used: bool, site_allowed: bool) -> bool {
+    !site_allowed && !(gesture_fresh && !gesture_used)
+}
+
+/// The site named in "Allow downloads on …?": the page's, else the file's.
+pub fn download_site(referrer: &str, uri: &str) -> String {
+    let h = host_of_uri(referrer);
+    if !h.is_empty() {
+        return h;
+    }
+    let h = host_of_uri(uri);
+    if !h.is_empty() {
+        return h;
+    }
+    uri.split(':').next().unwrap_or("").to_string()
+}
+
+/// A download waiting for the person's answer.
+struct PendingDownload {
+    download: webkit6::Download,
+    suggested: String,
+    uri: String,
+    site: String,
+    dest: Rc<RefCell<Option<PathBuf>>>,
+    denied: Rc<Cell<bool>>,
+}
+
+type AskSink = Rc<dyn Fn(String)>;
+
+/// Window `slot` shows the "Allow downloads on …?" bar.
+pub fn add_download_ask_sink(slot: usize, ask: impl Fn(String) + 'static) {
+    DOWNLOAD_ASK_SINKS.with(|s| s.borrow_mut().push((slot, Rc::new(ask))));
+}
+
+fn ask_downloads(site: String) {
+    let active = ACTIVE_WINDOW.load(std::sync::atomic::Ordering::Relaxed);
+    let sink = DOWNLOAD_ASK_SINKS.with(|s| {
+        let s = s.borrow();
+        s.iter().find(|(n, _)| *n == active).or_else(|| s.first()).map(|(_, f)| f.clone())
+    });
+    match sink {
+        Some(f) => f(site),
+        // no window to ask in: the download does not happen
+        None => answer_downloads(&site, false),
+    }
+}
+
+/// The person's answer for a site's waiting downloads: they go to the
+/// Downloads folder (and the site may download until Sanaga quits), or
+/// they are cancelled.
+pub fn answer_downloads(site: &str, allow: bool) {
+    if allow {
+        DOWNLOAD_SITES.with(|d| {
+            let mut d = d.borrow_mut();
+            if !d.iter().any(|s| s == site) {
+                d.push(site.to_string());
+            }
+        });
+    }
+    let mine: Vec<PendingDownload> = PENDING_DOWNLOADS.with(|q| {
+        let mut q = q.borrow_mut();
+        let (mine, rest): (Vec<PendingDownload>, Vec<PendingDownload>) = q.drain(..).partition(|p| p.site == site);
+        *q = rest;
+        mine
+    });
+    for p in mine {
+        if allow {
+            let path = choose_destination(&p.download, &p.suggested, &p.uri);
+            *p.dest.borrow_mut() = Some(path);
+        } else {
+            p.denied.set(true);
+            p.download.cancel();
+        }
+    }
 }
 
 fn view_state(v: &WebView) -> Option<Rc<ViewState>> {
@@ -171,6 +274,7 @@ pub fn add_download_sink(slot: usize, done: impl Fn(String, Option<PathBuf>, boo
 /// Window `slot` closed.
 pub fn remove_download_sink(slot: usize) {
     DOWNLOAD_SINKS.with(|s| s.borrow_mut().retain(|(n, _)| *n != slot));
+    DOWNLOAD_ASK_SINKS.with(|s| s.borrow_mut().retain(|(n, _)| *n != slot));
 }
 
 fn report_download(url: String, path: Option<PathBuf>, ok: bool) {
@@ -308,10 +412,29 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
         }
         let failed = Rc::new(RefCell::new(false));
         let dest: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
-        let referrer = referrer_of(download.web_view().as_ref());
-        let d2 = dest.clone();
+        let view = download.web_view();
+        let referrer = referrer_of(view.as_ref());
+        let denied = Rc::new(Cell::new(false));
+        let (d2, denied2, site_ref) = (dest.clone(), denied.clone(), referrer.clone());
         download.connect_decide_destination(move |download, suggested| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
+            // (a download Sanaga started itself has no page: never asked)
+            if let Some(state) = download.web_view().as_ref().and_then(view_state) {
+                let site = download_site(&site_ref, &uri);
+                let fresh = state.gesture.get().is_some_and(|t| t.elapsed() <= GESTURE_WINDOW);
+                let allowed = DOWNLOAD_SITES.with(|d| d.borrow().iter().any(|s| *s == site));
+                if download_needs_ask(fresh, state.gesture_used.get(), allowed) {
+                    // the download waits (WebKit 2.40+) until the person answers
+                    PENDING_DOWNLOADS.with(|q| {
+                        q.borrow_mut().push(PendingDownload { download: download.clone(), suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                    });
+                    ask_downloads(site);
+                    return true;
+                }
+                if fresh {
+                    state.gesture_used.set(true);
+                }
+            }
             let path = choose_destination(download, suggested, &uri);
             *d2.borrow_mut() = Some(path);
             true
@@ -329,6 +452,9 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
             let path = dest.borrow().clone();
             if let Some(p) = &path {
                 release(p);
+            }
+            if denied.get() {
+                return; // the person said no: nothing to show
             }
             let ok = !*failed.borrow();
             if let (true, Some(p)) = (ok, &path) {
@@ -433,6 +559,10 @@ impl PageView {
             // need it to send their answer back), shown in a new tab
             if let Some(make) = &popups {
                 if let Some(w) = make(v) {
+                    // the click that opened it may start a download there
+                    if action.is_user_gesture() {
+                        mark_gesture(&w);
+                    }
                     return Some(w.upcast::<gtk::Widget>());
                 }
             }
@@ -463,6 +593,14 @@ impl PageView {
                     }
                 }
                 return false;
+            }
+            // a click on the page (for its downloads: see download_needs_ask)
+            if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
+                if let Some(nav) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() {
+                    if nav.navigation_action().is_some_and(|a| a.is_user_gesture()) {
+                        mark_gesture(v);
+                    }
+                }
             }
             if kind != webkit6::PolicyDecisionType::NavigationAction {
                 return false;
@@ -550,6 +688,8 @@ impl PageView {
         }
     }
     pub fn load_url(&self, url: &str) -> R<()> {
+        // an address opened from Sanaga's interface: the person's own action
+        mark_gesture(&self.view);
         self.view.load_uri(url);
         Ok(())
     }
@@ -640,4 +780,29 @@ pub fn texture_to_surface(tex: &gtk::gdk::Texture) -> Option<gtk::cairo::ImageSu
     }
     surf.mark_dirty();
     Some(surf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn downloads_follow_safaris_rule() {
+        // a click, one download: no question
+        assert!(!download_needs_ask(true, false, false));
+        // no click: asked
+        assert!(download_needs_ask(false, false, false));
+        // a second download from the same click: asked
+        assert!(download_needs_ask(true, true, false));
+        // a site the person allowed: never asked
+        assert!(!download_needs_ask(false, false, true));
+        assert!(!download_needs_ask(true, true, true));
+    }
+
+    #[test]
+    fn download_question_names_the_site() {
+        assert_eq!(download_site("https://www.example.org/page", "https://cdn.example.net/f.zip"), "www.example.org");
+        assert_eq!(download_site("", "https://cdn.example.net/f.zip"), "cdn.example.net");
+        assert_eq!(download_site("about:blank", "data:text/plain,hi"), "data");
+    }
 }
