@@ -948,6 +948,15 @@ impl Sanaga {
         let Some(job) = &mut self.screenshot else { return };
         job.frames += 1;
         ctx.request_repaint();
+        if crate::shell::active() {
+            // in the GTK window: GTK takes the picture (and Sanaga quits)
+            let busy = self.tabs.iter().any(|t| t.loading) || self.images.values().any(|i| matches!(i, ImgSlot::Loading));
+            if job.frames >= 120 && (!busy || job.frames >= 600) && !job.requested {
+                job.requested = true;
+                crate::shell::shot_and_quit(job.path.to_string_lossy().to_string());
+            }
+            return;
+        }
         let busy = self.tabs.iter().any(|t| t.loading) || self.images.values().any(|i| matches!(i, ImgSlot::Loading));
         if job.frames >= 120 && (!busy || job.frames >= 900) && !job.requested {
             job.requested = true;

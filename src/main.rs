@@ -177,12 +177,24 @@ fn main() -> eframe::Result {
     if reader {
         urls = urls.into_iter().map(|u| format!("lecteur:{u}")).collect();
     }
-    if screenshot.is_none() {
-        desktop::hide_desktop_titlebar();
-        // The normal window: native GTK (Wayland or X11), pages inside it.
-        match shell::run(urls.clone()) {
-            Ok(()) => return Ok(()),
-            Err(e) => eprintln!("Fenêtre GTK indisponible ({e}) : affichage simple sans moteur web."),
+    match screenshot.take() {
+        None => {
+            desktop::hide_desktop_titlebar();
+            // The normal window: native GTK (Wayland or X11), pages inside it.
+            match shell::run(urls.clone()) {
+                Ok(()) => return Ok(()),
+                Err(e) => eprintln!("Fenêtre GTK indisponible ({e}) : affichage simple sans moteur web."),
+            }
+        }
+        Some(job) => {
+            // the same GTK window, which draws even when it is not on screen
+            let path = job.path.clone();
+            match shell::run_screenshot(urls.clone(), job) {
+                Ok(()) if path.exists() => return Ok(()),
+                Ok(()) => eprintln!("Capture : nouvel essai sans GTK"),
+                Err(e) => eprintln!("Fenêtre GTK indisponible ({e}) : capture sans moteur web."),
+            }
+            screenshot = Some(app::ScreenshotJob { path, frames: 0, requested: false, done: Arc::new(AtomicBool::new(false)) });
         }
     }
     let options = eframe::NativeOptions {

@@ -135,6 +135,15 @@ thread_local! {
     static INJECT_NOW: RefCell<Vec<Event>> = const { RefCell::new(Vec::new()) };
     /// The main loop (quitting it ends Sanaga).
     static MAIN: RefCell<Option<glib::MainLoop>> = const { RefCell::new(None) };
+    /// `--screenshot FILE`: the job for the window, and quitting once the picture is saved.
+    static SHOT_JOB: RefCell<Option<crate::app::ScreenshotJob>> = const { RefCell::new(None) };
+    static QUIT_AFTER_SHOT: Cell<bool> = const { Cell::new(false) };
+}
+
+/// `--screenshot`: save a picture of the window, then quit.
+pub fn shot_and_quit(path: String) {
+    QUIT_AFTER_SHOT.with(|q| q.set(true));
+    request_shot(path);
 }
 
 pub fn set_tooltip(text: String) {
@@ -483,9 +492,17 @@ fn save_shot(window: &gtk::Window, path: &str) {
         return;
     };
     let tex = renderer.render_texture(node, None);
+    if let Some(dir) = std::path::Path::new(path).parent().filter(|d| !d.as_os_str().is_empty()) {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let quit = QUIT_AFTER_SHOT.with(|q| q.get());
     match tex.save_to_png(path) {
+        Ok(()) if quit => eprintln!("Capture enregistrée : {path}"),
         Ok(()) => eprintln!("live shot {path}"),
-        Err(e) => eprintln!("live shot {path}: {e}"),
+        Err(e) => eprintln!("Capture impossible ({path}) : {e}"),
+    }
+    if quit {
+        quit_main();
     }
 }
 
@@ -782,9 +799,25 @@ fn quit_main() {
     });
 }
 
+/// `sanaga --screenshot FILE`: the normal window draws its fixed scene for a
+/// moment, its picture is saved, and Sanaga quits. (Through GTK, it works
+/// even when the window is not on screen, e.g. the screen is asleep.)
+pub fn run_screenshot(urls: Vec<String>, job: crate::app::ScreenshotJob) -> Result<(), String> {
+    let path = job.path.to_string_lossy().to_string();
+    SHOT_JOB.with(|s| *s.borrow_mut() = Some(job));
+    // whatever happens, a picture within the minute
+    let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("webapp:")).collect();
+    run_inner(urls, Some(path))
+}
+
 pub fn run(urls: Vec<String>) -> Result<(), String> {
-    // one Sanaga per data folder and profile (web apps run on their own)
-    let single = !urls.iter().any(|u| u.starts_with("webapp:"));
+    run_inner(urls, None)
+}
+
+fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
+    // one Sanaga per data folder and profile (web apps run on their own; a
+    // screenshot never talks to a running Sanaga)
+    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:"));
     let sock = instance_socket(&urls);
     if single && forward_to_running(&sock, &urls) {
         return Ok(());
@@ -834,6 +867,9 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
     }
     let main = glib::MainLoop::new(None, false);
     MAIN.with(|m| *m.borrow_mut() = Some(main.clone()));
+    if let Some(path) = shot {
+        glib::timeout_add_local_once(Duration::from_secs(45), move || shot_and_quit(path));
+    }
     let urls: Vec<String> = urls.into_iter().filter(|u| u != "nouvelle-fenetre:").collect();
     let Some(first) = open_window(urls) else { return Err("fenêtre indisponible".into()) };
     // the other windows of the last session
@@ -991,7 +1027,7 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         let delay = info.delay;
         glib::MainContext::default().invoke(move || frame_for(slot, delay));
     });
-    let app = Sanaga::new(&ctx, urls, None);
+    let app = Sanaga::new(&ctx, urls, SHOT_JOB.with(|s| s.borrow_mut().take()));
     let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, frame: None, delta: Default::default() }));
     crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
