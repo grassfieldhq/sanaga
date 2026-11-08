@@ -945,3 +945,9 @@ Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec vo
 Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}	This site's videos need codecs that are missing ({}). Command: {}
 Installer dans un terminal	Install in a Terminal
 Appuyez sur Entrée pour fermer cette fenêtre.	Press Enter to close this window.
+« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.	“{}” is written but turned off. Read its code and the sites it acts on, then turn it on if you're happy with it.
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.	Describe what you want to change on websites: Sanaga writes the extension, you read it, then you turn it on.
+Où elle agirait : {}	Where it would act: {}
+Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.	On these sites it could read and change everything the page shows, including what you type there.
+Activer l'extension	Turn On Extension
+« {} » est activée : elle s'applique aux pages ouvertes.	“{}” is on: it applies to the open pages.

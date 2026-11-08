@@ -945,3 +945,9 @@ Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec vo
 Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}	Faltan códecs para reproducir los vídeos de este sitio ({}). Comando: {}
 Installer dans un terminal	Instalar en una terminal
 Appuyez sur Entrée pour fermer cette fenêtre.	Pulsa Intro para cerrar esta ventana.
+« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.	«{}» está escrita pero desactivada. Lee su código y los sitios donde actúa, y actívala si te convence.
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.	Describe lo que quieres cambiar en los sitios: Sanaga escribe la extensión, la lees y luego la activas.
+Où elle agirait : {}	Dónde actuaría: {}
+Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.	En estos sitios podría leer y cambiar todo lo que muestra la página, incluido lo que escribes en ella.
+Activer l'extension	Activar la extensión
+« {} » est activée : elle s'applique aux pages ouvertes.	«{}» está activada: se aplica a las páginas abiertas.
