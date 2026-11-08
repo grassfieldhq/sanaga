@@ -88,6 +88,20 @@ fn main() -> eframe::Result {
     let mut reader = false;
     while let Some(a) = args.next() {
         match a.as_str() {
+            "--export-icon" => {
+                // packaging aid: write Sanaga's icon as a PNG (size in pixels, default 256)
+                let Some(path) = args.next() else {
+                    eprintln!("--export-icon needs a file name (.png)");
+                    std::process::exit(2);
+                };
+                let size: u32 = args.next().and_then(|s| s.parse().ok()).unwrap_or(256);
+                let icon = icons::window_icon(size);
+                if let Err(e) = image::save_buffer(&path, &icon.rgba, icon.width, icon.height, image::ColorType::Rgba8) {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+                return Ok(());
+            }
             "--screenshot" => {
                 let Some(p) = args.next() else {
                     eprintln!("--screenshot demande un nom de fichier .png");

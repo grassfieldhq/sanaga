@@ -85,9 +85,13 @@ cargo build --release
 ./target/release/sanaga
 ```
 
-To add Sanaga to your applications menu, copy the binary somewhere on your
-`PATH` (for example `~/.local/bin/`) and `packaging/sanaga.desktop` to
-`~/.local/share/applications/`.
+To install it for your user — program in `~/.local/bin`, launcher in your
+applications menu, icon — without admin rights:
+
+```sh
+packaging/install.sh              # build and install
+packaging/install.sh --uninstall  # remove it (your data stays)
+```
 
 ## Usage
 
