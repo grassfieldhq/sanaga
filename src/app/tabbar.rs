@@ -9,7 +9,7 @@ use super::chrome::site_badge;
 use super::toolbar::{spinner, window_buttons, window_drag};
 use super::*;
 use crate::icons::{self, Icon};
-use eframe::egui::{Color32, Sense};
+use eframe::egui::{Align2, Color32, Sense};
 
 /// Height of the track and of the + button (macOS 27: 28).
 const TRACK_H: f32 = 28.0;
@@ -17,8 +17,9 @@ const TRACK_H: f32 = 28.0;
 const PILL_INSET: f32 = 2.0;
 /// Width of a pinned tab.
 const PIN_W: f32 = 40.0;
-/// Below this width a tab shows only its icon.
-const MIN_W: f32 = 96.0;
+/// Tabs never get narrower than this (their title stays readable): more
+/// tabs scroll, with arrows and the list of all tabs.
+const MIN_W: f32 = 120.0;
 
 impl Sanaga {
     pub(super) fn tab_strip(&mut self, ui: &mut Ui, th: &Theme) {
@@ -50,25 +51,56 @@ impl Sanaga {
             left = window_buttons(ui, full.left() + 18.0, cy) + 14.0;
         }
         let plus_d = TRACK_H;
-        let right = full.right() - 8.0 - plus_d - 6.0;
-        let track = Rect::from_min_max(pos2(left, cy - TRACK_H / 2.0), pos2(right.max(left + 60.0), cy + TRACK_H / 2.0));
-        let round = CornerRadius::same((TRACK_H / 2.0) as u8);
-        ui.painter().rect_filled(track, round, th.track);
-
         // the tabs shown: pinned first, a folded group keeps only the tab shown
         let order = self.strip_tabs();
         let pinned_n = order.iter().filter(|&&i| self.tabs[i].pinned).count();
         let normal_n = (order.len() - pinned_n).max(1) as f32;
-        let room = track.width() - pinned_n as f32 * PIN_W;
-        // equal widths; very many tabs shrink to their icon, then scroll
-        let w = (room / normal_n).max(44.0);
+        let right_full = full.right() - 8.0 - plus_d - 6.0;
+        // too many tabs to show their titles: arrows at both ends of the track
+        // and a button with their number (it opens the list of all tabs)
+        let fits = |right: f32| (right - left - pinned_n as f32 * PIN_W) / normal_n >= MIN_W;
+        let overflow = !fits(right_full);
+        let count_w = if overflow { 52.0 } else { 0.0 };
+        let right = right_full - if overflow { count_w + 6.0 } else { 0.0 };
+        let track = Rect::from_min_max(pos2(left, cy - TRACK_H / 2.0), pos2(right.max(left + 60.0), cy + TRACK_H / 2.0));
+        let round = CornerRadius::same((TRACK_H / 2.0) as u8);
+        ui.painter().rect_filled(track, round, th.track);
+        let arrow = TRACK_H;
+        let area = if overflow { track.shrink2(vec2(arrow, 0.0)) } else { track };
+        let room = area.width() - pinned_n as f32 * PIN_W;
+        // equal widths, never so narrow that the titles go (then it scrolls)
+        let w = (room / normal_n).max(MIN_W);
         let total = pinned_n as f32 * PIN_W + normal_n * w;
-        let max_scroll = (total - track.width()).max(0.0);
+        let max_scroll = (total - area.width()).max(0.0);
         if max_scroll > 0.0 && ui.rect_contains_pointer(full) {
             let d = ui.input(|i| i.smooth_scroll_delta);
             self.tab_scroll -= if d.x.abs() > d.y.abs() { d.x } else { d.y };
         }
-        let mut x = track.left() - self.tab_scroll;
+        if overflow {
+            for (k, dir) in [(0, -1.0f32), (1, 1.0)] {
+                let r = Rect::from_min_size(pos2(if k == 0 { track.left() } else { track.right() - arrow }, track.top()), vec2(arrow, TRACK_H));
+                let can = if dir < 0.0 { self.tab_scroll > 0.5 } else { self.tab_scroll < max_scroll - 0.5 };
+                let resp = ui.interact(r, egui::Id::new(("tabbar-arrow", k)), if can { Sense::click() } else { Sense::hover() });
+                if can && resp.hovered() {
+                    ui.painter().circle_filled(r.center(), TRACK_H / 2.0 - 2.0, th.pill);
+                }
+                icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(12.0, 12.0)), if dir < 0.0 { Icon::Back } else { Icon::Forward }, if can { th.text } else { th.sub.gamma_multiply(0.4) });
+                let tip = if dir < 0.0 { tr("Onglets précédents") } else { tr("Onglets suivants") };
+                if resp.tip(tip).clicked() {
+                    self.tab_scroll += dir * area.width() * 0.8;
+                }
+            }
+            // the number of tabs: opens the list of all tabs, to search and pick
+            let cr = Rect::from_min_size(pos2(track.right() + 6.0, track.top()), vec2(count_w, TRACK_H));
+            let cresp = ui.interact(cr, egui::Id::new("tabbar-count"), Sense::click());
+            ui.painter().rect_filled(cr, round, if cresp.hovered() || self.tab_search_open { th.track.gamma_multiply(1.6) } else { th.track });
+            ui.painter().text(pos2(cr.center().x - 6.0, cr.center().y), Align2::CENTER_CENTER, self.tabs.len().to_string(), FontId::new(12.0, bold()), th.text);
+            icons::paint(ui.painter(), Rect::from_center_size(pos2(cr.right() - 13.0, cr.center().y), vec2(9.0, 9.0)), Icon::Down, th.sub);
+            if cresp.tip(tr("Tous les onglets — rechercher et choisir (Ctrl+Maj+A)")).clicked() {
+                self.tab_search_open = !self.tab_search_open;
+            }
+        }
+        let mut x = area.left() - self.tab_scroll;
         let rects: Vec<Rect> = order
             .iter()
             .map(|&i| {
@@ -81,11 +113,11 @@ impl Sanaga {
         // keep the shown tab in view when it changes
         if let Some(p) = order.iter().position(|&i| i == self.active) {
             if p != self.tab_scroll_seen.0 || self.tabs.len() != self.tab_scroll_seen.1 {
-                let ax = rects[p].left() - (track.left() - self.tab_scroll);
+                let ax = rects[p].left() - (area.left() - self.tab_scroll);
                 if ax < self.tab_scroll {
                     self.tab_scroll = ax;
-                } else if ax + rects[p].width() > self.tab_scroll + track.width() {
-                    self.tab_scroll = ax + rects[p].width() - track.width();
+                } else if ax + rects[p].width() > self.tab_scroll + area.width() {
+                    self.tab_scroll = ax + rects[p].width() - area.width();
                 }
                 self.tab_scroll_seen = (p, self.tabs.len());
             }
@@ -93,7 +125,7 @@ impl Sanaga {
         self.tab_scroll = self.tab_scroll.clamp(0.0, max_scroll);
 
         let saved_clip = ui.clip_rect();
-        ui.set_clip_rect(track.intersect(saved_clip));
+        ui.set_clip_rect(area.intersect(saved_clip));
         let mut close: Option<usize> = None;
         let mut select: Option<usize> = None;
         let mut mute: Option<usize> = None;
@@ -113,7 +145,7 @@ impl Sanaga {
 
         for (k, &i) in order.iter().enumerate() {
             let rect = rects[k];
-            if !track.intersects(rect) {
+            if !area.intersects(rect) {
                 continue;
             }
             let tab = &self.tabs[i];
@@ -158,7 +190,7 @@ impl Sanaga {
                     tx += 10.0;
                 }
                 let clip = Rect::from_min_max(pos2(tx, rect.top()), pos2(tx + tw, rect.bottom()));
-                p.with_clip_rect(clip.intersect(track)).galley(pos2(tx, rect.center().y - g.size().y / 2.0), g.clone(), text_col);
+                p.with_clip_rect(clip.intersect(area)).galley(pos2(tx, rect.center().y - g.size().y / 2.0), g.clone(), text_col);
                 if g.size().x > max_text {
                     // fade a long title out instead of cutting it
                     let fade_bg = if active { th.pill } else { Color32::TRANSPARENT };

@@ -387,6 +387,11 @@ pub struct Sanaga {
     settings_section: settings::Section,
     settings_filter: String,
     is_default_browser: Option<bool>,
+    /// Settings: the categories seen before / after (‹ ›), and when a
+    /// "clear…" button asked for confirmation.
+    settings_back: Vec<settings::Section>,
+    settings_fwd: Vec<settings::Section>,
+    settings_confirm: Option<f64>,
     pw_shown: Option<(usize, String)>,
     new_profile_name: String,
     web_context: Option<webkit2gtk::WebContext>,
@@ -610,6 +615,9 @@ impl Sanaga {
             settings_section: settings::Section::General,
             settings_filter: String::new(),
             is_default_browser: None,
+            settings_back: Vec::new(),
+            settings_fwd: Vec::new(),
+            settings_confirm: None,
             pw_shown: None,
             new_profile_name: String::new(),
             web_context,
@@ -749,6 +757,8 @@ impl Sanaga {
         if slot > 0 {
             app.save_session();
         }
+        // the saved accounts, from the system keyring
+        app.refresh_logins();
         app
     }
 

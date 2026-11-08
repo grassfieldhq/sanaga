@@ -55,6 +55,12 @@ impl Sanaga {
             self.tab_overview(ui, th);
             return;
         }
+        if let View::Internal(Internal::Settings) = self.tabs[a].view {
+            // Settings has its own sidebar and scrolling (macOS System Settings)
+            self.page_settings(ui, th);
+            self.hover_url = None;
+            return;
+        }
         if let View::Internal(i) = self.tabs[a].view {
             let tab_id = self.tabs[a].id;
             ScrollArea::vertical().id_salt(("internal", tab_id, i as u8)).auto_shrink(false).show(ui, |ui| match i {

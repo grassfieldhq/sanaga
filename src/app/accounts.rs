@@ -198,6 +198,11 @@ impl Sanaga {
     }
 
     pub(super) fn page_passwords(&mut self, ui: &mut Ui, th: &Theme) {
+        // read the keyring again each time the page is opened
+        let seen = ui.ctx().data_mut(|d| std::mem::replace(d.get_temp_mut_or_default::<u64>(egui::Id::new("pw-page-frame")), self.frame));
+        if seen + 1 != self.frame {
+            self.refresh_logins();
+        }
         let mut remove: Option<usize> = None;
         let mut reveal: Option<usize> = None;
         let mut copy: Option<usize> = None;

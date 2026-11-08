@@ -40,6 +40,8 @@ pub(super) enum AiDone {
     Summary { tab: u64, result: Result<String, String>, by: String, fallback: String },
     Extension(Result<(String, String), String>),
     Models(Vec<String>),
+    /// The accounts read from the system keyring.
+    Logins(Vec<(String, String)>),
 }
 
 #[derive(Default)]
@@ -177,8 +179,32 @@ impl Sanaga {
                     }
                 }
                 AiDone::Models(m) => self.ai_models = Some(m),
+                AiDone::Logins(list) => {
+                    // the keyring is the reference; an empty answer (a locked
+                    // or missing keyring) leaves the list as it was
+                    if !list.is_empty() && list != self.store.logins {
+                        self.store.logins = list;
+                        self.store.save_logins();
+                    }
+                }
             }
         }
+    }
+
+    /// Read the saved accounts from the system keyring (in the background).
+    pub(super) fn refresh_logins(&mut self) {
+        if !self.web_ok || self.store.data_dir().is_none() {
+            return;
+        }
+        let tx = self.ai_tx.clone();
+        let repaint = self.ctx.clone();
+        let profile = self.store.profile.clone();
+        std::thread::spawn(move || {
+            if let Some(list) = crate::keyring::list(&profile) {
+                let _ = tx.send(AiDone::Logins(list));
+                repaint.request_repaint();
+            }
+        });
     }
 
     /// Look for the models installed in Ollama (in the background).

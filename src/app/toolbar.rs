@@ -118,31 +118,36 @@ enum GroupAction {
     Close(usize),
 }
 
+/// The name of a toolbar button, as shown in the settings and menus.
+pub(super) fn toolbar_button_label(key: &str) -> &str {
+    match key {
+        "sidebar" => tr("Barre latérale"),
+        "back" => tr("Précédent"),
+        "forward" => tr("Suivant"),
+        "reload_left" => tr("Actualiser, à côté de Suivant (comme Chrome)"),
+        "home" => tr("Accueil"),
+        "star" => tr("Étoile des favoris, dans la barre d'adresse"),
+        "reader" => tr("Lecteur, dans la barre d'adresse"),
+        "reload" => tr("Actualiser, dans la barre d'adresse"),
+        "newtab" => tr("Nouvel onglet"),
+        "bookmarks" => tr("Favoris"),
+        "reading" => tr("Liste de lecture"),
+        "print" => tr("Imprimer"),
+        "downloads" => tr("Téléchargements"),
+        "memory" => tr("Mémoire utilisée"),
+        "share" => tr("Partager"),
+        "overview" => tr("Aperçu des onglets"),
+        "mobile" => tr("Simulateur mobile"),
+        "summary" => tr("Résumer la page"),
+        _ => key,
+    }
+}
+
 /// Tick boxes choosing the toolbar buttons; true when something changed.
 pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
     let mut changed = false;
     for (key, _) in crate::store::TOOLBAR_BUTTONS {
-        let label = match key {
-            "sidebar" => tr("Barre latérale"),
-            "back" => tr("Précédent"),
-            "forward" => tr("Suivant"),
-            "reload_left" => tr("Actualiser, à côté de Suivant (comme Chrome)"),
-            "home" => tr("Accueil"),
-            "star" => tr("Étoile des favoris, dans la barre d'adresse"),
-            "reader" => tr("Lecteur, dans la barre d'adresse"),
-            "reload" => tr("Actualiser, dans la barre d'adresse"),
-            "newtab" => tr("Nouvel onglet"),
-            "bookmarks" => tr("Favoris"),
-            "reading" => tr("Liste de lecture"),
-            "print" => tr("Imprimer"),
-            "downloads" => tr("Téléchargements"),
-            "memory" => tr("Mémoire utilisée"),
-            "share" => tr("Partager"),
-            "overview" => tr("Aperçu des onglets"),
-            "mobile" => tr("Simulateur mobile"),
-            "summary" => tr("Résumer la page"),
-            _ => key,
-        };
+        let label = toolbar_button_label(key);
         let mut on = toolbar.split(',').any(|k| k == key);
         if ui.checkbox(&mut on, label).changed() {
             let off = format!("-{key}");

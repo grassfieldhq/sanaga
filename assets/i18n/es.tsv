@@ -627,3 +627,37 @@ Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.	
 {} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.	{} se llama bloqueado: en una carpeta vacía, sin herramientas ni acceso a tus archivos; Sanaga solo lee su respuesta.
 celui par défaut	el predeterminado
 Le texte de la page résumée est envoyé au service de {}.	El texto de la página resumida se envía al servicio de {}.
+Résultats de la recherche	Resultados de la búsqueda
+Rechercher	Buscar
+Aussi : clic droit sur la barre d'outils.	También: clic derecho en la barra de herramientas.
+Source de l'intelligence	Fuente de inteligencia
+Votre propre compte, sans clé — appelé verrouillé	Tu propia cuenta, sin clave — llamado bloqueado
+Avec votre clé d'API	Con tu clave de API
+Un modèle sur cet ordinateur : gratuit et privé	Un modelo en este ordenador: gratis y privado
+Sanaga seul	Solo Sanaga
+Résumé simple, sans IA ; rien ne quitte l'ordinateur	Resumen sencillo, sin IA; nada sale del ordenador
+Ollama ne répond pas	Ollama no responde
+Clé d'API	Clave de API
+Historique de navigation	Historial de navegación
+Confirmer l'effacement	Confirmar el borrado
+Effacer…	Borrar…
+Pages isolées (bac à sable)	Páginas aisladas (entorno aislado)
+Chaque page s'exécute isolée du reste de l'ordinateur.	Cada página se ejecuta aislada del resto del ordenador.
+Dans le trousseau du système	En el llavero del sistema
+1 compte	1 cuenta
+{} comptes	{} cuentas
+Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.	Las contraseñas se guardan en el llavero del sistema (Secret Service), nunca en los archivos de Sanaga. Una sola cuenta para un sitio: Sanaga la rellena sola.
+Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Para rellenar formularios: menú ⋮ › Rellenar con mis datos, o Ctrl+Mayús+F.
+Modéré	Moderado
+Équilibré	Equilibrado
+Maximal	Máximo
+Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.	Las pestañas que no has mirado en un rato se duermen y se recargan al volver (Equilibrado: tras 20 minutos). Las que reproducen sonido nunca duermen.
+Sites complets avec JavaScript, vidéos et applications (recommandé)	Sitios completos con JavaScript, vídeos y aplicaciones (recomendado)
+Pages simplifiées, très rapide et très économe en mémoire	Páginas simplificadas, muy rápido y muy ahorrador de memoria
+Dossier partagé	Carpeta compartida
+Gérer les extensions	Gestionar extensiones
+Bloqueur de publicités, mode sombre, les vôtres…	Bloqueador de anuncios, modo oscuro, las tuyas…
+Historique effacé.	Historial borrado.
+Onglets précédents	Pestañas anteriores
+Onglets suivants	Pestañas siguientes
+Tous les onglets — rechercher et choisir (Ctrl+Maj+A)	Todas las pestañas — buscar y elegir (Ctrl+Mayús+A)

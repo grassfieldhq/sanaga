@@ -627,3 +627,37 @@ Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.	
 {} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.	{} wird abgeschottet aufgerufen: in einem leeren Ordner, ohne Werkzeuge und ohne Zugriff auf Ihre Dateien; Sanaga liest nur die Antwort.
 celui par défaut	der Standard
 Le texte de la page résumée est envoyé au service de {}.	Der Text der zusammengefassten Seite wird an den Dienst von {} gesendet.
+Résultats de la recherche	Suchergebnisse
+Rechercher	Suchen
+Aussi : clic droit sur la barre d'outils.	Auch: Rechtsklick auf die Symbolleiste.
+Source de l'intelligence	Quelle der Intelligenz
+Votre propre compte, sans clé — appelé verrouillé	Ihr eigenes Konto, ohne Schlüssel — abgeschottet aufgerufen
+Avec votre clé d'API	Mit Ihrem API-Schlüssel
+Un modèle sur cet ordinateur : gratuit et privé	Ein Modell auf diesem Computer: kostenlos und privat
+Sanaga seul	Nur Sanaga
+Résumé simple, sans IA ; rien ne quitte l'ordinateur	Einfache Zusammenfassung, ohne KI; nichts verlässt den Computer
+Ollama ne répond pas	Ollama antwortet nicht
+Clé d'API	API-Schlüssel
+Historique de navigation	Browserverlauf
+Confirmer l'effacement	Löschen bestätigen
+Effacer…	Löschen…
+Pages isolées (bac à sable)	Isolierte Seiten (Sandbox)
+Chaque page s'exécute isolée du reste de l'ordinateur.	Jede Seite läuft isoliert vom Rest des Computers.
+Dans le trousseau du système	Im Systemschlüsselbund
+1 compte	1 Konto
+{} comptes	{} Konten
+Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.	Passwörter werden im Systemschlüsselbund (Secret Service) gespeichert, nie in Sanagas Dateien. Ein Konto für eine Website: Sanaga füllt es selbst aus.
+Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Zum Ausfüllen von Formularen: Menü ⋮ › Mit meinen Daten ausfüllen, oder Strg+Umschalt+F.
+Modéré	Mäßig
+Équilibré	Ausgewogen
+Maximal	Maximal
+Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.	Tabs, die Sie eine Weile nicht angesehen haben, schlafen ein und laden neu, wenn Sie zurückkehren (Ausgewogen: nach 20 Minuten). Tabs mit Ton schlafen nie.
+Sites complets avec JavaScript, vidéos et applications (recommandé)	Vollständige Websites mit JavaScript, Videos und Apps (empfohlen)
+Pages simplifiées, très rapide et très économe en mémoire	Vereinfachte Seiten, sehr schnell und sehr speichersparend
+Dossier partagé	Gemeinsamer Ordner
+Gérer les extensions	Erweiterungen verwalten
+Bloqueur de publicités, mode sombre, les vôtres…	Werbeblocker, Dunkelmodus, Ihre eigenen…
+Historique effacé.	Verlauf gelöscht.
+Onglets précédents	Vorherige Tabs
+Onglets suivants	Nächste Tabs
+Tous les onglets — rechercher et choisir (Ctrl+Maj+A)	Alle Tabs — suchen und wählen (Strg+Umschalt+A)

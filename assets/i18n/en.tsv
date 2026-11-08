@@ -627,3 +627,37 @@ Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.	
 {} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.	{} is called locked down: in an empty folder, with no tools and no access to your files; Sanaga only reads its answer.
 celui par défaut	the default one
 Le texte de la page résumée est envoyé au service de {}.	The text of the summarised page is sent to {}'s service.
+Résultats de la recherche	Search results
+Rechercher	Search
+Aussi : clic droit sur la barre d'outils.	Also: right-click the toolbar.
+Source de l'intelligence	Intelligence source
+Votre propre compte, sans clé — appelé verrouillé	Your own account, no key — called locked down
+Avec votre clé d'API	With your API key
+Un modèle sur cet ordinateur : gratuit et privé	A model on this computer: free and private
+Sanaga seul	Sanaga alone
+Résumé simple, sans IA ; rien ne quitte l'ordinateur	Simple summary, no AI; nothing leaves the computer
+Ollama ne répond pas	Ollama is not answering
+Clé d'API	API key
+Historique de navigation	Browsing history
+Confirmer l'effacement	Confirm clearing
+Effacer…	Clear…
+Pages isolées (bac à sable)	Isolated pages (sandbox)
+Chaque page s'exécute isolée du reste de l'ordinateur.	Each page runs isolated from the rest of the computer.
+Dans le trousseau du système	In the system keyring
+1 compte	1 account
+{} comptes	{} accounts
+Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.	Passwords are saved in the system keyring (Secret Service), never in Sanaga's files. One account for a site: Sanaga fills it in by itself.
+Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	To fill in forms: menu ⋮ › Fill in my details, or Ctrl+Shift+F.
+Modéré	Moderate
+Équilibré	Balanced
+Maximal	Maximum
+Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.	Tabs you have not looked at for a while go to sleep and reload when you come back (Balanced: after 20 minutes). Tabs playing sound never sleep.
+Sites complets avec JavaScript, vidéos et applications (recommandé)	Full sites with JavaScript, videos and apps (recommended)
+Pages simplifiées, très rapide et très économe en mémoire	Simplified pages, very fast and very light on memory
+Dossier partagé	Shared folder
+Gérer les extensions	Manage extensions
+Bloqueur de publicités, mode sombre, les vôtres…	Ad blocker, dark mode, your own…
+Historique effacé.	History cleared.
+Onglets précédents	Previous tabs
+Onglets suivants	Next tabs
+Tous les onglets — rechercher et choisir (Ctrl+Maj+A)	All tabs — search and pick (Ctrl+Shift+A)

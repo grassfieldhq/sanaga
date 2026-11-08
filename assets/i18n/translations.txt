@@ -630,3 +630,37 @@ Claude Code, Codex ou Gemini CLI installés sur l'ordinateur apparaîtront ici.�
 {} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.⟂{} is called locked down: in an empty folder, with no tools and no access to your files; Sanaga only reads its answer.⟂{} se llama bloqueado: en una carpeta vacía, sin herramientas ni acceso a tus archivos; Sanaga solo lee su respuesta.⟂{} é chamado bloqueado: numa pasta vazia, sem ferramentas nem acesso aos seus ficheiros; o Sanaga só lê a resposta.⟂{} wird abgeschottet aufgerufen: in einem leeren Ordner, ohne Werkzeuge und ohne Zugriff auf Ihre Dateien; Sanaga liest nur die Antwort.
 celui par défaut⟂the default one⟂el predeterminado⟂o predefinido⟂der Standard
 Le texte de la page résumée est envoyé au service de {}.⟂The text of the summarised page is sent to {}'s service.⟂El texto de la página resumida se envía al servicio de {}.⟂O texto da página resumida é enviado ao serviço do {}.⟂Der Text der zusammengefassten Seite wird an den Dienst von {} gesendet.
+Résultats de la recherche⟂Search results⟂Resultados de la búsqueda⟂Resultados da pesquisa⟂Suchergebnisse
+Rechercher⟂Search⟂Buscar⟂Procurar⟂Suchen
+Aussi : clic droit sur la barre d'outils.⟂Also: right-click the toolbar.⟂También: clic derecho en la barra de herramientas.⟂Também: clique com o botão direito na barra de ferramentas.⟂Auch: Rechtsklick auf die Symbolleiste.
+Source de l'intelligence⟂Intelligence source⟂Fuente de inteligencia⟂Fonte da inteligência⟂Quelle der Intelligenz
+Votre propre compte, sans clé — appelé verrouillé⟂Your own account, no key — called locked down⟂Tu propia cuenta, sin clave — llamado bloqueado⟂A sua própria conta, sem chave — chamado bloqueado⟂Ihr eigenes Konto, ohne Schlüssel — abgeschottet aufgerufen
+Avec votre clé d'API⟂With your API key⟂Con tu clave de API⟂Com a sua chave de API⟂Mit Ihrem API-Schlüssel
+Un modèle sur cet ordinateur : gratuit et privé⟂A model on this computer: free and private⟂Un modelo en este ordenador: gratis y privado⟂Um modelo neste computador: grátis e privado⟂Ein Modell auf diesem Computer: kostenlos und privat
+Sanaga seul⟂Sanaga alone⟂Solo Sanaga⟂Só o Sanaga⟂Nur Sanaga
+Résumé simple, sans IA ; rien ne quitte l'ordinateur⟂Simple summary, no AI; nothing leaves the computer⟂Resumen sencillo, sin IA; nada sale del ordenador⟂Resumo simples, sem IA; nada sai do computador⟂Einfache Zusammenfassung, ohne KI; nichts verlässt den Computer
+Ollama ne répond pas⟂Ollama is not answering⟂Ollama no responde⟂O Ollama não responde⟂Ollama antwortet nicht
+Clé d'API⟂API key⟂Clave de API⟂Chave de API⟂API-Schlüssel
+Historique de navigation⟂Browsing history⟂Historial de navegación⟂Histórico de navegação⟂Browserverlauf
+Confirmer l'effacement⟂Confirm clearing⟂Confirmar el borrado⟂Confirmar a limpeza⟂Löschen bestätigen
+Effacer…⟂Clear…⟂Borrar…⟂Limpar…⟂Löschen…
+Pages isolées (bac à sable)⟂Isolated pages (sandbox)⟂Páginas aisladas (entorno aislado)⟂Páginas isoladas (sandbox)⟂Isolierte Seiten (Sandbox)
+Chaque page s'exécute isolée du reste de l'ordinateur.⟂Each page runs isolated from the rest of the computer.⟂Cada página se ejecuta aislada del resto del ordenador.⟂Cada página é executada isolada do resto do computador.⟂Jede Seite läuft isoliert vom Rest des Computers.
+Dans le trousseau du système⟂In the system keyring⟂En el llavero del sistema⟂No porta-chaves do sistema⟂Im Systemschlüsselbund
+1 compte⟂1 account⟂1 cuenta⟂1 conta⟂1 Konto
+{} comptes⟂{} accounts⟂{} cuentas⟂{} contas⟂{} Konten
+Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.⟂Passwords are saved in the system keyring (Secret Service), never in Sanaga's files. One account for a site: Sanaga fills it in by itself.⟂Las contraseñas se guardan en el llavero del sistema (Secret Service), nunca en los archivos de Sanaga. Una sola cuenta para un sitio: Sanaga la rellena sola.⟂As palavras-passe ficam no porta-chaves do sistema (Secret Service), nunca nos ficheiros do Sanaga. Uma só conta para um site: o Sanaga preenche-a sozinho.⟂Passwörter werden im Systemschlüsselbund (Secret Service) gespeichert, nie in Sanagas Dateien. Ein Konto für eine Website: Sanaga füllt es selbst aus.
+Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.⟂To fill in forms: menu ⋮ › Fill in my details, or Ctrl+Shift+F.⟂Para rellenar formularios: menú ⋮ › Rellenar con mis datos, o Ctrl+Mayús+F.⟂Para preencher formulários: menu ⋮ › Preencher com os meus dados, ou Ctrl+Shift+F.⟂Zum Ausfüllen von Formularen: Menü ⋮ › Mit meinen Daten ausfüllen, oder Strg+Umschalt+F.
+Modéré⟂Moderate⟂Moderado⟂Moderado⟂Mäßig
+Équilibré⟂Balanced⟂Equilibrado⟂Equilibrado⟂Ausgewogen
+Maximal⟂Maximum⟂Máximo⟂Máximo⟂Maximal
+Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.⟂Tabs you have not looked at for a while go to sleep and reload when you come back (Balanced: after 20 minutes). Tabs playing sound never sleep.⟂Las pestañas que no has mirado en un rato se duermen y se recargan al volver (Equilibrado: tras 20 minutos). Las que reproducen sonido nunca duermen.⟂Os separadores que não vê há algum tempo adormecem e recarregam quando volta (Equilibrado: após 20 minutos). Os que tocam som nunca adormecem.⟂Tabs, die Sie eine Weile nicht angesehen haben, schlafen ein und laden neu, wenn Sie zurückkehren (Ausgewogen: nach 20 Minuten). Tabs mit Ton schlafen nie.
+Sites complets avec JavaScript, vidéos et applications (recommandé)⟂Full sites with JavaScript, videos and apps (recommended)⟂Sitios completos con JavaScript, vídeos y aplicaciones (recomendado)⟂Sites completos com JavaScript, vídeos e aplicações (recomendado)⟂Vollständige Websites mit JavaScript, Videos und Apps (empfohlen)
+Pages simplifiées, très rapide et très économe en mémoire⟂Simplified pages, very fast and very light on memory⟂Páginas simplificadas, muy rápido y muy ahorrador de memoria⟂Páginas simplificadas, muito rápido e muito económico em memória⟂Vereinfachte Seiten, sehr schnell und sehr speichersparend
+Dossier partagé⟂Shared folder⟂Carpeta compartida⟂Pasta partilhada⟂Gemeinsamer Ordner
+Gérer les extensions⟂Manage extensions⟂Gestionar extensiones⟂Gerir extensões⟂Erweiterungen verwalten
+Bloqueur de publicités, mode sombre, les vôtres…⟂Ad blocker, dark mode, your own…⟂Bloqueador de anuncios, modo oscuro, las tuyas…⟂Bloqueador de anúncios, modo escuro, as suas…⟂Werbeblocker, Dunkelmodus, Ihre eigenen…
+Historique effacé.⟂History cleared.⟂Historial borrado.⟂Histórico limpo.⟂Verlauf gelöscht.
+Onglets précédents⟂Previous tabs⟂Pestañas anteriores⟂Separadores anteriores⟂Vorherige Tabs
+Onglets suivants⟂Next tabs⟂Pestañas siguientes⟂Separadores seguintes⟂Nächste Tabs
+Tous les onglets — rechercher et choisir (Ctrl+Maj+A)⟂All tabs — search and pick (Ctrl+Shift+A)⟂Todas las pestañas — buscar y elegir (Ctrl+Mayús+A)⟂Todos os separadores — procurar e escolher (Ctrl+Shift+A)⟂Alle Tabs — suchen und wählen (Strg+Umschalt+A)
