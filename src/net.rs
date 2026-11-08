@@ -175,6 +175,64 @@ pub fn create_download(suggested: &str) -> std::io::Result<(std::fs::File, PathB
     Err(std::io::Error::other("no free file name in the Downloads folder"))
 }
 
+/// An address as recorded with a downloaded file (the "where from" mark):
+/// no user name or password, no #fragment, and not too long for an
+/// extended attribute (a data: address keeps only its type). None when
+/// there is nothing worth recording.
+pub fn address_for_mark(url: &str) -> Option<String> {
+    let mut u = url::Url::parse(url.trim()).ok()?;
+    match u.scheme() {
+        "about" | "javascript" => return None,
+        "data" => {
+            let head: String = url.trim().split([',', ';']).next().unwrap_or("data:").chars().take(128).collect();
+            return Some(head);
+        }
+        _ => {}
+    }
+    let _ = u.set_username("");
+    let _ = u.set_password(None);
+    u.set_fragment(None);
+    let mut s = u.to_string();
+    if s.len() > 2048 {
+        let mut cut = 2048;
+        while !s.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        s.truncate(cut);
+    }
+    Some(s)
+}
+
+/// Mark a downloaded file with where it came from, as the freedesktop.org
+/// convention says (`user.xdg.origin.url`, `user.xdg.referrer.url`): the
+/// file manager reads them and asks before running a downloaded program.
+/// Set on the opened file itself (never through a link).
+#[cfg(target_os = "linux")]
+pub fn mark_download(path: &Path, origin: &str, referrer: &str) -> std::io::Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+    use std::os::unix::io::AsRawFd;
+    let file = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(std::io::Error::other("not a regular file"));
+    }
+    let mut result = Ok(());
+    for (name, value) in [(c"user.xdg.origin.url", address_for_mark(origin)), (c"user.xdg.referrer.url", address_for_mark(referrer))] {
+        let Some(value) = value else { continue };
+        // SAFETY: a valid open descriptor, a NUL-terminated name, and a
+        // buffer of `value.len()` bytes that lives through the call.
+        let rc = unsafe { libc::fsetxattr(file.as_raw_fd(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) };
+        if rc != 0 {
+            result = Err(std::io::Error::last_os_error());
+        }
+    }
+    result
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn mark_download(_path: &Path, _origin: &str, _referrer: &str) -> std::io::Result<()> {
+    Ok(())
+}
+
 pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egui::Context) {
     std::thread::Builder::new()
         .name("sanaga-page".into())
@@ -421,6 +479,18 @@ mod tests {
         assert!(n.ends_with(".pdf"));
         let long = "x".repeat(400);
         assert_eq!(safe_download_name(&long).len(), MAX_NAME);
+    }
+
+    #[test]
+    fn download_marks_hide_passwords() {
+        assert_eq!(address_for_mark("https://user:secret@files.example/a.zip?x=1#top").as_deref(), Some("https://files.example/a.zip?x=1"));
+        assert_eq!(address_for_mark("https://files.example/a.zip").as_deref(), Some("https://files.example/a.zip"));
+        assert_eq!(address_for_mark("data:application/x-sh;base64,ZWNobyBoaQ==").as_deref(), Some("data:application/x-sh"));
+        assert_eq!(address_for_mark("blob:https://site.example/1234").as_deref(), Some("blob:https://site.example/1234"));
+        assert_eq!(address_for_mark("about:blank"), None);
+        assert_eq!(address_for_mark(""), None);
+        let long = format!("https://site.example/{}", "é".repeat(3000));
+        assert!(address_for_mark(&long).is_some_and(|m| m.len() <= 2048));
     }
 
     #[test]

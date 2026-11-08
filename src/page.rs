@@ -58,6 +58,34 @@ thread_local! {
     static VIEWS: RefCell<Vec<gtk::glib::WeakRef<WebView>>> = const { RefCell::new(Vec::new()) };
     /// Download names picked whose files are not created yet.
     static RESERVED: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
+    /// What Sanaga follows for each open page.
+    static VIEW_STATES: RefCell<Vec<(gtk::glib::WeakRef<WebView>, Rc<ViewState>)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// What Sanaga follows for one open page.
+#[derive(Default)]
+struct ViewState {
+    /// The address of the page shown (committed): the referrer of its downloads.
+    committed: RefCell<String>,
+}
+
+fn view_state(v: &WebView) -> Option<Rc<ViewState>> {
+    VIEW_STATES.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|(w, _)| w.upgrade().is_some());
+        s.iter().find(|(w, _)| w.upgrade().as_ref() == Some(v)).map(|(_, st)| st.clone())
+    })
+}
+
+/// The page a download comes from: the one its view shows (committed).
+fn referrer_of(view: Option<&WebView>) -> String {
+    let Some(v) = view else { return String::new() };
+    let committed = view_state(v).map(|s| s.committed.borrow().clone()).unwrap_or_default();
+    if committed.is_empty() {
+        v.uri().map(|u| u.to_string()).unwrap_or_default()
+    } else {
+        committed
+    }
 }
 
 /// The blocker is ready: the pages already open get it (from their next request).
@@ -280,6 +308,7 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
         }
         let failed = Rc::new(RefCell::new(false));
         let dest: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
+        let referrer = referrer_of(download.web_view().as_ref());
         let d2 = dest.clone();
         download.connect_decide_destination(move |download, suggested| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
@@ -301,7 +330,15 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
             if let Some(p) = &path {
                 release(p);
             }
-            done(uri, path, !*failed.borrow());
+            let ok = !*failed.borrow();
+            if let (true, Some(p)) = (ok, &path) {
+                // where it came from (after redirections), for the file manager
+                let from = download.response().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_else(|| uri.clone());
+                if let Err(e) = crate::net::mark_download(p, &from, &referrer) {
+                    eprintln!("download mark: {e}");
+                }
+            }
+            done(uri, path, ok);
         });
     });
 }
@@ -350,6 +387,8 @@ impl PageView {
         }
         let view = b.build();
         VIEWS.with(|v| v.borrow_mut().push(view.downgrade()));
+        let state = Rc::new(ViewState::default());
+        VIEW_STATES.with(|s| s.borrow_mut().push((view.downgrade(), state.clone())));
         if let Some(st) = WebViewExt::settings(&view) {
             st.set_enable_webgl(true);
             st.set_enable_webaudio(true);
@@ -368,12 +407,14 @@ impl PageView {
             st.set_enable_back_forward_navigation_gestures(false);
         }
         let o = on.clone();
+        let st = state.clone();
         view.connect_load_changed(move |v, ev| {
             let uri = v.uri().map(|u| u.to_string()).unwrap_or_default();
             match ev {
                 // website settings: before the new page is made
                 LoadEvent::Started | LoadEvent::Redirected => apply_site(v, &host_of_uri(&uri)),
                 LoadEvent::Committed => {
+                    *st.committed.borrow_mut() = uri.clone();
                     let js = crate::site_prefs::for_host(&host_of_uri(&uri)).script();
                     if !js.is_empty() {
                         v.evaluate_javascript(&js, None, None, None::<&gtk::gio::Cancellable>, |_| {});
