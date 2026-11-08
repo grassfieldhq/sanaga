@@ -41,6 +41,7 @@ pub(super) enum WebEvent {
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
 /// A video or sound the engine can't decode (missing codecs): Sanaga offers them.
 const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
+  if (!e.isTrusted) return;
   var t = e.target;
   if (t && (t.tagName === 'VIDEO' || t.tagName === 'AUDIO' || t.tagName === 'SOURCE') && window.ipc) {
     var m = t.tagName === 'SOURCE' ? t.parentNode : t;
