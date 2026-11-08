@@ -807,7 +807,6 @@ Créer	Erstellen
 Déplier	Aufklappen
 Replier	Zuklappen
 Quitter le mode focus	Fokusmodus verlassen
-Ctrl+Maj+K	Strg+Umschalt+K
 Ne plus garder au premier plan	Nicht mehr im Vordergrund halten
 Garder au premier plan	Im Vordergrund halten
 Terminer la modification du texte	Textbearbeitung beenden
@@ -841,7 +840,7 @@ Couleurs animées	Animierte Farben
 Opacité de la bordure	Rahmendeckkraft
 Barre d'outils et onglets plus bas : plus de place pour la page	Niedrigere Symbolleiste und Tabs: mehr Platz für die Seite
 Onglets verticaux : un onglet ouvert depuis une page se range dessous	Vertikale Tabs: Ein aus einer Seite geöffneter Tab kommt darunter
-Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.	Fokusmodus (Strg+Umschalt+K oder F9): Nur die Seite bleibt, nichts drumherum.
+Mode focus (F9) : seule la page reste, sans rien autour.	Fokusmodus (F9): Nur die Seite bleibt, nichts drumherum.
 Icône de l'application	Anwendungssymbol
 Vos boutons	Ihre Tasten
 Boutons programmables	Programmierbare Tasten
@@ -891,7 +890,7 @@ Terminé	Fertig
 Fermer avec ses onglets enfants	Mit untergeordneten Tabs schließen
 Déplacer le groupe dans une nouvelle fenêtre	Gruppe in ein neues Fenster verschieben
 Autres boutons	Weitere Tasten
-Mode focus — Ctrl+Maj+K ou F9 pour revenir.	Fokusmodus — Strg+Umschalt+K oder F9 zum Zurückkehren.
+Mode focus — F9 pour revenir.	Fokusmodus — F9 zum Zurückkehren.
 Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).	Im Akkubetrieb: Energiesparmodus (inaktive Tabs schlafen früher).
 Modification du texte terminée.	Textbearbeitung beendet.
 Aucune vidéo dans cette page.	Kein Video auf dieser Seite.

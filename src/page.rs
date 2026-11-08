@@ -208,6 +208,11 @@ fn accept_cookies(session: &NetworkSession) {
     }
 }
 
+/// The engine of private tabs (the profile's processes, a session that keeps nothing).
+pub fn private_engine(base: Option<&Engine>) -> Engine {
+    Engine { ctx: base.map(|e| e.ctx.clone()).unwrap_or_default(), session: private_session() }
+}
+
 /// The session shared by private tabs.
 fn private_session() -> NetworkSession {
     PRIVATE.with(|p| {

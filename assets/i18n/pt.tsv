@@ -807,7 +807,6 @@ Créer	Criar
 Déplier	Expandir
 Replier	Recolher
 Quitter le mode focus	Sair do modo foco
-Ctrl+Maj+K	Ctrl+Shift+K
 Ne plus garder au premier plan	Deixar de manter por cima
 Garder au premier plan	Manter por cima
 Terminer la modification du texte	Terminar a edição do texto
@@ -841,7 +840,7 @@ Couleurs animées	Cores animadas
 Opacité de la bordure	Opacidade do contorno
 Barre d'outils et onglets plus bas : plus de place pour la page	Barra de ferramentas e separadores mais baixos: mais espaço para a página
 Onglets verticaux : un onglet ouvert depuis une page se range dessous	Separadores verticais: um separador aberto a partir de uma página fica por baixo dela
-Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.	Modo foco (Ctrl+Shift+K ou F9): só fica a página, sem nada à volta.
+Mode focus (F9) : seule la page reste, sans rien autour.	Modo foco (F9): só fica a página, sem nada à volta.
 Icône de l'application	Ícone da aplicação
 Vos boutons	Os seus botões
 Boutons programmables	Botões programáveis
@@ -891,7 +890,7 @@ Terminé	Concluído
 Fermer avec ses onglets enfants	Fechar com os separadores filhos
 Déplacer le groupe dans une nouvelle fenêtre	Mover o grupo para uma nova janela
 Autres boutons	Mais botões
-Mode focus — Ctrl+Maj+K ou F9 pour revenir.	Modo foco — Ctrl+Shift+K ou F9 para voltar.
+Mode focus — F9 pour revenir.	Modo foco — F9 para voltar.
 Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).	Na bateria: modo de poupança de energia (separadores inativos suspensos mais cedo).
 Modification du texte terminée.	Edição do texto terminada.
 Aucune vidéo dans cette page.	Não há vídeo nesta página.

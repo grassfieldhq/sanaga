@@ -1111,7 +1111,7 @@ impl Sanaga {
                 changed_more |= rows.switch(ui, tr("Mode compact"), tr("Barre d'outils et onglets plus bas : plus de place pour la page"), &mut st.compact);
                 changed_more |= rows.switch(ui, tr("Onglets en arbre"), tr("Onglets verticaux : un onglet ouvert depuis une page se range dessous"), &mut st.tree_tabs);
             });
-            footnote(ui, th, tr("Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour."));
+            footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));
             let current = self.store.settings.app_icon as usize;
             let mut pick_icon: Option<u8> = None;
             group(ui, th, tr("Icône de l'application"), |ui, _rows| {
@@ -1200,33 +1200,7 @@ impl Sanaga {
                     rows.row(ui, tr("Aucun réglage pour l'instant"), tr("Menu ⋮ › Plus d'outils › Réglages de ce site…"), false, |_| {});
                 }
                 for (host, p) in &sites {
-                    let mut what: Vec<&str> = Vec::new();
-                    if !p.js {
-                        what.push(tr("sans JavaScript"));
-                    }
-                    if !p.blocker {
-                        what.push(tr("bloqueur coupé"));
-                    }
-                    if !p.fonts {
-                        what.push(tr("sans ses polices"));
-                    }
-                    if p.dark {
-                        what.push(tr("sombre"));
-                    }
-                    if p.no_sticky {
-                        what.push(tr("sans bandeaux collants"));
-                    }
-                    if p.unlock {
-                        what.push(tr("copie débloquée"));
-                    }
-                    let hidden = if p.hidden.is_empty() { String::new() } else { tf("{} élément(s) retiré(s)", &[&p.hidden.len()]) };
-                    let mut sub = what.join(" · ");
-                    if !hidden.is_empty() {
-                        if !sub.is_empty() {
-                            sub.push_str(" · ");
-                        }
-                        sub.push_str(&hidden);
-                    }
+                    let sub = super::sitepanel::summary(p);
                     rows.row(ui, host, &sub, false, |ui| {
                         if small_icon_button(ui, th, Icon::Close, tr("Remettre les réglages par défaut")) {
                             acts.push(Act::ResetSite(host.clone()));
@@ -1317,23 +1291,7 @@ impl Sanaga {
                 }
                 Act::SetPermission(site, kind, allow) => self.store.set_permission(&site, &kind, allow),
                 Act::SetIdentity(host, i) => self.set_identity(&host, i),
-                Act::InstallExt => {
-                    let pats = ["*.xpi", "*.crx", "*.zip", "*.js", "*.css", "manifest.json"];
-                    if let Some(path) = crate::shell::choose_file(tr("Installer une extension"), &pats, tr("Extensions"), None) {
-                        let now = self.ctx.input(|i| i.time);
-                        match crate::webext::install(&path) {
-                            Ok((name, id)) => {
-                                if !self.store.extensions_on.contains(&id) {
-                                    self.store.extensions_on.push(id);
-                                    self.store.save_extensions();
-                                }
-                                self.refresh_extensions();
-                                self.notice = Some((tf("Extension « {} » installée et activée.", &[&name]), now));
-                            }
-                            Err(e) => self.notice = Some((tf("Impossible d'installer l'extension : {}", &[&e]), now)),
-                        }
-                    }
-                }
+                Act::InstallExt => self.install_extension_dialog(),
                 Act::ProfileLauncher => self.add_profile_launcher(),
                 Act::ResetSite(host) => self.save_site(&host, crate::site_prefs::SitePrefs::default(), true),
                 Act::Onboarding => {
@@ -1341,6 +1299,24 @@ impl Sanaga {
                     self.navigate(self.active, "sanaga://start".into(), None, true);
                 }
             }
+        }
+    }
+
+    /// Ask for an extension file (Chrome, Firefox, user script) and install it.
+    pub(super) fn install_extension_dialog(&mut self) {
+        let pats = ["*.xpi", "*.crx", "*.zip", "*.js", "*.css", "manifest.json"];
+        let Some(path) = crate::shell::choose_file(tr("Installer une extension"), &pats, tr("Extensions"), None) else { return };
+        let now = self.ctx.input(|i| i.time);
+        match crate::webext::install(&path) {
+            Ok((name, id)) => {
+                if !self.store.extensions_on.contains(&id) {
+                    self.store.extensions_on.push(id);
+                    self.store.save_extensions();
+                }
+                self.refresh_extensions();
+                self.notice = Some((tf("Extension « {} » installée et activée.", &[&name]), now));
+            }
+            Err(e) => self.notice = Some((tf("Impossible d'installer l'extension : {}", &[&e]), now)),
         }
     }
 

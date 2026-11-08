@@ -29,6 +29,8 @@ pub struct Extension {
     pub name: String,
     pub description: String,
     pub matches: Vec<String>,
+    /// Pages where it must not run (user scripts' @exclude).
+    pub excludes: Vec<String>,
     pub js: String,
     pub css: String,
     pub builtin: bool,
@@ -83,6 +85,18 @@ const NO_AUTOPLAY_JS: &str = r#"
 })();
 "#;
 
+/// The Greasemonkey / Tampermonkey functions user scripts use most, kept
+/// in the page's storage (per script).
+const GM_SHIM: &str = "var unsafeWindow=window;var __gmk='sanaga-gm:'+location.host+':';\
+function GM_addStyle(c){var s=document.createElement('style');s.textContent=c;(document.head||document.documentElement).appendChild(s);return s;}\
+function GM_getValue(k,d){try{var v=localStorage.getItem(__gmk+k);return v===null?d:JSON.parse(v);}catch(e){return d;}}\
+function GM_setValue(k,v){try{localStorage.setItem(__gmk+k,JSON.stringify(v));}catch(e){}}\
+function GM_deleteValue(k){try{localStorage.removeItem(__gmk+k);}catch(e){}}\
+function GM_openInTab(u){window.open(u,'_blank');}\
+function GM_setClipboard(t){try{navigator.clipboard.writeText(t);}catch(e){}}\
+function GM_log(){console.log.apply(console,arguments);}\
+var GM={addStyle:GM_addStyle,getValue:function(k,d){return Promise.resolve(GM_getValue(k,d));},setValue:function(k,v){GM_setValue(k,v);return Promise.resolve();},deleteValue:function(k){GM_deleteValue(k);return Promise.resolve();},openInTab:GM_openInTab,setClipboard:GM_setClipboard};";
+
 fn builtins() -> Vec<Extension> {
     vec![
         Extension {
@@ -90,6 +104,7 @@ fn builtins() -> Vec<Extension> {
             name: tr("Bloqueur de publicités").into(),
             description: tr("Masque les emplacements publicitaires les plus courants.").into(),
             matches: vec![],
+            excludes: vec![],
             js: String::new(),
             css: ADBLOCK_CSS.into(),
             builtin: true,
@@ -99,6 +114,7 @@ fn builtins() -> Vec<Extension> {
             name: tr("Pas de lecture automatique").into(),
             description: tr("Empêche les vidéos et les sons de démarrer tout seuls.").into(),
             matches: vec![],
+            excludes: vec![],
             js: NO_AUTOPLAY_JS.into(),
             css: String::new(),
             builtin: true,
@@ -108,6 +124,7 @@ fn builtins() -> Vec<Extension> {
             name: tr("Sans bannières de cookies").into(),
             description: tr("Masque les bannières de consentement des outils les plus courants, sans rien accepter.").into(),
             matches: vec![],
+            excludes: vec![],
             js: String::new(),
             css: COOKIE_BANNERS_CSS.into(),
             builtin: true,
@@ -117,6 +134,7 @@ fn builtins() -> Vec<Extension> {
             name: tr("Mode sombre pour tous les sites").into(),
             description: tr("Affiche les pages claires en sombre, plus reposant le soir.").into(),
             matches: vec![],
+            excludes: vec![],
             js: String::new(),
             css: DARK_CSS.into(),
             builtin: true,
@@ -156,8 +174,10 @@ pub fn all() -> Vec<Extension> {
         // (user scripts also say where they run with @include)
         let mut matches = header(&text, "@match");
         matches.extend(header(&text, "@include"));
+        let mut excludes = header(&text, "@exclude-match");
+        excludes.extend(header(&text, "@exclude").into_iter().filter(|e| !e.starts_with('-')));
         let (js, css) = if ext == "js" { (text, String::new()) } else { (String::new(), text) };
-        v.push(Extension { id: format!("fichier:{}", p.file_name().unwrap_or_default().to_string_lossy()), name, description, matches, js, css, builtin: false });
+        v.push(Extension { id: format!("fichier:{}", p.file_name().unwrap_or_default().to_string_lossy()), name, description, matches, excludes, js, css, builtin: false });
     }
     v
 }
@@ -188,7 +208,15 @@ pub fn init_script(enabled: &[String]) -> String {
     let mut out = String::new();
     for e in all().into_iter().filter(|e| enabled.contains(&e.id)) {
         let pats: Vec<String> = e.matches.iter().map(|m| format!("new RegExp({})", js_lit(&glob_to_regex(m)))).collect();
-        out.push_str(&format!("(function(){{var pats=[{}];var href=location.href;if(pats.length&&!pats.some(function(r){{return r.test(href);}}))return;", pats.join(",")));
+        let ex: Vec<String> = e.excludes.iter().map(|m| format!("new RegExp({})", js_lit(&glob_to_regex(m)))).collect();
+        out.push_str(&format!(
+            "(function(){{var pats=[{}];var ex=[{}];var href=location.href;if(pats.length&&!pats.some(function(r){{return r.test(href);}}))return;if(ex.some(function(r){{return r.test(href);}}))return;",
+            pats.join(","),
+            ex.join(",")
+        ));
+        if !e.builtin && !e.js.is_empty() {
+            out.push_str(&format!("{GM_SHIM}var GM_info={{script:{{name:{}}}}};", js_lit(&e.name)));
+        }
         if !e.css.is_empty() {
             out.push_str(&format!(
                 "var css={};function add(){{var s=document.createElement('style');s.textContent=css;(document.head||document.documentElement).appendChild(s);}}\

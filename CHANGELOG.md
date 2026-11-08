@@ -43,7 +43,7 @@ All notable changes to Sanaga are listed here. The format follows
 - Page tools: floating video, remove an element, edit the page's text, unlock
   copy and paste, archived version (Internet Archive), link preview window
   (`--preview URL`), PDF reader (WebKit's built-in viewer).
-- Focus mode (Ctrl+Shift+K / F9), keep on top (Hyprland), compact mode,
+- Focus mode (F9), keep on top (Hyprland), compact mode,
   window border (accent, gradient, animated), app icon colours, low power mode
   (automatic on battery).
 - Programmable toolbar buttons and the » overflow menu.

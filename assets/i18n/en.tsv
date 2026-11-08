@@ -807,7 +807,6 @@ Créer	Create
 Déplier	Expand
 Replier	Collapse
 Quitter le mode focus	Leave focus mode
-Ctrl+Maj+K	Ctrl+Shift+K
 Ne plus garder au premier plan	Stop keeping on top
 Garder au premier plan	Keep on top
 Terminer la modification du texte	Finish editing text
@@ -841,7 +840,7 @@ Couleurs animées	Animated colours
 Opacité de la bordure	Border opacity
 Barre d'outils et onglets plus bas : plus de place pour la page	Lower toolbar and tabs: more room for the page
 Onglets verticaux : un onglet ouvert depuis une page se range dessous	Vertical tabs: a tab opened from a page goes under it
-Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.	Focus mode (Ctrl+Shift+K or F9): only the page stays, nothing around it.
+Mode focus (F9) : seule la page reste, sans rien autour.	Focus mode (F9): only the page stays, nothing around it.
 Icône de l'application	Application icon
 Vos boutons	Your buttons
 Boutons programmables	Programmable buttons
@@ -891,7 +890,7 @@ Terminé	Done
 Fermer avec ses onglets enfants	Close with its child tabs
 Déplacer le groupe dans une nouvelle fenêtre	Move group to a new window
 Autres boutons	More buttons
-Mode focus — Ctrl+Maj+K ou F9 pour revenir.	Focus mode — Ctrl+Shift+K or F9 to come back.
+Mode focus — F9 pour revenir.	Focus mode — F9 to come back.
 Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).	On battery: low power mode (idle tabs sleep sooner).
 Modification du texte terminée.	Text editing finished.
 Aucune vidéo dans cette page.	No video on this page.

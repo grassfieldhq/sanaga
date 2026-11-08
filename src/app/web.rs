@@ -41,7 +41,7 @@ const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
   var k = (e.key || '').toLowerCase();
   var ctrl = e.ctrlKey || e.metaKey;
-  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','k','y'].indexOf(k) >= 0)
+  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','y'].indexOf(k) >= 0)
     || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
     || k === 'f5' || k === 'f6' || k === 'f9' || k === 'f11' || k === 'f12'
     || (k === 'escape' && window.__sanagaTool);
@@ -73,7 +73,7 @@ fn shortcut_name(msg: &str) -> Option<&'static str> {
         (true, true, _, "i") => "inspector",
         (_, _, _, "f12") => "inspector",
         (true, true, _, "m") => "devices",
-        (true, true, _, "k") | (_, _, _, "f9") => "focus",
+        (_, _, _, "f9") => "focus",
         (true, true, _, "y") => "summary",
         (_, _, _, "escape") => "esc",
         (true, false, false, "p") => "print",
@@ -335,6 +335,9 @@ impl Sanaga {
                 }
             }
             WebEvent::Shortcut(msg) => {
+                if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
+                    eprintln!("page shortcut {msg:?} -> {:?}", shortcut_name(&msg));
+                }
                 if let Some(name) = shortcut_name(&msg) {
                     if name == "quit" {
                         self.quit_app();
@@ -567,7 +570,7 @@ impl Sanaga {
         self.notice = Some((tr("Extension supprimée.").into(), self.ctx.input(|i| i.time)));
     }
 
-    fn page_maker(&self) -> PageMaker {
+    pub(super) fn page_maker(&self) -> PageMaker {
         let extensions = crate::extensions::init_script(&self.store.extensions_on);
         PageMaker {
             ctx: self.web_context.clone(),

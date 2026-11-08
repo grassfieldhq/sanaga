@@ -101,12 +101,15 @@ impl Sanaga {
         if self.screenshot.is_some() || self.app_mode {
             return;
         }
-        // one line per tab: address, group name, pinned
-        let urls: Vec<String> = self
-            .tabs
+        // one line per tab: address, group name, pinned, title, container, and
+        // the place of the tab it was opened from (tree tabs)
+        let kept: Vec<&Tab> = self.tabs.iter().filter(|t| !t.private && !t.entries.is_empty()).collect();
+        let urls: Vec<String> = kept
             .iter()
-            .filter(|t| !t.private && !t.entries.is_empty())
-            .map(|t| format!("{}\t{}\t{}\t{}\t{}", t.url(), self.groups.get(t.group).map(|g| g.replace('\t', " ")).unwrap_or_default(), if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " ")))
+            .map(|t| {
+                let parent = t.parent.and_then(|p| kept.iter().position(|k| k.id == p)).map(|k| k.to_string()).unwrap_or_default();
+                format!("{}\t{}\t{}\t{}\t{}\t{}", t.url(), self.groups.get(t.group).map(|g| g.replace('\t', " ")).unwrap_or_default(), if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " "), parent)
+            })
             .collect();
         self.store.save_session(self.slot, &urls);
     }
@@ -521,7 +524,6 @@ impl Sanaga {
                 (sc(Modifiers::NONE, Key::F12), "inspector"),
                 (sc(cs, Key::M), "devices"),
                 (sc(cs, Key::Y), "summary"),
-                (sc(cs, Key::K), "focus"),
                 (sc(Modifiers::NONE, Key::F9), "focus"),
                 (sc(c, Key::P), "print"),
                 (sc(c, Key::U), "source"),

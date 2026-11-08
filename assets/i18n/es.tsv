@@ -807,7 +807,6 @@ Créer	Crear
 Déplier	Desplegar
 Replier	Plegar
 Quitter le mode focus	Salir del modo concentración
-Ctrl+Maj+K	Ctrl+Mayús+K
 Ne plus garder au premier plan	Dejar de mantener encima
 Garder au premier plan	Mantener encima
 Terminer la modification du texte	Terminar la edición del texto
@@ -841,7 +840,7 @@ Couleurs animées	Colores animados
 Opacité de la bordure	Opacidad del borde
 Barre d'outils et onglets plus bas : plus de place pour la page	Barra de herramientas y pestañas más bajas: más espacio para la página
 Onglets verticaux : un onglet ouvert depuis une page se range dessous	Pestañas verticales: una pestaña abierta desde una página se coloca debajo
-Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.	Modo concentración (Ctrl+Mayús+K o F9): solo queda la página, sin nada alrededor.
+Mode focus (F9) : seule la page reste, sans rien autour.	Modo concentración (F9): solo queda la página, sin nada alrededor.
 Icône de l'application	Icono de la aplicación
 Vos boutons	Tus botones
 Boutons programmables	Botones programables
@@ -891,7 +890,7 @@ Terminé	Hecho
 Fermer avec ses onglets enfants	Cerrar con sus pestañas hijas
 Déplacer le groupe dans une nouvelle fenêtre	Mover el grupo a una ventana nueva
 Autres boutons	Más botones
-Mode focus — Ctrl+Maj+K ou F9 pour revenir.	Modo concentración — Ctrl+Mayús+K o F9 para volver.
+Mode focus — F9 pour revenir.	Modo concentración — F9 para volver.
 Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).	Con batería: modo de bajo consumo (las pestañas inactivas entran en reposo antes).
 Modification du texte terminée.	Edición del texto terminada.
 Aucune vidéo dans cette page.	No hay vídeo en esta página.

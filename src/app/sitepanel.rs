@@ -12,6 +12,23 @@ use eframe::egui::{Color32, Margin, RichText};
 /// sans-serif is used).
 const FONTS: [&str; 7] = ["", "sans-serif", "serif", "Inter", "Noto Sans", "Atkinson Hyperlegible", "monospace"];
 
+/// A site's settings in a few words ("no JavaScript · dark · 2 elements removed").
+pub(super) fn summary(p: &SitePrefs) -> String {
+    let mut what: Vec<String> = Vec::new();
+    for (on, label) in [(!p.js, tr("sans JavaScript")), (!p.blocker, tr("bloqueur coupé")), (!p.fonts, tr("sans ses polices")), (p.dark, tr("sombre")), (p.no_sticky, tr("sans bandeaux collants")), (p.unlock, tr("copie débloquée"))] {
+        if on {
+            what.push(label.to_string());
+        }
+    }
+    if !p.font.is_empty() {
+        what.push(p.font.clone());
+    }
+    if !p.hidden.is_empty() {
+        what.push(tf("{} élément(s) retiré(s)", &[&p.hidden.len()]));
+    }
+    what.join(" · ")
+}
+
 impl Sanaga {
     pub(super) fn site_settings_panel(&mut self, ctx: &egui::Context, th: &Theme) {
         if !self.site_panel {

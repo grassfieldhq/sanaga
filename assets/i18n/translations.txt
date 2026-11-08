@@ -810,7 +810,6 @@ Créer⟂Create⟂Crear⟂Criar⟂Erstellen
 Déplier⟂Expand⟂Desplegar⟂Expandir⟂Aufklappen
 Replier⟂Collapse⟂Plegar⟂Recolher⟂Zuklappen
 Quitter le mode focus⟂Leave focus mode⟂Salir del modo concentración⟂Sair do modo foco⟂Fokusmodus verlassen
-Ctrl+Maj+K⟂Ctrl+Shift+K⟂Ctrl+Mayús+K⟂Ctrl+Shift+K⟂Strg+Umschalt+K
 Ne plus garder au premier plan⟂Stop keeping on top⟂Dejar de mantener encima⟂Deixar de manter por cima⟂Nicht mehr im Vordergrund halten
 Garder au premier plan⟂Keep on top⟂Mantener encima⟂Manter por cima⟂Im Vordergrund halten
 Terminer la modification du texte⟂Finish editing text⟂Terminar la edición del texto⟂Terminar a edição do texto⟂Textbearbeitung beenden
@@ -844,7 +843,7 @@ Couleurs animées⟂Animated colours⟂Colores animados⟂Cores animadas⟂Animi
 Opacité de la bordure⟂Border opacity⟂Opacidad del borde⟂Opacidade do contorno⟂Rahmendeckkraft
 Barre d'outils et onglets plus bas : plus de place pour la page⟂Lower toolbar and tabs: more room for the page⟂Barra de herramientas y pestañas más bajas: más espacio para la página⟂Barra de ferramentas e separadores mais baixos: mais espaço para a página⟂Niedrigere Symbolleiste und Tabs: mehr Platz für die Seite
 Onglets verticaux : un onglet ouvert depuis une page se range dessous⟂Vertical tabs: a tab opened from a page goes under it⟂Pestañas verticales: una pestaña abierta desde una página se coloca debajo⟂Separadores verticais: um separador aberto a partir de uma página fica por baixo dela⟂Vertikale Tabs: Ein aus einer Seite geöffneter Tab kommt darunter
-Mode focus (Ctrl+Maj+K ou F9) : seule la page reste, sans rien autour.⟂Focus mode (Ctrl+Shift+K or F9): only the page stays, nothing around it.⟂Modo concentración (Ctrl+Mayús+K o F9): solo queda la página, sin nada alrededor.⟂Modo foco (Ctrl+Shift+K ou F9): só fica a página, sem nada à volta.⟂Fokusmodus (Strg+Umschalt+K oder F9): Nur die Seite bleibt, nichts drumherum.
+Mode focus (F9) : seule la page reste, sans rien autour.⟂Focus mode (F9): only the page stays, nothing around it.⟂Modo concentración (F9): solo queda la página, sin nada alrededor.⟂Modo foco (F9): só fica a página, sem nada à volta.⟂Fokusmodus (F9): Nur die Seite bleibt, nichts drumherum.
 Icône de l'application⟂Application icon⟂Icono de la aplicación⟂Ícone da aplicação⟂Anwendungssymbol
 Vos boutons⟂Your buttons⟂Tus botones⟂Os seus botões⟂Ihre Tasten
 Boutons programmables⟂Programmable buttons⟂Botones programables⟂Botões programáveis⟂Programmierbare Tasten
@@ -894,7 +893,7 @@ Terminé⟂Done⟂Hecho⟂Concluído⟂Fertig
 Fermer avec ses onglets enfants⟂Close with its child tabs⟂Cerrar con sus pestañas hijas⟂Fechar com os separadores filhos⟂Mit untergeordneten Tabs schließen
 Déplacer le groupe dans une nouvelle fenêtre⟂Move group to a new window⟂Mover el grupo a una ventana nueva⟂Mover o grupo para uma nova janela⟂Gruppe in ein neues Fenster verschieben
 Autres boutons⟂More buttons⟂Más botones⟂Mais botões⟂Weitere Tasten
-Mode focus — Ctrl+Maj+K ou F9 pour revenir.⟂Focus mode — Ctrl+Shift+K or F9 to come back.⟂Modo concentración — Ctrl+Mayús+K o F9 para volver.⟂Modo foco — Ctrl+Shift+K ou F9 para voltar.⟂Fokusmodus — Strg+Umschalt+K oder F9 zum Zurückkehren.
+Mode focus — F9 pour revenir.⟂Focus mode — F9 to come back.⟂Modo concentración — F9 para volver.⟂Modo foco — F9 para voltar.⟂Fokusmodus — F9 zum Zurückkehren.
 Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).⟂On battery: low power mode (idle tabs sleep sooner).⟂Con batería: modo de bajo consumo (las pestañas inactivas entran en reposo antes).⟂Na bateria: modo de poupança de energia (separadores inativos suspensos mais cedo).⟂Im Akkubetrieb: Energiesparmodus (inaktive Tabs schlafen früher).
 Modification du texte terminée.⟂Text editing finished.⟂Edición del texto terminada.⟂Edição do texto terminada.⟂Textbearbeitung beendet.
 Aucune vidéo dans cette page.⟂No video on this page.⟂No hay vídeo en esta página.⟂Não há vídeo nesta página.⟂Kein Video auf dieser Seite.

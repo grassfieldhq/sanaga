@@ -825,6 +825,8 @@ impl Sanaga {
         }
         // restored tabs don't load now: each one loads when it is first shown
         app.restoring = true;
+        let mut parents: Vec<(usize, usize)> = Vec::new();
+        let first_tab = app.tabs.len();
         for line in start {
             let mut parts = line.split('\t');
             let u = parts.next().unwrap_or("").to_string();
@@ -832,6 +834,7 @@ impl Sanaga {
             let pinned = parts.next() == Some("1");
             let saved_title = parts.next().unwrap_or("").to_string();
             let container = parts.next().unwrap_or("").to_string();
+            let parent: Option<usize> = parts.next().and_then(|p| p.parse().ok());
             app.current_group = if group.is_empty() || group == app.groups[0] {
                 0
             } else if let Some(g) = app.groups.iter().position(|x| *x == group) {
@@ -850,6 +853,9 @@ impl Sanaga {
             if app.store.containers.iter().any(|c| c.name == container) {
                 app.tabs[i].container = container;
             }
+            if let Some(p) = parent {
+                parents.push((i, p));
+            }
             app.tabs[i].group = app.current_group;
             // tabs load when shown: until then they keep their saved title
             if !saved_title.is_empty() && app.tabs[i].entries[app.tabs[i].idx].title.is_empty() {
@@ -858,6 +864,13 @@ impl Sanaga {
             }
             if reader {
                 app.toggle_reader(i);
+            }
+        }
+        for (i, p) in parents {
+            if let Some(id) = app.tabs.get(first_tab + p).map(|t| t.id) {
+                if first_tab + p != i {
+                    app.tabs[i].parent = Some(id);
+                }
             }
         }
         app.restoring = false;
@@ -1288,7 +1301,7 @@ impl Sanaga {
                             }
                         }
                         a if a.starts_with("devcapture") => self.device_capture(a[10..].parse().unwrap_or(0)),
-                        "info" => eprintln!("live info ppp={} size={:?}", ui.ctx().pixels_per_point(), ui.ctx().content_rect().size()),
+                        "info" => eprintln!("live info ppp={} size={:?} focus={}", ui.ctx().pixels_per_point(), ui.ctx().content_rect().size(), self.focus_mode),
                         other => self.run_shortcut(other),
                     }
                 }

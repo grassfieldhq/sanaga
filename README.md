@@ -107,7 +107,7 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - macOS-27-style window: toolbar capsules, tab pills, floating sidebar.
 - Your layout: tabs on top, at the bottom or down the side; address bar on
   top, at the bottom or floating; compact mode.
-- Focus mode (Ctrl+Shift+K or F9): only the page. Keep the window on top.
+- Focus mode (F9): only the page. Keep the window on top.
 - Window border: accent colour, gradient or animated colours.
 - Accent colour and light/dark follow the system (Grassfield) or your choice;
   five application icon colours.
@@ -211,7 +211,7 @@ sanaga --screenshot out.png   # draw the window once, save a picture, quit
 | Web inspector | Ctrl+Shift+I, F12 |
 | Mobile simulator | Ctrl+Shift+M |
 | Page summary | Ctrl+Shift+Y |
-| Focus mode | Ctrl+Shift+K, F9 |
+| Focus mode | F9 |
 | Fill in my contact details | Ctrl+Shift+F |
 | Full screen | F11 |
 | Clear browsing data | Ctrl+Shift+Delete |
@@ -272,6 +272,11 @@ engine bridge and a few system services.
   100 % zoom for sharper videos).
 - Window moving, maximising and the title bar integration have extra support for
   Hyprland; other desktops use the standard GTK behaviour.
+
+## Review
+
+A strict, feature-by-feature check of Sanaga, with what was fixed:
+[docs/REVIEW.md](docs/REVIEW.md).
 
 ## Audit
 

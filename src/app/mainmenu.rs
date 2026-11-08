@@ -127,7 +127,7 @@ impl Sanaga {
                             };
                             sub(ui, Icon::Glasses, if in_list { tr("Retirer de la liste de lecture") } else { tr("Ajouter à la liste de lecture") }, tr("Ctrl+Maj+D"), "readinglist");
                             sub(ui, Icon::Private, tr("Nouvel onglet dans un conteneur…"), "", "container");
-                            sub(ui, Icon::Reader, if focus { tr("Quitter le mode focus") } else { tr("Mode focus") }, tr("Ctrl+Maj+K"), "focus");
+                            sub(ui, Icon::Reader, if focus { tr("Quitter le mode focus") } else { tr("Mode focus") }, "F9", "focus");
                             sub(ui, Icon::Grid, if on_top { tr("Ne plus garder au premier plan") } else { tr("Garder au premier plan") }, "", "ontop");
                             sub(ui, Icon::Camera, tr("Vidéo flottante"), "", "pip");
                             sub(ui, Icon::Shield, tr("Réglages de ce site…"), "", "site");

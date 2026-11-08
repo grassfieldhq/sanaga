@@ -409,8 +409,28 @@ impl Sanaga {
         let perms = self.store.permissions.clone();
         let mut zooms: Vec<(String, f32)> = self.store.site_zoom.iter().map(|(h, z)| (h.clone(), *z)).collect();
         zooms.sort_by(|a, b| a.0.cmp(&b.0));
+        let site_prefs = crate::site_prefs::all();
+        let mut reset_site: Option<String> = None;
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Paramètres des sites"));
+            // JavaScript, fonts, blocker, look… site by site
+            ui.label(RichText::new(tr("Réglages par site")).size(15.0).family(bold()).color(th.text));
+            ui.add_space(6.0);
+            if site_prefs.is_empty() {
+                ui.label(RichText::new(tr("JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…")).size(12.5).color(th.sub));
+            }
+            for (host, p) in &site_prefs {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(host).color(th.text));
+                    ui.label(RichText::new(super::sitepanel::summary(p)).color(th.sub));
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui.button(tr("Réinitialiser")).clicked() {
+                            reset_site = Some(host.clone());
+                        }
+                    });
+                });
+            }
+            ui.add_space(18.0);
             ui.label(RichText::new(tr("Autorisations")).size(15.0).family(bold()).color(th.text));
             ui.add_space(6.0);
             if perms.is_empty() {
@@ -449,6 +469,9 @@ impl Sanaga {
         });
         if let Some((s, k)) = forget_perm {
             self.store.set_permission(&s, &k, None);
+        }
+        if let Some(h) = reset_site {
+            self.save_site(&h, crate::site_prefs::SitePrefs::default(), true);
         }
         if let Some(h) = forget_zoom {
             let z = self.store.settings.zoom;

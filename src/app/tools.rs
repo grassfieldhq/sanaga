@@ -31,10 +31,11 @@ var box=document.createElement('div');box.style.cssText='position:fixed;pointer-
 var tip=document.createElement('div');tip.textContent=TIP;tip.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#222;color:#fff;font:13px system-ui,sans-serif;padding:8px 14px;border-radius:8px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.3)';
 document.documentElement.appendChild(box);document.documentElement.appendChild(tip);var cur=null;
 function ok(c){return /^[A-Za-z_][\w-]*$/.test(c)&&!/\d{4,}/.test(c);}
-function sel(el){var parts=[];while(el&&el.nodeType===1&&el!==document.body&&el!==document.documentElement&&parts.length<5){
+function sel(el){var parts=[];while(el&&el.nodeType===1&&el!==document.body&&el!==document.documentElement&&parts.length<8){
 if(el.id&&ok(el.id)){parts.unshift('#'+el.id);break;}var p=el.tagName.toLowerCase();var cls=[].slice.call(el.classList).filter(ok).slice(0,2);
 if(cls.length)p+='.'+cls.join('.');var par=el.parentElement;if(par&&!cls.length){var same=[].slice.call(par.children).filter(function(x){return x.tagName===el.tagName});
-if(same.length>1)p+=':nth-of-type('+(same.indexOf(el)+1)+')';}parts.unshift(p);el=par;}return parts.join(' > ');}
+if(same.length>1)p+=':nth-of-type('+(same.indexOf(el)+1)+')';}parts.unshift(p);el=par;}
+if(el===document.body&&parts.length&&parts[0].charAt(0)!=='#')parts.unshift('body');return parts.join(' > ');}
 function mv(e){var t=e.target;if(t===box||t===tip)return;cur=t;var r=t.getBoundingClientRect();box.style.left=r.left+'px';box.style.top=r.top+'px';box.style.width=r.width+'px';box.style.height=r.height+'px';}
 function stop(){window.__sanagaTool=null;window.__sanagaStopTool=null;document.removeEventListener('mousemove',mv,true);document.removeEventListener('click',ck,true);box.remove();tip.remove();}
 function ck(e){e.preventDefault();e.stopPropagation();if(!cur)return;var s=sel(cur);cur.style.setProperty('display','none','important');if(s)window.ipc.postMessage('tool:zap-done:'+s);stop();}
@@ -88,12 +89,12 @@ fn hue(h: f32) -> Color32 {
 impl Sanaga {
     // ------------------------------------------------------------ focus mode
 
-    /// Focus mode: the page alone in the window, nothing else (Ctrl+Maj+K, F9).
+    /// Focus mode: the page alone in the window, nothing else (F9).
     pub(super) fn toggle_focus_mode(&mut self) {
         self.focus_mode = !self.focus_mode;
         self.menu_open = false;
         if self.focus_mode {
-            self.notice = Some((tr("Mode focus — Ctrl+Maj+K ou F9 pour revenir.").into(), self.ctx.input(|i| i.time)));
+            self.notice = Some((tr("Mode focus — F9 pour revenir.").into(), self.ctx.input(|i| i.time)));
         }
     }
 
@@ -243,7 +244,7 @@ impl Sanaga {
         let vh: f64 = f.next().and_then(|v| v.parse().ok()).filter(|v: &f64| *v > 0.0).unwrap_or(9.0);
         let page_url = self.tabs.iter().find(|x| x.id == tab).map(|x| x.url().to_string()).unwrap_or_default();
         let (w, h) = (480, ((480.0 * vh / vw) as i32).clamp(200, 720));
-        let engine = self.web_context.clone();
+        let engine = self.tab_engine();
         let title = tr("Sanaga — vidéo flottante");
         let opened = if let Some(id) = youtube_id(&page_url) {
             let url = format!("https://www.youtube-nocookie.com/embed/{id}?autoplay=1&start={}", t as u64);
@@ -351,8 +352,23 @@ impl Sanaga {
             self.open_tab(url, false);
             return;
         }
-        let engine = self.web_context.clone();
+        let engine = self.tab_engine();
         crate::shell::float_window(engine.as_ref(), tr("Sanaga — aperçu"), Some(url), None, 920, 680, Some(tr("Ouvrir dans un onglet")), false);
+    }
+
+    /// The engine of the tab shown: a private tab's small windows keep
+    /// nothing, a container's keep its cookies and logins.
+    fn tab_engine(&self) -> Option<crate::page::Engine> {
+        let t = self.tabs.get(self.active)?;
+        if t.private {
+            return Some(crate::page::private_engine(self.web_context.as_ref()));
+        }
+        if !t.container.is_empty() {
+            if let Some(e) = self.page_maker().container_engine(&t.container) {
+                return Some(e);
+            }
+        }
+        self.web_context.clone()
     }
 
     /// Change one site's settings, keep them, and show them on its open pages.

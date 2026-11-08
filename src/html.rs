@@ -1034,3 +1034,26 @@ mod more_tests {
         assert_eq!(decode_entities("a&amp;b &eacute;t&eacute; &#233; &#x41; &nope; &"), "a&b été é A &nope; &");
     }
 }
+
+#[cfg(test)]
+mod robustness {
+    /// Odd pages must never stop Sanaga: any alphabet, broken tags,
+    /// entities cut short, unclosed comments, attributes without values.
+    #[test]
+    fn odd_pages_do_not_panic() {
+        let samples = [
+            "<p>هذا النطاق مخصص للاستخدام</p><p dir=rtl>עברית</p>",
+            "<h1>中文標題</h1><p>日本語のテキスト 👍🏽 &amp &#x1F600; &#99999999; &notanentity; &",
+            "<div title=ä data-é>é<a href=ü>ü</a><img alt=👍 src=x.png>",
+            "<p>unclosed <b>bold <i>italic <!-- comment never closed",
+            "<<<>>><p<<p>></p>&#;&#x;&#xZZ;</",
+            "<table><tr><td>ç<td>ğ<tr><td>ŧ</table><ul><li>ł<li>ø</ul>",
+            "<script>var s = '</p>é';</script><style>p{}</style><p>après",
+            "&",
+            "",
+        ];
+        for s in samples {
+            let _ = super::parse(s, "https://example.com/");
+        }
+    }
+}

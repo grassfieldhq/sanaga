@@ -280,6 +280,7 @@ impl Sanaga {
         let mut delete: Option<String> = None;
         let mut toggle_mobile = false;
         let mut open_folder = false;
+        let mut install = false;
         let on = self.store.extensions_on.clone();
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Extensions"));
@@ -333,10 +334,19 @@ impl Sanaga {
             }
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Vos propres extensions : déposez des fichiers .js ou .css dans le dossier des extensions.")).size(12.5).color(th.sub));
-            if ui.button(tr("Ouvrir le dossier des extensions")).clicked() {
-                open_folder = true;
-            }
+            ui.horizontal(|ui| {
+                if ui.button(tr("Installer une extension…")).clicked() {
+                    install = true;
+                }
+                if ui.button(tr("Ouvrir le dossier des extensions")).clicked() {
+                    open_folder = true;
+                }
+            });
+            ui.label(RichText::new(tr("Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)")).size(11.5).color(th.sub));
         });
+        if install {
+            self.install_extension_dialog();
+        }
         if toggle_mobile {
             let on = self.tb("mobile");
             let mut keys: Vec<String> = self.store.settings.toolbar.split(',').filter(|k| !k.is_empty() && *k != "mobile" && *k != "-mobile").map(|k| k.to_string()).collect();

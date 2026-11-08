@@ -107,10 +107,10 @@ fn tokens(src: &str, base: &str) -> Vec<(K, String, Option<String>)> {
             push(&mut out, K::Tag, &tag[..name_end], None);
             let name = tag[1..name_end].trim_start_matches('/').to_ascii_lowercase();
             let mut j = name_end;
-            let tb = tag.as_bytes();
             let mut last_attr = String::new();
             while j < tag.len() {
-                let c = tb[j] as char;
+                // (a whole character: names and values may be in any alphabet)
+                let c = tag[j..].chars().next().unwrap_or(' ');
                 if c.is_whitespace() {
                     let k = tag[j..].find(|c: char| !c.is_whitespace()).map(|n| j + n).unwrap_or(tag.len());
                     push(&mut out, K::Text, &tag[j..k], None);
@@ -121,7 +121,7 @@ fn tokens(src: &str, base: &str) -> Vec<(K, String, Option<String>)> {
                 } else if c == '=' {
                     push(&mut out, K::Text, "=", None);
                     j += 1;
-                    let (v, k) = match tb.get(j).map(|&b| b as char) {
+                    let (v, k) = match tag[j..].chars().next() {
                         Some(qc @ ('"' | '\'')) => {
                             let e = tag[j + 1..].find(qc).map(|n| j + 1 + n + 1).unwrap_or(tag.len());
                             (&tag[j..e], e)
@@ -161,7 +161,9 @@ fn tokens(src: &str, base: &str) -> Vec<(K, String, Option<String>)> {
                 i += 1;
             }
         } else {
-            let end = rest[1..].find(['<', '&']).map(|n| n + 1).unwrap_or(rest.len());
+            // (the first character may be any letter, of any width)
+            let first = rest.chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+            let end = rest[first..].find(['<', '&']).map(|n| n + first).unwrap_or(rest.len());
             push(&mut out, K::Text, &rest[..end], None);
             i += end;
         }
