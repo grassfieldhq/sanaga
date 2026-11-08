@@ -42,10 +42,15 @@ impl Sanaga {
             icons::paint(ui.painter(), r, Icon::Info, th.accent);
             ui.add_space(6.0);
             let text = match state {
-                RUNNING => tr("Installation des codecs vidéo… (le système demande votre mot de passe)").to_string(),
+                RUNNING => tr("Installation dans le terminal : confirmez-la et tapez votre mot de passe là-bas.").to_string(),
                 DONE => tr("Codecs installés. Rechargez la page pour lire la vidéo.").to_string(),
                 FAILED => tr("L'installation n'a pas abouti. Vous pouvez copier la commande et la lancer dans un terminal.").to_string(),
-                _ => tf("Il manque des codecs pour lire les vidéos de ce site ({}). Ils s'installent une fois pour toutes.", &[&missing]),
+                // the distribution ships them: Sanaga installs nothing itself
+                _ if crate::codecs::distribution().is_some() => tf("Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec votre système : mettez-le à jour.", &[&missing]),
+                _ => match &install {
+                    Some(i) => tf("Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}", &[&missing, &i.command]),
+                    None => tf("Il manque des codecs pour lire les vidéos de ce site ({}). Ils s'installent une fois pour toutes.", &[&missing]),
+                },
             };
             ui.label(RichText::new(text).size(13.0).color(th.text));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -65,7 +70,11 @@ impl Sanaga {
                             if ui.button(tr("Copier la commande")).clicked() {
                                 act = Some("copy");
                             }
-                            if ui.add(egui::Button::new(RichText::new(tr("Installer")).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(8))).clicked() {
+                            // (only this button, in Sanaga's own bar, starts it:
+                            // never a page)
+                            if crate::codecs::terminal().is_some()
+                                && ui.add(egui::Button::new(RichText::new(tr("Installer dans un terminal")).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(8))).clicked()
+                            {
                                 act = Some("install");
                             }
                         }
@@ -97,21 +106,31 @@ impl Sanaga {
         }
     }
 
-    /// Install the decoders with the system's package manager; the system
-    /// asks for the password (pkexec). Runs in the background.
+    /// Open a terminal running the exact install command shown (the package
+    /// manager asks for confirmation and the password there), then watch
+    /// for the decoders to appear. Only Sanaga's own buttons call this.
     pub(super) fn install_codecs(&mut self) {
-        let Some(i) = crate::codecs::install() else { return };
+        let (Some(i), Some(term)) = (crate::codecs::install(), crate::codecs::terminal()) else { return };
         if self.codec_install.load(AtomicOrdering::Relaxed) == RUNNING {
             return;
         }
         self.codec_install.store(RUNNING, AtomicOrdering::Relaxed);
         let (state, ctx) = (self.codec_install.clone(), self.ctx.clone());
+        let close = tr("Appuyez sur Entrée pour fermer cette fenêtre.").to_string();
         std::thread::Builder::new()
             .name("sanaga-codec-install".into())
             .spawn(move || {
-                let ok = std::process::Command::new(&i.program).args(&i.args).status().is_ok_and(|s| s.success());
-                if ok {
-                    crate::codecs::check_in_background();
+                // the command itself, then a pause so its result can be read
+                // (the message is an argument, never part of the script)
+                let script = format!("{}; echo; echo \"$1\"; read _", i.command);
+                let started = std::process::Command::new(&term[0]).args(&term[1..]).args(["sh", "-c", script.as_str(), "sh", close.as_str()]).status();
+                // (a terminal may hand the command to a server and return at
+                // once: the decoders are looked for until they are there)
+                let mut ok = started.is_ok() && crate::codecs::check_now().complete();
+                let until = std::time::Instant::now() + std::time::Duration::from_secs(600);
+                while started.is_ok() && !ok && std::time::Instant::now() < until {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    ok = crate::codecs::check_now().complete();
                 }
                 state.store(if ok { DONE } else { FAILED }, AtomicOrdering::Relaxed);
                 ctx.request_repaint();
@@ -165,13 +184,19 @@ impl Sanaga {
                     Some(s) => tf("Il manque : {} — YouTube et d'autres sites ne lisent pas leurs vidéos sans eux.", &[&s.missing().join(", ")]),
                 };
                 ui.label(RichText::new(sub).size(11.5).color(th.sub));
+                // the exact command that would run
+                if let (Some(i), Some(s)) = (&install, &status) {
+                    if !s.complete() {
+                        ui.label(RichText::new(&i.command).size(11.0).family(egui::FontFamily::Monospace).color(th.sub));
+                    }
+                }
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if status.as_ref().is_some_and(|s| !s.complete()) && install.is_some() {
                     if state == RUNNING {
                         ui.label(RichText::new(tr("Installation…")).color(th.sub));
                     } else {
-                        if ui.add(egui::Button::new(RichText::new(tr("Installer")).color(Color32::WHITE)).fill(th.accent)).clicked() {
+                        if crate::codecs::terminal().is_some() && ui.add(egui::Button::new(RichText::new(tr("Installer dans un terminal")).color(Color32::WHITE)).fill(th.accent)).clicked() {
                             act = Some("install");
                         }
                         if ui.button(tr("Copier la commande")).clicked() {

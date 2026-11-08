@@ -940,3 +940,8 @@ Autoriser	Permitir
 {} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.	{} pode ler os seus ficheiros: o Sanaga não lhe envia o texto das páginas. Escolha Claude Code, Claude ou Ollama em Definições › Inteligência.
 {} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.	{} pode ler os seus ficheiros, mesmo bloqueado: o Sanaga não lhe envia o texto das páginas (resumo, tradução). Pode escrever extensões, que revê antes de as ativar.
 La traduction s'arrête ici : la page est très longue.	A tradução para aqui: a página é muito longa.
+Installation dans le terminal : confirmez-la et tapez votre mot de passe là-bas.	A instalar no terminal: confirme e escreva a sua palavra-passe lá.
+Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec votre système : mettez-le à jour.	Faltam codecs para reproduzir os vídeos deste site ({}). Vêm com o seu sistema: atualize-o.
+Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}	Faltam codecs para reproduzir os vídeos deste site ({}). Comando: {}
+Installer dans un terminal	Instalar num terminal
+Appuyez sur Entrée pour fermer cette fenêtre.	Prima Enter para fechar esta janela.

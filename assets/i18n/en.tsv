@@ -940,3 +940,8 @@ Autoriser	Allow
 {} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.	{} can read your files: Sanaga doesn't send it the text of pages. Choose Claude Code, Claude or Ollama in Settings › Intelligence.
 {} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.	{} can read your files, even locked down: Sanaga doesn't send it the text of pages (summary, translation). It can write extensions, which you review before turning them on.
 La traduction s'arrête ici : la page est très longue.	Translation stops here: the page is very long.
+Installation dans le terminal : confirmez-la et tapez votre mot de passe là-bas.	Installing in the terminal: confirm it and type your password there.
+Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec votre système : mettez-le à jour.	This site's videos need codecs that are missing ({}). They come with your system: update it.
+Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}	This site's videos need codecs that are missing ({}). Command: {}
+Installer dans un terminal	Install in a Terminal
+Appuyez sur Entrée pour fermer cette fenêtre.	Press Enter to close this window.

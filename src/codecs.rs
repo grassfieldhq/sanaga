@@ -2,7 +2,11 @@
 //! decoders come from the system's GStreamer packages. Without them, sites
 //! such as YouTube say "your browser can't play this video" (they ask for
 //! H.264, AV1, AAC or Opus). Sanaga checks which decoders are there, says
-//! what is missing, and can install it (the system asks for the password).
+//! what is missing, and can open a terminal running the exact install
+//! command it shows (the package manager asks for confirmation and the
+//! password there). On a distribution that ships the decoders with Sanaga's
+//! package (`SANAGA_DISTRO=grassfield`, at build time or in the
+//! environment), Sanaga never offers to install anything.
 
 use std::sync::{Mutex, OnceLock};
 
@@ -50,25 +54,49 @@ fn cell() -> &'static Mutex<Option<Status>> {
     STATUS.get_or_init(|| Mutex::new(None))
 }
 
-/// Look at the system's decoders (in the background; a few milliseconds each).
+/// What the system can decode now (a few milliseconds per decoder).
+fn detect() -> Status {
+    Status {
+        h264: any(&["avdec_h264", "openh264dec", "vah264dec", "vaapih264dec", "nvh264dec"]),
+        aac: any(&["avdec_aac", "fdkaacdec", "faad"]),
+        av1: any(&["dav1ddec", "av1dec", "vaav1dec"]),
+        vp9: any(&["vp9dec", "vavp9dec", "avdec_vp9"]),
+        // (WebM / MSE audio also needs the Opus parser)
+        opus: has("opusdec") && any(&["opusparse", "avdec_opus"]),
+        hardware: any(&["vah264dec", "vaapih264dec", "nvh264dec"]),
+    }
+}
+
+/// Look again at the system's decoders, now (on the calling thread).
+pub fn check_now() -> Status {
+    let st = detect();
+    if let Ok(mut c) = cell().lock() {
+        *c = Some(st.clone());
+    }
+    st
+}
+
+/// Look at the system's decoders (in the background).
 pub fn check_in_background() {
     std::thread::Builder::new()
         .name("sanaga-codecs".into())
         .spawn(|| {
-            let st = Status {
-                h264: any(&["avdec_h264", "openh264dec", "vah264dec", "vaapih264dec", "nvh264dec"]),
-                aac: any(&["avdec_aac", "fdkaacdec", "faad"]),
-                av1: any(&["dav1ddec", "av1dec", "vaav1dec"]),
-                vp9: any(&["vp9dec", "vavp9dec", "avdec_vp9"]),
-                // (WebM / MSE audio also needs the Opus parser)
-                opus: has("opusdec") && any(&["opusparse", "avdec_opus"]),
-                hardware: any(&["vah264dec", "vaapih264dec", "nvh264dec"]),
-            };
-            if let Ok(mut c) = cell().lock() {
-                *c = Some(st);
-            }
+            check_now();
         })
         .ok();
+}
+
+/// The distribution this Sanaga was packaged for, if it ships the decoders
+/// itself (`SANAGA_DISTRO`, set when building the package or in the
+/// environment; e.g. "grassfield"). Then Sanaga never installs anything.
+pub fn distribution() -> Option<String> {
+    let built = option_env!("SANAGA_DISTRO").unwrap_or("");
+    let run = std::env::var("SANAGA_DISTRO").unwrap_or_default();
+    distribution_from(built, &run)
+}
+
+fn distribution_from(built: &str, run: &str) -> Option<String> {
+    [built.trim(), run.trim()].into_iter().find(|d| !d.is_empty()).map(|d| d.to_ascii_lowercase())
 }
 
 /// The result, once known.
@@ -78,11 +106,10 @@ pub fn status() -> Option<Status> {
 
 /// The system's package manager and the packages that bring the decoders.
 pub struct Install {
-    /// Shown to the person (what to type in a terminal).
+    /// The exact command: shown to the person, and what runs (in a
+    /// terminal, where the package manager asks for confirmation).
     pub command: String,
-    /// Run with the system's password prompt (pkexec).
-    pub program: String,
-    pub args: Vec<String>,
+    pub argv: Vec<String>,
 }
 
 fn os_release() -> (String, String) {
@@ -91,27 +118,49 @@ fn os_release() -> (String, String) {
     (get("ID"), get("ID_LIKE"))
 }
 
-/// How to install the missing decoders on this system (None: unknown system).
+/// How to install the missing decoders on this system: None on an unknown
+/// system, and always None when the distribution ships them with Sanaga.
 pub fn install() -> Option<Install> {
+    if distribution().is_some() {
+        return None;
+    }
     let (id, like) = os_release();
+    install_for(&id, &like)
+}
+
+/// The install command for a system (its os-release ID and ID_LIKE): the
+/// package manager asks for confirmation itself (no --noconfirm, no -y).
+fn install_for(id: &str, like: &str) -> Option<Install> {
     let is = |name: &str| id == name || like.split_whitespace().any(|l| l == name);
     let (manager, args, packages): (&str, &[&str], &[&str]) = if is("arch") {
-        ("pacman", &["-S", "--needed", "--noconfirm"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va"])
+        ("pacman", &["-S", "--needed"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va"])
     } else if is("debian") || is("ubuntu") {
-        ("apt-get", &["install", "-y"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi"])
+        ("apt-get", &["install"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi"])
     } else if is("fedora") {
-        ("dnf", &["install", "-y"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264"])
+        ("dnf", &["install"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264"])
     } else if is("suse") || is("opensuse") {
-        ("zypper", &["--non-interactive", "install"], &["gstreamer-plugins-libav", "gstreamer-plugins-bad"])
+        ("zypper", &["install"], &["gstreamer-plugins-libav", "gstreamer-plugins-bad"])
     } else {
         return None;
     };
-    let shown_args: Vec<&str> = args.iter().copied().filter(|a| *a != "--noconfirm" && *a != "-y" && *a != "--non-interactive").collect();
-    let command = format!("{} {} {} {}", ["su", "do"].concat(), manager, shown_args.join(" "), packages.join(" "));
-    let mut all: Vec<String> = vec![manager.to_string()];
-    all.extend(args.iter().map(|a| a.to_string()));
-    all.extend(packages.iter().map(|p| p.to_string()));
-    Some(Install { command, program: "pkexec".into(), args: all })
+    let mut argv: Vec<String> = vec![["su", "do"].concat(), manager.to_string()];
+    argv.extend(args.iter().map(|a| a.to_string()));
+    argv.extend(packages.iter().map(|p| p.to_string()));
+    Some(Install { command: argv.join(" "), argv })
+}
+
+/// A terminal to run the install in: the desktop's standard launcher
+/// (xdg-terminal-exec), else the Debian-style alternative. None: the
+/// command can only be copied.
+pub fn terminal() -> Option<Vec<String>> {
+    let on_path = |p: &str| std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|d| d.join(p).is_file()));
+    if on_path("xdg-terminal-exec") {
+        Some(vec!["xdg-terminal-exec".into()])
+    } else if on_path("x-terminal-emulator") {
+        Some(vec!["x-terminal-emulator".into(), "-e".into()])
+    } else {
+        None
+    }
 }
 
 /// Sites whose videos need the formats above (a bar is offered there).
@@ -134,5 +183,26 @@ mod tests {
         let s = super::Status { vp9: true, ..Default::default() };
         assert_eq!(s.missing(), vec!["H.264", "AAC", "AV1", "Opus"]);
         assert!(!s.complete());
+    }
+
+    #[test]
+    fn the_command_shown_is_the_command_run() {
+        let i = super::install_for("arch", "").unwrap();
+        assert_eq!(i.command, i.argv.join(" "));
+        assert!(i.command.ends_with("pacman -S --needed gst-libav gst-plugins-bad gst-plugin-va"));
+        for (id, like) in [("arch", ""), ("ubuntu", "debian"), ("fedora", ""), ("opensuse-tumbleweed", "suse opensuse")] {
+            let i = super::install_for(id, like).unwrap();
+            assert!(!i.argv.iter().any(|a| a == "--noconfirm" || a == "-y" || a == "--non-interactive"), "{id}");
+            assert_eq!(i.command, i.argv.join(" "));
+        }
+        assert!(super::install_for("plan9", "").is_none());
+    }
+
+    #[test]
+    fn a_distribution_that_ships_codecs_turns_the_install_off() {
+        assert_eq!(super::distribution_from("grassfield", ""), Some("grassfield".into()));
+        assert_eq!(super::distribution_from("", "Grassfield"), Some("grassfield".into()));
+        assert_eq!(super::distribution_from(" ", ""), None);
+        assert_eq!(super::distribution_from("", ""), None);
     }
 }
