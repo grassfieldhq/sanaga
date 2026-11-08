@@ -608,7 +608,8 @@ impl Sanaga {
                 std::env::set_var("LANGUAGE", lang);
             }
         }
-        // site icons: kept in Sanaga's folder; no network lookups while taking a screenshot
+        // site icons (loaded by WebKit with their pages): kept in Sanaga's
+        // folder; nothing written while taking a screenshot
         crate::favicon::setup(Store::root_dir().join("favicons"), screenshot.is_none());
         let web_ok = screenshot.is_none() && web_engine_available();
         // (created after GTK is started)
@@ -1182,7 +1183,7 @@ impl Sanaga {
         self.poll_tab_extras();
         self.poll_import();
         self.poll_ai();
-        crate::favicon::pump(&ctx0, &self.agent);
+        crate::favicon::pump(&ctx0);
         let now = ctx0.input(|i| i.time);
         // test aid: SANAGA_BENCH_CYCLE=n shows the next tab every 3 s, n times
         if let Some(n) = std::env::var("SANAGA_BENCH_CYCLE").ok().and_then(|v| v.parse::<u64>().ok()) {

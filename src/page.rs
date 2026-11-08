@@ -26,6 +26,8 @@ pub enum PageSignal {
     /// A page tool asked from the page's right-click menu: what, and the
     /// address it is about (a link…).
     Tool(&'static str, String),
+    /// WebKit loaded the page's icon (the page's address, the icon as PNG).
+    Favicon(String, Vec<u8>),
 }
 
 /// Makes the page a site opens with `window.open` (sign-in, payment windows):
@@ -339,16 +341,26 @@ pub fn profile_context(dir: &Path) -> Engine {
         cm.set_persistent_storage(&dir.join("cookies").to_string_lossy(), CookiePersistentStorage::Text);
     }
     accept_cookies(&session);
+    enable_favicons(&session);
     let engine = Engine { ctx: WebContext::new(), session };
     secure_context(&engine);
     ENGINES.with(|cs| cs.borrow_mut().push((dir.to_path_buf(), engine.clone())));
     engine
 }
 
+/// Site icons are loaded by WebKit itself, with the page, through that
+/// page's own session (Sanaga makes no request of its own for them).
+fn enable_favicons(session: &NetworkSession) {
+    if let Some(dm) = session.website_data_manager() {
+        dm.set_favicons_enabled(true);
+    }
+}
+
 /// An engine that keeps nothing (no profile folder: tests, screenshots).
 pub fn ephemeral_engine() -> Engine {
     let session = NetworkSession::new_ephemeral();
     accept_cookies(&session);
+    enable_favicons(&session);
     let engine = Engine { ctx: WebContext::new(), session };
     secure_context(&engine);
     engine
@@ -379,6 +391,7 @@ fn private_session() -> NetworkSession {
             .get_or_insert_with(|| {
                 let s = NetworkSession::new_ephemeral();
                 accept_cookies(&s);
+                enable_favicons(&s);
                 s
             })
             .clone()
@@ -614,6 +627,13 @@ impl PageView {
         });
         let o = on.clone();
         view.connect_title_notify(move |v| o(PageSignal::Title(v.title().map(|t| t.to_string()).unwrap_or_default())));
+        // the page's icon, as WebKit loaded it
+        let o = on.clone();
+        view.connect_favicon_notify(move |v| {
+            if let (Some(tex), Some(uri)) = (v.favicon(), v.uri()) {
+                o(PageSignal::Favicon(uri.to_string(), tex.save_to_png_bytes().to_vec()));
+            }
+        });
         let o = on.clone();
         view.connect_create(move |v, action| {
             // window.open(): a real page linked to this one (sign-in windows

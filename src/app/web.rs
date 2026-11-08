@@ -216,6 +216,12 @@ impl PageMaker {
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
                 PageSignal::Tool(what, arg) => WebEvent::Tool { tab: id, what: what.to_string(), arg },
+                PageSignal::Favicon(url, png) => {
+                    // kept on disk for normal tabs only
+                    crate::favicon::learn(&url, png, private);
+                    repaint.request_repaint();
+                    return;
+                }
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         if !page_may_answer(what) {
