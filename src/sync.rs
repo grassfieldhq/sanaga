@@ -40,10 +40,10 @@ fn exchange(local: &Path, remote: &Path) -> bool {
     };
     if remote_newer {
         if let Some(r) = r {
-            return std::fs::write(local, r).is_ok();
+            return crate::store::write_atomic(local, r).is_ok();
         }
     } else if let Some(l) = l {
-        let _ = std::fs::write(remote, l);
+        let _ = crate::store::write_atomic(remote, l);
     }
     false
 }
@@ -75,7 +75,7 @@ pub fn sync(store: &Store, open_tabs: &[(String, String)], status: &mut SyncStat
     // publish this computer's tabs, read the others'
     let me = device_name();
     let tabs: String = open_tabs.iter().map(|(u, t)| format!("{}\t{}\n", u, t.replace(['\t', '\n'], " "))).collect();
-    let _ = std::fs::write(devices_dir.join(format!("{me}.tsv")), tabs);
+    let _ = crate::store::write_atomic(&devices_dir.join(format!("{me}.tsv")), tabs);
     let mut devices = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&devices_dir) {
         for e in rd.flatten() {

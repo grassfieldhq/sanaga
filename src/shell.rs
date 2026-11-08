@@ -434,7 +434,35 @@ fn schedule(area: &gtk::GLArea, next: &Rc<Cell<Option<Instant>>>, delay: Duratio
     });
 }
 
+/// Where the running Sanaga listens for addresses opened from elsewhere (one
+/// per data folder and profile).
+fn instance_socket(urls: &[String]) -> std::path::PathBuf {
+    use std::hash::{Hash, Hasher};
+    let profile = urls.iter().find_map(|u| u.strip_prefix("profil:")).unwrap_or("");
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    crate::store::Store::root_dir().hash(&mut h);
+    profile.hash(&mut h);
+    let dir = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    dir.join(format!("sanaga-{:016x}.sock", h.finish()))
+}
+
+/// Sanaga already runs with this data: hand it the addresses (it opens them
+/// in new tabs and comes to the front) instead of starting a second copy that
+/// would write the same files.
+fn forward_to_running(sock: &std::path::Path, urls: &[String]) -> bool {
+    use std::io::Write;
+    let Ok(mut s) = std::os::unix::net::UnixStream::connect(sock) else { return false };
+    let list: Vec<&str> = urls.iter().map(|u| u.as_str()).filter(|u| !u.starts_with("profil:")).collect();
+    s.write_all(list.join("\n").as_bytes()).is_ok()
+}
+
 pub fn run(urls: Vec<String>) -> Result<(), String> {
+    // one Sanaga per data folder and profile (web apps run on their own)
+    let single = !urls.iter().any(|u| u.starts_with("webapp:"));
+    let sock = instance_socket(&urls);
+    if single && forward_to_running(&sock, &urls) {
+        return Ok(());
+    }
     glib::set_prgname(Some("sanaga"));
     glib::set_application_name("Sanaga");
     gtk::init().map_err(|e| e.to_string())?;
@@ -530,6 +558,36 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
     let next = Rc::new(Cell::new(None::<Instant>));
 
+    // addresses sent by other launches of Sanaga (links opened from other apps)
+    let incoming: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    if single {
+        let _ = std::fs::remove_file(&sock); // left by a Sanaga that did not close cleanly
+        if let Ok(listener) = std::os::unix::net::UnixListener::bind(&sock) {
+            #[allow(deprecated)]
+            let (ltx, lrx) = glib::MainContext::channel::<String>(glib::Priority::DEFAULT);
+            std::thread::Builder::new()
+                .name("sanaga-instance".into())
+                .spawn(move || {
+                    use std::io::Read;
+                    for stream in listener.incoming().flatten() {
+                        let mut text = String::new();
+                        let mut stream = stream;
+                        let _ = stream.read_to_string(&mut text);
+                        let _ = ltx.send(text);
+                    }
+                })
+                .ok();
+            let (incoming, window, area) = (incoming.clone(), window.clone(), area.clone());
+            #[allow(deprecated)]
+            lrx.attach(None, move |text| {
+                incoming.borrow_mut().extend(text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()));
+                window.present();
+                area.queue_render();
+                glib::ControlFlow::Continue
+            });
+        }
+    }
+
     // repaint requests (also from other threads: network, favicons...)
     #[allow(deprecated)]
     let (tx, rx) = glib::MainContext::channel::<Duration>(glib::Priority::DEFAULT);
@@ -608,9 +666,13 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
         });
     }
     {
-        let (gui, input, next, host_rc, im) = (gui.clone(), input.clone(), next.clone(), host_rc.clone(), im.clone());
+        let (gui, input, next, host_rc, im, incoming) = (gui.clone(), input.clone(), next.clone(), host_rc.clone(), im.clone(), incoming.clone());
         area.connect_render(move |area, _| {
             let Ok(mut g) = gui.try_borrow_mut() else { return glib::Propagation::Stop };
+            let arrived: Vec<String> = incoming.borrow_mut().drain(..).collect();
+            if !arrived.is_empty() {
+                g.app.open_from_outside(arrived);
+            }
             paint(&mut g, area, &input, &next, &host_rc, &im);
             glib::Propagation::Stop
         });
@@ -798,6 +860,9 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
     window.show_all();
     base.grab_focus();
     gtk::main();
+    if single {
+        let _ = std::fs::remove_file(&sock);
+    }
     HOST.with(|h| *h.borrow_mut() = None);
     Ok(())
 }

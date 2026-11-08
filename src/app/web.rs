@@ -2,6 +2,8 @@
 //! inside Sanaga's window. Each tab with a web page owns one WebKit view.
 
 use super::*;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use crate::page::{PageSignal, PageView};
 use crate::store;
 use webkit2gtk::{WebViewExt, WebsiteDataManagerExt};
@@ -11,6 +13,8 @@ pub(super) enum WebEvent {
     Title { tab: u64, title: String },
     NewTab { tab: u64, url: String },
     Shortcut(String),
+    /// A page closed itself (a sign-in window when done): its tab closes.
+    CloseTab { tab: u64 },
     /// A message for the person (e.g. a screenshot was saved).
     Notice(String),
     /// A link clicked in a source page: show that file's source.
@@ -111,6 +115,55 @@ fn load_into(w: &PageView, url: &str) {
     }
 }
 
+/// Makes Sanaga's pages, and the pages they open themselves (window.open):
+/// those are linked to their opener and become new tabs (see adopt_popups).
+#[derive(Clone)]
+pub(super) struct PageMaker {
+    ctx: Option<webkit2gtk::WebContext>,
+    scripts: Rc<Vec<String>>,
+    tx: std::sync::mpsc::Sender<WebEvent>,
+    repaint: egui::Context,
+    popups: Rc<RefCell<Vec<(u64, u64, PageView)>>>,
+    ids: Rc<Cell<u64>>,
+}
+
+impl PageMaker {
+    pub(super) fn make(&self, id: u64, private: bool, opener: Option<&webkit2gtk::WebView>) -> PageView {
+        let me = self.clone();
+        let popup: crate::page::PopupMaker = Rc::new(move |op: &webkit2gtk::WebView| {
+            let nid = me.ids.get();
+            me.ids.set(nid + 1);
+            let pv = me.make(nid, private, Some(op));
+            let w = pv.webview();
+            me.popups.borrow_mut().push((id, nid, pv));
+            me.repaint.request_repaint();
+            Some(w)
+        });
+        let (tx, repaint) = (self.tx.clone(), self.repaint.clone());
+        let scripts: Vec<&str> = self.scripts.iter().map(|s| s.as_str()).collect();
+        PageView::new(self.ctx.as_ref(), private, &scripts, opener, Some(popup), move |sig| {
+            let ev = match sig {
+                PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
+                PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
+                PageSignal::Title(title) => WebEvent::Title { tab: id, title },
+                PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
+                PageSignal::Close => WebEvent::CloseTab { tab: id },
+                PageSignal::Message(body) => {
+                    if body.starts_with("pw:") {
+                        WebEvent::Password { tab: id, msg: body }
+                    } else if let Some(u) = body.strip_prefix("vs:") {
+                        WebEvent::ViewSource { tab: id, url: u.to_string() }
+                    } else {
+                        WebEvent::Shortcut(body)
+                    }
+                }
+            };
+            let _ = tx.send(ev);
+            repaint.request_repaint();
+        })
+    }
+}
+
 /// Can WebKit be shown? Only inside Sanaga's GTK window (see shell.rs).
 pub fn web_engine_available() -> bool {
     crate::shell::active()
@@ -123,6 +176,10 @@ impl Sanaga {
             return;
         }
         let n = 0;
+        // pages opened by sites (sign-in windows…) become tabs
+        if !self.popups.borrow().is_empty() {
+            self.adopt_popups();
+        }
         let mut got_event = false;
         while let Ok(ev) = self.web_rx.try_recv() {
             self.on_web_event(ev);
@@ -198,6 +255,11 @@ impl Sanaga {
                 self.open_tab(&url, private);
             }
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
+            WebEvent::CloseTab { tab } => {
+                if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
+                    self.close_tab(i);
+                }
+            }
             WebEvent::Notice(msg) => self.notice = Some((msg, self.ctx.input(|i| i.time))),
             WebEvent::ViewSource { tab, url } => {
                 if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
@@ -309,35 +371,8 @@ impl Sanaga {
                 }
                 let Some(url) = self.tabs[i].web_pending.take() else { continue };
                 let w = self.build_webview(i);
-                let wk = w.webview();
-                crate::shell::attach(&wk);
-                let _ = w.set_visible(show);
-                // Safari's "Prevent cross-site tracking"
-                if let Some(dm) = wk.website_data_manager() {
-                    dm.set_itp_enabled(self.store.settings.itp);
-                }
-                wk.set_is_muted(self.tabs[i].muted);
-                if let Some(st) = WebViewExt::settings(&wk) {
-                    use webkit2gtk::{HardwareAccelerationPolicy as H, SettingsExt};
-                    // test aid: SANAGA_HWACCEL=never|always
-                    match std::env::var("SANAGA_HWACCEL").as_deref() {
-                        Ok("never") => st.set_hardware_acceleration_policy(H::Never),
-                        Ok("always") => st.set_hardware_acceleration_policy(H::Always),
-                        _ => {}
-                    }
-                }
-                // smaller caches: less memory per page
-                if let Some(c) = wk.context() {
-                    webkit2gtk::WebContextExt::set_cache_model(&c, webkit2gtk::CacheModel::DocumentBrowser);
-                }
-                super::plus::watch_permissions(&w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
-                watch_page_input(&w);
-                self.run_pending_clear(&w);
+                self.prepare_view(i, &w, show);
                 load_into(&w, &url);
-                if show {
-                    use gtk::prelude::WidgetExt;
-                    wk.grab_focus();
-                }
                 self.tabs[i].web = Some(w);
                 self.tabs[i].web_shown = show;
                 self.tabs[i].web_zoom = 1.0;
@@ -361,32 +396,85 @@ impl Sanaga {
         }
     }
 
-    fn build_webview(&self, i: usize) -> PageView {
+    /// A new page joins the window: placed, set up (privacy, sound, cache,
+    /// permissions, input) and shown if its tab is.
+    fn prepare_view(&mut self, i: usize, w: &PageView, show: bool) {
+        let wk = w.webview();
+        crate::shell::attach(&wk);
+        let _ = w.set_visible(show);
+        // Safari's "Prevent cross-site tracking"
+        if let Some(dm) = wk.website_data_manager() {
+            dm.set_itp_enabled(self.store.settings.itp);
+        }
+        wk.set_is_muted(self.tabs[i].muted);
+        if let Some(st) = WebViewExt::settings(&wk) {
+            use webkit2gtk::{HardwareAccelerationPolicy as H, SettingsExt};
+            // test aid: SANAGA_HWACCEL=never|always
+            match std::env::var("SANAGA_HWACCEL").as_deref() {
+                Ok("never") => st.set_hardware_acceleration_policy(H::Never),
+                Ok("always") => st.set_hardware_acceleration_policy(H::Always),
+                _ => {}
+            }
+        }
+        // smaller caches: less memory per page
+        if let Some(c) = wk.context() {
+            webkit2gtk::WebContextExt::set_cache_model(&c, webkit2gtk::CacheModel::DocumentBrowser);
+        }
+        super::plus::watch_permissions(w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
+        watch_page_input(w);
+        self.run_pending_clear(w);
+        if show {
+            use gtk::prelude::WidgetExt;
+            wk.grab_focus();
+        }
+    }
+
+    /// Pages that sites opened with window.open (sign-in, payment…): each
+    /// becomes a new tab next to its opener, already loading.
+    pub(super) fn adopt_popups(&mut self) {
+        let list: Vec<(u64, u64, PageView)> = self.popups.borrow_mut().drain(..).collect();
+        for (opener, id, pv) in list {
+            let (private, group) = self.tabs.iter().find(|t| t.id == opener).map(|t| (t.private, t.group)).unwrap_or((false, 0));
+            let i = self.open_tab("sanaga://nouvel-onglet", private);
+            self.focus_address = false;
+            let t = &mut self.tabs[i];
+            t.id = id;
+            t.group = group;
+            t.view = View::Web;
+            t.loading = true;
+            t.web_pending = None;
+            t.address.clear();
+            if let Some(e) = t.entries.get_mut(t.idx) {
+                e.url = "about:blank".into();
+            }
+            self.prepare_view(i, &pv, true);
+            let t = &mut self.tabs[i];
+            t.web = Some(pv);
+            t.web_shown = true;
+            t.web_zoom = 1.0;
+            // right after its opener in the tab row
+            if let Some(o) = self.tabs.iter().position(|t| t.id == opener) {
+                let to = (o + 1).min(self.tabs.len() - 1);
+                self.move_tab(i, to);
+            }
+        }
+    }
+
+    fn page_maker(&self) -> PageMaker {
         let extensions = crate::extensions::init_script(&self.store.extensions_on);
+        PageMaker {
+            ctx: self.web_context.clone(),
+            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), super::accounts::PASSWORD_JS.to_string(), extensions]),
+            tx: self.web_tx.clone(),
+            repaint: self.ctx.clone(),
+            popups: self.popups.clone(),
+            ids: self.popup_ids.clone(),
+        }
+    }
+
+    fn build_webview(&self, i: usize) -> PageView {
         let tab = &self.tabs[i];
-        let id = tab.id;
-        let tx = self.web_tx.clone();
-        let repaint = self.ctx.clone();
-        let scripts = [SHORTCUT_JS, super::accounts::PASSWORD_JS, extensions.as_str()];
-        PageView::new(self.web_context.as_ref(), tab.private, &scripts, move |sig| {
-            let ev = match sig {
-                PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
-                PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
-                PageSignal::Title(title) => WebEvent::Title { tab: id, title },
-                PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
-                PageSignal::Message(body) => {
-                    if body.starts_with("pw:") {
-                        WebEvent::Password { tab: id, msg: body }
-                    } else if let Some(u) = body.strip_prefix("vs:") {
-                        WebEvent::ViewSource { tab: id, url: u.to_string() }
-                    } else {
-                        WebEvent::Shortcut(body)
-                    }
-                }
-            };
-            let _ = tx.send(ev);
-            repaint.request_repaint();
-        })
+        self.page_maker().make(tab.id, tab.private, None)
     }
 
     /// Find in a WebKit page (uses the page's own search).

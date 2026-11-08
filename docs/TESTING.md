@@ -54,3 +54,5 @@ applications, whatever window has the focus.
 | `SANAGA_HWACCEL=never\|always` | force WebKit's hardware acceleration policy |
 | `SANAGA_BENCH_CYCLE=n` | show the next tab every 3 s, n times (memory tests) |
 | `SANAGA_SHOT_STATE=dark,menu,sidebar,…` | states shown by `--screenshot` |
+| `SANAGA_TEST_POPUPS=1` | let pages open windows without a click (to test sign-in windows) |
+| `SANAGA_NO_SANDBOX=1` | run pages without the bubblewrap sandbox |

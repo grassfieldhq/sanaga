@@ -22,8 +22,9 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - **Quiet when idle.** The interface only redraws when something changes.
 - **Native and smooth.** One native GTK window (Wayland or X11): the page and
   the interface are laid out and drawn together, so resizing stays smooth.
-- **Private by default.** Cross-site tracking prevention, a privacy report, an
-  optional ad blocker, passwords kept in the system keyring, no telemetry.
+- **Private and safe by default.** Pages run in a sandbox (bubblewrap),
+  cross-site tracking prevention, a privacy report, an optional ad blocker,
+  passwords kept in the system keyring, no telemetry.
 
 ## Features
 
@@ -177,6 +178,11 @@ engine bridge and a few system services.
   100 % zoom for sharper videos).
 - Window moving, maximising and the title bar integration have extra support for
   Hyprland; other desktops use the standard GTK behaviour.
+
+## Roadmap
+
+What is left before Sanaga is a production-ready daily browser, in order:
+[docs/PRODUCTION.md](docs/PRODUCTION.md).
 
 ## Contributing
 

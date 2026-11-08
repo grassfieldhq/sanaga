@@ -4,6 +4,22 @@ All notable changes to Sanaga are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Sign-in and payment windows opened by sites (`window.open`) are real pages
+  linked to their opener, shown as new tabs, and close themselves when done.
+- One Sanaga per profile: addresses opened from other applications go to the
+  running Sanaga as new tabs.
+- Pages run in WebKit's bubblewrap sandbox when available.
+- Video calls: WebRTC and camera/microphone (with Sanaga's permission prompt).
+- Spell checking in text fields (interface language + English).
+- Crash information written to `crash.log`.
+- `sanaga --export-icon` and `packaging/install.sh` (user install).
+
+### Changed
+- Data files are written safely (copy, then swap) so a crash cannot corrupt them.
+
 ## [0.1.0] — first public release
 
 ### Browser

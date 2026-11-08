@@ -307,6 +307,9 @@ pub struct Sanaga {
     device: Option<devices::DeviceMode>,
     device_ua: Option<(u64, String)>,
     device_touch: Option<webkit2gtk::UserScript>,
+    /// Pages sites opened with window.open, waiting to become tabs: (opener tab, new tab id, page).
+    popups: std::rc::Rc<std::cell::RefCell<Vec<(u64, u64, crate::page::PageView)>>>,
+    popup_ids: std::rc::Rc<std::cell::Cell<u64>>,
     /// Video recording of the simulator.
     recording: Option<recorder::Recording>,
     /// The address being typed in the simulated device's browser.
@@ -456,7 +459,11 @@ impl Sanaga {
         let web_context = if web_ok {
             let c = match web_dir {
                 Some(d) => crate::page::profile_context(&d),
-                None => webkit2gtk::WebContext::new_ephemeral(),
+                None => {
+                    let c = webkit2gtk::WebContext::new_ephemeral();
+                    crate::page::secure_context(&c);
+                    c
+                }
             };
             let (t, r) = (web_tx.clone(), egui_ctx.clone());
             crate::page::watch_downloads(&c, net::download_path_for, move |url, path, ok| {
@@ -511,6 +518,9 @@ impl Sanaga {
             device: None,
             device_ua: None,
             device_touch: None,
+            popups: Default::default(),
+            // far from the ids of ordinary tabs
+            popup_ids: std::rc::Rc::new(std::cell::Cell::new(1 << 40)),
             recording: None,
             device_url_edit: None,
             device_url_new: false,
@@ -746,6 +756,25 @@ impl eframe::App for Sanaga {
 }
 
 impl Sanaga {
+    /// Addresses opened from other applications while Sanaga runs: new tabs.
+    pub fn open_from_outside(&mut self, urls: Vec<String>) {
+        let (engine, home) = (self.store.settings.engine, self.store.settings.home.clone());
+        for u in urls {
+            let (reader, u) = match u.strip_prefix("lecteur:") {
+                Some(rest) => (true, rest.to_string()),
+                None => (false, u),
+            };
+            if u == "apercu:" {
+                self.overview_open = true;
+                continue;
+            }
+            let i = self.open_tab(&input_to_url(&u, engine, &home), false);
+            if reader {
+                self.toggle_reader(i);
+            }
+        }
+    }
+
     /// The web page shown now, if any (it gets the keyboard back).
     pub fn shown_page(&self) -> Option<webkit2gtk::WebView> {
         let t = self.tabs.get(self.active)?;

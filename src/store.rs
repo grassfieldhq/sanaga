@@ -3,7 +3,7 @@
 
 use crate::i18n::{tf, tr};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn now() -> u64 {
@@ -362,7 +362,7 @@ impl Store {
             "home={}\nengine={}\nimages={}\ndark={}\nzoom={}\nrestore_tabs={}\nbookmarks_bar={}\nrenderer={}\nreader_size={}\nreader_theme={}\nitp={}\nntp_reading={}\nntp_frequent={}\nntp_reports={}\nfill_name={}\nfill_email={}\nfill_phone={}\nfill_address={}\npasswords={}\nsync_dir={}\nmemory_saver={}\nlanguage={}\ntoolbar={}\n",
             clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar)
         );
-        let _ = std::fs::write(dir.join("settings.txt"), t);
+        let _ = write_atomic(&dir.join("settings.txt"), t);
     }
 
     pub fn add_visit(&mut self, url: &str, title: &str) {
@@ -394,7 +394,7 @@ impl Store {
         for v in &self.history {
             t.push_str(&format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
         }
-        let _ = std::fs::write(dir.join("history.tsv"), t);
+        let _ = write_atomic(&dir.join("history.tsv"), t);
     }
 
     pub fn clear_history(&mut self) {
@@ -437,7 +437,7 @@ impl Store {
         for b in &self.reading {
             t.push_str(&format!("{}\t{}\n", clean(&b.url), clean(&b.title)));
         }
-        let _ = std::fs::write(dir.join("reading.tsv"), t);
+        let _ = write_atomic(&dir.join("reading.tsv"), t);
     }
 
     pub fn set_site_zoom(&mut self, host: &str, zoom: f32) {
@@ -451,7 +451,7 @@ impl Store {
         }
         let Some(dir) = &self.dir else { return };
         let t: String = self.site_zoom.iter().map(|(h, z)| format!("{}\t{}\n", clean(h), z)).collect();
-        let _ = std::fs::write(dir.join("zoom.tsv"), t);
+        let _ = write_atomic(&dir.join("zoom.tsv"), t);
     }
 
     pub fn save_bookmarks(&self) {
@@ -460,7 +460,7 @@ impl Store {
         for b in &self.bookmarks {
             t.push_str(&format!("{}\t{}\n", clean(&b.url), clean(&b.title)));
         }
-        let _ = std::fs::write(dir.join("bookmarks.tsv"), t);
+        let _ = write_atomic(&dir.join("bookmarks.tsv"), t);
     }
 
     /// Read favourites and reading list again (after a sync brought newer ones).
@@ -489,7 +489,7 @@ impl Store {
         }
         let Some(dir) = &self.dir else { return };
         let t: String = self.permissions.iter().map(|(s, k, a)| format!("{}\t{}\t{}\n", clean(s), k, if *a { "1" } else { "0" })).collect();
-        let _ = std::fs::write(dir.join("permissions.tsv"), t);
+        let _ = write_atomic(&dir.join("permissions.tsv"), t);
     }
 
     /// Forget visits made since `since` (seconds since 1970; 0 = everything).
@@ -501,17 +501,17 @@ impl Store {
     pub fn save_logins(&self) {
         let Some(dir) = &self.dir else { return };
         let t: String = self.logins.iter().map(|(a, b)| format!("{}\t{}\n", clean(a), clean(b))).collect();
-        let _ = std::fs::write(dir.join("logins.tsv"), t);
+        let _ = write_atomic(&dir.join("logins.tsv"), t);
     }
 
     pub fn save_extensions(&self) {
         let Some(dir) = &self.dir else { return };
-        let _ = std::fs::write(dir.join("extensions.txt"), self.extensions_on.join("\n"));
+        let _ = write_atomic(&dir.join("extensions.txt"), self.extensions_on.join("\n"));
     }
 
     pub fn save_session(&self, urls: &[String]) {
         let Some(dir) = &self.dir else { return };
-        let _ = std::fs::write(dir.join("session.txt"), urls.join("\n"));
+        let _ = write_atomic(&dir.join("session.txt"), urls.join("\n"));
     }
 
     pub fn load_session(&self) -> Vec<String> {
@@ -520,6 +520,16 @@ impl Store {
             .map(|t| t.lines().filter(|l| !l.trim().is_empty()).map(|l| l.to_string()).collect())
             .unwrap_or_default()
     }
+}
+
+/// Write a data file safely: into a copy first, then put in place in one go,
+/// so a crash or power cut while writing never leaves a half-written file.
+pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    std::fs::write(&tmp, data)?;
+    std::fs::rename(&tmp, path)
 }
 
 /// First bookmarks, in the interface language (Wikipedia in that language too).
@@ -569,5 +579,19 @@ pub fn day_group(t: u64) -> &'static str {
         tr("Ce mois-ci")
     } else {
         tr("Plus ancien")
+    }
+}
+
+#[cfg(test)]
+mod write_tests {
+    #[test]
+    fn atomic_write_replaces_the_file_and_leaves_no_copy() {
+        let dir = std::env::temp_dir().join(format!("sanaga-atomic-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let f = dir.join("settings.txt");
+        super::write_atomic(&f, "a=1\n").unwrap();
+        super::write_atomic(&f, "a=2\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "a=2\n");
+        assert!(!dir.join("settings.txt.tmp").exists());
     }
 }
