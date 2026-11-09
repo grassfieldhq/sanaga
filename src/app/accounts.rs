@@ -34,7 +34,9 @@ impl Sanaga {
     /// Messages from the page script: a login was sent, or sign-in fields
     /// appeared (the saved accounts are then offered in Sanaga's bar).
     pub(super) fn on_password_msg(&mut self, tab: u64, msg: &str) {
-        if !self.store.settings.passwords {
+        // (a window without a profile folder, such as a guest window, keeps
+        // no password and never reaches another profile's keyring entries)
+        if !self.store.settings.passwords || self.store.data_dir().is_none() {
             return;
         }
         let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };

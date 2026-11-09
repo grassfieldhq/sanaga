@@ -79,6 +79,9 @@ impl Sanaga {
                 };
                 Provider::Ollama { model }
             }
+            // (a window without a profile folder, such as a guest window,
+            // never reads a profile's key)
+            "claude" if self.store.data_dir().is_none() => Provider::Local,
             "claude" => match crate::keyring::lookup(&self.store.profile, ai::KEY_SITE, "claude") {
                 Some(key) if !key.is_empty() => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, key },
                 _ => Provider::Local,

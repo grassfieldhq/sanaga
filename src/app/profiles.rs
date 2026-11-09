@@ -139,7 +139,7 @@ impl Sanaga {
             let clip = Rect::from_min_max(pos2(av.right() + 6.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
             ui.painter().with_clip_rect(clip).galley(pos2(clip.left(), cy - g.size().y / 2.0), g, th.text);
         }
-        if resp.tip(&tf("{} — profils", &[&info.name])).clicked() {
+        if resp.tip(tf("{} — profils", &[&info.name])).clicked() {
             self.profile_open = !self.profile_open;
             self.menu_open = false;
             self.overflow_open = false;
@@ -433,7 +433,8 @@ impl Sanaga {
                 if create {
                     if let Some(key) = new_key(&self.new_profile_name) {
                         let dir = Store::profile_dir(&key);
-                        let _ = std::fs::create_dir_all(&dir);
+                        // (the person's data: closed to other users)
+                        crate::store::ensure_private_dir(&dir);
                         // its name, colour and this window's language and look
                         let st = &self.store.settings;
                         let first = format!(
@@ -445,7 +446,7 @@ impl Sanaga {
                             if self.new_profile_color == 0 { 1 } else { self.new_profile_color }
                         );
                         if !dir.join("settings.txt").exists() {
-                            let _ = std::fs::write(dir.join("settings.txt"), first);
+                            let _ = crate::store::write_atomic(&dir.join("settings.txt"), first);
                         }
                         self.new_profile_name.clear();
                         self.profile_section = 0;
@@ -571,7 +572,9 @@ impl Sanaga {
                         // a centred square, 256 pixels
                         let s = img.width().min(img.height());
                         let sq = img.crop_imm((img.width() - s) / 2, (img.height() - s) / 2, s, s).resize_exact(256, 256, image::imageops::FilterType::Lanczos3);
-                        if sq.to_rgba8().save(dir.join("avatar.png")).is_ok() {
+                        // (kept like the profile's other files: 0600)
+                        let mut png = std::io::Cursor::new(Vec::new());
+                        if sq.to_rgba8().write_to(&mut png, image::ImageFormat::Png).is_ok() && crate::store::write_atomic(&dir.join("avatar.png"), png.into_inner()).is_ok() {
                             self.avatar_tex.clear();
                         }
                     }

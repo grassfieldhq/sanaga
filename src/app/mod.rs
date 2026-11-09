@@ -662,7 +662,8 @@ impl Sanaga {
         }
         // site icons (loaded by WebKit with their pages): kept in Sanaga's
         // folder; nothing written while taking a screenshot
-        crate::favicon::setup(Store::root_dir().join("favicons"), screenshot.is_none());
+        // (a guest window writes none: it keeps nothing)
+        crate::favicon::setup(Store::root_dir().join("favicons"), screenshot.is_none() && !guest);
         let web_ok = screenshot.is_none() && web_engine_available();
         // (created after GTK is started)
         let web_context = if web_ok {
