@@ -285,6 +285,36 @@ extended to it:
 | Codec packages | no privileged helper anywhere; the Arch and Fedora packages (codecs as dependencies) are now built with `SANAGA_DISTRO`; the Flatpak never offers; the .deb shares its program with the generic archive, which keeps the offer; Arch, Debian and Fedora packages depend on bubblewrap and xdg-dbus-proxy (`a315780`) | — |
 | Release workflow | only GitHub's own token, used by `gh`, nothing printed; now read-only by default and writable for the publish job only, every action pinned to a commit, the Flatpak source generator fetched at a fixed commit (`a315780`). Left as designed by the owner: a release is published on every push to main, and its tag is moved by force to the new commit | — |
 
+## Second merge of main (0.2.0 to 0.4.0) and the delta audit's items
+
+A delta audit of the first merge (PASS WITH CONDITIONS) found D1 (the
+certificate allowance outlived the error page), D2 (a background tab's
+dialog took the front) and D3 (a frame's prompt looked like the site's).
+The owner then pushed four commits (0.2.0; lighter on processor and memory,
+Google sign-in inside X and Reddit; Chrome-like profiles, guest window and
+the Share popover; 0.4.0, bare semver tags) and decided that releases are
+published only from version tags, never replacing a release.
+
+The merge (`80bc2e4`) kept every rule: the password script merged cleanly
+(click-only fill, isolated world, origin re-check, trusted submissions,
+main's lighter field watcher); the socket rules stay (a guest window runs
+on its own, as on main); the WebKit sessions keep their favicons and gain
+main's memory limits; `load_url` keeps the typed-address download
+allowance and gains main's per-site identity; `codecs.rs` keeps
+`SANAGA_DISTRO` and learns main's hardware AV1/VP9 detection.
+
+| Item | Fix |
+|---|---|
+| **D1** | the error page's buttons carry a per-page secret that Sanaga gives to its isolated world when that error page is committed (a page has no way to read or set it; the `data-sanaga-error` attribute is gone); Rust accepts `tls-allow`/`safe` only with that secret, while the tab still shows that error page (WebKit's address is the failed URL, committed and armed), and drops the allowance at the tab's next commit (`errors::error_action_arg`, tested) |
+| **D2** | a page's question waits on its own tab and is shown only when that tab is; a background tab never takes the front |
+| **D3** | script dialogs say "A page on <site> says:" (WebKit gives no frame origin: it may be a frame of another site) |
+| Google sign-in (main) | identity changes only for real link clicks (main's fix: a sign-in frame no longer replaces the tab); popups stay linked pages of the same session; Storage Access granted without asking only to identity providers (Google, Apple, Microsoft, Auth0, Okta: `guard::sign_in_provider`, tested); Facebook, X, LinkedIn frames are asked about, as in Safari; grants stay inside their profile, container or private session |
+| Profiles (main) | each profile has its folder (0700, files 0600: new profile folders, its first settings and its photo now written that way), its WebKit data, its keyring namespace and its own process, so its download allowances too |
+| Guest window (main) | keeps nothing: its store and WebKit session are in memory; it now also writes no favicon to the shared cache, saves and offers no password, and never reads a profile's Claude key |
+| Share popover (main) | everything starts from Sanaga's own buttons; the link is copied only on a click; "Send to" opens the sharing site with the page's address in a tab of the same kind (private, or the same container: fixed); the QR code is made locally; e-mail goes through `xdg-open mailto:` with the address and title encoded |
+| Lighter on processor and memory (main) | memory-pressure limits for page and network processes, GPU canvas, a lighter field watcher, slower idle ticks: no sandbox, tracking-prevention or process-separation setting changed |
+| Releases (owner's decision) | `release.yml` runs only on pushed version tags (bare semver); no tag is ever moved and no release replaced (an existing release stops the build); `permissions: contents: read` in both workflows, write for the publish job only; actions pinned to commits, build containers pinned by digest (`c4dfad8`) |
+
 ## Build and test status
 
 | Check | Result |
@@ -292,7 +322,7 @@ extended to it:
 | `cargo fetch --locked` (Cargo.lock consistent with Cargo.toml) | passes |
 | `cargo clippy --locked --all-targets -- -D warnings` (debug, WebKit pkg-config stubbed: `SYSTEM_DEPS_WEBKITGTK_6_0_NO_PKG_CONFIG=1`, same for `JAVASCRIPTCOREGTK_6_0`) | passes |
 | `cargo clippy --locked --bin sanaga -- -D warnings` with `debug-assertions` off (the release `cfg` paths: test hooks compiled out) | passes |
-| `cargo test --manifest-path tools/guard-tests/Cargo.toml` | 20 passed (after the merge of main and its fixes) |
+| `cargo test --manifest-path tools/guard-tests/Cargo.toml` | 21 passed (after the second merge of main and its fixes) |
 | `cargo build`, `cargo test` of the whole crate | **not run**: WebKitGTK 6 is not installed on the machine used; the other new tests (translation batches, tool-less AI, file permissions, system certificates, extension matches) were type-checked but not executed |
 | `python3 tools/i18n.py check` | all texts translated |
 
@@ -341,3 +371,9 @@ separate question for the owner and were left as they are.
 18. A script's `a.dispatchEvent(new MouseEvent('click', {ctrlKey: true}))`
     opens no tab; Ctrl+click on a `sanaga://` or `file:` link from a web page
     opens nothing; Shift+click in a container opens a tab in that container.
+19. After a certificate error page, the next page of the same host (even
+    while it loads) cannot grant the exception; an `alert()` in a background
+    tab waits there; a guest window saves no password and writes no favicon.
+20. "Sign in with Google" inside x.com and reddit.com works; a Facebook
+    frame's storage access is asked about; Share › X from a container opens
+    in that container.

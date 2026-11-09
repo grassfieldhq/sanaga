@@ -32,6 +32,13 @@ All notable changes to Sanaga are listed here. The format follows
   containers apart; codec packages are built with `SANAGA_DISTRO` and depend
   on WebKit's sandbox; release actions pinned, write access for publishing
   only.
+- After the second merge of main: the certificate error page's buttons
+  need a per-page secret and the exception ends at the tab's next page; a
+  background tab's dialog waits on its tab; frames' prompts are worded
+  neutrally; storage access without asking only for identity providers;
+  guest windows keep no password or favicon; profile files 0600; Share
+  keeps private tabs and containers apart; releases only from version
+  tags, never replaced.
 - Favicons come from WebKit; AI-written extensions are installed switched
   off; private temporary folders; escaped `.desktop` entries; a checked and
   bounded single-instance socket; debug-only test hooks; private data
