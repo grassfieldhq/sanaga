@@ -940,3 +940,4 @@ Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres ›
 {} sur {}⟂{} of {}⟂{} de {}⟂{} de {}⟂{} von {}
 Sélecteur d'onglets (Ctrl+Tab)⟂Tab switcher (Ctrl+Tab)⟂Selector de pestañas (Ctrl+Tab)⟂Seletor de separadores (Ctrl+Tab)⟂Tab-Umschalter (Strg+Tab)
 Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets⟂The tabs used last, as pictures; Ctrl+Page Down follows the tab bar⟂Las pestañas usadas por última vez, en imágenes; Ctrl+Av Pág sigue la barra de pestañas⟂Os separadores usados por último, em imagens; Ctrl+Page Down segue a barra de separadores⟂Die zuletzt genutzten Tabs als Bilder; Strg+Bild ab folgt der Tableiste
+Ouvrir le lien dans un onglet privé⟂Open link in a private tab⟂Abrir el enlace en una pestaña privada⟂Abrir a ligação num separador privado⟂Link in privatem Tab öffnen

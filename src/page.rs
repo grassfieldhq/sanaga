@@ -25,6 +25,10 @@ pub enum PageSignal {
     /// A page tool asked from the page's right-click menu: what, and the
     /// address it is about (a link…).
     Tool(&'static str, String),
+    /// A link opened elsewhere, as browsers do: Ctrl+click or middle click
+    /// (0, a tab behind), Ctrl+Shift+click (1, a tab in front), Shift+click
+    /// (2, a new window).
+    OpenLink(String, u8),
 }
 
 /// Makes the page a site opens with `window.open` (sign-in, payment windows):
@@ -378,7 +382,29 @@ impl PageView {
         // that refuse WebKit, or the person's choice): set before the page is
         // asked for. A simulated device's identity is left alone.
         let default_ua = WebViewExt::settings(&view).and_then(|s| s.user_agent()).map(|u| u.to_string()).unwrap_or_default();
+        let o = on.clone();
         view.connect_decide_policy(move |v, decision, kind| {
+            // Ctrl+click, middle click, Shift+click on a link: a new tab or
+            // window (WebKit leaves this to the browser)
+            if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
+                if let Some(a) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>().and_then(|n| n.navigation_action()) {
+                    let m = a.modifiers();
+                    let ctrl = m & gtk::gdk::ModifierType::CONTROL_MASK.bits() != 0;
+                    let shift = m & gtk::gdk::ModifierType::SHIFT_MASK.bits() != 0;
+                    let middle = a.mouse_button() == 2;
+                    if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
+                        eprintln!("navigation {:?} kind={kind:?} modifiers={m:#x} button={} gesture={}", a.navigation_type(), a.mouse_button(), a.is_user_gesture());
+                    }
+                    if a.navigation_type() == webkit6::NavigationType::LinkClicked && (ctrl || middle || shift) {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| !u.starts_with("javascript:")) {
+                            let how = if (ctrl || middle) && shift { 1 } else if ctrl || middle { 0 } else { 2 };
+                            decision.ignore();
+                            o(PageSignal::OpenLink(u, how));
+                            return true;
+                        }
+                    }
+                }
+            }
             // A file the browser cannot show (archive, installer, unknown
             // type): downloaded, as in Chrome (WebKit would just ignore it).
             if kind == webkit6::PolicyDecisionType::Response {
@@ -435,6 +461,7 @@ impl PageView {
             if hit.context_is_link() {
                 if let Some(link) = hit.link_uri() {
                     add(crate::i18n::tr("Aperçu du lien"), "preview", link.to_string());
+                    add(crate::i18n::tr("Ouvrir le lien dans un onglet privé"), "private-link", link.to_string());
                     add(crate::i18n::tr("Ouvrir le lien dans un conteneur…"), "container-link", link.to_string());
                 }
             }

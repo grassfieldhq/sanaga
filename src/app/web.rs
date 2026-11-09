@@ -34,6 +34,8 @@ pub(super) enum WebEvent {
     PageText { tab: u64, text: String },
     /// A page tool (right-click menu, or an answer of a tool's script).
     Tool { tab: u64, what: String, arg: String },
+    /// A link Ctrl+clicked / middle-clicked / Shift+clicked (see PageSignal::OpenLink).
+    OpenLink { tab: u64, url: String, how: u8 },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -192,6 +194,7 @@ impl PageMaker {
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
                 PageSignal::Tool(what, arg) => WebEvent::Tool { tab: id, what: what.to_string(), arg },
+                PageSignal::OpenLink(url, how) => WebEvent::OpenLink { tab: id, url, how },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         WebEvent::Tool { tab: id, what: what.to_string(), arg: arg.to_string() }
@@ -315,6 +318,7 @@ impl Sanaga {
                 self.tabs[i].container = container;
             }
             WebEvent::Tool { tab, what, arg } => self.page_tool(tab, &what, &arg),
+            WebEvent::OpenLink { tab, url, how } => self.open_link_from(tab, &url, how),
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
             WebEvent::Crashed { tab, memory } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {

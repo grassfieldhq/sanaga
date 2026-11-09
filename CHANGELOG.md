@@ -34,6 +34,7 @@ All notable changes to Sanaga are listed here. The format follows
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
 ### Added (November 2026)
+- Right-click a link › Open link in a private tab.
 - Tab switcher: Ctrl+Tab shows the tabs used last as pictures (most recent
   first); Ctrl+Page Down / Up follow the tab bar.
 - Containers: tabs with their own cookies, logins and site data.
@@ -67,6 +68,8 @@ All notable changes to Sanaga are listed here. The format follows
 - Ctrl+N opens a new window (it opened a tab).
 
 ### Fixed
+- Ctrl+click / middle click on a link opens it in a tab behind (Ctrl+Shift:
+  in front, Shift: a new window), under the page and in its container.
 - A file the browser cannot show (archive, installer, unknown type) sent
   without a “download” header was silently ignored; it is now downloaded.
 - Clicking an address suggestion did nothing.

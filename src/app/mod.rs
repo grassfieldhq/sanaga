@@ -1274,6 +1274,10 @@ impl Sanaga {
                             }
                         }
                         "title" => eprintln!("live title {}", self.tabs[self.active].title()),
+                        "tabs" => {
+                            let list: Vec<String> = self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
+                            eprintln!("live tabs {}", list.join(" | "));
+                        }
                         a if a.starts_with("key:") => {
                             if let Some(key) = egui::Key::from_name(&a[4..]) {
                                 let m = Default::default();
