@@ -3,13 +3,9 @@
 # Tags and releases are the version of Cargo.toml exactly, as Semantic
 # Versioning writes it: 0.4.0, 1.2.3, 2.0.0-beta.1 (no "v" in front).
 #
-#   push to main        → the release <version> is made, or its packages
-#                          replaced if it exists (its tag moves to the commit)
-#   push a tag 1.2.3    → the release 1.2.3 (the tag must be the version in
-#                          Cargo.toml)
-#   Actions › Release › Run workflow → same as a push to main
-#
-# A new version number in Cargo.toml therefore gives a new release; a version
+# A release is made only when a version tag is pushed (the tag must be the
+# version in Cargo.toml): never on a push to main. A published version is
+# never replaced and its tag never moved: a fix is a new version. A version
 # with a pre-release part (1.0.0-rc.1) is published as a pre-release.
 #
 # Packages: Flatpak (every distribution, video codecs included), .deb
@@ -20,10 +16,8 @@ name: Release
 
 on:
   push:
-    branches: [main]
-    # MAJOR.MINOR.PATCH, with or without a pre-release part
+    # only version tags: MAJOR.MINOR.PATCH, with or without a pre-release part
     tags: ["[0-9]+.[0-9]+.[0-9]+", "[0-9]+.[0-9]+.[0-9]+-*"]
-  workflow_dispatch:
 
 # (read only by default; only the job that publishes may write: see publish)
 permissions:
@@ -31,7 +25,7 @@ permissions:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -54,11 +48,13 @@ jobs:
             echo "::error::The version \"$version\" in Cargo.toml is not a Semantic Versioning version (e.g. 1.2.3)."
             exit 1
           fi
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            if [[ "${GITHUB_REF#refs/tags/}" != "$version" ]]; then
-              echo "::error::The tag ${GITHUB_REF#refs/tags/} is not the version $version in Cargo.toml. Put the same version in Cargo.toml (and pkgver in packaging/arch/PKGBUILD), commit, then put the tag on that commit (see docs/RELEASING.md)."
-              exit 1
-            fi
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::Releases are made from a version tag only."
+            exit 1
+          fi
+          if [[ "${GITHUB_REF#refs/tags/}" != "$version" ]]; then
+            echo "::error::The tag ${GITHUB_REF#refs/tags/} is not the version $version in Cargo.toml. Put the same version in Cargo.toml (and pkgver in packaging/arch/PKGBUILD), commit, then put the tag on that commit (see docs/RELEASING.md)."
+            exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$version" >> "$GITHUB_OUTPUT"
@@ -111,7 +107,7 @@ jobs:
     needs: version
     runs-on: ubuntu-24.04
     # the oldest Fedora the package is for (it also runs on the newer ones)
-    container: fedora:43
+    container: fedora:43@sha256:f01112b9a1f1d0504ad962d9adfa401425033f8ab067e0a821904ebdde5b8ca5
     steps:
       - name: System libraries
         run: dnf install -y --allowerasing git gcc pkgconf-pkg-config gtk4-devel webkitgtk6.0-devel libsoup3-devel curl tar gzip xz
@@ -140,7 +136,7 @@ jobs:
     name: Arch Linux (.pkg.tar.zst)
     needs: version
     runs-on: ubuntu-24.04
-    container: archlinux:latest
+    container: archlinux:latest@sha256:b1c2fe6e717bfd5673af8fc217e1e1c3ce0dcbb1d53c3414c8425e7ce79fc6d9
     steps:
       - name: System libraries
         run: pacman -Syu --noconfirm --needed base-devel git rust gtk4 webkitgtk-6.0 gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-libav libsecret hicolor-icon-theme
@@ -167,7 +163,7 @@ jobs:
     needs: version
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50@sha256:1de59efef01a946d9f28f1ec3458bf6f61dcee3507d7fecdd473f8134da4ec77
       options: --privileged
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -215,24 +211,16 @@ jobs:
           cat packaging/RELEASE-INSTALL.md >> notes.md
       - name: Publish
         run: |
-          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
-            # built from main: the version's tag points at this commit
-            git tag -f "$TAG" "$GITHUB_SHA"
-            git push -f origin "refs/tags/$TAG"
-          fi
           # 1.2.3-beta.1: a pre-release (never shown as the latest one)
           if [[ "$VERSION" == *-* ]]; then
             kind=(--prerelease)
-            edit_kind=(--prerelease)
           else
             kind=(--latest)
-            edit_kind=(--prerelease=false --latest)
           fi
+          # a published version is never replaced (its packages and its tag
+          # stay what they were): a fix is a new version
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "$TAG" --notes-file notes.md "${edit_kind[@]}"
-            # the packages of the earlier build go
-            for a in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do gh release delete-asset "$TAG" "$a" --yes; done
-          else
-            gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag "${kind[@]}"
+            echo "::error::The release $TAG exists already: publish a new version instead."
+            exit 1
           fi
-          gh release upload "$TAG" dist/* --clobber
+          gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag "${kind[@]}" dist/*
