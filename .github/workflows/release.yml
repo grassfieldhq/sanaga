@@ -46,7 +46,7 @@ jobs:
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             if [[ "${GITHUB_REF#refs/tags/}" != "v$version" ]]; then
-              echo "::error::The tag ${GITHUB_REF#refs/tags/} does not match the version $version in Cargo.toml"
+              echo "::error::The tag ${GITHUB_REF#refs/tags/} does not match the version $version in Cargo.toml. Put the same version in Cargo.toml (and pkgver in packaging/arch/PKGBUILD), commit, then put the tag on that commit (see docs/RELEASING.md)."
               exit 1
             fi
           fi

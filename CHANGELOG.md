@@ -6,6 +6,8 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-09
+
 ### Added
 - Sign-in and payment windows opened by sites (`window.open`) are real pages
   linked to their opener, shown as new tabs, and close themselves when done.

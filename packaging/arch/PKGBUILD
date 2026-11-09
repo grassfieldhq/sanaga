@@ -2,7 +2,7 @@
 # The video codecs YouTube & co. need come in as dependencies: nothing to
 # install by hand.
 pkgname=sanaga
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="A fast, light web browser built on WebKitGTK: containers, network ad blocker, per-site settings, mobile simulator"
 arch=('x86_64' 'aarch64')
