@@ -37,8 +37,23 @@ impl Provider {
     }
 }
 
+/// May this provider receive the text of web pages (summary, translation)?
+/// A page's text can try to give the model orders, so only models with no
+/// tools and no access to the person's files may: Claude (API), Ollama, and
+/// the assistants that can be started tool-less.
+pub fn page_content_allowed(provider: &Provider) -> Result<(), String> {
+    match provider {
+        Provider::Cli { tool, .. } if !tool.tool_less() => Err(crate::i18n::tf(
+            "{} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.",
+            &[&tool.name()],
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn agent(read_secs: u64) -> ureq::Agent {
-    ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
+    // (the system's certificate authorities: see net::builder)
+    crate::net::builder().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
 }
 
 /// The models installed in Ollama (empty when Ollama is not running).
@@ -385,6 +400,16 @@ mod tests {
         assert!(s.starts_with("Douala is the largest city"));
         assert!(s.contains("• "));
         assert!(!s.contains("Menu"));
+    }
+
+    #[test]
+    fn page_text_goes_only_to_tool_less_models() {
+        use crate::ai_cli::CliTool;
+        assert!(page_content_allowed(&Provider::Cli { tool: CliTool::ClaudeCode, model: String::new() }).is_ok());
+        assert!(page_content_allowed(&Provider::Cli { tool: CliTool::Codex, model: String::new() }).is_err());
+        assert!(page_content_allowed(&Provider::Cli { tool: CliTool::Gemini, model: String::new() }).is_err());
+        assert!(page_content_allowed(&Provider::Ollama { model: "llama3.2".into() }).is_ok());
+        assert!(page_content_allowed(&Provider::Local).is_ok());
     }
 
     #[test]

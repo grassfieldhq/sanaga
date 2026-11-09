@@ -151,6 +151,7 @@ pub fn set_tooltip(text: String) {
 }
 
 /// Test aid: a mouse click at (x, y), pressed then released.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn gtk_click(x: f64, y: f64, button: u32) {
     let b = match button {
         3 => PointerButton::Secondary,
@@ -166,6 +167,7 @@ pub fn gtk_click(x: f64, y: f64, button: u32) {
 }
 
 /// Test aid: like `inject`, optionally all in one frame.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn inject_together(together: bool, events: Vec<Event>) {
     if together {
         INJECT_NOW.with(|i| i.borrow_mut().extend(events));
@@ -178,6 +180,7 @@ pub fn inject_together(together: bool, events: Vec<Event>) {
 }
 
 /// Test aid: input events added to the next frames.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn inject(events: Vec<Event>) {
     INJECT.with(|i| i.borrow_mut().extend(events));
     if let Some(h) = host() {
@@ -267,6 +270,7 @@ fn children(w: &impl IsA<gtk::Widget>) -> Vec<gtk::Widget> {
 }
 
 /// Test aid: where each part of the window really is.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn debug_allocations() {
     let Some(h) = host() else { return };
     for c in children(&h.overlay) {
@@ -348,6 +352,7 @@ fn watch_gestures(view: &webkit6::WebView, host: std::rc::Weak<Host>) {
 const SWIPE_GO: f64 = 22.0;
 
 /// Test aid: the swipe arrow, and the navigation a finished swipe asks for.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn test_swipe(dir: i32, progress: f64, finish: bool) {
     let Some(h) = host() else { return };
     show_swipe(&h, dir, progress);
@@ -425,7 +430,8 @@ pub fn float_window(engine: Option<&crate::page::Engine>, title: &str, url: Opti
     win.set_titlebar(Some(&header));
     win.set_child(Some(&view));
     match (url, html) {
-        (Some(u), _) => view.load_uri(u),
+        // (asked for by the person: a link preview, a floating video)
+        (Some(u), _) => crate::page::load_by_person(&view, u),
         (None, Some((page, base))) => view.load_html(page, Some(base)),
         _ => return false,
     }
@@ -784,15 +790,47 @@ fn frame_for(slot: usize, delay: Duration) {
 }
 
 /// Where the running Sanaga listens for addresses opened from elsewhere (one
-/// per data folder and profile).
-fn instance_socket(urls: &[String]) -> std::path::PathBuf {
+/// per data folder and profile): in $XDG_RUNTIME_DIR only (the user's own
+/// closed folder). Without it, every launch runs on its own.
+fn instance_socket(urls: &[String]) -> Option<std::path::PathBuf> {
     use std::hash::{Hash, Hasher};
     let profile = urls.iter().find_map(|u| u.strip_prefix("profil:")).unwrap_or("");
     let mut h = std::collections::hash_map::DefaultHasher::new();
     crate::store::Store::root_dir().hash(&mut h);
     profile.hash(&mut h);
-    let dir = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    dir.join(format!("sanaga-{:016x}.sock", h.finish()))
+    Some(crate::store::runtime_dir()?.join(format!("sanaga-{:016x}.sock", h.finish())))
+}
+
+// (message limits and checks: see guard.rs, testable without GTK)
+use crate::guard::{accept_forwarded, allow_message, read_bounded, MAX_LINES, MAX_MESSAGE, MAX_READERS, READ_DEADLINE};
+
+thread_local! {
+    /// When the last messages from other launches arrived (rate limit).
+    static RECENT_MESSAGES: RefCell<std::collections::VecDeque<Instant>> = const { RefCell::new(std::collections::VecDeque::new()) };
+}
+
+/// Connections being read now (each on its own short-lived thread).
+static READERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Is the other end of the socket this same user (SO_PEERCRED)?
+#[cfg(target_os = "linux")]
+fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
+    use std::os::unix::io::AsRawFd;
+    let mut cred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    // SAFETY: a valid socket, and a buffer of `len` bytes for the answer.
+    let rc = unsafe { libc::getsockopt(stream.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, (&mut cred as *mut libc::ucred).cast(), &mut len) };
+    // SAFETY: getuid has no preconditions and cannot fail.
+    rc == 0 && len as usize == std::mem::size_of::<libc::ucred>() && cred.uid == unsafe { libc::getuid() }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
+    use std::os::unix::io::AsRawFd;
+    let (mut uid, mut gid) = (0, 0);
+    // SAFETY: a valid socket and two places for the answer.
+    let rc = unsafe { libc::getpeereid(stream.as_raw_fd(), &mut uid, &mut gid) };
+    rc == 0 && uid == unsafe { libc::getuid() }
 }
 
 /// Sanaga already runs with this data: hand it the addresses (it opens them
@@ -805,9 +843,17 @@ fn forward_to_running(sock: &std::path::Path, urls: &[String]) -> bool {
     s.write_all(list.join("\n").as_bytes()).is_ok()
 }
 
-/// Addresses sent by another launch of Sanaga (on the main loop).
+/// Addresses sent by another launch of Sanaga (on the main loop): only what
+/// `accept_forwarded` lets through.
 fn incoming(text: String, profile: Vec<String>) {
-    let lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+    // a few messages at a time
+    if !RECENT_MESSAGES.with(|r| allow_message(&mut r.borrow_mut(), Instant::now())) {
+        return;
+    }
+    let lines: Vec<String> = text.lines().filter_map(accept_forwarded).take(MAX_LINES).collect();
+    if lines.is_empty() {
+        return;
+    }
     if lines.iter().any(|l| l == "nouvelle-fenetre:") {
         // `sanaga --new-window`: a window of its own
         let mut w: Vec<String> = lines.into_iter().filter(|l| l != "nouvelle-fenetre:").collect();
@@ -848,10 +894,13 @@ pub fn run(urls: Vec<String>) -> Result<(), String> {
 fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     // one Sanaga per data folder and profile (web apps run on their own; a
     // screenshot never talks to a running Sanaga)
-    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:") || u == "invite:");
     let sock = instance_socket(&urls);
-    if single && forward_to_running(&sock, &urls) {
-        return Ok(());
+    // (a guest window keeps nothing and runs on its own too)
+    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:") || u == "invite:") && sock.is_some();
+    if let Some(sock) = sock.as_ref().filter(|_| single) {
+        if forward_to_running(sock, &urls) {
+            return Ok(());
+        }
     }
     glib::set_prgname(Some("sanaga"));
     glib::set_application_name("Sanaga");
@@ -868,20 +917,48 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     }
 
     // addresses sent by other launches of Sanaga (links opened from other apps)
-    if single {
-        let _ = std::fs::remove_file(&sock); // left by a Sanaga that did not close cleanly
-        if let Ok(listener) = std::os::unix::net::UnixListener::bind(&sock) {
+    if let Some(sock) = sock.as_ref().filter(|_| single) {
+        let _ = std::fs::remove_file(sock); // left by a Sanaga that did not close cleanly
+        if let Ok(listener) = std::os::unix::net::UnixListener::bind(sock) {
+            use std::os::unix::fs::PermissionsExt;
+            // only this user (the folder is closed already)
+            let _ = std::fs::set_permissions(sock, std::fs::Permissions::from_mode(0o600));
             let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
+            // (accepting never waits for a peer: a slow or silent one can't
+            // hold up the others)
+            let _ = listener.set_nonblocking(true);
             std::thread::Builder::new()
                 .name("sanaga-instance".into())
-                .spawn(move || {
-                    use std::io::Read;
-                    for stream in listener.incoming().flatten() {
-                        let mut text = String::new();
-                        let mut stream = stream;
-                        let _ = stream.read_to_string(&mut text);
-                        let profile = profile.clone();
-                        glib::MainContext::default().invoke(move || incoming(text, profile));
+                .spawn(move || loop {
+                    let stream = match listener.accept() {
+                        Ok((s, _)) => s,
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            std::thread::sleep(Duration::from_millis(50));
+                            continue;
+                        }
+                        Err(_) => {
+                            std::thread::sleep(Duration::from_millis(200));
+                            continue;
+                        }
+                    };
+                    // the same user only, a few connections at a time
+                    if !same_user(&stream) || READERS.load(std::sync::atomic::Ordering::Relaxed) >= MAX_READERS {
+                        continue;
+                    }
+                    let _ = stream.set_nonblocking(false);
+                    READERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let profile = profile.clone();
+                    let started = std::thread::Builder::new().name("sanaga-instance-read".into()).spawn(move || {
+                        // a small message, sent at once: a slow peer is dropped
+                        let message = read_bounded(&stream, MAX_MESSAGE, READ_DEADLINE);
+                        READERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                        if let Some(buf) = message {
+                            let text = String::from_utf8_lossy(&buf).to_string();
+                            glib::MainContext::default().invoke(move || incoming(text, profile));
+                        }
+                    });
+                    if started.is_err() {
+                        READERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                     }
                 })
                 .ok();
@@ -913,8 +990,8 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     }
     drop(first);
     main.run();
-    if single {
-        let _ = std::fs::remove_file(&sock);
+    if let Some(sock) = sock.as_ref().filter(|_| single) {
+        let _ = std::fs::remove_file(sock);
     }
     WINDOWS.with(|w| w.borrow_mut().clear());
     HOST.with(|h| *h.borrow_mut() = None);

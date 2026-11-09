@@ -28,12 +28,40 @@ fn icon(kind: LoadError) -> &'static str {
     }
 }
 
+/// Sanaga's error page shown in a tab: the failure, the address that failed,
+/// and the secret its buttons must send back (given to Sanaga's isolated
+/// world once the error page is committed; a new page has none).
+pub(super) struct ErrorPage {
+    pub kind: LoadError,
+    pub url: String,
+    pub token: u64,
+    pub shown: bool,
+}
+
+/// A fresh secret for one error page.
+pub(super) fn new_token() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+    h.finish().max(1)
+}
+
+/// The action an error-page button sent ("token|argument"), if its secret
+/// is this page's.
+pub(super) fn error_action_arg(arg: &str, token: u64) -> Option<&str> {
+    let (t, rest) = arg.split_once('|')?;
+    (token != 0 && t.parse::<u64>().ok() == Some(token)).then_some(rest)
+}
+
 impl Sanaga {
     /// A page did not load: Sanaga's page in its place.
     pub(super) fn show_load_error(&mut self, tab: u64, url: &str, kind: LoadError, detail: &str) {
         let Some(i) = self.tabs.iter().position(|t| t.id == tab) else { return };
         self.tabs[i].loading = false;
         self.error_tabs.insert(tab);
+        // what this tab's error page may ask of Sanaga (its buttons): only
+        // for this failure, while it is shown (armed once it is committed)
+        self.error_pages.insert(tab, ErrorPage { kind, url: url.to_string(), token: 0, shown: false });
         let html = self.error_html(url, kind, detail);
         if let Some(w) = &self.tabs[i].web {
             w.webview().load_alternate_html(&html, url, None);
@@ -86,7 +114,8 @@ impl Sanaga {
         let web = url.starts_with("http://") || url.starts_with("https://");
         let mut buttons = String::new();
         if kind == LoadError::Certificate {
-            buttons.push_str(&format!("<button class=\"primary\" onclick=\"if(history.length>1)history.back();else if(window.ipc)window.ipc.postMessage('tool:safe:')\">{}</button>", tr("Revenir en lieu sûr")));
+            // (Sanaga's own buttons: handled by its isolated script, checked in Rust)
+            buttons.push_str(&format!("<button class=\"primary\" data-sanaga-action=\"safe\">{}</button>", tr("Revenir en lieu sûr")));
         } else {
             buttons.push_str(&format!("<button class=\"primary\" onclick=\"location.reload()\">{}</button>", tr("Réessayer")));
             if web && kind != LoadError::Offline {
@@ -97,7 +126,7 @@ impl Sanaga {
         let tips_html: String = tips.iter().map(|t| format!("<li>{t}</li>")).collect();
         let advanced = if kind == LoadError::Certificate {
             format!(
-                "<details><summary>{}</summary><p>{}</p><button class=\"danger\" onclick=\"window.ipc&&window.ipc.postMessage('tool:tls-allow:{}')\">{}</button><p class=\"code\">{}</p></details>",
+                "<details><summary>{}</summary><p>{}</p><button class=\"danger\" data-sanaga-action=\"tls-allow\" data-sanaga-arg=\"{}\">{}</button><p class=\"code\">{}</p></details>",
                 tr("Avancé"),
                 tr("Continuer expose ce que vous envoyez à ce site. Sanaga ne s'en souviendra que jusqu'à sa fermeture."),
                 esc(&host),
@@ -148,5 +177,17 @@ details{{color:{sub};font-size:13px}}summary{{cursor:pointer;user-select:none}}p
         if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
             crate::page::accept_certificate(&w.webview(), host);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn error_buttons_need_this_pages_secret() {
+        assert_eq!(super::error_action_arg("42|bank.example", 42), Some("bank.example"));
+        assert_eq!(super::error_action_arg("41|bank.example", 42), None);
+        assert_eq!(super::error_action_arg("bank.example", 42), None);
+        assert_eq!(super::error_action_arg("0|x", 0), None);
+        assert_ne!(super::new_token(), 0);
     }
 }

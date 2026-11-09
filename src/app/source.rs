@@ -215,7 +215,7 @@ pub(super) fn page(url: &str, src: &str) -> String {
     let heading = esc(crate::i18n::tr("Code source de"));
     let gutter = (lines.to_string().len() as f32 * 0.62 + 1.6).max(2.8);
     format!(
-        r#"<!doctype html><html><head><meta charset="utf-8"><title>{title}</title>
+        r#"<!doctype html><html data-sanaga-source><head><meta charset="utf-8"><title>{title}</title>
 <style>
 :root {{ color-scheme: light dark; --bg:#fff; --fg:#1f1f1f; --num:#9aa0a6; --bar:#f6f7f9; --line:#e3e5e8;
   --t:#881280; --a:#994500; --v:#1a1aa6; --c:#6a737d; --d:#5f6368; --e:#c80000; --link:#1a1aa6; }}
@@ -241,8 +241,7 @@ a.v {{ color:var(--link); text-decoration:underline; text-decoration-color:rgba(
 <script>
 document.getElementById('wrap').addEventListener('change', function (e) {{ document.body.classList.toggle('wrap', e.target.checked); }});
 document.addEventListener('click', function (e) {{
-  var a = e.target.closest('a[data-u]'); if (!a) return; e.preventDefault();
-  if (window.ipc) window.ipc.postMessage('vs:' + a.getAttribute('data-u'));
+  var a = e.target.closest('a[data-u]'); if (a) e.preventDefault();
 }});
 </script></body></html>"#,
         gutter_n = gutter - 0.9,

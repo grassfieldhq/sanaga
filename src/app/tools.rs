@@ -43,6 +43,8 @@ window.__sanagaStopTool=stop;document.addEventListener('mousemove',mv,true);docu
 
 const STOP_TOOL_JS: &str = "if(window.__sanagaStopTool)window.__sanagaStopTool();if(document.designMode==='on'){document.designMode='off';}window.__sanagaTool=null;";
 
+use crate::guard::plausible_selector;
+
 fn is_web(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
 }
@@ -172,6 +174,11 @@ impl Sanaga {
         self.tabs.iter().position(|t| t.id == id)
     }
 
+    /// The address the page of tab `id` really shows now (WebKit's).
+    fn tab_shows(&self, id: u64) -> Option<String> {
+        self.page_of(id).and_then(|w| w.uri())
+    }
+
     fn page_of(&self, id: u64) -> Option<&crate::page::PageView> {
         self.tabs.iter().find(|t| t.id == id).and_then(|t| t.web.as_ref())
     }
@@ -186,25 +193,52 @@ impl Sanaga {
             eprintln!("page tool {what} {arg}");
         }
         // a tool the person asked for in a page shows that page; messages a
-        // page sends by itself (a video it can't play, an answer) never pull
-        // a background tab to the front
+        // page sends by itself (a video it can't play, an answer, the error
+        // page's buttons) never pull a background tab to the front
         if let Some(i) = self.tab_index(tab) {
-            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe") {
+            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe" | "safe" | "tls-allow") {
                 self.active = i;
             }
         }
         match what {
             "preview" => self.preview_link(arg),
             "container-link" => self.container_ask = Some(arg.to_string()),
-            "tls-allow" => self.accept_certificate(tab, arg),
-            "safe" => {
-                if let Some(i) = self.tab_index(tab) {
-                    self.go_home(i);
+            // the error page's buttons: only while that tab shows Sanaga's
+            // error page for this very failure (a certificate one, for this
+            // host, to go on despite it)
+            // (the button sends the error page's secret; the tab must still
+            // show that error page: the failed address, committed, armed)
+            "tls-allow" => {
+                let showing = self.tab_shows(tab);
+                let ok = self.error_pages.get(&tab).is_some_and(|e| {
+                    e.shown && e.kind == crate::page::LoadError::Certificate && showing.as_deref() == Some(e.url.as_str()) && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
+                });
+                if ok {
+                    let host = self.error_pages.remove(&tab).map(|e| host_of(&e.url)).unwrap_or_default();
+                    self.accept_certificate(tab, &host);
                 }
             }
+            "safe" => {
+                let showing = self.tab_shows(tab);
+                let ok = self.error_pages.get(&tab).is_some_and(|e| e.shown && showing.as_deref() == Some(e.url.as_str()) && super::errors::error_action_arg(arg, e.token).is_some());
+                if ok && self.error_pages.remove(&tab).is_some() {
+                    if let Some(i) = self.tab_index(tab) {
+                        let back = self.tabs[i].web.as_ref().is_some_and(|w| w.can_go_back().unwrap_or(false));
+                        if back {
+                            self.go_history(i, -1);
+                        } else {
+                            self.go_home(i);
+                        }
+                    }
+                }
+            }
+            // (from the page's right-click menu: web addresses only)
             "private-link" => {
-                self.open_tab(arg, true);
-                self.focus_address = false;
+                let page = self.tabs.iter().find(|t| t.id == tab).map(|t| t.url().to_string()).unwrap_or_default();
+                if crate::guard::link_may_open_elsewhere(arg, &page) {
+                    self.open_tab(arg, true);
+                    self.focus_address = false;
+                }
             }
             "pip" => self.start_pip(),
             "pip-info" => self.pip_info(tab, arg),
@@ -214,7 +248,7 @@ impl Sanaga {
             "site-settings" => self.site_panel = true,
             "media-unsupported" => self.codec_flag = Some(tab),
             // test aid: what a page answered (SANAGA_LIVE_TEST probe:)
-            "probe" => eprintln!("live probe {arg}"),
+            "probe" if cfg!(debug_assertions) => eprintln!("live probe {arg}"),
             _ => {}
         }
     }
@@ -225,7 +259,10 @@ impl Sanaga {
     pub(super) fn open_link_from(&mut self, tab: u64, url: &str, how: u8) {
         let Some(from) = self.tabs.iter().position(|t| t.id == tab) else { return };
         let (private, container, group) = (self.tabs[from].private, self.tabs[from].container.clone(), self.tabs[from].group);
-        if how == 2 && !private {
+        // a new window has the profile's data: from a private tab or a
+        // container, the link opens in a tab of the same kind instead
+        let how = if how == 2 && (private || !container.is_empty()) { 1 } else { how };
+        if how == 2 {
             self.new_window(vec![url.to_string()]);
             return;
         }
@@ -256,12 +293,13 @@ impl Sanaga {
     /// Escape: stop the tool running in the page. True when one was running.
     pub(super) fn stop_page_tool(&mut self) -> bool {
         let editing = self.editing_text.take();
+        self.zap_armed = None;
         if let Some(w) = self.active_page() {
-            let _ = w.evaluate_script(STOP_TOOL_JS);
+            let _ = w.evaluate_own(STOP_TOOL_JS);
         }
         if let Some(id) = editing {
             if let Some(w) = self.page_of(id) {
-                let _ = w.evaluate_script(STOP_TOOL_JS);
+                let _ = w.evaluate_own(STOP_TOOL_JS);
             }
             self.notice = Some((tr("Modification du texte terminée.").into(), self.ctx.input(|i| i.time)));
             return true;
@@ -271,15 +309,22 @@ impl Sanaga {
 
     /// Floating video: the page's video in a small window above the others.
     pub(super) fn start_pip(&mut self) {
+        let tab = self.tabs.get(self.active).map(|t| t.id);
         match self.active_page() {
             Some(w) => {
-                let _ = w.evaluate_script(PIP_JS);
+                let _ = w.evaluate_own(PIP_JS);
+                // its answer is awaited from this tab only
+                self.pip_armed = tab;
             }
             None => self.notice = Some((tr("Aucune vidéo dans cette page.").into(), self.ctx.input(|i| i.time))),
         }
     }
 
     fn pip_info(&mut self, tab: u64, arg: &str) {
+        // only the answer to the person's own request (menu ⋮, right-click)
+        if self.pip_armed.take() != Some(tab) {
+            return;
+        }
         let now = self.ctx.input(|i| i.time);
         if arg.is_empty() {
             self.notice = Some((tr("Aucune vidéo dans cette page.").into(), now));
@@ -306,10 +351,10 @@ impl Sanaga {
         };
         if let Some(p) = self.page_of(tab) {
             if opened {
-                let _ = p.evaluate_script("if(window.__sanagaPip)window.__sanagaPip.pause();");
+                let _ = p.evaluate_own("if(window.__sanagaPip)window.__sanagaPip.pause();");
             } else {
                 // a stream that only plays inside its page: it floats in the page
-                let _ = p.evaluate_script(PIP_IN_PAGE_JS);
+                let _ = p.evaluate_own(PIP_IN_PAGE_JS);
                 self.notice = Some((tr("Cette vidéo ne peut pas quitter sa page : elle flotte dans un coin pendant que vous lisez.").into(), now));
             }
         }
@@ -317,9 +362,12 @@ impl Sanaga {
 
     /// Remove a part of the page: point at it, click.
     pub(super) fn start_zapper(&mut self) {
+        let tab = self.tabs.get(self.active).map(|t| t.id);
         if let Some(w) = self.active_page() {
             let tip = crate::keyring::js_str(tr("Cliquez sur ce qu'il faut retirer de la page — Échap pour annuler"));
-            let _ = w.evaluate_script(&format!("{ZAP_JS}({tip});"));
+            let _ = w.evaluate_own(&format!("{ZAP_JS}({tip});"));
+            // the element picked is awaited from this tab only
+            self.zap_armed = tab;
             if let Some(p) = self.active_page() {
                 p.webview().grab_focus();
             }
@@ -327,9 +375,13 @@ impl Sanaga {
     }
 
     fn zapped(&mut self, tab: u64, selector: &str) {
+        // only after the person started the element remover on this tab
+        if self.zap_armed.take() != Some(tab) {
+            return;
+        }
         let Some(url) = self.tabs.iter().find(|t| t.id == tab).map(|t| t.url().to_string()) else { return };
         let host = crate::site_prefs::key(&host_of(&url));
-        if host.is_empty() || selector.trim().is_empty() {
+        if host.is_empty() || !plausible_selector(selector) {
             return;
         }
         let mut prefs = crate::site_prefs::for_host(&host);
@@ -348,7 +400,7 @@ impl Sanaga {
             return;
         }
         if let Some(w) = self.active_page() {
-            let _ = w.evaluate_script("document.designMode='on';window.__sanagaTool='edit';");
+            let _ = w.evaluate_own("document.designMode='on';window.__sanagaTool='edit';");
             w.webview().grab_focus();
             self.editing_text = Some(id);
             self.notice = Some((tr("Modifiez le texte directement dans la page. Échap pour terminer ; tout revient au rechargement.").into(), self.ctx.input(|i| i.time)));
@@ -457,19 +509,6 @@ fn on_battery() -> bool {
     battery_discharging
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn finds_youtube_ids() {
-        assert_eq!(youtube_id("https://www.youtube.com/watch?v=abc_DEF-123&t=4").as_deref(), Some("abc_DEF-123"));
-        assert_eq!(youtube_id("https://youtu.be/xyz987").as_deref(), Some("xyz987"));
-        assert_eq!(youtube_id("https://m.youtube.com/shorts/q1w2e3").as_deref(), Some("q1w2e3"));
-        assert_eq!(youtube_id("https://example.com/watch?v=abc"), None);
-    }
-}
-
 /// Where Sanaga's icons are installed for this user (packaging/install.sh).
 fn icon_dir() -> Option<std::path::PathBuf> {
     let home = std::env::var_os("HOME").map(std::path::PathBuf::from)?;
@@ -517,18 +556,33 @@ impl Sanaga {
         let name = if profile.is_empty() { "Sanaga".to_string() } else { format!("Sanaga — {profile}") };
         let safe: String = profile.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
         let file = data.join("applications").join(if profile.is_empty() { "sanaga-main.desktop".to_string() } else { format!("sanaga-profile-{safe}.desktop") });
-        let exe_q = exe.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
-        let args = if profile.is_empty() { String::new() } else { format!(" --profile \"{}\"", profile.replace('"', "")) };
+        // quoted and escaped as the Desktop Entry specification says
+        let args = if profile.is_empty() { String::new() } else { format!(" --profile {}", crate::desktop::exec_arg(&profile)) };
+        let shown = if emoji.is_empty() { name.clone() } else { format!("{name} {emoji}") };
         let text = format!(
-            "[Desktop Entry]\nType=Application\nName={name}{}\nComment={}\nExec=\"{exe_q}\"{args} %U\nIcon={}\nCategories=Network;WebBrowser;\nStartupNotify=true\n",
-            if emoji.is_empty() { String::new() } else { format!(" {emoji}") },
-            tr("Navigateur web Sanaga, avec les données de ce profil"),
-            icon.display()
+            "[Desktop Entry]\nType=Application\nName={}\nComment={}\nExec={}{args} %U\nIcon={}\nCategories=Network;WebBrowser;\nStartupNotify=true\n",
+            crate::desktop::desktop_value(&shown),
+            crate::desktop::desktop_value(tr("Navigateur web Sanaga, avec les données de ce profil")),
+            crate::desktop::exec_arg(&exe.to_string_lossy()),
+            crate::desktop::desktop_value(&icon.display().to_string())
         );
         let _ = std::fs::create_dir_all(file.parent().unwrap_or(&data));
         match std::fs::write(&file, text) {
             Ok(()) => self.notice = Some((tf("« {} » ajouté à vos applications.", &[&name]), now)),
             Err(e) => self.notice = Some((e.to_string(), now)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_youtube_ids() {
+        assert_eq!(youtube_id("https://www.youtube.com/watch?v=abc_DEF-123&t=4").as_deref(), Some("abc_DEF-123"));
+        assert_eq!(youtube_id("https://youtu.be/xyz987").as_deref(), Some("xyz987"));
+        assert_eq!(youtube_id("https://m.youtube.com/shorts/q1w2e3").as_deref(), Some("q1w2e3"));
+        assert_eq!(youtube_id("https://example.com/watch?v=abc"), None);
     }
 }

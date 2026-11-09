@@ -835,7 +835,11 @@ impl Sanaga {
                             changed |= field(ui, &mut st.ai_model, tr("celui par défaut"), 200.0, false);
                         });
                     });
-                    footnote(ui, th, &tf("{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.", &[&tool.name()]));
+                    if tool.tool_less() {
+                        footnote(ui, th, &tf("{} est appelé verrouillé : dans un dossier vide, sans outils ni accès à vos fichiers ; Sanaga lit seulement sa réponse.", &[&tool.name()]));
+                    } else {
+                        footnote(ui, th, &tf("{} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.", &[&tool.name()]));
+                    }
                 }
                 _ => {}
             }
@@ -1364,12 +1368,12 @@ impl Sanaga {
         let now = self.ctx.input(|i| i.time);
         match crate::webext::install(&path) {
             Ok((name, id)) => {
-                if !self.store.extensions_on.contains(&id) {
-                    self.store.extensions_on.push(id);
-                    self.store.save_extensions();
-                }
-                self.refresh_extensions();
-                self.notice = Some((tf("Extension « {} » installée et activée.", &[&name]), now));
+                // installed switched off: the person reads what it would do
+                // (sites, code) on the Extensions page, then turns it on
+                self.ext_review = Some(id);
+                self.notice = Some((tf("« {} » est installée mais désactivée : lisez-la, puis activez-la.", &[&name]), now));
+                let a = self.active;
+                self.navigate(a, "sanaga://extensions".into(), None, true);
             }
             Err(e) => self.notice = Some((tf("Impossible d'installer l'extension : {}", &[&e]), now)),
         }

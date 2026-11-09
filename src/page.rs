@@ -3,9 +3,10 @@
 //! on the graphics card, in the same frame.
 
 use gtk::prelude::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 use webkit6::prelude::*;
 use webkit6::{CookiePersistentStorage, LoadEvent, NetworkSession, UserContentInjectedFrames, UserContentManager, UserScript, UserScriptInjectionTime, WebContext, WebView};
 
@@ -25,6 +26,8 @@ pub enum PageSignal {
     /// A page tool asked from the page's right-click menu: what, and the
     /// address it is about (a link…).
     Tool(&'static str, String),
+    /// WebKit loaded the page's icon (the page's address, the icon as PNG).
+    Favicon(String, Vec<u8>),
     /// A link opened elsewhere, as browsers do: Ctrl+click or middle click
     /// (0, a tab behind), Ctrl+Shift+click (1, a tab in front), Shift+click
     /// (2, a new window).
@@ -212,6 +215,128 @@ thread_local! {
     static NO_FONTS: RefCell<Option<webkit6::UserContentFilter>> = const { RefCell::new(None) };
     /// The open pages (to give them the blocker once it is ready).
     static VIEWS: RefCell<Vec<gtk::glib::WeakRef<WebView>>> = const { RefCell::new(Vec::new()) };
+    /// Download names picked whose files are not created yet.
+    static RESERVED: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
+    /// What Sanaga follows for each open page.
+    static VIEW_STATES: RefCell<Vec<(gtk::glib::WeakRef<WebView>, Rc<ViewState>)>> = const { RefCell::new(Vec::new()) };
+    /// Downloads waiting for the person's answer, sites allowed to download
+    /// (until Sanaga quits), and the windows that ask.
+    static PENDING_DOWNLOADS: RefCell<Vec<PendingDownload>> = const { RefCell::new(Vec::new()) };
+    /// (kept per network session: a profile, a container, the private
+    /// tabs; in memory only)
+    static DOWNLOAD_SITES: RefCell<Vec<(Option<NetworkSession>, String)>> = const { RefCell::new(Vec::new()) };
+    static DOWNLOAD_ASK_SINKS: RefCell<Vec<(usize, AskSink)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// What Sanaga follows for one open page.
+#[derive(Default)]
+struct ViewState {
+    /// The address of the page shown (committed): the referrer of its downloads.
+    committed: RefCell<String>,
+    /// When the person last acted in the page itself (a click or key that
+    /// navigates: WebKit's user gesture), and whether a download has already
+    /// used that action. Forgotten when a new page is shown.
+    gesture: Cell<Option<Instant>>,
+    gesture_used: Cell<bool>,
+    /// When the person asked Sanaga to open an address in this view (typed,
+    /// a favourite…; never a restored tab): only a download that this very
+    /// navigation turns into may use it (it ends when a page is shown).
+    typed: Cell<Option<Instant>>,
+    /// When a key was last pressed in the page (seen by GTK).
+    key_at: Cell<Option<Instant>>,
+}
+
+/// The person acted in this page (a click or key that navigates): it may
+/// start one download.
+fn mark_gesture(v: &WebView) {
+    if let Some(s) = view_state(v) {
+        s.gesture.set(Some(Instant::now()));
+        s.gesture_used.set(false);
+    }
+}
+
+/// How long after the person's action a page may start its download.
+const GESTURE_WINDOW: Duration = Duration::from_secs(10);
+
+// (pure rules: see guard.rs, testable without GTK)
+pub use crate::guard::{download_needs_ask, download_site, is_shortcut_message, message_body};
+
+/// A download waiting for the person's answer.
+struct PendingDownload {
+    download: webkit6::Download,
+    /// The network session it belongs to (its allowance is kept there).
+    session: Option<NetworkSession>,
+    suggested: String,
+    uri: String,
+    site: String,
+    dest: Rc<RefCell<Option<PathBuf>>>,
+    denied: Rc<Cell<bool>>,
+}
+
+type AskSink = Rc<dyn Fn(String)>;
+
+/// Window `slot` shows the "Allow downloads on …?" bar.
+pub fn add_download_ask_sink(slot: usize, ask: impl Fn(String) + 'static) {
+    DOWNLOAD_ASK_SINKS.with(|s| s.borrow_mut().push((slot, Rc::new(ask))));
+}
+
+fn ask_downloads(site: String) {
+    let active = ACTIVE_WINDOW.load(std::sync::atomic::Ordering::Relaxed);
+    let sink = DOWNLOAD_ASK_SINKS.with(|s| {
+        let s = s.borrow();
+        s.iter().find(|(n, _)| *n == active).or_else(|| s.first()).map(|(_, f)| f.clone())
+    });
+    match sink {
+        Some(f) => f(site),
+        // no window to ask in: the download does not happen
+        None => answer_downloads(&site, false),
+    }
+}
+
+/// The person's answer for a site's waiting downloads: they go to the
+/// Downloads folder (and the site may download until Sanaga quits, in that
+/// profile, container or private session only), or they are cancelled.
+pub fn answer_downloads(site: &str, allow: bool) {
+    let mine: Vec<PendingDownload> = PENDING_DOWNLOADS.with(|q| {
+        let mut q = q.borrow_mut();
+        let (mine, rest): (Vec<PendingDownload>, Vec<PendingDownload>) = q.drain(..).partition(|p| p.site == site);
+        *q = rest;
+        mine
+    });
+    for p in mine {
+        if allow {
+            DOWNLOAD_SITES.with(|d| {
+                let mut d = d.borrow_mut();
+                if !d.iter().any(|(s, x)| *s == p.session && *x == p.site) {
+                    d.push((p.session.clone(), p.site.clone()));
+                }
+            });
+            let path = choose_destination(&p.download, &p.suggested, &p.uri);
+            *p.dest.borrow_mut() = Some(path);
+        } else {
+            p.denied.set(true);
+            p.download.cancel();
+        }
+    }
+}
+
+fn view_state(v: &WebView) -> Option<Rc<ViewState>> {
+    VIEW_STATES.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|(w, _)| w.upgrade().is_some());
+        s.iter().find(|(w, _)| w.upgrade().as_ref() == Some(v)).map(|(_, st)| st.clone())
+    })
+}
+
+/// The page a download comes from: the one its view shows (committed).
+fn referrer_of(view: Option<&WebView>) -> String {
+    let Some(v) = view else { return String::new() };
+    let committed = view_state(v).map(|s| s.committed.borrow().clone()).unwrap_or_default();
+    if committed.is_empty() {
+        v.uri().map(|u| u.to_string()).unwrap_or_default()
+    } else {
+        committed
+    }
 }
 
 /// The blocker is ready: the pages already open get it (from their next request).
@@ -322,6 +447,7 @@ pub fn add_download_sink(slot: usize, done: impl Fn(String, Option<PathBuf>, boo
 /// Window `slot` closed.
 pub fn remove_download_sink(slot: usize) {
     DOWNLOAD_SINKS.with(|s| s.borrow_mut().retain(|(n, _)| *n != slot));
+    DOWNLOAD_ASK_SINKS.with(|s| s.borrow_mut().retain(|(n, _)| *n != slot));
 }
 
 fn report_download(url: String, path: Option<PathBuf>, ok: bool) {
@@ -337,16 +463,39 @@ fn report_download(url: String, path: Option<PathBuf>, ok: bool) {
 
 /// Follow the downloads of this engine (once, whatever the number of windows),
 /// and of private tabs.
-pub fn follow_downloads(engine: &Engine, pick: impl Fn(&str) -> PathBuf + 'static) {
-    let pick = Rc::new(pick);
+pub fn follow_downloads(engine: &Engine) {
     for session in [engine.session.clone(), private_session()] {
         let known = WATCHED.with(|w| w.borrow().contains(&session));
         if !known {
             WATCHED.with(|w| w.borrow_mut().push(session.clone()));
-            let p = pick.clone();
-            watch_downloads(&session, move |u| p(u), report_download);
+            watch_downloads(&session, report_download);
         }
     }
+}
+
+/// A download name picked but whose file WebKit has not created yet: no
+/// other download may take it meanwhile.
+fn is_reserved(p: &Path) -> bool {
+    RESERVED.with(|r| r.borrow().iter().any(|x| x == p))
+}
+
+fn reserve(p: &Path) {
+    RESERVED.with(|r| r.borrow_mut().push(p.to_path_buf()));
+}
+
+fn release(p: &Path) {
+    RESERVED.with(|r| r.borrow_mut().retain(|x| x != p));
+}
+
+/// Where a download goes: the Downloads folder, under a safe, free name
+/// made from WebKit's suggestion. WebKit creates the file only if nothing
+/// is there (it never replaces a file).
+fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str) -> PathBuf {
+    let path = crate::net::download_destination(suggested, uri, is_reserved);
+    reserve(&path);
+    download.set_allow_overwrite(false);
+    download.set_destination(&path.to_string_lossy());
+    path
 }
 
 /// The engine of a profile folder (made once, then shared by the windows).
@@ -354,7 +503,9 @@ pub fn profile_context(dir: &Path) -> Engine {
     if let Some(e) = ENGINES.with(|c| c.borrow().iter().find(|(d, _)| d == dir).map(|(_, e)| e.clone())) {
         return e;
     }
-    let _ = std::fs::create_dir_all(dir);
+    // cookies and site data: closed to other users (folder 0700, files 0600)
+    crate::store::ensure_private_dir(dir);
+    crate::store::close_files(dir);
     let d = dir.to_string_lossy().to_string();
     limit_network();
     let session = NetworkSession::new(Some(&d), Some(&d));
@@ -362,10 +513,19 @@ pub fn profile_context(dir: &Path) -> Engine {
         cm.set_persistent_storage(&dir.join("cookies").to_string_lossy(), CookiePersistentStorage::Text);
     }
     accept_cookies(&session);
+    enable_favicons(&session);
     let engine = Engine { ctx: new_context(), session };
     secure_context(&engine);
     ENGINES.with(|cs| cs.borrow_mut().push((dir.to_path_buf(), engine.clone())));
     engine
+}
+
+/// Site icons are loaded by WebKit itself, with the page, through that
+/// page's own session (Sanaga makes no request of its own for them).
+fn enable_favicons(session: &NetworkSession) {
+    if let Some(dm) = session.website_data_manager() {
+        dm.set_favicons_enabled(true);
+    }
 }
 
 /// The memory a page's process may use before WebKit starts giving memory
@@ -408,6 +568,7 @@ pub fn ephemeral_engine() -> Engine {
     limit_network();
     let session = NetworkSession::new_ephemeral();
     accept_cookies(&session);
+    enable_favicons(&session);
     let engine = Engine { ctx: new_context(), session };
     secure_context(&engine);
     engine
@@ -418,10 +579,15 @@ pub fn ephemeral_engine() -> Engine {
 /// differs between versions.
 fn accept_cookies(session: &NetworkSession) {
     if let Some(cm) = session.cookie_manager() {
-        let policy = match std::env::var("SANAGA_COOKIES").as_deref() {
-            Ok("always") => webkit6::CookieAcceptPolicy::Always,
-            _ => webkit6::CookieAcceptPolicy::NoThirdParty,
-        };
+        #[allow(unused_mut)]
+        let mut policy = webkit6::CookieAcceptPolicy::NoThirdParty;
+        // test aid (debug builds only): SANAGA_COOKIES=always
+        #[cfg(debug_assertions)]
+        {
+            if std::env::var("SANAGA_COOKIES").as_deref() == Ok("always") {
+                policy = webkit6::CookieAcceptPolicy::Always;
+            }
+        }
         cm.set_accept_policy(policy);
     }
 }
@@ -439,6 +605,7 @@ fn private_session() -> NetworkSession {
                 limit_network();
                 let s = NetworkSession::new_ephemeral();
                 accept_cookies(&s);
+                enable_favicons(&s);
                 s
             })
             .clone()
@@ -466,8 +633,7 @@ pub fn enable_spell_checking(ctx: &WebContext) {
 }
 
 /// Where downloads go, and who is told when one ends.
-pub fn watch_downloads(session: &NetworkSession, pick: impl Fn(&str) -> PathBuf + 'static, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
-    let pick = Rc::new(pick);
+pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
     let done = Rc::new(done);
     session.connect_download_started(move |_, download| {
         if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
@@ -475,11 +641,47 @@ pub fn watch_downloads(session: &NetworkSession, pick: impl Fn(&str) -> PathBuf 
         }
         let failed = Rc::new(RefCell::new(false));
         let dest: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
-        let (pick, d2) = (pick.clone(), dest.clone());
-        download.connect_decide_destination(move |download, _suggested| {
+        let view = download.web_view();
+        let referrer = referrer_of(view.as_ref());
+        let denied = Rc::new(Cell::new(false));
+        let (d2, denied2, site_ref) = (dest.clone(), denied.clone(), referrer.clone());
+        download.connect_decide_destination(move |download, suggested| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
-            let path = pick(&uri);
-            download.set_destination(&path.to_string_lossy());
+            // (a download Sanaga started itself has no page: never asked; a
+            // page Sanaga doesn't follow is always asked)
+            let view = download.web_view();
+            let session = view.as_ref().and_then(|v| v.network_session());
+            if view.is_some() && view.as_ref().and_then(view_state).is_none() {
+                let site = download_site(&site_ref, &uri);
+                PENDING_DOWNLOADS.with(|q| {
+                    q.borrow_mut().push(PendingDownload { download: download.clone(), session, suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                });
+                ask_downloads(site);
+                return true;
+            }
+            if let Some(state) = view.as_ref().and_then(view_state) {
+                let site = download_site(&site_ref, &uri);
+                // a real action of the person's in that page, not used yet;
+                // or the address the person opened turning into a download
+                let recent = |t: Option<Instant>| t.is_some_and(|t| t.elapsed() <= GESTURE_WINDOW);
+                let in_page = recent(state.gesture.get()) && !state.gesture_used.get();
+                let fresh = in_page || recent(state.typed.get());
+                let allowed = DOWNLOAD_SITES.with(|d| d.borrow().iter().any(|(s, x)| *s == session && *x == site));
+                if download_needs_ask(fresh, false, allowed) {
+                    // the download waits (WebKit 2.40+) until the person answers
+                    PENDING_DOWNLOADS.with(|q| {
+                        q.borrow_mut().push(PendingDownload { download: download.clone(), session, suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                    });
+                    ask_downloads(site);
+                    return true;
+                }
+                // (one download per action)
+                if fresh {
+                    state.gesture_used.set(true);
+                    state.typed.set(None);
+                }
+            }
+            let path = choose_destination(download, suggested, &uri);
             *d2.borrow_mut() = Some(path);
             true
         });
@@ -493,19 +695,53 @@ pub fn watch_downloads(session: &NetworkSession, pick: impl Fn(&str) -> PathBuf 
         let done = done.clone();
         download.connect_finished(move |download| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
-            done(uri, dest.borrow().clone(), !*failed.borrow());
+            let path = dest.borrow().clone();
+            if let Some(p) = &path {
+                release(p);
+            }
+            if denied.get() {
+                return; // the person said no: nothing to show
+            }
+            let ok = !*failed.borrow();
+            if let (true, Some(p)) = (ok, &path) {
+                // where it came from (after redirections), for the file manager
+                let from = download.response().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_else(|| uri.clone());
+                if let Err(e) = crate::net::mark_download(p, &from, &referrer) {
+                    eprintln!("download mark: {e}");
+                }
+            }
+            done(uri, path, ok);
         });
     });
 }
 
-/// Script that gives pages `window.ipc.postMessage(...)` (Sanaga's page scripts use it).
-const IPC_JS: &str = "Object.defineProperty(window, 'ipc', { value: Object.freeze({ postMessage: function(x) { window.webkit.messageHandlers['ipc'].postMessage(x) } }) })";
+/// The JavaScript world of Sanaga's own scripts. The page's scripts (and
+/// any frame inside it) can't see it, can't replace its functions and can't
+/// reach its message channel: only Sanaga's scripts, run in the top frame,
+/// talk to Sanaga.
+pub const WORLD: &str = "sanaga";
 
-fn add_scripts(ucm: &UserContentManager, scripts: &[&str]) {
-    for js in std::iter::once(IPC_JS).chain(scripts.iter().copied()) {
+/// Gives Sanaga's scripts `window.ipc.postMessage(...)` in their world (top
+/// frame only). Each message carries the address of the page that sent it,
+/// so a message from a page that has navigated since is dropped
+/// (`message_body`).
+const IPC_JS: &str = "if (window.top === window) Object.defineProperty(window, 'ipc', { value: Object.freeze({ postMessage: function (x) { window.webkit.messageHandlers.ipc.postMessage(location.href + '\\n' + String(x)); } }) });";
+
+/// Sanaga's scripts go into its own world; the person's extensions act on
+/// the page itself (its world), without Sanaga's channel. All run in the top
+/// frame only.
+fn add_scripts(ucm: &UserContentManager, own: &[&str], page: &[&str]) {
+    for js in std::iter::once(IPC_JS).chain(own.iter().copied()) {
+        ucm.add_script(&UserScript::for_world(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, WORLD, &[], &[]));
+    }
+    for js in page {
         ucm.add_script(&UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]));
     }
 }
+
+/// How long a key press in the page vouches for the shortcut message that
+/// follows it.
+const KEY_WINDOW: Duration = Duration::from_millis(1500);
 
 pub struct PageView {
     view: WebView,
@@ -517,15 +753,28 @@ impl PageView {
     /// A new page. `scripts` run at the start of every page (top frame).
     /// `opener`: the page that opened this one (its windows share the engine).
     /// `popups`: makes the pages this one opens; without it they open as new tabs.
-    pub fn new(engine: Option<&Engine>, private: bool, scripts: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
+    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
         let ucm = UserContentManager::new();
-        add_scripts(&ucm, scripts);
+        add_scripts(&ucm, own, page);
         let on = Rc::new(on);
         let o = on.clone();
+        // (the view, once made: to check where each message comes from)
+        let me: Rc<RefCell<Option<gtk::glib::WeakRef<WebView>>>> = Rc::new(RefCell::new(None));
+        let me2 = me.clone();
         ucm.connect_script_message_received(Some("ipc"), move |_, value| {
-            o(PageSignal::Message(value.to_str().to_string()));
+            let text = value.to_str().to_string();
+            let Some(view) = me2.borrow().as_ref().and_then(|w| w.upgrade()) else { return };
+            let current = view.uri().map(|u| u.to_string()).unwrap_or_default();
+            let Some(body) = message_body(&text, &current) else { return };
+            // a shortcut only follows a real key press in the page (seen by
+            // GTK, not claimed by a script)
+            if is_shortcut_message(body) && !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW)) {
+                return;
+            }
+            o(PageSignal::Message(body.to_string()));
         });
-        ucm.register_script_message_handler("ipc", None);
+        // Sanaga's channel exists only in Sanaga's world
+        ucm.register_script_message_handler("ipc", Some(WORLD));
         // Like Safari: videos may start by themselves only without sound
         // (no page shouting at you when it opens)
         let policies = webkit6::WebsitePolicies::builder().autoplay(webkit6::AutoplayPolicy::AllowWithoutSound).build();
@@ -544,6 +793,18 @@ impl PageView {
         }
         let view = b.build();
         VIEWS.with(|v| v.borrow_mut().push(view.downgrade()));
+        let state = Rc::new(ViewState::default());
+        VIEW_STATES.with(|s| s.borrow_mut().push((view.downgrade(), state.clone())));
+        *me.borrow_mut() = Some(view.downgrade());
+        // real key presses in the page (they vouch for forwarded shortcuts)
+        let keys = gtk::EventControllerKey::new();
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let st = state.clone();
+        keys.connect_key_pressed(move |_, _, _, _| {
+            st.key_at.set(Some(Instant::now()));
+            gtk::glib::Propagation::Proceed
+        });
+        view.add_controller(keys);
         if let Some(st) = WebViewExt::settings(&view) {
             st.set_enable_webgl(true);
             // drawing apps and games (Photopea, Canva, canvas games) draw
@@ -554,23 +815,31 @@ impl PageView {
             st.set_enable_webrtc(true);
             st.set_enable_media_stream(true);
             st.set_enable_mediasource(true);
-            // test aid: let test pages open windows without a click
-            if std::env::var_os("SANAGA_TEST_POPUPS").is_some() {
-                st.set_javascript_can_open_windows_automatically(true);
+            // test aid (debug builds only): let test pages open windows without a click
+            #[cfg(debug_assertions)]
+            {
+                if std::env::var_os("SANAGA_TEST_POPUPS").is_some() {
+                    st.set_javascript_can_open_windows_automatically(true);
+                }
             }
-            st.set_javascript_can_access_clipboard(true);
+            // (clipboard: WebKit's default, a page reads it only on a user gesture)
             st.set_enable_page_cache(true);
             st.set_enable_developer_extras(true);
             // Sanaga handles the two-finger swipe itself (shell.rs)
             st.set_enable_back_forward_navigation_gestures(false);
         }
         let o = on.clone();
+        let st = state.clone();
         view.connect_load_changed(move |v, ev| {
             let uri = v.uri().map(|u| u.to_string()).unwrap_or_default();
             match ev {
                 // website settings: before the new page is made
                 LoadEvent::Started | LoadEvent::Redirected => apply_site(v, &host_of_uri(&uri)),
                 LoadEvent::Committed => {
+                    *st.committed.borrow_mut() = uri.clone();
+                    // a new page: its downloads need its own actions
+                    st.gesture.set(None);
+                    st.typed.set(None);
                     let js = crate::site_prefs::for_host(&host_of_uri(&uri)).script();
                     if !js.is_empty() {
                         v.evaluate_javascript(&js, None, None, None::<&gtk::gio::Cancellable>, |_| {});
@@ -583,12 +852,23 @@ impl PageView {
         });
         let o = on.clone();
         view.connect_title_notify(move |v| o(PageSignal::Title(v.title().map(|t| t.to_string()).unwrap_or_default())));
+        // the page's icon, as WebKit loaded it
+        let o = on.clone();
+        view.connect_favicon_notify(move |v| {
+            if let (Some(tex), Some(uri)) = (v.favicon(), v.uri()) {
+                o(PageSignal::Favicon(uri.to_string(), tex.save_to_png_bytes().to_vec()));
+            }
+        });
         let o = on.clone();
         view.connect_create(move |v, action| {
             // window.open(): a real page linked to this one (sign-in windows
             // need it to send their answer back), shown in a new tab
             if let Some(make) = &popups {
                 if let Some(w) = make(v) {
+                    // the click that opened it may start a download there
+                    if action.is_user_gesture() {
+                        mark_gesture(&w);
+                    }
                     return Some(w.upcast::<gtk::Widget>());
                 }
             }
@@ -616,8 +896,12 @@ impl PageView {
                     if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                         eprintln!("navigation {:?} kind={kind:?} modifiers={m:#x} button={} gesture={}", a.navigation_type(), a.mouse_button(), a.is_user_gesture());
                     }
-                    if a.navigation_type() == webkit6::NavigationType::LinkClicked && (ctrl || middle || shift) {
-                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| !u.starts_with("javascript:")) {
+                    // (a real click only, never a script's; a web address,
+                    // or a local file from a local page: never Sanaga's own
+                    // pages or other schemes)
+                    let page = v.uri().map(|u| u.to_string()).unwrap_or_default();
+                    if a.navigation_type() == webkit6::NavigationType::LinkClicked && (ctrl || middle || shift) && a.is_user_gesture() {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::guard::link_may_open_elsewhere(u, &page)) {
                             let how = if (ctrl || middle) && shift { 1 } else if ctrl || middle { 0 } else { 2 };
                             decision.ignore();
                             o(PageSignal::OpenLink(u, how));
@@ -642,6 +926,14 @@ impl PageView {
                     }
                 }
                 return false;
+            }
+            // a click on the page (for its downloads: see download_needs_ask)
+            if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
+                if let Some(nav) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() {
+                    if nav.navigation_action().is_some_and(|a| a.is_user_gesture()) {
+                        mark_gesture(v);
+                    }
+                }
             }
             if kind != webkit6::PolicyDecisionType::NavigationAction {
                 return false;
@@ -699,17 +991,17 @@ impl PageView {
         });
         // the page did not load: Sanaga's own error page (not WebKit's)
         let o = on.clone();
-        view.connect_load_failed(move |_, _, uri, e| match {
+        view.connect_load_failed(move |_, _, uri, e| {
             if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                 eprintln!("load failed {uri}: domain={} message={:?}", e.domain().as_str(), e.message());
             }
-            classify(e)
-        } {
-            Some(kind) => {
-                o(PageSignal::LoadFailed(uri.to_string(), kind, e.message().to_string()));
-                true
+            match classify(e) {
+                Some(kind) => {
+                    o(PageSignal::LoadFailed(uri.to_string(), kind, e.message().to_string()));
+                    true
+                }
+                None => false,
             }
-            None => false,
         });
         let o = on.clone();
         view.connect_load_failed_with_tls_errors(move |_, uri, cert, flags| {
@@ -772,21 +1064,36 @@ impl PageView {
     }
     /// Replace the scripts run in this page (extensions switched on or off)
     /// and load it again so the change shows at once.
-    pub fn set_scripts(&self, scripts: &[&str]) {
+    pub fn set_scripts(&self, own: &[&str], page: &[&str]) {
         if let Some(ucm) = self.view.user_content_manager() {
             ucm.remove_all_scripts();
             ucm.remove_all_style_sheets();
-            add_scripts(&ucm, scripts);
+            add_scripts(&ucm, own, page);
             self.view.reload();
         }
     }
-    pub fn load_url(&self, url: &str) -> R<()> {
+    /// Open an address. `by_person`: the person asked for it now (typed, a
+    /// favourite, a link in Sanaga), not a restored or woken tab; if this
+    /// address itself turns into a download, it goes straight to Downloads.
+    pub fn load_url(&self, url: &str, by_person: bool) -> R<()> {
+        if let Some(s) = view_state(&self.view) {
+            s.typed.set(by_person.then(Instant::now));
+        }
         set_identity(&self.view, &host_of_uri(url), &self.default_ua);
         self.view.load_uri(url);
         Ok(())
     }
+    /// Run a script in the page's own world (the person's buttons, site
+    /// settings): it has no access to Sanaga's channel.
     pub fn evaluate_script(&self, js: &str) -> R<()> {
         self.view.evaluate_javascript(js, None, None, None::<&gtk::gio::Cancellable>, |_| {});
+        Ok(())
+    }
+
+    /// Run one of Sanaga's scripts in Sanaga's world (top frame), where the
+    /// page can't see or change it.
+    pub fn evaluate_own(&self, js: &str) -> R<()> {
+        self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, |_| {});
         Ok(())
     }
     pub fn zoom(&self, z: f64) -> R<()> {
@@ -853,7 +1160,37 @@ pub fn plain_view(engine: Option<&Engine>) -> WebView {
         st.set_enable_webgl(true);
         st.set_media_playback_requires_user_gesture(false);
     }
+    // its downloads follow the same rule as a tab's (see download_needs_ask):
+    // the page shown, and the person's actions in it
+    let state = Rc::new(ViewState::default());
+    VIEW_STATES.with(|s| s.borrow_mut().push((view.downgrade(), state.clone())));
+    view.connect_load_changed(move |v, ev| {
+        if matches!(ev, LoadEvent::Committed) {
+            *state.committed.borrow_mut() = v.uri().map(|u| u.to_string()).unwrap_or_default();
+            state.gesture.set(None);
+            state.typed.set(None);
+        }
+    });
+    view.connect_decide_policy(|v, decision, kind| {
+        if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
+            if let Some(nav) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() {
+                if nav.navigation_action().is_some_and(|a| a.is_user_gesture()) {
+                    mark_gesture(v);
+                }
+            }
+        }
+        false
+    });
     view
+}
+
+/// Open an address the person asked for in a small window (a link preview):
+/// if it turns into a download, it goes straight to Downloads.
+pub fn load_by_person(view: &WebView, url: &str) {
+    if let Some(s) = view_state(view) {
+        s.typed.set(Some(Instant::now()));
+    }
+    view.load_uri(url);
 }
 
 /// A WebKit snapshot (GDK texture) as a cairo picture (to draw a device

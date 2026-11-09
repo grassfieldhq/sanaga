@@ -5,7 +5,7 @@ use crate::i18n::{tf, tr};
 use eframe::egui;
 use crate::html::{self, Document};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,6 +19,9 @@ pub enum NetMsg {
     Source { tab: u64, nav: u64, url: String, result: Result<String, String> },
     Image { url: String, result: Result<egui::ColorImage, String> },
     Download { tab: u64, nav: u64, name: String, path: PathBuf, bytes: u64, result: Result<(), String> },
+    /// A fetch no action of the person's started (a restored tab) turned out
+    /// to be a download: asked first (the request, to run again if allowed).
+    DownloadAsk { tab: u64, nav: u64, site: String, req: Request },
 }
 
 /// Ask sites for pages in the interface language first.
@@ -31,8 +34,70 @@ fn accept_language() -> String {
     }
 }
 
+/// Where distributions keep the certificate authorities the system trusts
+/// (one PEM bundle); $SSL_CERT_FILE first, as OpenSSL does.
+fn ca_bundles() -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = std::env::var_os("SSL_CERT_FILE").map(PathBuf::from).into_iter().collect();
+    v.extend(
+        [
+            "/etc/ssl/certs/ca-certificates.crt",                // Arch, Debian, Ubuntu, Gentoo
+            "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem", // Fedora, RHEL
+            "/etc/pki/tls/certs/ca-bundle.crt",                  // older Fedora, RHEL
+            "/etc/ssl/ca-bundle.pem",                            // openSUSE
+            "/etc/ssl/cert.pem",                                 // Alpine, OpenBSD
+            "/usr/local/share/certs/ca-root-nss.crt",            // FreeBSD
+        ]
+        .map(PathBuf::from),
+    );
+    v
+}
+
+/// The system's certificate authorities, read from the first bundle found.
+fn system_roots() -> rustls::RootCertStore {
+    use rustls::pki_types::{pem::PemObject, CertificateDer};
+    let mut roots = rustls::RootCertStore::empty();
+    for path in ca_bundles() {
+        let Ok(bytes) = std::fs::read(&path) else { continue };
+        let (added, _) = roots.add_parsable_certificates(CertificateDer::pem_slice_iter(&bytes).filter_map(|c| c.ok()));
+        if added > 0 {
+            break;
+        }
+    }
+    if roots.is_empty() {
+        eprintln!("Sanaga: no system certificate store found; secure requests made by Sanaga itself will fail");
+    }
+    roots
+}
+
+/// TLS for the requests Sanaga makes itself (Reader, page source, AI
+/// services): the system's certificate authorities, the same list the rest
+/// of the system trusts (an organisation's own, the distribution's
+/// removals), never a list built into Sanaga.
+fn system_tls() -> Option<Arc<rustls::ClientConfig>> {
+    static CONFIG: std::sync::OnceLock<Option<Arc<rustls::ClientConfig>>> = std::sync::OnceLock::new();
+    CONFIG
+        .get_or_init(|| {
+            let config = rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+                .with_safe_default_protocol_versions()
+                .ok()?
+                .with_root_certificates(system_roots())
+                .with_no_client_auth();
+            Some(Arc::new(config))
+        })
+        .clone()
+}
+
+/// A builder for Sanaga's own requests, with the system's certificates.
+pub fn builder() -> ureq::AgentBuilder {
+    let b = ureq::AgentBuilder::new();
+    match system_tls() {
+        Some(tls) => b.tls_config(tls),
+        None => b,
+    }
+}
+
 pub fn agent() -> ureq::Agent {
-    ureq::AgentBuilder::new()
+    builder()
         .user_agent(USER_AGENT)
         .timeout_connect(Duration::from_secs(10))
         .timeout_read(Duration::from_secs(20))
@@ -49,6 +114,12 @@ pub struct Request {
     pub full: bool,
     /// Show the page's source text instead of the page.
     pub source: bool,
+    /// The page the tab showed before (the referrer of a download).
+    pub referrer: String,
+    /// The person asked for this (typed, clicked in Sanaga): if it is a
+    /// download, it goes straight to the Downloads folder. Otherwise (a
+    /// restored tab) the person is asked first, as for WebKit's downloads.
+    pub allow_download: bool,
 }
 
 pub fn download_dir() -> PathBuf {
@@ -64,40 +135,48 @@ pub fn download_dir() -> PathBuf {
     p
 }
 
-/// Where a download from `url` is saved (a new name if the file already exists).
-pub fn download_path_for(url: &str) -> PathBuf {
-    let name = url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).filter(|s| !s.is_empty()).unwrap_or("telechargement");
-    let name = percent_decode(name);
-    unique_path(&download_dir(), &name)
+// (download names, the download mark: see guard.rs, testable without GTK)
+pub use crate::guard::{mark_download, safe_download_name, unique_path, unique_path_with};
+
+/// Where a download is saved: in the Downloads folder, under a safe name
+/// made from `suggested` (WebKit's suggestion: the site's
+/// Content-Disposition, else the address), or from the address itself.
+pub fn download_destination(suggested: &str, url: &str, taken: impl Fn(&Path) -> bool) -> PathBuf {
+    let from_url = url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).unwrap_or("");
+    let raw = if suggested.trim().is_empty() { from_url } else { suggested };
+    unique_path_with(&download_dir(), &safe_download_name(raw), taken)
 }
 
-fn percent_decode(s: &str) -> String {
-    url::form_urlencoded::parse(format!("x={}", s.replace('+', "%2B")).as_bytes()).next().map(|(_, v)| v.into_owned()).unwrap_or_else(|| s.to_string())
+/// A file Sanaga saves itself in the Downloads folder (a page kept with
+/// Ctrl+S): a safe, free name.
+pub fn download_path_named(name: &str) -> PathBuf {
+    unique_path(&download_dir(), &safe_download_name(name))
 }
 
-pub fn unique_path(dir: &std::path::Path, name: &str) -> PathBuf {
-    let p = dir.join(name);
-    if !p.exists() {
-        return p;
-    }
-    let (stem, ext) = match name.rfind('.') {
-        Some(i) if i > 0 => (&name[..i], &name[i..]),
-        _ => (name, ""),
-    };
-    for n in 1..1000 {
-        let p = dir.join(format!("{stem} ({n}){ext}"));
-        if !p.exists() {
-            return p;
+/// Create a new file in the Downloads folder for a download Sanaga makes
+/// itself: a safe name, and the file is created only if nothing is there
+/// (never replacing a file, never following a link: O_CREAT | O_EXCL |
+/// O_NOFOLLOW).
+pub fn create_download(suggested: &str) -> std::io::Result<(std::fs::File, PathBuf)> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let dir = download_dir();
+    let name = safe_download_name(suggested);
+    for _ in 0..32 {
+        let path = unique_path(&dir, &name);
+        match std::fs::OpenOptions::new().write(true).create_new(true).custom_flags(libc::O_NOFOLLOW).open(&path) {
+            Ok(f) => return Ok((f, path)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
         }
     }
-    dir.join(name)
+    Err(std::io::Error::other("no free file name in the Downloads folder"))
 }
 
 pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egui::Context) {
     std::thread::Builder::new()
         .name("sanaga-page".into())
         .spawn(move || {
-            let Request { tab, nav, url, post_body, full, source } = req;
+            let Request { tab, nav, url, post_body, full, source, referrer, allow_download } = req;
             let send = |result| {
                 let _ = tx.send(NetMsg::Page { tab, nav, result });
                 ctx.request_repaint();
@@ -148,6 +227,21 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                 return;
             }
             if !is_text || attachment {
+                // the source of something that is not text: nothing to show,
+                // and nothing saved
+                if source {
+                    let _ = tx.send(NetMsg::Source { tab, nav, url: final_url, result: Err(tr("Ce n'est pas une page de texte : il n'y a pas de source à afficher.").into()) });
+                    ctx.request_repaint();
+                    return;
+                }
+                // no action of the person's behind this fetch: asked first
+                if !allow_download {
+                    let site = crate::guard::download_site(&referrer, &final_url);
+                    let req = Request { tab, nav, url, post_body, full, source, referrer, allow_download: true };
+                    let _ = tx.send(NetMsg::DownloadAsk { tab, nav, site, req });
+                    ctx.request_repaint();
+                    return;
+                }
                 // Save to the downloads folder.
                 let name = resp
                     .header("Content-Disposition")
@@ -156,11 +250,19 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                     .filter(|n| !n.is_empty())
                     .or_else(|| final_url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).filter(|s| !s.is_empty()).map(|s| s.to_string()))
                     .unwrap_or_else(|| "telechargement".into());
-                let name: String = name.chars().map(|c| if c == '/' || c == '\\' { '_' } else { c }).collect();
-                let path = unique_path(&download_dir(), &name);
-                let result = std::fs::File::create(&path)
-                    .and_then(|mut f| std::io::copy(&mut resp.into_reader(), &mut f))
-                    .map_err(|e| e.to_string());
+                // (a safe name, a new file: never one that was already there)
+                let (path, result) = match create_download(&name) {
+                    Ok((mut f, path)) => (path, std::io::copy(&mut resp.into_reader(), &mut f).map_err(|e| e.to_string())),
+                    Err(e) => (download_dir().join(safe_download_name(&name)), Err(e.to_string())),
+                };
+                let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(name);
+                // where it came from, as for WebKit's downloads (the file
+                // manager asks before running a downloaded program)
+                if result.is_ok() {
+                    if let Err(e) = mark_download(&path, &final_url, &referrer) {
+                        eprintln!("download mark: {e}");
+                    }
+                }
                 let bytes = *result.as_ref().unwrap_or(&0);
                 let _ = tx.send(NetMsg::Download { tab, nav, name, path, bytes, result: result.map(|_| ()) });
                 ctx.request_repaint();
@@ -313,5 +415,20 @@ pub fn human_bytes(b: u64) -> String {
         tf("{} Ko", &[&(b / 1024)])
     } else {
         tf("{} o", &[&b])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn requests_trust_the_systems_certificates() {
+        assert!(ca_bundles().iter().any(|p| p.ends_with("ca-certificates.crt")));
+        // (only where the usual bundle is installed)
+        if std::path::Path::new("/etc/ssl/certs/ca-certificates.crt").is_file() && std::env::var_os("SSL_CERT_FILE").is_none() {
+            assert!(system_roots().len() > 10);
+            assert!(system_tls().is_some());
+        }
     }
 }

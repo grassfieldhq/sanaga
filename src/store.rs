@@ -400,7 +400,10 @@ impl Store {
     pub fn load_profile(profile: &str) -> Store {
         let dir = if profile.is_empty() { Self::root_dir() } else { Self::root_dir().join("profils").join(profile) };
         let first_run = !dir.join("settings.txt").exists();
-        let _ = std::fs::create_dir_all(&dir);
+        // the person's data: closed to other users (folders 0700, files 0600)
+        ensure_private_dir(&Self::root_dir());
+        ensure_private_dir(&dir);
+        close_files(&dir);
         let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new(), containers: Vec::new(), buttons: Vec::new() };
         if let Ok(t) = std::fs::read_to_string(dir.join("containers.tsv")) {
             s.containers = t.lines().filter_map(|l| l.split_once('\t')).map(|(n, c)| Container { name: n.to_string(), color: c.parse().unwrap_or(1) }).collect();
@@ -620,7 +623,8 @@ impl Store {
         }
         let v = Visit { time: now(), url: url.to_string(), title: title.to_string() };
         if let Some(dir) = &self.dir {
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("history.tsv")) {
+            use std::os::unix::fs::OpenOptionsExt;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(dir.join("history.tsv")) {
                 let _ = writeln!(f, "{}\t{}\t{}", v.time, clean(&v.url), clean(&v.title));
                 changed();
             }
@@ -819,13 +823,22 @@ fn changed() {
     CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
+// (private folders and permissions: see guard.rs, testable without GTK)
+pub use crate::guard::{close_files, ensure_private_dir, runtime_dir, PrivateDir};
+
 /// Write a data file safely: into a copy first, then put in place in one go,
 /// so a crash or power cut while writing never leaves a half-written file.
+/// The copy is a new file only this user can read (0600, never a file or
+/// link that was already there).
 pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);
-    std::fs::write(&tmp, data)?;
+    let _ = std::fs::remove_file(&tmp);
+    let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
+    f.write_all(data.as_ref())?;
+    drop(f);
     std::fs::rename(&tmp, path)?;
     // (each window has its own session file: no need to tell the others)
     if !path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("session")) {
@@ -893,6 +906,27 @@ pub fn day_group(t: u64) -> &'static str {
 
 #[cfg(test)]
 mod write_tests {
+    #[test]
+    fn data_files_and_folders_are_closed_to_others() {
+        use super::{close_files, ensure_private_dir};
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("sanaga-perms-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let inner = dir.join("profils").join("Travail");
+        ensure_private_dir(&inner);
+        assert_eq!(std::fs::metadata(&inner).unwrap().permissions().mode() & 0o777, 0o700);
+        let f = inner.join("session.txt");
+        super::write_atomic(&f, "https://a.example/").unwrap();
+        assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
+        // a file an earlier version left open is closed
+        let old = inner.join("history.tsv");
+        std::fs::write(&old, "x").unwrap();
+        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o644)).unwrap();
+        close_files(&inner);
+        assert_eq!(std::fs::metadata(&old).unwrap().permissions().mode() & 0o777, 0o600);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn atomic_write_replaces_the_file_and_leaves_no_copy() {
         let dir = std::env::temp_dir().join(format!("sanaga-atomic-{}", std::process::id()));

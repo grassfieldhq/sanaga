@@ -69,6 +69,10 @@ impl Sanaga {
     /// "Add to Dock": an application-menu entry that opens this site on its own.
     pub(super) fn make_web_app(&mut self) -> Option<String> {
         let (u, title) = self.current_page()?;
+        // web sites only
+        if !(u.starts_with("https://") || u.starts_with("http://")) {
+            return None;
+        }
         let host = host_of(&u);
         let exe = std::env::current_exe().ok()?;
         let dir = std::env::var_os("XDG_DATA_HOME")
@@ -78,9 +82,15 @@ impl Sanaga {
         std::fs::create_dir_all(&dir).ok()?;
         let safe: String = host.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
         let name = if title.trim().is_empty() { host.clone() } else { title.replace(['\n', '\r'], " ") };
-        let exe_q = exe.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
+        // the page's address and the program's path are quoted and escaped
+        // as the Desktop Entry specification says: whatever the address
+        // holds, it stays one argument of Sanaga's
         let desktop = format!(
-            "[Desktop Entry]\nType=Application\nName={name}\nComment={host} — application web Sanaga\nExec=\"{exe_q}\" --app \"{u}\"\nIcon=web-browser\nTerminal=false\nCategories=Network;WebBrowser;\nStartupWMClass=sanaga\n"
+            "[Desktop Entry]\nType=Application\nName={}\nComment={}\nExec={} --app {}\nIcon=web-browser\nTerminal=false\nCategories=Network;WebBrowser;\nStartupWMClass=sanaga\n",
+            crate::desktop::desktop_value(&name),
+            crate::desktop::desktop_value(&format!("{host} — application web Sanaga")),
+            crate::desktop::exec_arg(&exe.to_string_lossy()),
+            crate::desktop::exec_arg(&u),
         );
         let path = dir.join(format!("sanaga-web-{safe}.desktop"));
         std::fs::write(&path, desktop).ok()?;
@@ -274,7 +284,10 @@ impl Sanaga {
         };
         if let Some(u) = send_to {
             self.share_open = false;
-            self.open_tab(&u, self.tabs[self.active].private);
+            // (in a tab of the same kind: private, or the same container)
+            let (private, container) = (self.tabs[self.active].private, self.tabs[self.active].container.clone());
+            let i = self.open_tab(&u, private);
+            self.tabs[i].container = container;
             return;
         }
         match id {

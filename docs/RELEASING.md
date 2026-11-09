@@ -5,12 +5,14 @@ has to be built on your computer.
 
 | You do | GitHub builds | Published as |
 |---|---|---|
-| push to `main` | every package | the release named after the version in `Cargo.toml`, e.g. **0.4.0** (made the first time, its packages replaced at the next pushes) |
 | push a tag `1.2.3` | every package | the release **1.2.3** (`1.2.3-beta.1`: a pre-release) |
-| Actions › Release › *Run workflow* | every package | same as a push to `main` |
+| push to `main` | nothing is published | (CI only checks the build) |
 
-A new version number in `Cargo.toml` therefore gives a new release; the
-earlier ones stay as they are.
+A release is made **only from a version tag**. A published version is never
+replaced and its tag is never moved: if the tag's release exists already the
+build stops; a fix is a new version. The workflow's actions are pinned to
+commits and its build containers to digests; only the publishing job may
+write to the repository.
 
 Tags and releases follow [Semantic Versioning](https://semver.org/) exactly:
 `MAJOR.MINOR.PATCH` (`0.4.0`), optionally a pre-release part (`1.0.0-rc.1`),

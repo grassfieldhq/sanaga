@@ -33,18 +33,35 @@ const TRANSLATE_JS: &str = r#"(function () {
     }
     window.ipc.postMessage(out.length ? 'tr:' + from + '\n' + JSON.stringify(out) : 'tr:done');
   }
+  // The model's answer goes into the page as plain text only (a text node's
+  // data: never read as HTML), from Sanaga's own world.
   window.__sanagaTrApply = function (from, list) {
     var s = window.__sanagaTr;
+    if (!s || !Array.isArray(list)) return;
     for (var i = 0; i < list.length; i++) {
       var n = s.nodes[from + i];
-      if (!n || typeof list[i] !== 'string' || !list[i]) continue;
-      var v = n.nodeValue, lead = v.match(/^\s*/)[0], trail = v.match(/\s*$/)[0];
-      n.nodeValue = lead + list[i] + trail;
+      if (!n || n.nodeType !== 3 || typeof list[i] !== 'string' || !list[i]) continue;
+      var v = n.data, lead = v.match(/^\s*/)[0], trail = v.match(/\s*$/)[0];
+      n.data = lead + list[i] + trail;
     }
     next();
   };
   next();
 })();"#;
+
+/// At most this many batches of a page are translated (80 texts or 5000
+/// characters each): a very long page stops there.
+const MAX_BATCHES: usize = 40;
+
+/// A batch as Sanaga's page script makes it: where it starts, and its texts.
+/// Anything else (too many texts, too long, a strange start) is refused.
+pub(super) fn read_batch(msg: &str) -> Option<(usize, Vec<String>)> {
+    let (from, json) = msg.split_once('\n')?;
+    let from: usize = from.trim().parse().ok().filter(|f| *f <= 1_000_000)?;
+    let texts = parse_string_array(json);
+    let size: usize = texts.iter().map(|t| t.chars().count()).sum();
+    (!texts.is_empty() && texts.len() <= 80 && size <= 6000).then_some((from, texts))
+}
 
 /// Languages pages can be translated into: code, name for the model, name
 /// shown (in the language itself when the interface's fonts can draw it).
@@ -122,8 +139,14 @@ impl Sanaga {
     }
 
     fn translate_with_ai(&mut self) {
-        if self.ai_provider() == Provider::Local {
+        let provider = self.ai_provider();
+        if provider == Provider::Local {
             self.notice = Some((tr("Choisissez d'abord une IA dans Paramètres › Intelligence.").into(), self.ctx.input(|i| i.time)));
+            return;
+        }
+        // the page's text only goes to a model with no tools and no files
+        if let Err(e) = ai::page_content_allowed(&provider) {
+            self.notice = Some((e, self.ctx.input(|i| i.time)));
             return;
         }
         let t = &self.tabs[self.active];
@@ -131,9 +154,22 @@ impl Sanaga {
             self.notice = Some((tr("La traduction marche sur les pages des sites.").into(), self.ctx.input(|i| i.time)));
             return;
         };
-        let _ = w.evaluate_script(TRANSLATE_JS);
-        self.translating = Some(t.id);
+        let _ = w.evaluate_own(TRANSLATE_JS);
+        let id = t.id;
+        self.translating = Some(id);
+        self.translate_batches = 0;
+        self.translate_gen += 1;
         self.notice = Some((tr("Traduction de la page…").into(), self.ctx.input(|i| i.time)));
+    }
+
+    /// The tab left its page (or closed): its translation stops, and the
+    /// answers still on their way are dropped.
+    pub(super) fn stop_translation(&mut self, tab: u64) {
+        if self.translating == Some(tab) {
+            self.translating = None;
+            self.translate_batches = 0;
+            self.translate_gen += 1;
+        }
     }
 
     /// A batch of texts from the page (`from` + JSON array), or the end.
@@ -146,13 +182,23 @@ impl Sanaga {
             self.notice = Some((tr("Page traduite.").into(), self.ctx.input(|i| i.time)));
             return;
         }
-        let Some((from, json)) = msg.split_once('\n') else { return };
-        let from: usize = from.parse().unwrap_or(0);
-        let texts = parse_string_array(json);
+        let Some((from, texts)) = read_batch(msg) else { return };
+        if self.translate_batches >= MAX_BATCHES {
+            self.stop_translation(tab);
+            self.notice = Some((tr("La traduction s'arrête ici : la page est très longue.").into(), self.ctx.input(|i| i.time)));
+            return;
+        }
+        self.translate_batches += 1;
         let provider = self.ai_provider();
+        if let Err(e) = ai::page_content_allowed(&provider) {
+            self.stop_translation(tab);
+            self.notice = Some((e, self.ctx.input(|i| i.time)));
+            return;
+        }
         let tx = self.ai_tx.clone();
         let repaint = self.ctx.clone();
         let lang = target(&self.store.settings.translate_to).1;
+        let generation = self.translate_gen;
         std::thread::Builder::new()
             .name("sanaga-translate".into())
             .spawn(move || {
@@ -171,18 +217,23 @@ impl Sanaga {
                     }
                     Err(e) => Err(e),
                 };
-                let _ = tx.send(super::intelligence::AiDone::Translation { tab, from, result: out });
+                let _ = tx.send(super::intelligence::AiDone::Translation { tab, from, generation, result: out });
                 repaint.request_repaint();
             })
             .ok();
     }
 
-    /// Put a translated batch in the page (it then sends the next one).
-    pub(super) fn translation_done(&mut self, tab: u64, from: usize, result: Result<Vec<String>, String>) {
+    /// Put a translated batch in the page (it then sends the next one), as
+    /// text only, from Sanaga's world; an answer for a page the tab has left
+    /// is dropped.
+    pub(super) fn translation_done(&mut self, tab: u64, from: usize, generation: u64, result: Result<Vec<String>, String>) {
+        if self.translating != Some(tab) || generation != self.translate_gen {
+            return;
+        }
         match result {
             Ok(list) => {
                 if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
-                    let _ = w.evaluate_script(&format!("window.__sanagaTrApply && window.__sanagaTrApply({from}, {});", ai::json_array(&list)));
+                    let _ = w.evaluate_own(&format!("window.__sanagaTrApply && window.__sanagaTrApply({from}, {});", ai::json_array(&list)));
                 }
             }
             Err(e) => {
@@ -333,6 +384,18 @@ impl Sanaga {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn page_batches_are_bounded() {
+        assert_eq!(super::read_batch("3\n[\"Hello\", \"World\"]"), Some((3, vec!["Hello".to_string(), "World".to_string()])));
+        assert_eq!(super::read_batch("x\n[\"a\"]"), None);
+        assert_eq!(super::read_batch("0\n[]"), None);
+        assert_eq!(super::read_batch("no batch"), None);
+        let many = format!("0\n[{}]", vec!["\"a\""; 81].join(","));
+        assert_eq!(super::read_batch(&many), None);
+        let long = format!("0\n[\"{}\"]", "a".repeat(6001));
+        assert_eq!(super::read_batch(&long), None);
+    }
+
     #[test]
     fn reads_translated_lists() {
         let a = super::parse_string_array("Voici :\n[\"Bonjour\", \"le \\\"monde\\\"\" ,\"é\"]\nfin");

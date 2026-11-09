@@ -28,6 +28,8 @@ pub(super) enum WebEvent {
     /// Login seen / login form found by the page script.
     Password { tab: u64, msg: String },
     DownloadDone { url: String, path: Option<std::path::PathBuf>, ok: bool },
+    /// A site started a download by itself, or several at once: ask first.
+    DownloadAsk { site: String },
     /// Privacy report: trackers kept from following the person.
     Privacy(Vec<(String, usize)>),
     /// The text of a page, for its summary.
@@ -45,6 +47,7 @@ pub(super) enum WebEvent {
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
 /// A video or sound the engine can't decode (missing codecs): Sanaga offers them.
 const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
+  if (!e.isTrusted) return;
   var t = e.target;
   if (t && (t.tagName === 'VIDEO' || t.tagName === 'AUDIO' || t.tagName === 'SOURCE') && window.ipc) {
     var m = t.tagName === 'SOURCE' ? t.parentNode : t;
@@ -54,6 +57,7 @@ const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
 
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
+  if (!e.isTrusted) return;
   var k = (e.key || '').toLowerCase();
   var ctrl = e.ctrlKey || e.metaKey;
   var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','y','pagedown','pageup'].indexOf(k) >= 0)
@@ -66,6 +70,42 @@ window.addEventListener('keydown', function (e) {
   window.ipc.postMessage((ctrl ? 'c' : '') + (e.shiftKey ? 's' : '') + (e.altKey ? 'a' : '') + ':' + k);
 }, true);
 "#;
+
+/// Links of Sanaga's own source page (Ctrl+U): a real click shows the
+/// source of the linked file.
+const SOURCE_LINKS_JS: &str = r#"
+document.addEventListener('click', function (e) {
+  // (a hint only: Sanaga checks on its side that the tab shows its own source page)
+  if (!e.isTrusted || !window.ipc || location.href !== 'about:blank' || !document.documentElement.hasAttribute('data-sanaga-source')) return;
+  var a = e.target && e.target.closest && e.target.closest('a[data-u]');
+  if (!a) return;
+  e.preventDefault();
+  window.ipc.postMessage('vs:' + a.getAttribute('data-u'));
+}, true);
+"#;
+
+/// The buttons of Sanaga's own error page (back to safety, go on despite the
+/// certificate): a real click sends the action; Sanaga checks on its side
+/// that the tab shows that error page (see `page_tool`).
+/// (Nothing a page can set counts: the secret is given by Sanaga to its own
+/// world in that error page only, and checked in Rust with the failed
+/// address.)
+const ERROR_ACTIONS_JS: &str = r#"
+document.addEventListener('click', function (e) {
+  if (!e.isTrusted || !window.ipc || !window.__sanagaErrorToken) return;
+  var b = e.target && e.target.closest && e.target.closest('[data-sanaga-action]');
+  if (!b) return;
+  e.preventDefault();
+  window.ipc.postMessage('tool:' + b.getAttribute('data-sanaga-action') + ':' + window.__sanagaErrorToken + '|' + (b.getAttribute('data-sanaga-arg') || ''));
+}, true);
+"#;
+
+/// The page tools whose answer may come from Sanaga's page scripts (the
+/// others are only asked from Sanaga's menus). Each one is still checked
+/// against what the person started (see `page_tool`).
+fn page_may_answer(what: &str) -> bool {
+    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow") || (cfg!(debug_assertions) && what == "probe")
+}
 
 fn shortcut_name(msg: &str) -> Option<&'static str> {
     let (mods, key) = msg.split_once(':')?;
@@ -140,12 +180,13 @@ pub(super) fn watch_page_input(w: &PageView) {
     w.webview().add_controller(watch);
 }
 
-/// Load an address, or HTML made by Sanaga (e.g. a page's source).
-fn load_into(w: &PageView, url: &str) {
+/// Load an address (asked for now by the person, or not: a restored or
+/// woken tab), or HTML made by Sanaga (e.g. a page's source).
+fn load_into(w: &PageView, url: &str, by_person: bool) {
     match url.strip_prefix(super::source::HTML_MARK) {
         Some(html) => w.webview().load_html(html, None),
         None => {
-            let _ = w.load_url(url);
+            let _ = w.load_url(url, by_person);
         }
     }
 }
@@ -157,11 +198,14 @@ pub(super) struct PageMaker {
     ctx: Option<crate::page::Engine>,
     /// The profile's web data folder (containers keep theirs inside it).
     base: Option<std::path::PathBuf>,
+    /// Sanaga's own scripts: they run in Sanaga's world, out of the page's reach.
     scripts: Rc<Vec<String>>,
     tx: std::sync::mpsc::Sender<WebEvent>,
     repaint: egui::Context,
     popups: Rc<RefCell<Vec<(u64, u64, PageView)>>>,
     ids: Rc<Cell<u64>>,
+    /// The person's extensions: they act on the page itself (its world).
+    page_scripts: Rc<Vec<String>>,
 }
 
 impl PageMaker {
@@ -170,7 +214,7 @@ impl PageMaker {
         let base = self.base.as_ref()?;
         let safe: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
         let e = crate::page::profile_context(&base.join("containers").join(safe));
-        crate::page::follow_downloads(&e, net::download_path_for);
+        crate::page::follow_downloads(&e);
         Some(e)
     }
 
@@ -188,8 +232,9 @@ impl PageMaker {
         });
         let (tx, repaint) = (self.tx.clone(), self.repaint.clone());
         let scripts: Vec<&str> = self.scripts.iter().map(|s| s.as_str()).collect();
+        let page_scripts: Vec<&str> = self.page_scripts.iter().map(|s| s.as_str()).collect();
         let engine = if container.is_empty() || private { self.ctx.clone() } else { self.container_engine(container).or_else(|| self.ctx.clone()) };
-        PageView::new(engine.as_ref(), private, &scripts, opener, Some(popup), move |sig| {
+        PageView::new(engine.as_ref(), private, &scripts, &page_scripts, opener, Some(popup), move |sig| {
             let ev = match sig {
                 PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
                 PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
@@ -198,11 +243,20 @@ impl PageMaker {
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
                 PageSignal::Tool(what, arg) => WebEvent::Tool { tab: id, what: what.to_string(), arg },
+                PageSignal::Favicon(url, png) => {
+                    // kept on disk for normal tabs only
+                    crate::favicon::learn(&url, png, private);
+                    repaint.request_repaint();
+                    return;
+                }
                 PageSignal::OpenLink(url, how) => WebEvent::OpenLink { tab: id, url, how },
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
+                        if !page_may_answer(what) {
+                            return;
+                        }
                         WebEvent::Tool { tab: id, what: what.to_string(), arg: arg.to_string() }
                     } else if let Some(rest) = body.strip_prefix("tr:") {
                         WebEvent::Translate { tab: id, msg: rest.to_string() }
@@ -280,6 +334,32 @@ impl Sanaga {
                 if !finished {
                     // a new page: nothing typed in it yet
                     t.form_dirty = false;
+                    // its saved accounts may be offered again
+                    if self.pw_fill_dismissed.as_ref().is_some_and(|(id, _)| *id == tab) {
+                        self.pw_fill_dismissed = None;
+                    }
+                    // a translation belongs to the page it started on
+                    if self.translating == Some(tab) {
+                        self.translating = None;
+                        self.translate_batches = 0;
+                        self.translate_gen += 1;
+                    }
+                    // an error page's buttons belong to that page only: it is
+                    // armed when it is committed itself (its secret goes to
+                    // Sanaga's world there), and forgotten at the next commit
+                    match self.error_pages.get_mut(&tab) {
+                        Some(e) if !e.shown && e.url == url => {
+                            e.shown = true;
+                            e.token = super::errors::new_token();
+                            if let Some(w) = &t.web {
+                                let _ = w.evaluate_own(&format!("window.__sanagaErrorToken = '{}';", e.token));
+                            }
+                        }
+                        Some(_) => {
+                            self.error_pages.remove(&tab);
+                        }
+                        None => {}
+                    }
                 }
                 if t.entries[t.idx].url.starts_with("view-source:") && url == "about:blank" {
                     return; // Sanaga's own source page: the address stays
@@ -357,6 +437,20 @@ impl Sanaga {
             WebEvent::Notice(msg) => self.notice = Some((msg, self.ctx.input(|i| i.time))),
             WebEvent::PageText { tab, text } => self.summary_text_arrived(tab, text),
             WebEvent::ViewSource { tab, url } => {
+                if !(url.starts_with("http://") || url.starts_with("https://")) {
+                    return;
+                }
+                // only from Sanaga's own source page (Ctrl+U), never from web
+                // content: the tab must show a view-source address, and its
+                // view the page Sanaga made for it (about:blank, no site)
+                let own_source_page = self
+                    .tabs
+                    .iter()
+                    .find(|t| t.id == tab)
+                    .is_some_and(|t| t.url().starts_with("view-source:") && t.web.as_ref().and_then(|w| w.uri()).as_deref() == Some("about:blank"));
+                if !own_source_page {
+                    return;
+                }
                 if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
                     self.navigate(i, format!("view-source:{url}"), None, true);
                 }
@@ -374,8 +468,14 @@ impl Sanaga {
                 }
             }
             WebEvent::Privacy(list) => self.privacy = list,
+            WebEvent::DownloadAsk { site } => {
+                if !self.download_asks.contains(&site) {
+                    self.download_asks.push(site);
+                }
+            }
             WebEvent::DownloadDone { url, path, ok } => {
-                let path = path.unwrap_or_else(|| net::download_path_for(&url));
+                // (a download that never got a place: only its address is known)
+                let path = path.unwrap_or_else(|| net::download_dir().join(net::safe_download_name(url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).unwrap_or(""))));
                 let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
                 let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| tr("téléchargement").into());
                 let error = if ok { String::new() } else { tr("le téléchargement n'a pas abouti").into() };
@@ -390,7 +490,7 @@ impl Sanaga {
         if !self.web_ok {
             return;
         }
-        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || self.switcher.is_some() || self.ai_menu_open || self.profile_open || self.group_editor.is_some() || !self.dialogs.is_empty() || egui::Popup::is_any_open(&self.ctx);
+        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || self.switcher.is_some() || self.ai_menu_open || self.profile_open || self.group_editor.is_some() || self.shown_dialog().is_some() || egui::Popup::is_any_open(&self.ctx);
         // A menu over a page: the page sits above Sanaga's drawing, so take a
         // picture of it first and show that picture while the menu is open
         // (instead of a blank page).
@@ -473,9 +573,10 @@ impl Sanaga {
                     continue;
                 }
                 let Some(url) = self.tabs[i].web_pending.take() else { continue };
+                let by_person = std::mem::take(&mut self.tabs[i].web_by_person);
                 let w = self.build_webview(i);
                 self.prepare_view(i, &w, show);
-                load_into(&w, &url);
+                load_into(&w, &url, by_person);
                 self.tabs[i].web = Some(w);
                 self.tabs[i].web_shown = show;
                 self.tabs[i].web_zoom = 1.0;
@@ -484,7 +585,7 @@ impl Sanaga {
             let tab = &mut self.tabs[i];
             let Some(w) = &tab.web else { continue };
             if let Some(url) = tab.web_pending.take() {
-                load_into(w, &url);
+                load_into(w, &url, std::mem::take(&mut tab.web_by_person));
             }
             if show != tab.web_shown {
                 let _ = w.set_visible(show);
@@ -510,13 +611,16 @@ impl Sanaga {
             s.set_itp_enabled(self.store.settings.itp);
         }
         wk.set_is_muted(self.tabs[i].muted);
-        if let Some(st) = WebViewExt::settings(&wk) {
-            use webkit6::HardwareAccelerationPolicy as H;
-            // test aid: SANAGA_HWACCEL=never|always
-            match std::env::var("SANAGA_HWACCEL").as_deref() {
-                Ok("never") => st.set_hardware_acceleration_policy(H::Never),
-                Ok("always") => st.set_hardware_acceleration_policy(H::Always),
-                _ => {}
+        // test aid (debug builds only): SANAGA_HWACCEL=never|always
+        #[cfg(debug_assertions)]
+        {
+            if let Some(st) = WebViewExt::settings(&wk) {
+                use webkit6::HardwareAccelerationPolicy as H;
+                match std::env::var("SANAGA_HWACCEL").as_deref() {
+                    Ok("never") => st.set_hardware_acceleration_policy(H::Never),
+                    Ok("always") => st.set_hardware_acceleration_policy(H::Always),
+                    _ => {}
+                }
             }
         }
         // smaller caches: less memory per page
@@ -568,11 +672,12 @@ impl Sanaga {
     /// Extensions switched on or off, or removed: every open page gets the
     /// new set at once (it reloads), not only the tabs opened afterwards.
     pub(super) fn refresh_extensions(&mut self) {
-        let scripts = self.page_maker().scripts.clone();
-        let list: Vec<&str> = scripts.iter().map(|s| s.as_str()).collect();
+        let maker = self.page_maker();
+        let own: Vec<&str> = maker.scripts.iter().map(|s| s.as_str()).collect();
+        let page: Vec<&str> = maker.page_scripts.iter().map(|s| s.as_str()).collect();
         for t in &self.tabs {
             if let Some(w) = &t.web {
-                w.set_scripts(&list);
+                w.set_scripts(&own, &page);
             }
         }
     }
@@ -607,11 +712,12 @@ impl Sanaga {
         PageMaker {
             ctx: self.web_context.clone(),
             base: self.web_dir.clone(),
-            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), super::accounts::PASSWORD_JS.to_string(), extensions]),
+            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), SOURCE_LINKS_JS.to_string(), ERROR_ACTIONS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
             popups: self.popups.clone(),
             ids: self.popup_ids.clone(),
+            page_scripts: Rc::new(vec![extensions]),
         }
     }
 
@@ -624,7 +730,7 @@ impl Sanaga {
     pub(super) fn web_find(&self, backwards: bool) {
         if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
             let q = self.find_query.replace('\\', "\\\\").replace('\'', "\\'");
-            let _ = w.evaluate_script(&format!("window.find('{q}', false, {backwards}, true, false, false, false);"));
+            let _ = w.evaluate_own(&format!("window.find('{q}', false, {backwards}, true, false, false, false);"));
         }
     }
 }

@@ -934,6 +934,27 @@ Vidéo et musique	Vídeo y música
 WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit.	WebKit reproduce los vídeos con GStreamer: los códecs vienen de los paquetes del sistema. Los vídeos protegidos con Widevine (Netflix, Disney+, Spotify web…) no los puede reproducir ningún navegador WebKit.
 Toujours ouvrir ainsi	Abrir siempre así
 Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)	Los sitios protegidos se abrirán directamente en este navegador (Ajustes › General)
+Voulez-vous autoriser les téléchargements sur « {} » ?	¿Quieres permitir descargas en «{}»?
+Ne pas autoriser	No permitir
+Autoriser	Permitir
+{} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.	{} puede leer tus archivos: Sanaga no le envía el texto de las páginas. Elige Claude Code, Claude u Ollama en Ajustes › Inteligencia.
+{} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.	{} puede leer tus archivos, incluso bloqueado: Sanaga no le envía el texto de las páginas (resumen, traducción). Puede escribir extensiones, que revisas antes de activarlas.
+La traduction s'arrête ici : la page est très longue.	La traducción se detiene aquí: la página es muy larga.
+Installation dans le terminal : confirmez-la et tapez votre mot de passe là-bas.	Instalando en la terminal: confírmalo y escribe tu contraseña allí.
+Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec votre système : mettez-le à jour.	Faltan códecs para reproducir los vídeos de este sitio ({}). Vienen con tu sistema: actualízalo.
+Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}	Faltan códecs para reproducir los vídeos de este sitio ({}). Comando: {}
+Installer dans un terminal	Instalar en una terminal
+Appuyez sur Entrée pour fermer cette fenêtre.	Pulsa Intro para cerrar esta ventana.
+« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.	«{}» está escrita pero desactivada. Lee su código y los sitios donde actúa, y actívala si te convence.
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.	Describe lo que quieres cambiar en los sitios: Sanaga escribe la extensión, la lees y luego la activas.
+Où elle agirait : {}	Dónde actuaría: {}
+Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.	En estos sitios podría leer y cambiar todo lo que muestra la página, incluido lo que escribes en ella.
+Activer l'extension	Activar la extensión
+« {} » est activée : elle s'applique aux pages ouvertes.	«{}» está activada: se aplica a las páginas abiertas.
+Ce n'est pas une page de texte : il n'y a pas de source à afficher.	No es una página de texto: no hay código fuente que mostrar.
+« {} » est installée mais désactivée.	«{}» está instalada pero desactivada.
+Plus tard	Más tarde
+« {} » est installée mais désactivée : lisez-la, puis activez-la.	«{}» está instalada pero desactivada: revísala y luego actívala.
 {} sur {}	{} de {}
 Sélecteur d'onglets (Ctrl+Tab)	Selector de pestañas (Ctrl+Tab)
 Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	Las pestañas usadas por última vez, en imágenes; Ctrl+Av Pág sigue la barra de pestañas
@@ -1031,3 +1052,4 @@ Retirer la photo	Quitar la foto
 Photo du profil	Foto del perfil
 Images	Imágenes
 Cette image ne peut pas être lue.	No se puede leer esta imagen.
+Une page sur {} dit :	Una página en {} dice:

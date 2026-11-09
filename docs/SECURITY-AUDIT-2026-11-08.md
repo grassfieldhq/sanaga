@@ -1,0 +1,379 @@
+# Security audit of 8 November 2026 — findings and fixes
+
+Sanaga is to become the default browser of the Grassfield desktop once a
+security audit passes. The first audit (8 November 2026, against commit
+`44247bd`) **failed** with 15 findings. This page lists each finding, what was
+changed, and the commit that changed it, for the re-audit.
+
+Status legend: **Fixed** · **Fixed, with a deviation** (explained) ·
+**Partly fixed** (what is left is said).
+
+> **Verification status.** The fixes were written on a machine without
+> WebKitGTK 6 (see "Build and test status" below). The whole crate, tests
+> included, passes `cargo clippy --all-targets -- -D warnings` with the WebKit
+> pkg-config lookups stubbed (type-checking only, nothing linked); the pure
+> rules (`src/guard.rs`, `src/codecs.rs`, commit `ef63152`) were built and
+> their 18 tests run on their own (`tools/guard-tests`). The browser itself
+> was **not built or run**: every behaviour below must still be checked live
+> with WebKitGTK 6 before release (checklist at the end).
+
+## Blockers
+
+### 1. Downloads could land outside the Downloads folder — **Fixed**
+
+*Was:* the name was the last URL segment after percent-decoding
+(`src/net.rs:68-71`), so an encoded `/` let a page choose the folder
+(autostart, applications); downloads started with no prompt
+(`page.rs:389-393`).
+
+*Now* (`1b03d7c`, `8350c77`):
+- WebKit's suggested file name (`decide-destination`: Content-Disposition,
+  else the address) is used; `guard::safe_download_name` percent-decodes it
+  and keeps only the part after the last `/` or `\`, drops control and
+  direction-changing characters, trims leading/trailing dots and spaces (no
+  hidden file, no `..`), caps the length, and makes `.desktop`, `.service` and
+  the other systemd unit types inert by adding `.download`.
+- A clash gets ` (2)`, ` (3)`…; anything already there counts (even a
+  dangling link), and names picked for downloads in progress are reserved.
+- WebKit is told never to overwrite (`set_allow_overwrite(false)`: it creates
+  the file exclusively and fails rather than replace one). Downloads Sanaga
+  writes itself (light engine) use `O_CREAT|O_EXCL|O_NOFOLLOW`.
+- Safari's model: a download goes straight to Downloads, without a dialog,
+  when the person just acted on the page (a click that navigates, a new
+  window opened by a click, an address opened from Sanaga's interface) and no
+  other download used that action. Otherwise (no user gesture, or several
+  downloads at once) the download waits (asynchronous `decide-destination`,
+  WebKit 2.40+) behind a bar *"Do you want to allow downloads on <site>?"*;
+  allowed, the waiting downloads go on and the site may download until Sanaga
+  quits; refused, they are cancelled and not listed.
+- Unit tests: `guard::tests::download_names_*`, `downloads_never_replace_a_file`,
+  `downloads_follow_safaris_rule`, `download_question_names_the_site`.
+
+### 2. No download mark — **Fixed**
+
+*Now* (`3605ac5`): when a download finishes, `guard::mark_download` opens the
+file (`O_NOFOLLOW`, regular files only) and sets with `fsetxattr`
+`user.xdg.origin.url` (the address after redirections, user name, password and
+`#fragment` removed; `data:` keeps only its type; capped at 2 KiB) and
+`user.xdg.referrer.url` (the page that started it). `libc` (already in the
+build) is now a direct dependency. Test: `downloaded_files_carry_their_origin`
+(reads the attributes back), `download_marks_hide_passwords`.
+
+## High
+
+### 3. The page-to-browser channel trusted everyone — **Fixed, with a deviation**
+
+*Was:* the script message handler and all of Sanaga's scripts ran in the
+page's own world (`page.rs:283-307`, `web.rs:193-208`).
+
+*Now* (`23c488a`, `aab0589`):
+- Sanaga's scripts are `UserScript::for_world(…, "sanaga")`, top frame only;
+  the `ipc` handler is registered for that world only
+  (`register_script_message_handler("ipc", Some("sanaga"))`). The person's
+  extensions stay in the page world, without the channel. Sanaga's own
+  evaluations (tools, summary, translation, passwords, find) run in that world
+  (`PageView::evaluate_own`).
+- Every message carries the sender's `location.href`; the Rust side drops it
+  unless the view still shows that page (`guard::message_body`), so a page that
+  has navigated since is ignored.
+- Commands that change state need an action in Sanaga's interface:
+  - forwarded shortcuts (quit, new window, summary…) must follow a real key
+    press that GTK saw on the view within 1.5 s, and the page script ignores
+    untrusted key events;
+  - page messages can only answer what the person started: the element
+    remover's selector (`zap-done`, armed per tab from Sanaga's menu, checked
+    by `guard::plausible_selector` before it reaches the site's CSS), the
+    floating-video info (armed per tab), one summary text per request, a
+    translation batch while a translation the person started runs,
+    view-source of http(s) links on Sanaga's own source page;
+  - the other tools come only from Sanaga's menus (WebKit context-menu
+    actions created by Sanaga, never a page message), and a page's answer
+    never switches tabs;
+  - the codec bar may appear on a media error (only when decoders really are
+    missing) but the install starts only from Sanaga's button (finding 7);
+    AI features start only from Sanaga's interface (finding 6).
+- *Deviation:* WebKitGTK's `script-message-received` gives no frame
+  information, so the frame cannot be read on the Rust side. The frame is
+  guaranteed instead by construction: the channel exists only in Sanaga's
+  world, and that world's scripts run only in the top frame (no page or
+  iframe code can enter it); `IPC_JS` also refuses to install itself outside
+  the top frame. The URI check above is done on the Rust side for every
+  message.
+- Tests: `messages_from_a_page_that_navigated_are_dropped`,
+  `shortcut_messages_are_recognised`, `element_remover_selectors_stay_selectors`.
+
+### 4. Passwords filled with no click — **Fixed**
+
+*Now* (`d00c702`):
+- Nothing is filled on page load. When sign-in fields appear, the page script
+  (Sanaga's world) only tells Sanaga, which offers the saved accounts in its
+  own bar; the fill happens when the person clicks *"Fill: <account>"* there.
+- The in-page account list (usernames in the page's DOM) and the page's
+  `pw:fill` request are gone.
+- The fill runs in Sanaga's world; Rust first checks the tab still shows that
+  origin, and the script compares `location.origin` with the expected origin
+  at the moment of filling and refuses outside the top frame. Cross-origin
+  iframes are never filled (the script never enters frames).
+
+### 5. Pages could read the clipboard silently — **Fixed**
+
+*Now* (`a153e47`): `javascript-can-access-clipboard` is no longer set; WebKit's
+default applies (a read needs a user gesture).
+
+### 6. AI translation — **Fixed**
+
+*Now* (`744e1f2`):
+- Page text (translation and summaries) only goes to models with no tools and
+  no file access: Claude (API), Ollama, and Claude Code started with its
+  documented switches: `--tools ""` (no built-in tool), `--disallowedTools "*"`
+  (every tool, MCP ones included), `--strict-mcp-config` (no MCP server),
+  `--safe-mode` (no CLAUDE.md, hooks, plugins or skills),
+  `--disable-slash-commands`, `--no-session-persistence`, in an empty private
+  folder. Codex (`-s read-only`) and Gemini CLI (`--approval-mode default`)
+  can still read local files and have no documented tool-less mode: they are
+  refused for page content, and Settings and the error message say so (they
+  may still write an extension from the person's own description, which is
+  reviewed before use: finding 9).
+- The answer goes into the page as text only (a text node's `data`, never
+  HTML), from Sanaga's world.
+- Batches are checked (at most 80 texts, 6000 characters) and capped at 40 per
+  page.
+- Translation is reset when the tab navigates; answers for a page the tab has
+  left are dropped (a generation number).
+- Tests: `page_batches_are_bounded`, `page_text_goes_only_to_tool_less_models`,
+  `only_tool_less_assistants_read_pages`.
+
+## Medium
+
+### 7. Codec install — **Fixed**
+
+*Now* (`fb0ae70`, `79509a2`):
+- `SANAGA_DISTRO` (at build time, or in the environment;
+  `SANAGA_DISTRO=grassfield` for the Grassfield package) turns the install off
+  entirely: no button, the bar only says the decoders come with the system.
+- Elsewhere, the command shown is the command run (same argv, no
+  `--noconfirm`/`-y`/`--non-interactive`); *"Install in a Terminal"* opens it in
+  the desktop's terminal (`xdg-terminal-exec`), where the package manager asks
+  for confirmation and the password; the words of the command reach the
+  terminal's shell as arguments (`"$@"`), never as text to re-read. The
+  privileged helper Sanaga used to run without a terminal is gone.
+- Only Sanaga's own buttons start it.
+- Tests: `the_command_shown_is_the_command_run`,
+  `a_distribution_that_ships_codecs_turns_the_install_off`.
+
+### 8. Favicons fetched outside WebKit — **Fixed**
+
+*Now* (`060a7af`): Sanaga makes no request of its own for icons. WebKit loads
+a page's icon with the page, through that page's network session (favicons
+enabled on every session: profile, containers, private), and hands it over
+(`notify::favicon`). So: no shared cookie jar (each tab's own session), no
+fetch to LAN/localhost beyond what the page itself loads, no on-disk cache for
+private tabs (their icons stay in memory), no contact with the default
+favourites at first start (a site shows its letter badge until visited).
+
+### 9. AI-written extensions switched on before review — **Fixed**
+
+*Now* (`b2ac276`): the extension is saved switched off; the page shows where
+it would act (`@match`/`@include`, or all sites), what that allows, and its
+code (opened); it is switched on only by the person's click on *"Turn On
+Extension"* (or in Extensions).
+
+### 10. Predictable /tmp paths — **Fixed**
+
+*Now* (`cc315de`): AI work folders and browser-import copies use
+`guard::PrivateDir`: a new folder with a random name created atomically with
+mode 0700 (mkdtemp semantics) in `$XDG_RUNTIME_DIR` when it is the user's own
+closed folder, else in the temp folder; removed when done.
+
+### 11. Page URL unescaped in a .desktop Exec line — **Fixed**
+
+*Now* (`c62148e`): `guard::exec_arg` quotes each argument, escapes `"`,
+backtick, `$` and `\`, doubles `%`, drops control characters, then applies the
+key-file string escaping; `Name`, `Comment` and `Icon` go through
+`guard::desktop_value`. Web apps are made for http(s) pages only; the profile
+launcher uses the same helpers. Test `hostile_addresses_stay_one_exec_argument`
+reads a hostile address back, as a desktop would, as one argument.
+
+## Low
+
+### 12. Single-instance socket — **Fixed, with a deviation**
+
+*Now* (`a955179`): the socket lives in `$XDG_RUNTIME_DIR` only (checked: owned
+by the user, mode 0700; without it each launch runs on its own), mode 0600; the
+peer must be the same user (`SO_PEERCRED`; `getpeereid` on the BSDs); messages
+are at most 64 KiB (2 s read timeout) and 64 lines, at most 20 per 10 s.
+`guard::accept_forwarded` lets through http(s) addresses, text without a
+scheme (it becomes an https address or a search), and Sanaga's own flags;
+`javascript:`, `data:`, `sanaga://`, `view-source:` and the rest are dropped.
+*Deviation:* `file:` addresses are also accepted, so that local pages and PDFs
+opened from the file manager reach the running default browser; the peer is
+already verified to be the same user, who can open those files anyway.
+Tests: `other_launches_hand_over_web_addresses_only`,
+`other_launches_are_rate_limited`.
+
+### 13. Test hooks in the release build — **Fixed**
+
+*Now* (`ed220c3`): `SANAGA_LIVE_TEST`, `SANAGA_BENCH_CYCLE`,
+`SANAGA_TEST_POPUPS`, `SANAGA_COOKIES` and `SANAGA_HWACCEL` (and the page
+`probe` tool) are compiled only under `cfg(debug_assertions)`. The
+`SANAGA_DEBUG_*` switches only print diagnostics and stay.
+
+### 14. Default file permissions — **Fixed**
+
+*Now* (`ab86632`): Sanaga's data folder, each profile folder and each WebKit
+data folder (cookies, site data, containers) are created 0700 and tightened if
+open; `write_atomic` writes a new 0600 copy (`O_EXCL`) before swapping it in;
+`history.tsv` and `crash.log` are created 0600; files left readable by earlier
+versions are closed when a profile or WebKit folder opens. Test:
+`data_files_and_folders_are_closed_to_others`.
+
+### 15. Built-in certificate list — **Fixed**
+
+*Now* (`8221a55`): every ureq agent gets a rustls configuration built from the
+system bundle (`$SSL_CERT_FILE`, then the usual distribution paths); with no
+bundle those requests fail rather than fall back. The favicon fetch is gone
+(finding 8). `rustls` is a direct dependency with the same version and
+features ureq already builds (no new crate). Test:
+`requests_trust_the_systems_certificates`.
+
+## Re-audit (cd11df2): PASS WITH CONDITIONS, and what followed
+
+The re-audit accepted the 15 fixes and both deviations (#3, #12), and asked
+for the following. Each is fixed in a commit of its own:
+
+| Re-audit item | Fix | Commits |
+|---|---|---|
+| **N1 (medium)** Sanaga's own light-engine downloads were neither marked nor asked about; a page could set `data-sanaga-source` and get one real click to open view-source of any address | `vs:` is accepted only when the tab shows a view-source address and its view shows Sanaga's own source page (checked in Rust). Light-engine downloads get `user.xdg.origin.url` / `user.xdg.referrer.url`; a fetch the person asked for goes straight to Downloads, one nobody asked for now (a restored tab) waits behind the same question and is fetched again only if allowed; view-source of something that is not text shows an error instead of saving a file | `e1d555d`, `86a5834` |
+| **N2 (low)** preview and floating windows skipped the question | their views get the same state (page shown, the person's actions); the address the person opened there counts like a typed one; a download from a view Sanaga does not follow is always asked about | `cf96fe8` |
+| **N3 (low)** one download without a click for 10 s after any navigation, restore included | an action in the page (WebKit's user gesture) allows one download and is forgotten when a new page is shown; an address the person opens allows only the download that navigation itself turns into; restored and woken tabs get nothing | `dd35149` |
+| **N4 (low)** allowed sites shared by private tabs, containers and profiles | kept per WebKit network session (profile, container, private), in memory only; the light engine's per window, private apart | `9413194` |
+| **N5 (low)** a page could raise its own "Save password?" | only trusted submit/click/Enter events, and only for a password field the person typed into (or Sanaga filled) | `5e2bb5c` |
+| **N6 (low)** a same-user process could stall the socket listener | non-blocking accept; each connection read on its own short-lived thread (at most 8), the whole message within 500 ms and 64 KiB or dropped (`guard::read_bounded`); the rate limit applies to delivered messages | `70afd4b` |
+| **R3 (low)** imported extensions switched on at install | installed switched off; the Extensions page shows the sites, what that allows and the code; on only by the person's click | `36167a7` |
+| **C2** packaging | [packaging/DISTRIBUTIONS.md](../packaging/DISTRIBUTIONS.md): `SANAGA_DISTRO=grassfield`, `--release --locked`, dependencies on bubblewrap, xdg-dbus-proxy and the GStreamer codec packages | `f6ce542` |
+| **C3** live checks with WebKitGTK 6 | **open** until WebKitGTK 6 is installed (checklist below, items 12–16 added) | — |
+| **C4** Apple device names, frames, "Safari" identity | **open**, for the owner (not touched) | — |
+
+## Merge of main (12 commits, up to c7e4fe4)
+
+The owner's work on main (tab groups, Ctrl+Tab switcher, error pages and page
+dialogs, the summarise / translate menu, Ctrl+click and middle-click, open in
+a private tab, close-button side, default browser on Omarchy, codec packages,
+release packaging) was merged into this branch (`77b6ada`, a merge commit).
+Conflicts and how they were resolved:
+
+| File | Resolution |
+|---|---|
+| `src/page.rs` | `PageSignal` keeps `Favicon` (WebKit's icons) and gains `OpenLink`, `LoadFailed`, `Dialog`; the isolated world, message checks and download rules unchanged |
+| `src/app/web.rs`, `src/app/mod.rs` | both sides' arms, fields and initialisers |
+| `src/app/translate.rs` | batch bounds and generation counter kept; main's 20 target languages replace the old target function |
+| `src/codecs.rs` | `detect()`/`check_now()` kept, main's Flatpak check added to `detect()`; `install()` returns nothing under `SANAGA_DISTRO` **or** in a Flatpak |
+| README, translations | both sides kept; tables rebuilt |
+
+The new code was then checked against the same rules, and the fixes
+extended to it:
+
+| New feature (main) | Finding | Fix |
+|---|---|---|
+| Error pages (`errors.rs`) | their buttons called `window.ipc` from the page's own world: broken by the isolated channel, and before it any page could send `tool:tls-allow:<host>` to go on despite a bad certificate | the two Sanaga buttons are handled by an isolated-world script on a real click; Rust accepts `tls-allow` only while that tab shows Sanaga's error page for a certificate failure on that host, `safe` only while it shows an error page (`a92de43`) |
+| Ctrl+click / middle click / Shift+click | a script's synthetic click with modifiers would open tabs (pop-ups without a click), and any scheme could be opened (sanaga://, file: from a web page) | needs WebKit's user gesture; web addresses only (a local file only from a local page): `guard::link_may_open_elsewhere`, tested (`cef429a`) |
+| Open link in a private tab / from a container | Shift+click opened a new window with the profile's data from a private tab or a container | a tab of the same kind instead; "open in a private tab" follows the same address rule (`cef429a`) |
+| Page dialogs (alert, confirm, prompt, HTTP login) | WebKit's own signals (not page messages); the sheet names the site; HTTP credentials kept for the session only (a private tab's session is in memory) | no change needed |
+| Summarise / translate menu | Sanaga's interface only; it calls the same summary and translation, with their tool-less rule and batch bounds | no change needed |
+| Ctrl+Tab switcher | thumbnails are textures in memory, never written to disk; private tabs are not saved in sessions | no change needed |
+| Make default browser on Omarchy | writes the general default (`xdg-settings`, `xdg-mime` → `~/.config/mimeapps.list`), and the desktop's own setting unless it routes links to the general one (`omarchy-browser.desktop`); only reads `omarchy-cmd-default-browser`; never writes Omarchy's files. Runs only from Sanaga's buttons (Settings, welcome tour; the live-test hook is debug-only); opening Settings only reads | no change needed |
+| Codec packages | no privileged helper anywhere; the Arch and Fedora packages (codecs as dependencies) are now built with `SANAGA_DISTRO`; the Flatpak never offers; the .deb shares its program with the generic archive, which keeps the offer; Arch, Debian and Fedora packages depend on bubblewrap and xdg-dbus-proxy (`a315780`) | — |
+| Release workflow | only GitHub's own token, used by `gh`, nothing printed; now read-only by default and writable for the publish job only, every action pinned to a commit, the Flatpak source generator fetched at a fixed commit (`a315780`). Left as designed by the owner: a release is published on every push to main, and its tag is moved by force to the new commit | — |
+
+## Second merge of main (0.2.0 to 0.4.0) and the delta audit's items
+
+A delta audit of the first merge (PASS WITH CONDITIONS) found D1 (the
+certificate allowance outlived the error page), D2 (a background tab's
+dialog took the front) and D3 (a frame's prompt looked like the site's).
+The owner then pushed four commits (0.2.0; lighter on processor and memory,
+Google sign-in inside X and Reddit; Chrome-like profiles, guest window and
+the Share popover; 0.4.0, bare semver tags) and decided that releases are
+published only from version tags, never replacing a release.
+
+The merge (`80bc2e4`) kept every rule: the password script merged cleanly
+(click-only fill, isolated world, origin re-check, trusted submissions,
+main's lighter field watcher); the socket rules stay (a guest window runs
+on its own, as on main); the WebKit sessions keep their favicons and gain
+main's memory limits; `load_url` keeps the typed-address download
+allowance and gains main's per-site identity; `codecs.rs` keeps
+`SANAGA_DISTRO` and learns main's hardware AV1/VP9 detection.
+
+| Item | Fix |
+|---|---|
+| **D1** | the error page's buttons carry a per-page secret that Sanaga gives to its isolated world when that error page is committed (a page has no way to read or set it; the `data-sanaga-error` attribute is gone); Rust accepts `tls-allow`/`safe` only with that secret, while the tab still shows that error page (WebKit's address is the failed URL, committed and armed), and drops the allowance at the tab's next commit (`errors::error_action_arg`, tested) |
+| **D2** | a page's question waits on its own tab and is shown only when that tab is; a background tab never takes the front |
+| **D3** | script dialogs say "A page on <site> says:" (WebKit gives no frame origin: it may be a frame of another site) |
+| Google sign-in (main) | identity changes only for real link clicks (main's fix: a sign-in frame no longer replaces the tab); popups stay linked pages of the same session; Storage Access granted without asking only to identity providers (Google, Apple, Microsoft, Auth0, Okta: `guard::sign_in_provider`, tested); Facebook, X, LinkedIn frames are asked about, as in Safari; grants stay inside their profile, container or private session |
+| Profiles (main) | each profile has its folder (0700, files 0600: new profile folders, its first settings and its photo now written that way), its WebKit data, its keyring namespace and its own process, so its download allowances too |
+| Guest window (main) | keeps nothing: its store and WebKit session are in memory; it now also writes no favicon to the shared cache, saves and offers no password, and never reads a profile's Claude key |
+| Share popover (main) | everything starts from Sanaga's own buttons; the link is copied only on a click; "Send to" opens the sharing site with the page's address in a tab of the same kind (private, or the same container: fixed); the QR code is made locally; e-mail goes through `xdg-open mailto:` with the address and title encoded |
+| Lighter on processor and memory (main) | memory-pressure limits for page and network processes, GPU canvas, a lighter field watcher, slower idle ticks: no sandbox, tracking-prevention or process-separation setting changed |
+| Releases (owner's decision) | `release.yml` runs only on pushed version tags (bare semver); no tag is ever moved and no release replaced (an existing release stops the build); `permissions: contents: read` in both workflows, write for the publish job only; actions pinned to commits, build containers pinned by digest (`c4dfad8`) |
+
+## Build and test status
+
+| Check | Result |
+|---|---|
+| `cargo fetch --locked` (Cargo.lock consistent with Cargo.toml) | passes |
+| `cargo clippy --locked --all-targets -- -D warnings` (debug, WebKit pkg-config stubbed: `SYSTEM_DEPS_WEBKITGTK_6_0_NO_PKG_CONFIG=1`, same for `JAVASCRIPTCOREGTK_6_0`) | passes |
+| `cargo clippy --locked --bin sanaga -- -D warnings` with `debug-assertions` off (the release `cfg` paths: test hooks compiled out) | passes |
+| `cargo test --manifest-path tools/guard-tests/Cargo.toml` | 21 passed (after the second merge of main and its fixes) |
+| `cargo build`, `cargo test` of the whole crate | **not run**: WebKitGTK 6 is not installed on the machine used; the other new tests (translation batches, tool-less AI, file permissions, system certificates, extension matches) were type-checked but not executed |
+| `python3 tools/i18n.py check` | all texts translated |
+
+## Not touched
+
+The mobile simulator's device names, frames and browser identity are a
+separate question for the owner and were left as they are.
+
+## To check live before release (WebKitGTK 6)
+
+1. A link with `download`, a `Content-Disposition: attachment; filename="../x.desktop"`
+   response, a `%2F` name: file lands in Downloads as `x.desktop.download`,
+   with `getfattr -d` showing the two `user.xdg.*` attributes.
+2. A page calling `a.click()` on a download link from a timer, or starting two
+   downloads at once: the bar asks; refusing cancels.
+3. A page calling `window.webkit.messageHandlers.ipc.postMessage(…)` or
+   defining `window.__sanagaFill`: nothing happens.
+4. A sign-in page with one saved account: nothing filled until "Fill" in the
+   bar; an iframe sign-in form is never filled.
+5. `navigator.clipboard.readText()` without a click: refused.
+6. Translation with Claude Code (works), with Codex (refused with the message);
+   navigating mid-translation stops it.
+7. Codec bar with `SANAGA_DISTRO=grassfield`: no install button.
+8. Favicons in normal, private and container tabs; no request to the default
+   favourites at first start.
+9. "Create an extension": written switched off.
+10. A second `sanaga https://example.org` while Sanaga runs: a new tab;
+    `sanaga 'javascript:alert(1)'`: nothing.
+11. `stat` on `~/.local/share/sanaga` (0700) and its files (0600).
+12. Reader / light engine on an address that is a file: saved with both
+    `user.xdg.*` attributes; a restored light-engine tab whose address is a
+    file asks first.
+13. A page setting `data-sanaga-source` on itself, then a click on an
+    `a[data-u]`: nothing opens.
+14. A typed address that is a file downloads at once; a page reached by a
+    typed address that starts a download by itself asks; a restored tab
+    that starts one asks.
+15. An allowance given in a private tab does not apply in a normal tab or a
+    container.
+16. A page calling `form.requestSubmit()` on a password it filled itself: no
+    "Save password?"; installing a `.user.js`: switched off, review card
+    shown.
+17. A bad certificate: the error page's "Go on" works; a normal page posting
+    `tool:tls-allow:<host>` (it can't reach the channel) or setting
+    `data-sanaga-error` changes nothing.
+18. A script's `a.dispatchEvent(new MouseEvent('click', {ctrlKey: true}))`
+    opens no tab; Ctrl+click on a `sanaga://` or `file:` link from a web page
+    opens nothing; Shift+click in a container opens a tab in that container.
+19. After a certificate error page, the next page of the same host (even
+    while it loads) cannot grant the exception; an `alert()` in a background
+    tab waits there; a guest window saves no password and writes no favicon.
+20. "Sign in with Google" inside x.com and reddit.com works; a Facebook
+    frame's storage access is asked about; Share › X from a container opens
+    in that container.

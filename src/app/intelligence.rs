@@ -28,6 +28,8 @@ pub(super) struct Summary {
     busy: bool,
     by: String,
     note: String,
+    /// The page's text has arrived (later ones are ignored).
+    sent: bool,
 }
 
 impl Summary {
@@ -42,8 +44,9 @@ pub(super) enum AiDone {
     Models(Vec<String>),
     /// The accounts read from the system keyring.
     Logins(Vec<(String, String)>),
-    /// A batch of a page's texts, translated (from its place in the page).
-    Translation { tab: u64, from: usize, result: Result<Vec<String>, String> },
+    /// A batch of a page's texts, translated (from its place in the page,
+    /// for the translation `generation` of that tab).
+    Translation { tab: u64, from: usize, generation: u64, result: Result<Vec<String>, String> },
 }
 
 #[derive(Default)]
@@ -54,6 +57,10 @@ pub(super) struct ExtForm {
     status: String,
     busy: bool,
     code: String,
+    /// The extension just written: installed switched off, until the person
+    /// has read it and clicks "Turn on" (its id, and where it would act).
+    pending: Option<String>,
+    matches: Vec<String>,
 }
 
 impl Sanaga {
@@ -72,6 +79,9 @@ impl Sanaga {
                 };
                 Provider::Ollama { model }
             }
+            // (a window without a profile folder, such as a guest window,
+            // never reads a profile's key)
+            "claude" if self.store.data_dir().is_none() => Provider::Local,
             "claude" => match crate::keyring::lookup(&self.store.profile, ai::KEY_SITE, "claude") {
                 Some(key) if !key.is_empty() => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, key },
                 _ => Provider::Local,
@@ -88,13 +98,17 @@ impl Sanaga {
             self.notice = Some((tr("Le résumé marche sur les pages des sites.").into(), self.ctx.input(|i| i.time)));
             return;
         };
-        let _ = w.evaluate_script(PAGE_TEXT_JS);
-        self.summary = Some(Summary { tab: id, title, text: String::new(), busy: true, by: String::new(), note: String::new() });
+        let _ = w.evaluate_own(PAGE_TEXT_JS);
+        self.summary = Some(Summary { tab: id, title, text: String::new(), busy: true, by: String::new(), note: String::new(), sent: false });
     }
 
     pub(super) fn summary_text_arrived(&mut self, tab: u64, text: String) {
-        if self.summary.as_ref().map(|s| s.tab) != Some(tab) {
+        // only the text the person asked for (one answer per request)
+        if !self.summary.as_ref().is_some_and(|s| s.tab == tab && s.busy && s.text.is_empty() && !s.sent) {
             return;
+        }
+        if let Some(s) = self.summary.as_mut() {
+            s.sent = true;
         }
         let (title, body) = text.split_once('\n').map(|(a, b)| (a.to_string(), b.to_string())).unwrap_or_default();
         let fallback = ai::local_summary(&body, 6);
@@ -111,11 +125,14 @@ impl Sanaga {
             }
             return;
         }
-        if provider == Provider::Local {
+        // the page's text only goes to a model with no tools and no files
+        let refused = ai::page_content_allowed(&provider).err();
+        if provider == Provider::Local || refused.is_some() {
             if let Some(s) = self.summary.as_mut() {
                 s.busy = false;
                 s.text = fallback;
-                s.by = provider.label();
+                s.by = Provider::Local.label();
+                s.note = refused.unwrap_or_default();
             }
             return;
         }
@@ -166,12 +183,11 @@ impl Sanaga {
                             }
                             match crate::store::write_atomic(&path, &text) {
                                 Ok(()) => {
+                                    // installed switched off: the person reads it first
                                     let id = format!("fichier:{}", path.file_name().unwrap_or_default().to_string_lossy());
-                                    if !self.store.extensions_on.contains(&id) {
-                                        self.store.extensions_on.push(id);
-                                        self.store.save_extensions();
-                                    }
-                                    self.ext_form.status = tf("« {} » est créée et activée : elle s'applique aux onglets que vous ouvrez maintenant.", &[&self.ext_form.name]);
+                                    self.ext_form.status = tf("« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.", &[&self.ext_form.name]);
+                                    self.ext_form.matches = crate::extensions::matches_in(&text);
+                                    self.ext_form.pending = Some(id);
                                     self.ext_form.code = text;
                                 }
                                 Err(e) => self.ext_form.status = e.to_string(),
@@ -181,7 +197,7 @@ impl Sanaga {
                     }
                 }
                 AiDone::Models(m) => self.ai_models = Some(m),
-                AiDone::Translation { tab, from, result } => self.translation_done(tab, from, result),
+                AiDone::Translation { tab, from, generation, result } => self.translation_done(tab, from, generation, result),
                 AiDone::Logins(list) => {
                     // the keyring is the reference; an empty answer (a locked
                     // or missing keyring) leaves the list as it was
@@ -288,9 +304,10 @@ impl Sanaga {
         let mut use_tool: Option<crate::ai_cli::CliTool> = None;
         let mut go_settings = false;
         let mut create = false;
+        let mut enable = false;
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Créer une extension"));
-            ui.label(RichText::new(tr("Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension pour vous et l'active.")).size(14.0).color(th.sub));
+            ui.label(RichText::new(tr("Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.")).size(14.0).color(th.sub));
             ui.add_space(14.0);
             if provider_label.is_none() {
                 Frame::new().fill(th.accent.gamma_multiply(0.12)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(12)).show(ui, |ui| {
@@ -356,14 +373,37 @@ impl Sanaga {
             }
             if !f.code.is_empty() {
                 ui.add_space(8.0);
-                egui::CollapsingHeader::new(tr("Voir le code")).show(ui, |ui| {
+                if f.pending.is_some() {
+                    // what it would be allowed to do, before it is turned on
+                    let where_ = if f.matches.is_empty() { tr("Tous les sites").to_string() } else { f.matches.join(", ") };
+                    ui.label(RichText::new(tf("Où elle agirait : {}", &[&where_])).family(bold()).color(th.text));
+                    ui.label(RichText::new(tr("Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.")).size(12.5).color(th.sub));
+                    ui.add_space(6.0);
+                }
+                egui::CollapsingHeader::new(tr("Voir le code")).default_open(f.pending.is_some()).show(ui, |ui| {
                     let mut code = f.code.clone();
                     ui.add(TextEdit::multiline(&mut code).code_editor().desired_width(f32::INFINITY).interactive(false));
                 });
+                if f.pending.is_some() {
+                    ui.add_space(8.0);
+                    let b = egui::Button::new(RichText::new(tr("Activer l'extension")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
+                    if ui.add(b).clicked() {
+                        enable = true;
+                    }
+                }
             }
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.")).size(12.0).color(th.sub));
         });
+        // the person read it and turned it on
+        if enable {
+            if let Some(id) = self.ext_form.pending.take() {
+                if !self.store.extensions_on.contains(&id) {
+                    self.toggle_extension(&id);
+                }
+                self.ext_form.status = tf("« {} » est activée : elle s'applique aux pages ouvertes.", &[&self.ext_form.name]);
+            }
+        }
         if let Some(t) = use_tool {
             self.store.settings.ai = t.key().to_string();
             self.store.settings.ai_model.clear();
@@ -383,6 +423,8 @@ impl Sanaga {
             f.busy = true;
             f.status.clear();
             f.code.clear();
+            f.pending = None;
+            f.matches.clear();
             if f.name.trim().is_empty() {
                 f.name = f.description.split_whitespace().take(5).collect::<Vec<_>>().join(" ");
             }

@@ -103,12 +103,15 @@ fn firefox_profile() -> Option<PathBuf> {
     std::fs::read_dir(&base).ok()?.flatten().map(|e| e.path()).find(|p| p.join("places.sqlite").is_file())
 }
 
-/// Browsers lock their databases while running: read a copy.
-fn open_copy(db: &Path) -> Result<(rusqlite::Connection, PathBuf), String> {
-    let tmp = std::env::temp_dir().join(format!("sanaga-import-{}-{}", std::process::id(), db.file_name().and_then(|n| n.to_str()).unwrap_or("db").replace(' ', "_")));
+/// Browsers lock their databases while running: read a copy, made in a new
+/// private folder (0700; saved passwords are among these files), removed
+/// with it.
+fn open_copy(db: &Path) -> Result<(rusqlite::Connection, crate::store::PrivateDir), String> {
+    let dir = crate::store::PrivateDir::new("sanaga-import").map_err(|e| e.to_string())?;
+    let tmp = dir.path().join(db.file_name().and_then(|n| n.to_str()).unwrap_or("db").replace(' ', "_"));
     std::fs::copy(db, &tmp).map_err(|e| e.to_string())?;
     let conn = rusqlite::Connection::open_with_flags(&tmp, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| e.to_string())?;
-    Ok((conn, tmp))
+    Ok((conn, dir))
 }
 
 fn site_of(url: &str) -> Option<String> {
@@ -188,7 +191,7 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
                     Err(e) => out.problems.push(crate::i18n::tf("Historique : {}", &[&e])),
                 }
                 drop(db);
-                let _ = std::fs::remove_file(tmp);
+                drop(tmp);
             }
             Err(e) => out.problems.push(crate::i18n::tf("Historique : {}", &[&e])),
         }
@@ -221,7 +224,7 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
                     Err(e) => out.problems.push(crate::i18n::tf("Mots de passe : {}", &[&e])),
                 }
                 drop(db);
-                let _ = std::fs::remove_file(tmp);
+                drop(tmp);
             }
             Err(e) => out.problems.push(crate::i18n::tf("Mots de passe : {}", &[&e])),
         }
@@ -266,7 +269,7 @@ fn firefox_import(profile: &Path, bookmarks: bool, history: bool, out: &mut Impo
         }
     }
     drop(db);
-    let _ = std::fs::remove_file(tmp);
+    drop(tmp);
 }
 
 pub fn import(src: &Source, bookmarks: bool, history: bool, passwords: bool) -> Imported {

@@ -934,6 +934,27 @@ Vidéo et musique	Video und Musik
 WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit.	WebKit spielt Videos mit GStreamer ab: Die Codecs stammen aus den Paketen des Systems. Mit Widevine geschützte Videos (Netflix, Disney+, Spotify Web…) kann kein WebKit-Browser abspielen.
 Toujours ouvrir ainsi	Immer so öffnen
 Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)	Geschützte Websites öffnen sich direkt in diesem Browser (Einstellungen › Allgemein)
+Voulez-vous autoriser les téléchargements sur « {} » ?	Möchtest du Downloads auf „{}“ erlauben?
+Ne pas autoriser	Nicht erlauben
+Autoriser	Erlauben
+{} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.	{} kann deine Dateien lesen: Sanaga schickt ihm keinen Seitentext. Wähle Claude Code, Claude oder Ollama unter Einstellungen › Intelligenz.
+{} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.	{} kann deine Dateien lesen, auch abgesichert: Sanaga schickt ihm keinen Seitentext (Zusammenfassung, Übersetzung). Es kann Erweiterungen schreiben, die du vor dem Aktivieren prüfst.
+La traduction s'arrête ici : la page est très longue.	Die Übersetzung endet hier: Die Seite ist sehr lang.
+Installation dans le terminal : confirmez-la et tapez votre mot de passe là-bas.	Installation im Terminal: Bestätige sie und gib dort dein Passwort ein.
+Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec votre système : mettez-le à jour.	Für die Videos dieser Website fehlen Codecs ({}). Sie kommen mit deinem System: Aktualisiere es.
+Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}	Für die Videos dieser Website fehlen Codecs ({}). Befehl: {}
+Installer dans un terminal	In einem Terminal installieren
+Appuyez sur Entrée pour fermer cette fenêtre.	Drücke die Eingabetaste, um dieses Fenster zu schließen.
+« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.	„{}“ ist geschrieben, aber ausgeschaltet. Lies den Code und die Websites, auf denen sie wirkt, und schalte sie ein, wenn sie passt.
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.	Beschreibe, was du auf Websites ändern möchtest: Sanaga schreibt die Erweiterung, du liest sie und schaltest sie dann ein.
+Où elle agirait : {}	Wo sie wirken würde: {}
+Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.	Auf diesen Websites könnte sie alles lesen und ändern, was die Seite zeigt, auch was du dort eingibst.
+Activer l'extension	Erweiterung einschalten
+« {} » est activée : elle s'applique aux pages ouvertes.	„{}“ ist eingeschaltet: Sie gilt für die geöffneten Seiten.
+Ce n'est pas une page de texte : il n'y a pas de source à afficher.	Das ist keine Textseite: Es gibt keinen Quelltext anzuzeigen.
+« {} » est installée mais désactivée.	„{}“ ist installiert, aber ausgeschaltet.
+Plus tard	Später
+« {} » est installée mais désactivée : lisez-la, puis activez-la.	„{}“ ist installiert, aber ausgeschaltet: Lies sie und schalte sie dann ein.
 {} sur {}	{} von {}
 Sélecteur d'onglets (Ctrl+Tab)	Tab-Umschalter (Strg+Tab)
 Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	Die zuletzt genutzten Tabs als Bilder; Strg+Bild ab folgt der Tableiste
@@ -1031,3 +1052,4 @@ Retirer la photo	Foto entfernen
 Photo du profil	Profilfoto
 Images	Bilder
 Cette image ne peut pas être lue.	Dieses Bild kann nicht gelesen werden.
+Une page sur {} dit :	Eine Seite auf {} sagt:

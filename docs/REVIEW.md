@@ -14,7 +14,7 @@ Legend: ✅ works · 🔧 a fault was found and fixed in this review · ⚠️ k
 | Page source (Ctrl+U) | Arabic Wikipedia page | 🔧 **crash fixed**: the source view stopped Sanaga on text in non-Latin alphabets (a cut inside a character). Now covered by a test. |
 | Light engine (Reader, simplified pages) | test with odd pages: mixed alphabets, broken tags, cut entities, unclosed comments | ✅ (new robustness test) |
 | Reader, page summary without AI | Arabic Wikipedia page | ✅ no crash · ⚠️ right-to-left text (Arabic, Hebrew) is drawn in left-to-right word order in Sanaga's own Reader and summary (pages shown by WebKit are correct) |
-| Downloads of files a page can't show | real download | ✅ |
+| Downloads of files a page can't show | real download | ✅ · 🔧 **security audit (2026-11-08)**: safe file names (no folder can be chosen, .desktop/.service made inert, never an overwrite), "where from" extended attributes, and Safari's question when a site downloads by itself or several files at once — code changed, **not re-checked live yet** |
 | PDF reader | local PDF | ✅ (WebKit's viewer: search, zoom, print) |
 | Archived version (Internet Archive) | menu, address checked | ✅ |
 
@@ -45,7 +45,7 @@ Legend: ✅ works · 🔧 a fault was found and fixed in this review · ⚠️ k
 | Element remover | simulated pointing and click, reload | ✅ kept after reload · 🔧 **remembered selector was too broad** (`p:nth-of-type(1)` would hide the first paragraph of every block of the site); it now starts from the page's body |
 | Link preview / floating video from a private tab or a container | code review | 🔧 **they used the profile's normal cookies**; now a private tab's small windows keep nothing, a container's keep its own cookies |
 | "Site settings" page | picture | 🔧 the per-site settings (JavaScript, fonts, look, removed elements) were missing there; now listed with a reset button |
-| Passwords | isolated keyring | ✅ (tests must never use the system keyring: a temporary profile reads it) |
+| Passwords | isolated keyring | ✅ (tests must never use the system keyring: a temporary profile reads it) · 🔧 **security audit (2026-11-08)**: nothing is filled on page load any more; the saved accounts are offered in Sanaga's bar and filled after a click there, from Sanaga's isolated script world, same origin and top frame only |
 
 ## Extensions
 
@@ -80,8 +80,20 @@ Legend: ✅ works · 🔧 a fault was found and fixed in this review · ⚠️ k
 
 | Site | What it needs | Sanaga |
 |---|---|---|
-| YouTube, Vimeo, Twitch… | GStreamer decoders: H.264, AAC (gst-libav), AV1, Opus parser (gst-plugins-bad), VP9 (gst-plugins-good) | 🔧 **YouTube said "can't play this video" on this computer**: H.264, AAC, AV1 and the Opus parser were missing from the system. Sanaga now checks the decoders, shows a bar on video sites and installs them in one click (the system asks for the password); Settings › General › Video and music. |
+| YouTube, Vimeo, Twitch… | GStreamer decoders: H.264, AAC (gst-libav), AV1, Opus parser (gst-plugins-bad), VP9 (gst-plugins-good) | 🔧 **YouTube said "can't play this video" on this computer**: H.264, AAC, AV1 and the Opus parser were missing from the system. Sanaga now checks the decoders and shows a bar on video sites; Settings › General › Video and music. 🔧 **Security audit (2026-11-08)**: the install is no longer one click: the exact command (no `--noconfirm`) runs in a terminal where the package manager asks, and a distribution build (`SANAGA_DISTRO=grassfield`) offers no install at all. |
 | Netflix, Disney+, Prime Video, Spotify web… | Widevine (Google's DRM) — not available to WebKitGTK at all | ⚠️ can't be played inside Sanaga. Sanaga opens them in the Spotify app or in a browser that has Widevine, as an app window, by itself when "Open protected sites in a compatible browser" is on. |
+
+## Security audit, 8 November 2026
+
+The first security audit failed; the 15 findings and their fixes are in
+[SECURITY-AUDIT-2026-11-08.md](SECURITY-AUDIT-2026-11-08.md). The fixes change
+how Sanaga talks to pages (its scripts now run in an isolated JavaScript
+world), downloads, passwords, translation, favicons, the codec install, the
+single-instance socket and file permissions; after the re-audit, extensions
+installed from a file (and AI-written ones) also start switched off, with a
+review of their sites and code. **They were written without a
+WebKitGTK 6 build at hand and have not been checked live yet**: every row
+above that touches these features must be checked again before release.
 
 ## Known limits
 

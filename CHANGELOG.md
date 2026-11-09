@@ -6,7 +6,48 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Security (audit of 8 November 2026)
+- Sanaga's page scripts and its message channel run in an isolated
+  JavaScript world, top frame only; page messages are checked against the
+  page shown and against what the person started.
+- Passwords are filled only after a click in Sanaga's bar (no fill on page
+  load, no account list in the page), with the origin checked again.
+- Downloads: safe file names, never an overwrite, extended attributes with
+  their origin, and Safari's question for downloads a site starts by itself.
+- Pages can no longer read the clipboard without a user gesture.
+- AI translation and summaries only with tool-less models; translation is
+  text-only, bounded and reset on navigation.
+- No one-click codec install: the exact command in a terminal, and none at
+  all on a distribution build (`SANAGA_DISTRO`).
+- Re-audit fixes: light-engine downloads marked and asked about like
+  WebKit's; view-source links only from Sanaga's own source page; the
+  no-question download allowance tied to a real action in the page (none
+  for restored tabs), kept per profile, container and private session, and
+  applied to preview windows; "Save password?" only after a real sign-in;
+  a slow peer can't stall the single-instance socket; extensions installed
+  from a file are switched off until reviewed.
+- After merging main: the error page's buttons go through Sanaga's
+  isolated world and are accepted only for that failure; Ctrl+click and
+  middle-click open only real clicks on web links, and keep private tabs and
+  containers apart; codec packages are built with `SANAGA_DISTRO` and depend
+  on WebKit's sandbox; release actions pinned, write access for publishing
+  only.
+- After the second merge of main: the certificate error page's buttons
+  need a per-page secret and the exception ends at the tab's next page; a
+  background tab's dialog waits on its tab; frames' prompts are worded
+  neutrally; storage access without asking only for identity providers;
+  guest windows keep no password or favicon; profile files 0600; Share
+  keeps private tabs and containers apart; releases only from version
+  tags, never replaced.
+- Favicons come from WebKit; AI-written extensions are installed switched
+  off; private temporary folders; escaped `.desktop` entries; a checked and
+  bounded single-instance socket; debug-only test hooks; private data
+  permissions; the system's certificate store for Sanaga's own requests.
+
 ### Changed
+- Password AutoFill no longer lists accounts under the sign-in field nor
+  fills a site's only account by itself: the accounts are offered in
+  Sanaga's bar.
 - Release tags follow Semantic Versioning exactly: `0.4.0`, no `v` in front
   (the releases are named the same way).
 

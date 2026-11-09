@@ -187,6 +187,8 @@ struct Tab {
     full: bool,
     web: Option<crate::page::PageView>,
     web_pending: Option<String>,
+    /// The person asked for `web_pending` now (not a restored or woken tab).
+    web_by_person: bool,
     web_shown: bool,
     web_zoom: f32,
     /// Safari-style Reader: this page shown as clean, easy-to-read text.
@@ -405,6 +407,7 @@ pub struct Sanaga {
     /// Picture of the page shown while a menu covers it (the real page view
     /// can't sit under Sanaga's menus, so it steps aside behind this picture).
     freeze: Option<(u64, TextureHandle)>,
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
     live_step: usize,
     freeze_asked: Option<f64>,
     freeze_tx: Sender<(u64, egui::ColorImage)>,
@@ -416,6 +419,8 @@ pub struct Sanaga {
     /// A short message at the bottom of the window (e.g. web app created).
     notice: Option<(String, f64)>,
     pw_prompt: Option<accounts::PwPrompt>,
+    /// The saved-accounts bar the person dismissed (tab, site).
+    pw_fill_dismissed: Option<(u64, String)>,
     pw_filter: String,
     /// Settings page: the category shown, the search text, and whether
     /// Sanaga is the default browser (asked once).
@@ -429,8 +434,11 @@ pub struct Sanaga {
     settings_confirm: Option<f64>,
     /// The welcome tour's step.
     onboarding_step: usize,
-    /// Page translation running (tab) and the language asked.
+    /// Page translation running (tab) and the language asked; the batches
+    /// already sent, and which translation the answers belong to.
     translating: Option<u64>,
+    translate_batches: usize,
+    translate_gen: u64,
     /// The "translate with Google or the AI?" question is shown.
     translate_ask: bool,
     /// Sites whose DRM bar was dismissed; the identity chooser is open.
@@ -535,6 +543,19 @@ pub struct Sanaga {
     codec_dismissed: bool,
     codec_flag: Option<u64>,
     codec_install: Arc<std::sync::atomic::AtomicU8>,
+    /// Sites waiting for "Allow downloads on …?" (Safari's question); for
+    /// the light engine, the sites allowed in this window (private or not)
+    /// and the downloads waiting (site, private, request).
+    download_asks: Vec<String>,
+    light_download_sites: Vec<(bool, String)>,
+    light_download_pending: Vec<(String, bool, net::Request)>,
+    /// The tab where the person started the element remover, or asked for
+    /// the floating video: the page's answer is accepted from there only.
+    zap_armed: Option<u64>,
+    pip_armed: Option<u64>,
+    /// An extension just installed from a file, switched off until the
+    /// person has read it (shown on the Extensions page).
+    ext_review: Option<String>,
     /// Tabs by last use (most recent first), the Ctrl+Tab switcher, and the
     /// page to give the keyboard back to once it is shown.
     recent: Vec<u64>,
@@ -550,6 +571,9 @@ pub struct Sanaga {
     last_dialog_host: String,
     silenced_sites: HashSet<String>,
     error_tabs: HashSet<u64>,
+    /// Tabs showing Sanaga's error page: for what failure, on which host
+    /// (its buttons are accepted from there only).
+    error_pages: HashMap<u64, errors::ErrorPage>,
     /// The group whose editor is open (name, colour…), and where the group
     /// labels are in the tab bar.
     group_editor: Option<usize>,
@@ -636,8 +660,10 @@ impl Sanaga {
                 std::env::set_var("LANGUAGE", lang);
             }
         }
-        // site icons: kept in Sanaga's folder; no network lookups while taking a screenshot
-        crate::favicon::setup(Store::root_dir().join("favicons"), screenshot.is_none());
+        // site icons (loaded by WebKit with their pages): kept in Sanaga's
+        // folder; nothing written while taking a screenshot
+        // (a guest window writes none: it keeps nothing)
+        crate::favicon::setup(Store::root_dir().join("favicons"), screenshot.is_none() && !guest);
         let web_ok = screenshot.is_none() && web_engine_available();
         // (created after GTK is started)
         let web_context = if web_ok {
@@ -646,9 +672,14 @@ impl Sanaga {
                 None => crate::page::ephemeral_engine(),
             };
             let (t, r) = (web_tx.clone(), egui_ctx.clone());
-            crate::page::follow_downloads(&c, net::download_path_for);
+            crate::page::follow_downloads(&c);
             crate::page::add_download_sink(slot, move |url, path, ok| {
                 let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
+                r.request_repaint();
+            });
+            let (t, r) = (web_tx.clone(), egui_ctx.clone());
+            crate::page::add_download_ask_sink(slot, move |site| {
+                let _ = t.send(web::WebEvent::DownloadAsk { site });
                 r.request_repaint();
             });
             // which video formats the system can play (for YouTube & co.)
@@ -737,6 +768,7 @@ impl Sanaga {
             customize_open: false,
             notice: None,
             pw_prompt: None,
+            pw_fill_dismissed: None,
             pw_filter: String::new(),
             settings_section: settings::Section::General,
             settings_filter: String::new(),
@@ -746,6 +778,8 @@ impl Sanaga {
             settings_confirm: None,
             onboarding_step: 0,
             translating: None,
+            translate_batches: 0,
+            translate_gen: 0,
             translate_ask: false,
             drm_dismissed: HashSet::new(),
             identity_ask: false,
@@ -819,6 +853,12 @@ impl Sanaga {
             codec_dismissed: false,
             codec_flag: None,
             codec_install: Default::default(),
+            download_asks: Vec::new(),
+            light_download_sites: Vec::new(),
+            light_download_pending: Vec::new(),
+            zap_armed: None,
+            pip_armed: None,
+            ext_review: None,
             recent: Vec::new(),
             switcher: None,
             switcher_refocus: false,
@@ -829,6 +869,7 @@ impl Sanaga {
             last_dialog_host: String::new(),
             silenced_sites: HashSet::new(),
             error_tabs: HashSet::new(),
+            error_pages: HashMap::new(),
             group_editor: None,
             group_label_rects: Vec::new(),
         };
@@ -1221,23 +1262,10 @@ impl Sanaga {
         self.store_seen = crate::store::CHANGES.load(Ordering::Relaxed);
     }
 
-    fn frame_body(&mut self, ui: &mut Ui) {
-        self.frame += 1;
-        let frame_start = std::time::Instant::now();
-        if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
-            eprintln!("frame t={:.2}", ui.input(|i| i.time));
-        }
-        self.apply_style();
-        self.poll_network();
-        let ctx0 = ui.ctx().clone();
-        let t_pump = std::time::Instant::now();
-        self.pump_web(&ctx0);
-        let pump_ms = t_pump.elapsed().as_secs_f64() * 1000.0;
-        self.poll_tab_extras();
-        self.poll_import();
-        self.poll_ai();
-        crate::favicon::pump(&ctx0, &self.agent);
-        let now = ctx0.input(|i| i.time);
+    /// Test aids driven by environment variables (SANAGA_BENCH_CYCLE,
+    /// SANAGA_LIVE_TEST): compiled into debug builds only.
+    #[cfg(debug_assertions)]
+    fn test_hooks(&mut self, ui: &mut Ui, ctx0: &egui::Context, now: f64) {
         // test aid: SANAGA_BENCH_CYCLE=n shows the next tab every 3 s, n times
         if let Some(n) = std::env::var("SANAGA_BENCH_CYCLE").ok().and_then(|v| v.parse::<u64>().ok()) {
             let step = (now / 3.0) as u64;
@@ -1356,7 +1384,7 @@ impl Sanaga {
                         }
                         a if a.starts_with("probe:") => {
                             if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
-                                let _ = w.evaluate_script(&format!("try{{window.ipc.postMessage('tool:probe:'+String({}))}}catch(e){{window.ipc.postMessage('tool:probe:error '+e)}}", &a[6..]));
+                                let _ = w.evaluate_own(&format!("try{{window.ipc.postMessage('tool:probe:'+String({}))}}catch(e){{window.ipc.postMessage('tool:probe:error '+e)}}", &a[6..]));
                             }
                         }
                         "title" => eprintln!("live title {}", self.tabs[self.active].title()),
@@ -1421,6 +1449,30 @@ impl Sanaga {
                 ctx0.request_repaint_after(std::time::Duration::from_millis(100));
             }
         }
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn test_hooks(&mut self, _ui: &mut Ui, _ctx0: &egui::Context, _now: f64) {}
+
+    fn frame_body(&mut self, ui: &mut Ui) {
+        self.frame += 1;
+        let frame_start = std::time::Instant::now();
+        if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
+            eprintln!("frame t={:.2}", ui.input(|i| i.time));
+        }
+        self.apply_style();
+        self.poll_network();
+        let ctx0 = ui.ctx().clone();
+        let t_pump = std::time::Instant::now();
+        self.pump_web(&ctx0);
+        let pump_ms = t_pump.elapsed().as_secs_f64() * 1000.0;
+        self.poll_tab_extras();
+        self.poll_import();
+        self.poll_ai();
+        crate::favicon::pump(&ctx0);
+        let now = ctx0.input(|i| i.time);
+        // test aids (debug builds only: not in a release build)
+        self.test_hooks(ui, &ctx0, now);
         self.memory_saver_step(now);
         // simulator video: stop with the simulator, feed the encoder
         if self.device.is_none() && self.recording.as_ref().is_some_and(|r| !r.stopping) {
@@ -1490,6 +1542,11 @@ impl Sanaga {
         if self.permission_bar_visible() {
             egui::Panel::top("permbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.permission_bar(ui, &th);
+            });
+        }
+        if !self.download_asks.is_empty() {
+            egui::Panel::top("downloadaskbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.download_ask_bar(ui, &th);
             });
         }
         self.media_step();

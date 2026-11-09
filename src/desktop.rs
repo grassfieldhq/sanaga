@@ -361,6 +361,9 @@ pub fn resize_edges(ctx: &egui::Context) {
     }
 }
 
+// (.desktop escaping: see guard.rs, testable without GTK)
+pub use crate::guard::{desktop_value, exec_arg};
+
 #[cfg(test)]
 mod tests {
     use super::*;

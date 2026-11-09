@@ -2,14 +2,19 @@
 //! command line with the person's own account: Claude Code, Codex and Gemini
 //! CLI. No API key to give Sanaga.
 //!
-//! They are agents able to run commands and edit files, and the text of a web
-//! page could try to give them orders. So Sanaga calls them locked down: in
-//! an empty folder of its own, with no tools (Claude Code), a read-only
-//! sandbox without network (Codex), or nothing approved (Gemini), and only
-//! reads their answer.
+//! They are agents able to run commands and read or edit files, and the text
+//! of a web page could try to give them orders. Only an assistant that can
+//! be started with no tools at all and no access to files receives the text
+//! of web pages (summaries, translation): Claude Code, with its documented
+//! switches (`--tools ""`, `--disallowedTools "*"`, no MCP servers, safe
+//! mode: no CLAUDE.md, hooks or plugins). Codex's read-only sandbox and
+//! Gemini CLI's default mode still let them read local files, so they are
+//! refused for page content (they may still write an extension from the
+//! person's own description, which the person reviews before enabling it).
+//! All run in an empty private folder, and Sanaga only reads their answer.
 
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -42,6 +47,12 @@ impl CliTool {
             CliTool::Codex => "Codex",
             CliTool::Gemini => "Gemini CLI",
         }
+    }
+
+    /// Can it be started with no tools and no access to files? Only such
+    /// an assistant may receive the text of web pages.
+    pub fn tool_less(self) -> bool {
+        matches!(self, CliTool::ClaudeCode)
     }
 
     fn program(self) -> &'static str {
@@ -95,17 +106,18 @@ pub fn installed() -> Vec<CliTool> {
     FOUND.get_or_init(|| CliTool::ALL.into_iter().filter(|t| find(t.program()).is_some()).collect()).clone()
 }
 
-/// An empty folder where the assistants run (nothing of the person's around).
-fn work_dir() -> PathBuf {
-    let d = std::env::temp_dir().join(format!("sanaga-ai-{}", std::process::id()));
-    let _ = std::fs::create_dir_all(&d);
-    d
+/// A new, empty folder where an assistant runs (nothing of the person's
+/// around): private (0700, in $XDG_RUNTIME_DIR when there is one), removed
+/// after the answer.
+fn work_dir() -> std::io::Result<crate::store::PrivateDir> {
+    crate::store::PrivateDir::new("sanaga-ai")
 }
 
 /// Ask an installed assistant; returns its answer.
 pub fn ask(tool: CliTool, model: &str, system: &str, prompt: &str) -> Result<String, String> {
     let program = find(tool.program()).ok_or_else(|| crate::i18n::tf("{} n'est plus installé.", &[&tool.name()]))?;
-    let dir = work_dir();
+    let work = work_dir().map_err(|e| e.to_string())?;
+    let dir = work.path().to_path_buf();
     let path = std::env::join_paths(search_path()).ok();
     let mut cmd = Command::new(&program);
     cmd.current_dir(&dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -116,8 +128,24 @@ pub fn ask(tool: CliTool, model: &str, system: &str, prompt: &str) -> Result<Str
     let input;
     match tool {
         CliTool::ClaudeCode => {
-            // print mode, no tools at all, no MCP servers, nothing kept
-            cmd.args(["-p", "--tools", "", "--output-format", "text", "--no-session-persistence", "--strict-mcp-config", "--disable-slash-commands", "--system-prompt", system]);
+            // print mode; no built-in tools ("") and every tool denied ("*",
+            // MCP ones too); no MCP servers; safe mode: no CLAUDE.md, hooks,
+            // plugins or skills; nothing kept
+            cmd.args([
+                "-p",
+                "--tools",
+                "",
+                "--disallowedTools",
+                "*",
+                "--strict-mcp-config",
+                "--safe-mode",
+                "--disable-slash-commands",
+                "--no-session-persistence",
+                "--output-format",
+                "text",
+                "--system-prompt",
+                system,
+            ]);
             if !model.is_empty() {
                 cmd.args(["--model", model]);
             }
@@ -198,22 +226,26 @@ pub fn ask(tool: CliTool, model: &str, system: &str, prompt: &str) -> Result<Str
     Ok(answer.trim().to_string())
 }
 
-/// For tests: is this the folder the assistants run in?
-#[allow(dead_code)]
-fn is_work_dir(p: &Path) -> bool {
-    p.starts_with(std::env::temp_dir())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_tool_less_assistants_read_pages() {
+        assert!(CliTool::ClaudeCode.tool_less());
+        assert!(!CliTool::Codex.tool_less());
+        assert!(!CliTool::Gemini.tool_less());
+    }
 
     #[test]
     fn keys_round_trip_and_folder_is_private() {
         for t in CliTool::ALL {
             assert_eq!(CliTool::from_key(t.key()), Some(t));
         }
-        assert!(is_work_dir(&work_dir()));
+        let w = work_dir().unwrap();
+        assert!(w.path().file_name().is_some_and(|n| n.to_string_lossy().starts_with("sanaga-ai-")));
+        let mode = std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(w.path()).unwrap().permissions());
+        assert_eq!(mode & 0o777, 0o700);
         assert!(search_path().iter().any(|d| d.ends_with("usr/bin")));
     }
 }

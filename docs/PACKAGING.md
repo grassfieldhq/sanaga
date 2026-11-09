@@ -15,8 +15,14 @@ them in by itself, so the person installing Sanaga has nothing else to do:
 
 Whatever the way, Sanaga checks the decoders when it starts. If some are
 missing (a build from source, a system without them), it shows a bar on video
-sites with an **Install** button (the system asks for the password) —
-Settings › General › Video and music. Inside the Flatpak it never asks.
+sites with the exact install command, which it can open in a terminal (the
+package manager asks for confirmation and the password there) — Settings ›
+General › Video and music. A package that brings the codecs is built with
+`SANAGA_DISTRO=<name>` (the Arch package: `arch`; the Fedora one: `fedora`;
+Grassfield: `grassfield`) and then never offers to install anything; inside
+the Flatpak it never asks either. Every package also depends on `bubblewrap`
+and `xdg-dbus-proxy`, WebKit's page sandbox. See also
+[packaging/DISTRIBUTIONS.md](../packaging/DISTRIBUTIONS.md).
 
 **Netflix, Disney+, Prime Video, Spotify web** need Widevine, Google's DRM
 module, which is only licensed to Chrome-based browsers and Firefox: no

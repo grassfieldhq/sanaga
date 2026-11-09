@@ -14,6 +14,13 @@ use std::path::PathBuf;
 #[cfg(test)]
 mod tests {
     #[test]
+    fn user_scripts_say_where_they_act() {
+        let js = "// @name x\n// @match       *://youtube.com/*\n// @include *://*.youtube.com/*\nalert(1)";
+        assert_eq!(super::matches_in(js), vec!["*://youtube.com/*".to_string(), "*://*.youtube.com/*".to_string()]);
+        assert!(super::matches_in("// @name y\n").is_empty());
+    }
+
+    #[test]
     fn patterns() {
         assert_eq!(super::glob_to_regex("*://*.a.com/*"), "^.*:\\/\\/.*\\.a\\.com\\/.*$");
         let all: Vec<String> = super::all().into_iter().map(|e| e.id).collect();
@@ -155,6 +162,13 @@ fn header(text: &str, key: &str) -> Vec<String> {
             (!v.is_empty()).then(|| v.to_string())
         })
         .collect()
+}
+
+/// Where a user script says it acts (@match, @include): empty for all sites.
+pub fn matches_in(text: &str) -> Vec<String> {
+    let mut m = header(text, "@match");
+    m.extend(header(text, "@include"));
+    m
 }
 
 /// All extensions: the built-in ones, then the files in the extensions folder.

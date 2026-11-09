@@ -36,28 +36,7 @@ pub(super) fn kind_label(kind: &str) -> &'static str {
     }
 }
 
-/// Sign-in services that sites embed ("Sign in with Google" button…): they
-/// may use their cookies inside the page they are on without asking (as in
-/// Firefox), so signing in through them works.
-const SIGN_IN_PROVIDERS: [&str; 12] = [
-    "google.com",
-    "apple.com",
-    "microsoftonline.com",
-    "live.com",
-    "microsoft.com",
-    "facebook.com",
-    "github.com",
-    "linkedin.com",
-    "x.com",
-    "twitter.com",
-    "auth0.com",
-    "okta.com",
-];
-
-fn sign_in_provider(domain: &str) -> bool {
-    let d = domain.trim_start_matches('.');
-    SIGN_IN_PROVIDERS.iter().any(|p| d == *p || d.ends_with(&format!(".{p}")))
-}
+use crate::guard::sign_in_provider;
 
 /// Listen to WebKit's permission requests for one tab.
 pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: PermQueue, ctx: egui::Context) {
@@ -246,6 +225,8 @@ impl Sanaga {
                 t.sleeping = false;
                 t.loading = true;
                 t.web_pending = Some(t.url().to_string());
+                // (woken from sleep: not a new request of the person's)
+                t.web_by_person = false;
             }
         }
         // (minutes before a tab sleeps, most pages kept running at once)
@@ -358,6 +339,48 @@ impl Sanaga {
         }
     }
 
+    /// Safari's question when a site starts a download by itself, or
+    /// several at once: allowed, its downloads go on (and the site may
+    /// download until Sanaga quits); refused, they are cancelled.
+    pub(super) fn download_ask_bar(&mut self, ui: &mut Ui, th: &Theme) {
+        let Some(site) = self.download_asks.first().cloned() else { return };
+        let mut answer: Option<bool> = None;
+        let text = tf("Voulez-vous autoriser les téléchargements sur « {} » ?", &[&site]);
+        ui.horizontal_centered(|ui| {
+            ui.add_space(14.0);
+            let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+            icons::paint(ui.painter(), r, Icon::Shield, th.accent);
+            ui.add_space(6.0);
+            ui.label(RichText::new(text).size(13.0).color(th.text));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.add_space(12.0);
+                if ui.button(tr("Ne pas autoriser")).clicked() {
+                    answer = Some(false);
+                }
+                let b = egui::Button::new(RichText::new(tr("Autoriser")).color(Color32::WHITE)).fill(th.accent);
+                if ui.add(b).clicked() {
+                    answer = Some(true);
+                }
+            });
+        });
+        if let Some(allow) = answer {
+            self.download_asks.retain(|s| *s != site);
+            crate::page::answer_downloads(&site, allow);
+            // the light engine's: fetched again, now allowed (or dropped)
+            let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut self.light_download_pending).into_iter().partition(|(s, _, _)| *s == site);
+            self.light_download_pending = rest;
+            for (site, private, req) in mine {
+                if allow {
+                    if !self.light_download_sites.iter().any(|(p, s)| *p == private && *s == site) {
+                        self.light_download_sites.push((private, site));
+                    }
+                    let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+                    net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
+                }
+            }
+        }
+    }
+
     /// Ctrl+S: keep a copy of the page (one .mhtml file) in Téléchargements.
     pub(super) fn save_page(&mut self) {
         let t = &self.tabs[self.active];
@@ -367,7 +390,7 @@ impl Sanaga {
         };
         let name: String = t.title().chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
         let name = if name.trim().is_empty() { "page".to_string() } else { name.trim().chars().take(80).collect() };
-        let path = net::download_path_for(&format!("https://x/{name}.mhtml"));
+        let path = net::download_path_named(&format!("{name}.mhtml"));
         let tx = self.web_tx.clone();
         let p2 = path.clone();
         w.webview().save_to_file(&webkit6::gio::File::for_path(&path), webkit6::SaveMode::Mhtml, None::<&webkit6::gio::Cancellable>, move |res| {

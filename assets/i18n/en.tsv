@@ -934,6 +934,27 @@ Vidéo et musique	Video and music
 WebKit lit les vidéos avec GStreamer : les codecs viennent des paquets du système. Les vidéos protégées par Widevine (Netflix, Disney+, Spotify web…) ne peuvent être lues par aucun navigateur WebKit.	WebKit plays video with GStreamer: the codecs come from the system's packages. Videos protected by Widevine (Netflix, Disney+, Spotify web…) can't be played by any WebKit browser.
 Toujours ouvrir ainsi	Always open this way
 Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)	Protected sites will open straight in this browser (Settings › General)
+Voulez-vous autoriser les téléchargements sur « {} » ?	Do you want to allow downloads on “{}”?
+Ne pas autoriser	Don't Allow
+Autoriser	Allow
+{} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.	{} can read your files: Sanaga doesn't send it the text of pages. Choose Claude Code, Claude or Ollama in Settings › Intelligence.
+{} peut lire vos fichiers, même verrouillé : Sanaga ne lui envoie pas le texte des pages (résumé, traduction). Il peut écrire des extensions, que vous relisez avant de les activer.	{} can read your files, even locked down: Sanaga doesn't send it the text of pages (summary, translation). It can write extensions, which you review before turning them on.
+La traduction s'arrête ici : la page est très longue.	Translation stops here: the page is very long.
+Installation dans le terminal : confirmez-la et tapez votre mot de passe là-bas.	Installing in the terminal: confirm it and type your password there.
+Il manque des codecs pour lire les vidéos de ce site ({}). Ils viennent avec votre système : mettez-le à jour.	This site's videos need codecs that are missing ({}). They come with your system: update it.
+Il manque des codecs pour lire les vidéos de ce site ({}). Commande : {}	This site's videos need codecs that are missing ({}). Command: {}
+Installer dans un terminal	Install in a Terminal
+Appuyez sur Entrée pour fermer cette fenêtre.	Press Enter to close this window.
+« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.	“{}” is written but turned off. Read its code and the sites it acts on, then turn it on if you're happy with it.
+Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.	Describe what you want to change on websites: Sanaga writes the extension, you read it, then you turn it on.
+Où elle agirait : {}	Where it would act: {}
+Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.	On these sites it could read and change everything the page shows, including what you type there.
+Activer l'extension	Turn On Extension
+« {} » est activée : elle s'applique aux pages ouvertes.	“{}” is on: it applies to the open pages.
+Ce n'est pas une page de texte : il n'y a pas de source à afficher.	This is not a text page: there is no source to show.
+« {} » est installée mais désactivée.	“{}” is installed but turned off.
+Plus tard	Later
+« {} » est installée mais désactivée : lisez-la, puis activez-la.	“{}” is installed but turned off: read it, then turn it on.
 {} sur {}	{} of {}
 Sélecteur d'onglets (Ctrl+Tab)	Tab switcher (Ctrl+Tab)
 Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	The tabs used last, as pictures; Ctrl+Page Down follows the tab bar
@@ -1031,3 +1052,4 @@ Retirer la photo	Remove the photo
 Photo du profil	Profile photo
 Images	Images
 Cette image ne peut pas être lue.	This picture can't be read.
+Une page sur {} dit :	A page on {} says:
