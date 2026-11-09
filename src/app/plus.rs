@@ -337,6 +337,18 @@ impl Sanaga {
         if let Some(allow) = answer {
             self.download_asks.retain(|s| *s != site);
             crate::page::answer_downloads(&site, allow);
+            // the light engine's: fetched again, now allowed (or dropped)
+            let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut self.light_download_pending).into_iter().partition(|(s, _, _)| *s == site);
+            self.light_download_pending = rest;
+            for (site, private, req) in mine {
+                if allow {
+                    if !self.light_download_sites.iter().any(|(p, s)| *p == private && *s == site) {
+                        self.light_download_sites.push((private, site));
+                    }
+                    let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+                    net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
+                }
+            }
         }
     }
 

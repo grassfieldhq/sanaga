@@ -523,8 +523,12 @@ pub struct Sanaga {
     codec_dismissed: bool,
     codec_flag: Option<u64>,
     codec_install: Arc<std::sync::atomic::AtomicU8>,
-    /// Sites waiting for "Allow downloads on …?" (Safari's question).
+    /// Sites waiting for "Allow downloads on …?" (Safari's question); for
+    /// the light engine, the sites allowed in this window (private or not)
+    /// and the downloads waiting (site, private, request).
     download_asks: Vec<String>,
+    light_download_sites: Vec<(bool, String)>,
+    light_download_pending: Vec<(String, bool, net::Request)>,
     /// The tab where the person started the element remover, or asked for
     /// the floating video: the page's answer is accepted from there only.
     zap_armed: Option<u64>,
@@ -794,6 +798,8 @@ impl Sanaga {
             codec_flag: None,
             codec_install: Default::default(),
             download_asks: Vec::new(),
+            light_download_sites: Vec::new(),
+            light_download_pending: Vec::new(),
             zap_armed: None,
             pip_armed: None,
         };

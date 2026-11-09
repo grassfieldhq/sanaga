@@ -122,6 +122,8 @@ impl Sanaga {
         let is_web_url = url.starts_with("http://") || url.starts_with("https://") || url.starts_with("file://");
         let use_web = self.web_ok && self.store.settings.webkit && is_web_url && post.is_none();
         let Some(tab) = self.tabs.get_mut(ti) else { return };
+        // the page shown until now: the referrer of a download from here
+        let referrer = tab.entries.get(tab.idx).map(|e| e.url.clone()).filter(|u| u.starts_with("http://") || u.starts_with("https://")).unwrap_or_default();
         // a new page leaves the Reader; the Reader always uses the light engine
         if push {
             tab.reader = false;
@@ -197,7 +199,8 @@ impl Sanaga {
             }
             let Some(tab) = self.tabs.get_mut(ti) else { return };
             let agent = if tab.private { self.private_agent.clone() } else { self.agent.clone() };
-            net::fetch_page(agent, net::Request { tab: tab.id, nav: tab.nav, url: inner.to_string(), post_body: None, full: true, source: true }, self.tx.clone(), self.ctx.clone());
+            let req = net::Request { tab: tab.id, nav: tab.nav, url: inner.to_string(), post_body: None, full: true, source: true, referrer: String::new(), allow_download: false };
+            net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
             return;
         }
         if use_web {
@@ -215,7 +218,9 @@ impl Sanaga {
             tab.view = View::Loading;
         }
         let agent = if tab.private { self.private_agent.clone() } else { self.agent.clone() };
-        let req = net::Request { tab: tab.id, nav: tab.nav, url, post_body: post, full: tab.full && !tab.reader, source: false };
+        // (a restored tab: nobody asked for it now, a download from it is asked first)
+        let allow_download = !self.restoring;
+        let req = net::Request { tab: tab.id, nav: tab.nav, url, post_body: post, full: tab.full && !tab.reader, source: false, referrer, allow_download };
         if ti != self.active || self.restoring {
             // background tab: the page is fetched when the tab is shown
             tab.loading = false;
@@ -399,6 +404,26 @@ impl Sanaga {
                     };
                     self.images.insert(url, slot);
                     self.trim_images();
+                }
+                NetMsg::DownloadAsk { tab, nav, site, req } => {
+                    let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { continue };
+                    if t.nav != nav {
+                        continue;
+                    }
+                    t.loading = false;
+                    if matches!(t.view, View::Loading) {
+                        t.view = View::Internal(Internal::Downloads);
+                    }
+                    let private = t.private;
+                    if self.light_download_sites.iter().any(|(p, s)| *p == private && *s == site) {
+                        let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+                        net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
+                    } else {
+                        if !self.download_asks.contains(&site) {
+                            self.download_asks.push(site.clone());
+                        }
+                        self.light_download_pending.push((site, private, req));
+                    }
                 }
                 NetMsg::Download { tab, nav, name, path, bytes, result } => {
                     if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {

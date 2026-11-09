@@ -951,3 +951,4 @@ Où elle agirait : {}	Where it would act: {}
 Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.	On these sites it could read and change everything the page shows, including what you type there.
 Activer l'extension	Turn On Extension
 « {} » est activée : elle s'applique aux pages ouvertes.	“{}” is on: it applies to the open pages.
+Ce n'est pas une page de texte : il n'y a pas de source à afficher.	This is not a text page: there is no source to show.

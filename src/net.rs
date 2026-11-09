@@ -19,6 +19,9 @@ pub enum NetMsg {
     Source { tab: u64, nav: u64, url: String, result: Result<String, String> },
     Image { url: String, result: Result<egui::ColorImage, String> },
     Download { tab: u64, nav: u64, name: String, path: PathBuf, bytes: u64, result: Result<(), String> },
+    /// A fetch no action of the person's started (a restored tab) turned out
+    /// to be a download: asked first (the request, to run again if allowed).
+    DownloadAsk { tab: u64, nav: u64, site: String, req: Request },
 }
 
 /// Ask sites for pages in the interface language first.
@@ -111,6 +114,12 @@ pub struct Request {
     pub full: bool,
     /// Show the page's source text instead of the page.
     pub source: bool,
+    /// The page the tab showed before (the referrer of a download).
+    pub referrer: String,
+    /// The person asked for this (typed, clicked in Sanaga): if it is a
+    /// download, it goes straight to the Downloads folder. Otherwise (a
+    /// restored tab) the person is asked first, as for WebKit's downloads.
+    pub allow_download: bool,
 }
 
 pub fn download_dir() -> PathBuf {
@@ -167,7 +176,7 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
     std::thread::Builder::new()
         .name("sanaga-page".into())
         .spawn(move || {
-            let Request { tab, nav, url, post_body, full, source } = req;
+            let Request { tab, nav, url, post_body, full, source, referrer, allow_download } = req;
             let send = |result| {
                 let _ = tx.send(NetMsg::Page { tab, nav, result });
                 ctx.request_repaint();
@@ -218,6 +227,21 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                 return;
             }
             if !is_text || attachment {
+                // the source of something that is not text: nothing to show,
+                // and nothing saved
+                if source {
+                    let _ = tx.send(NetMsg::Source { tab, nav, url: final_url, result: Err(tr("Ce n'est pas une page de texte : il n'y a pas de source à afficher.").into()) });
+                    ctx.request_repaint();
+                    return;
+                }
+                // no action of the person's behind this fetch: asked first
+                if !allow_download {
+                    let site = crate::guard::download_site(&referrer, &final_url);
+                    let req = Request { tab, nav, url, post_body, full, source, referrer, allow_download: true };
+                    let _ = tx.send(NetMsg::DownloadAsk { tab, nav, site, req });
+                    ctx.request_repaint();
+                    return;
+                }
                 // Save to the downloads folder.
                 let name = resp
                     .header("Content-Disposition")
@@ -232,6 +256,13 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                     Err(e) => (download_dir().join(safe_download_name(&name)), Err(e.to_string())),
                 };
                 let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(name);
+                // where it came from, as for WebKit's downloads (the file
+                // manager asks before running a downloaded program)
+                if result.is_ok() {
+                    if let Err(e) = mark_download(&path, &final_url, &referrer) {
+                        eprintln!("download mark: {e}");
+                    }
+                }
                 let bytes = *result.as_ref().unwrap_or(&0);
                 let _ = tx.send(NetMsg::Download { tab, nav, name, path, bytes, result: result.map(|_| ()) });
                 ctx.request_repaint();
