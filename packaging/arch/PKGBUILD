@@ -11,6 +11,9 @@ license=('MIT')
 depends=(
   'gtk4'
   'webkitgtk-6.0'
+  # WebKit's page sandbox
+  'bubblewrap'
+  'xdg-dbus-proxy'
   'hicolor-icon-theme'
   # video and audio: H.264 / AAC (gst-libav), AV1 / Opus parser (bad), VP9 (good)
   'gstreamer'
@@ -43,12 +46,16 @@ build() {
   cd "$srcdir/sanaga"
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
+  # the codecs are dependencies of this package: Sanaga never offers to
+  # install them (packaging/DISTRIBUTIONS.md)
+  export SANAGA_DISTRO=arch
   cargo build --frozen --release
 }
 
 check() {
   cd "$srcdir/sanaga"
   export RUSTUP_TOOLCHAIN=stable
+  export SANAGA_DISTRO=arch
   cargo test --frozen --release
 }
 

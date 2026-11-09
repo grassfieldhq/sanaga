@@ -22,8 +22,9 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# (read only by default; only the job that publishes may write: see publish)
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -39,7 +40,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - id: v
         name: Version
         run: |
@@ -59,20 +60,22 @@ jobs:
     needs: version
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: System libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libgtk-4-dev libwebkitgtk-6.0-dev libsoup-3.0-dev libjavascriptcoregtk-6.0-dev \
             libxkbcommon-dev libwayland-dev libgl1-mesa-dev pkg-config
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Build and test
         run: |
           cargo build --release --locked
           cargo test --release --locked
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
         with:
           tool: cargo-deb
       - name: .deb package
@@ -90,7 +93,7 @@ jobs:
           printf '#!/bin/sh\nexec "$(dirname "$0")/packaging/install.sh" "$@"\n' > "$name/install.sh"
           chmod +x "$name/install.sh" "$name/packaging/install.sh"
           tar czf "dist/$name.tar.gz" "$name"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: deb-and-archive
           path: dist/*
@@ -104,11 +107,15 @@ jobs:
     steps:
       - name: System libraries
         run: dnf install -y --allowerasing git gcc pkgconf-pkg-config gtk4-devel webkitgtk6.0-devel libsoup3-devel curl tar gzip xz
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
       - name: Build
-        run: cargo build --release --locked
-      - uses: taiki-e/install-action@v2
+        # (the package brings the codecs as dependencies: Sanaga never offers
+        # to install them)
+        run: SANAGA_DISTRO=fedora cargo build --release --locked
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
         with:
           tool: cargo-generate-rpm
       - name: .rpm package
@@ -116,7 +123,7 @@ jobs:
           cargo generate-rpm
           mkdir -p dist
           cp target/generate-rpm/*.rpm "dist/sanaga-${{ needs.version.outputs.version }}.x86_64.rpm"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rpm
           path: dist/*
@@ -129,7 +136,7 @@ jobs:
     steps:
       - name: System libraries
         run: pacman -Syu --noconfirm --needed base-devel git rust gtk4 webkitgtk-6.0 gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-libav libsecret hicolor-icon-theme
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Package (built from this commit)
@@ -142,7 +149,7 @@ jobs:
           su builder -c "cd /tmp/pkg && makepkg --noconfirm --nodeps"
           mkdir -p dist
           for f in /tmp/pkg/sanaga-[0-9]*.pkg.tar.zst; do cp "$f" dist/; done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: arch
           path: dist/*
@@ -155,14 +162,15 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Rust sources for the offline build
         run: |
           python3 -m venv /tmp/venv
           /tmp/venv/bin/pip install -q aiohttp tomlkit pyyaml
-          curl -sSfL -o /tmp/flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
+          # (a fixed version of the generator, not whatever master holds today)
+          curl -sSfL -o /tmp/flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/9d86d336a39b9af38b86f114b6ce5820fe260f91/cargo/flatpak-cargo-generator.py
           /tmp/venv/bin/python /tmp/flatpak-cargo-generator.py Cargo.lock -o packaging/flatpak/cargo-sources.json
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6
         with:
           manifest-path: packaging/flatpak/site.grassfield.Sanaga.yml
           bundle: sanaga-${{ needs.version.outputs.version }}.flatpak
@@ -173,13 +181,15 @@ jobs:
     name: Publish
     needs: [version, deb, rpm, arch, flatpak]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.version.outputs.tag }}
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
       - name: Collect the packages
