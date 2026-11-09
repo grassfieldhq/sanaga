@@ -159,8 +159,8 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 ## Install
 
 Download a package from the
-[Releases page](https://github.com/grassfieldhq/sanaga/releases) (the
-**nightly** pre-release is the latest code of `main`). Packages bring
+[Releases page](https://github.com/grassfieldhq/sanaga/releases) (the latest
+one, named after its version, e.g. **v0.1.0**). Packages bring
 everything, video codecs included:
 
 | Your system | Download | Install |

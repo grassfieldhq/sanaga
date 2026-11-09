@@ -1,9 +1,14 @@
 # Sanaga's installable packages, built by GitHub for every distribution.
 #
-#   push to main        → the "nightly" pre-release is rebuilt (latest code)
-#   push a tag v1.2.3   → the release "Sanaga 1.2.3" (the tag must match the
-#                          version in Cargo.toml)
+# The release is named after the version in Cargo.toml, as usual: v0.1.0.
+#
+#   push to main        → the release v<version> is made, or its packages
+#                          replaced if it exists (its tag moves to the commit)
+#   push a tag v1.2.3   → the release v1.2.3 (the tag must match the version
+#                          in Cargo.toml)
 #   Actions › Release › Run workflow → same as a push to main
+#
+# A new version number in Cargo.toml therefore gives a new release.
 #
 # Packages: Flatpak (every distribution, video codecs included), .deb
 # (Debian, Ubuntu, Mint, Pop!_OS…), .rpm (Fedora), Arch package
@@ -40,14 +45,12 @@ jobs:
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            tag="${GITHUB_REF#refs/tags/}"
-            if [[ "$tag" != "v$version" ]]; then
-              echo "::error::The tag $tag does not match the version $version in Cargo.toml"
+            if [[ "${GITHUB_REF#refs/tags/}" != "v$version" ]]; then
+              echo "::error::The tag ${GITHUB_REF#refs/tags/} does not match the version $version in Cargo.toml"
               exit 1
             fi
-          else
-            tag=nightly
           fi
+          tag="v$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
@@ -187,28 +190,23 @@ jobs:
           ls -l dist
       - name: Release notes
         run: |
-          if [[ "$TAG" == nightly ]]; then
-            title="Sanaga nightly"
-            printf 'The latest code of the main branch (%s), built automatically. For testing.\n\n' "${GITHUB_SHA::7}" > notes.md
-          else
-            title="Sanaga $VERSION"
-            # this version's part of the changelog
-            awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {p=1; next} /^## \[/ {if (p) exit} p' CHANGELOG.md > notes.md
-          fi
+          # this version's part of the changelog, else the unreleased part
+          section() { awk -v v="$1" 'index($0, "## [" v "]") == 1 {p=1; next} /^## \[/ {if (p) exit} p' CHANGELOG.md; }
+          section "$VERSION" > notes.md
+          grep -q '[^[:space:]]' notes.md || section Unreleased > notes.md
           cat packaging/RELEASE-INSTALL.md >> notes.md
-          echo "TITLE=$title" >> "$GITHUB_ENV"
       - name: Publish
         run: |
-          if [[ "$TAG" == nightly ]]; then
-            # the nightly tag follows the latest commit of main
-            git tag -f nightly "$GITHUB_SHA"
-            git push -f origin nightly
-            gh release view nightly >/dev/null 2>&1 || gh release create nightly --prerelease --title "$TITLE" --notes-file notes.md
-            gh release edit nightly --prerelease --title "$TITLE" --notes-file notes.md
-            # older nightly packages go
-            for a in $(gh release view nightly --json assets --jq '.assets[].name'); do gh release delete-asset nightly "$a" --yes; done
-            gh release upload nightly dist/* --clobber
-          else
-            gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TITLE" --notes-file notes.md --verify-tag
-            gh release upload "$TAG" dist/* --clobber
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            # built from main: the version's tag points at this commit
+            git tag -f "$TAG" "$GITHUB_SHA"
+            git push -f origin "refs/tags/$TAG"
           fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file notes.md --prerelease=false --latest
+            # the packages of the earlier build go
+            for a in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do gh release delete-asset "$TAG" "$a" --yes; done
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag --latest
+          fi
+          gh release upload "$TAG" dist/* --clobber

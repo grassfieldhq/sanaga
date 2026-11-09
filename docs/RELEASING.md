@@ -5,9 +5,12 @@ has to be built on your computer.
 
 | You do | GitHub builds | Published as |
 |---|---|---|
-| push to `main` | every package | the **nightly** pre-release (replaced at every push) |
-| push a tag `v1.2.3` | every package | the release **Sanaga 1.2.3** |
-| Actions › Release › *Run workflow* | every package | the nightly pre-release |
+| push to `main` | every package | the release named after the version in `Cargo.toml`, e.g. **v0.1.0** (made the first time, its packages replaced at the next pushes) |
+| push a tag `v1.2.3` | every package | the release **v1.2.3** |
+| Actions › Release › *Run workflow* | every package | same as a push to `main` |
+
+A new version number in `Cargo.toml` therefore gives a new release; the
+earlier ones stay as they are.
 
 The packages:
 
