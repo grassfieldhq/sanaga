@@ -18,6 +18,8 @@ depends=(
   'gst-plugins-good'
   'gst-plugins-bad'
   'gst-libav'
+  # video calls (WebRTC): ICE through GStreamer
+  'libnice'
   # passwords in the system keyring
   'libsecret'
 )

@@ -1042,3 +1042,6 @@ Installez Firefox ou Google Chrome : Sanaga y ouvrira ces sites d'un clic, direc
 Ouvrir quand même dans Sanaga (les vidéos ne se liront pas)	Abrir igualmente en Sanaga (los vídeos no se reproducirán)
 Commande copiée	Comando copiado
 Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome	Las pestañas inactivas se suspenden tras 6 h (moderado), 4 h (equilibrado) o 2 h (máximo), como en Chrome
+{} a besoin des appels vidéo (WebRTC), que le moteur web installé sur ce système ne fournit pas. Sanaga ouvre donc la réunion dans un navigateur qui les gère, avec vos comptes habituels.	{} necesita las videollamadas (WebRTC), que el motor web instalado en este sistema no ofrece. Sanaga abre la reunión en un navegador que las admite, con tus cuentas de siempre.
+Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Abrir siempre así las videollamadas y los sitios protegidos, sin pasar por esta página
+Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Abrir igualmente en Sanaga (la llamada no podrá conectarse)

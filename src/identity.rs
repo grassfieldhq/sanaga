@@ -112,15 +112,47 @@ pub fn drm_service(host: &str) -> Option<&'static str> {
 
 /// The service, when opening this address in Sanaga would only show a
 /// player that can't play: a page of a DRM site (not the small players
-/// other sites embed, which play previews without DRM).
+/// other sites embed, which play previews without DRM), or a video-call
+/// site when this system's web engine has no WebRTC.
 pub fn protected_url(url: &str) -> Option<&'static str> {
     let u = url::Url::parse(url).ok()?;
     if !matches!(u.scheme(), "http" | "https") || u.path().starts_with("/embed") {
         return None;
     }
-    let service = drm_service(u.host_str()?)?;
+    let host = u.host_str()?;
+    let service = drm_service(host).or_else(|| if webrtc_missing() { call_service(host) } else { None })?;
     let staying = STAY.lock().is_ok_and(|s| s.iter().any(|x| *x == service));
     (!staying).then_some(service)
+}
+
+/// Video-call sites: they need WebRTC.
+const CALL_SITES: [(&str, &str); 8] = [
+    ("meet.google.com", "Google Meet"),
+    ("teams.microsoft.com", "Microsoft Teams"),
+    ("teams.live.com", "Microsoft Teams"),
+    ("app.zoom.us", "Zoom"),
+    ("meet.jit.si", "Jitsi Meet"),
+    ("whereby.com", "Whereby"),
+    ("webex.com", "Webex"),
+    ("discord.com", "Discord"),
+];
+
+/// The service, when this host is a video-call site.
+pub fn call_service(host: &str) -> Option<&'static str> {
+    let host = host.trim_start_matches("www.");
+    CALL_SITES.iter().find(|(s, _)| matches(host, s)).map(|(_, n)| *n)
+}
+
+/// This system's WebKitGTK was built without WebRTC (a page found no
+/// `RTCPeerConnection`): video calls can't connect in Sanaga.
+static NO_WEBRTC: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_webrtc_missing() {
+    NO_WEBRTC.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn webrtc_missing() -> bool {
+    NO_WEBRTC.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Services the person chose to open in Sanaga anyway (until it closes).
@@ -280,6 +312,10 @@ mod tests {
         assert_eq!(protected_url("https://www.netflix.com/browse"), Some("Netflix"));
         assert_eq!(protected_url("https://open.spotify.com/embed/track/1"), None);
         assert_eq!(protected_url("https://example.com/netflix.com"), None);
+        assert_eq!(call_service("meet.google.com"), Some("Google Meet"));
+        assert_eq!(protected_url("https://meet.google.com/abc-defg-hij"), None);
+        set_webrtc_missing();
+        assert_eq!(protected_url("https://meet.google.com/abc-defg-hij"), Some("Google Meet"));
         assert_eq!(Identity::from_key("chrome"), Identity::Chrome);
     }
 }

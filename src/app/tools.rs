@@ -189,7 +189,7 @@ impl Sanaga {
         // page sends by itself (a video it can't play, an answer) never pull
         // a background tab to the front
         if let Some(i) = self.tab_index(tab) {
-            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe") {
+            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe" | "no-webrtc") {
                 self.active = i;
             }
         }
@@ -213,6 +213,17 @@ impl Sanaga {
             "edit-text" => self.toggle_edit_text(),
             "site-settings" => self.site_panel = true,
             "media-unsupported" => self.codec_flag = Some(tab),
+            // this system's engine can't make video calls: call sites open
+            // where they work (as Netflix does), this one too
+            "no-webrtc" => {
+                crate::identity::set_webrtc_missing();
+                if let Some(i) = self.tab_index(tab) {
+                    let url = self.tabs[i].url().to_string();
+                    if crate::identity::protected_url(&url).is_some() {
+                        self.protected_site(i, &url);
+                    }
+                }
+            }
             // test aid: what a page answered (SANAGA_LIVE_TEST probe:)
             "probe" => eprintln!("live probe {arg}"),
             _ => {}

@@ -52,7 +52,9 @@ const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
     var m = t.tagName === 'SOURCE' ? t.parentNode : t;
     if (!m || !m.error || m.error.code === 4) window.ipc.postMessage('tool:media-unsupported:');
   }
-}, true);"#;
+}, true);
+// video calls need WebRTC; some systems' WebKitGTK is built without it
+if (typeof RTCPeerConnection === 'undefined' && window.ipc && /^https?:$/.test(location.protocol)) window.ipc.postMessage('tool:no-webrtc:');"#;
 
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {

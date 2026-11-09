@@ -6,6 +6,19 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Sites behaving as if there were no Internet while connected (Google and
+  others): Sanaga and its engine now know whether there is a network from
+  the system's routes, not from NetworkManager's Internet check (on Ubuntu
+  that check often fails while the connection works, and pages were told
+  they were offline). A load error is only called "not connected" when the
+  error itself says so.
+- Video calls (Google Meet, Teams, Zoom, Jitsi, Whereby, Webex, Discord):
+  when this system's WebKitGTK is built without WebRTC (the call can't
+  connect, the "join" button stays stuck), they open in a browser that can
+  make calls, the way Netflix does. The .deb, .rpm and Arch packages now
+  bring libnice for GStreamer, which WebKit needs for calls.
+
 ### Changed
 - Netflix, Disney+, Spotify and the other DRM sites are no longer loaded in
   Sanaga, where they can't play: an address typed, a favourite or a link

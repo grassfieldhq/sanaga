@@ -159,6 +159,16 @@ impl Sanaga {
                     } else {
                         self.navigate(i, "sanaga://newtab".into(), None, true);
                     }
+                } else if i < self.tabs.len() && self.tabs[i].url() == url {
+                    // already shown here (a call site found unable to work
+                    // once loaded): the tab goes back where it was
+                    if self.tabs[i].idx > 0 || self.tabs[i].web.as_ref().is_some_and(|w| w.can_go_back().unwrap_or(false)) {
+                        self.go_history(i, -1);
+                    } else if self.tabs.len() > 1 {
+                        self.close_tab(i);
+                    } else {
+                        self.go_home(i);
+                    }
                 }
                 return;
             }
@@ -181,7 +191,9 @@ impl Sanaga {
     pub(super) fn page_protected(&mut self, ui: &mut Ui, th: &Theme) {
         let target = self.protected_target();
         let host = host_of(&target);
-        let service = identity::drm_service(&host).unwrap_or("");
+        // a protected video site, or a video call this engine can't make
+        let call = identity::drm_service(&host).is_none() && identity::call_service(&host).is_some();
+        let service = identity::drm_service(&host).or_else(|| identity::call_service(&host)).unwrap_or("");
         let ways = identity::handoffs(service);
         let mut open: Option<identity::Handoff> = None;
         let mut stay = false;
@@ -201,7 +213,12 @@ impl Sanaga {
                 };
                 ui.label(RichText::new(title).size(26.0).family(bold()).color(th.text));
                 ui.add_space(10.0);
-                ui.label(RichText::new(tf("{} protège ses vidéos avec Widevine, un verrou que Google réserve à Chrome, Firefox et aux navigateurs de leur famille. Le moteur de Sanaga n'y a pas droit : Sanaga vous ouvre donc la page là où elle se lit, avec vos comptes habituels.", &[&service])).size(14.0).color(th.sub));
+                let why = if call {
+                    tf("{} a besoin des appels vidéo (WebRTC), que le moteur web installé sur ce système ne fournit pas. Sanaga ouvre donc la réunion dans un navigateur qui les gère, avec vos comptes habituels.", &[&service])
+                } else {
+                    tf("{} protège ses vidéos avec Widevine, un verrou que Google réserve à Chrome, Firefox et aux navigateurs de leur famille. Le moteur de Sanaga n'y a pas droit : Sanaga vous ouvre donc la page là où elle se lit, avec vos comptes habituels.", &[&service])
+                };
+                ui.label(RichText::new(why).size(14.0).color(th.sub));
                 ui.add_space(26.0);
                 if let Some(first) = ways.first() {
                     let b = egui::Button::new(RichText::new(&first.label).size(15.0).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(20)).min_size(vec2(260.0, 42.0));
@@ -224,7 +241,7 @@ impl Sanaga {
                         });
                     }
                     ui.add_space(20.0);
-                    ui.checkbox(&mut self.drm_always_pick, RichText::new(tr("Toujours ouvrir Netflix, Disney+, Spotify… ainsi, sans passer par cette page")).size(13.0).color(th.text));
+                    ui.checkbox(&mut self.drm_always_pick, RichText::new(if call { tr("Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page") } else { tr("Toujours ouvrir Netflix, Disney+, Spotify… ainsi, sans passer par cette page") }).size(13.0).color(th.text));
                 } else {
                     ui.label(RichText::new(tr("Installez Firefox ou Google Chrome : Sanaga y ouvrira ces sites d'un clic, directement.")).size(14.0).color(th.text));
                     if let Some(cmd) = identity::browser_install_hint() {
@@ -239,7 +256,7 @@ impl Sanaga {
                     }
                 }
                 ui.add_space(30.0);
-                let b = egui::Button::new(RichText::new(tr("Ouvrir quand même dans Sanaga (les vidéos ne se liront pas)")).size(12.5).color(th.sub)).frame(false);
+                let b = egui::Button::new(RichText::new(if call { tr("Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)") } else { tr("Ouvrir quand même dans Sanaga (les vidéos ne se liront pas)") }).size(12.5).color(th.sub)).frame(false);
                 if ui.add(b).clicked() {
                     stay = true;
                 }

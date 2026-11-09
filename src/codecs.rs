@@ -138,11 +138,11 @@ pub fn install() -> Option<Install> {
     let (id, like) = os_release();
     let is = |name: &str| id == name || like.split_whitespace().any(|l| l == name);
     let (manager, args, packages): (&str, &[&str], &[&str]) = if is("arch") {
-        ("pacman", &["-S", "--needed", "--noconfirm"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va"])
+        ("pacman", &["-S", "--needed", "--noconfirm"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va", "libnice"])
     } else if is("debian") || is("ubuntu") {
-        ("apt-get", &["install", "-y"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi"])
+        ("apt-get", &["install", "-y"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi", "gstreamer1.0-nice"])
     } else if is("fedora") {
-        ("dnf", &["install", "-y"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264"])
+        ("dnf", &["install", "-y"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264", "libnice-gstreamer1"])
     } else if is("suse") || is("opensuse") {
         ("zypper", &["--non-interactive", "install"], &["gstreamer-plugins-libav", "gstreamer-plugins-bad"])
     } else {

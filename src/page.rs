@@ -163,13 +163,14 @@ fn classify(e: &gtk::glib::Error) -> Option<LoadError> {
     if e.matches(webkit6::PolicyError::CannotUseRestrictedPort) {
         return Some(LoadError::BlockedPort);
     }
+    // "Offline" only when the error itself says the network can't be
+    // reached (or a name can't be resolved with no network at all): the
+    // system's network monitor alone is sometimes wrong while the connection
+    // works, and every failure then looked like "no Internet"
     let offline = !gio::NetworkMonitor::default().is_network_available();
     let msg = e.message().to_lowercase();
-    if offline {
-        return Some(LoadError::Offline);
-    }
     if e.matches(gio::ResolverError::NotFound) || e.matches(gio::ResolverError::TemporaryFailure) || msg.contains("resolv") || msg.contains("name or service not known") {
-        return Some(LoadError::NotFound);
+        return Some(if offline { LoadError::Offline } else { LoadError::NotFound });
     }
     if e.matches(gio::IOErrorEnum::ConnectionRefused) || msg.contains("refused") {
         return Some(LoadError::Refused);

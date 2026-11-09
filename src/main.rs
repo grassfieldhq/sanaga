@@ -107,6 +107,17 @@ fn log_crashes() {
 
 fn main() -> eframe::Result {
     log_crashes();
+    // "Is there a network?": from the system's routes (netlink), not from
+    // NetworkManager's Internet check. On Ubuntu that check (a request to
+    // Ubuntu's server) often fails while the connection works, and then
+    // WebKit tells every page it is offline (navigator.onLine false: Google
+    // and many sites behave as if there were no Internet). Set before GTK,
+    // GIO and WebKit's processes start; a choice made by the person stays.
+    if std::env::var_os("GIO_USE_NETWORK_MONITOR").is_none() {
+        unsafe {
+            std::env::set_var("GIO_USE_NETWORK_MONITOR", "netlink");
+        }
+    }
     let mut args = std::env::args().skip(1);
     let mut screenshot: Option<app::ScreenshotJob> = None;
     let mut urls = Vec::new();
