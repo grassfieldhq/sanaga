@@ -69,7 +69,8 @@ window.addEventListener('keydown', function (e) {
 /// source of the linked file.
 const SOURCE_LINKS_JS: &str = r#"
 document.addEventListener('click', function (e) {
-  if (!e.isTrusted || !window.ipc || !document.documentElement.hasAttribute('data-sanaga-source')) return;
+  // (a hint only: Sanaga checks on its side that the tab shows its own source page)
+  if (!e.isTrusted || !window.ipc || location.href !== 'about:blank' || !document.documentElement.hasAttribute('data-sanaga-source')) return;
   var a = e.target && e.target.closest && e.target.closest('a[data-u]');
   if (!a) return;
   e.preventDefault();
@@ -386,6 +387,17 @@ impl Sanaga {
             WebEvent::PageText { tab, text } => self.summary_text_arrived(tab, text),
             WebEvent::ViewSource { tab, url } => {
                 if !(url.starts_with("http://") || url.starts_with("https://")) {
+                    return;
+                }
+                // only from Sanaga's own source page (Ctrl+U), never from web
+                // content: the tab must show a view-source address, and its
+                // view the page Sanaga made for it (about:blank, no site)
+                let own_source_page = self
+                    .tabs
+                    .iter()
+                    .find(|t| t.id == tab)
+                    .is_some_and(|t| t.url().starts_with("view-source:") && t.web.as_ref().and_then(|w| w.uri()).as_deref() == Some("about:blank"));
+                if !own_source_page {
                     return;
                 }
                 if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
