@@ -193,6 +193,8 @@ struct Tab {
     web_pending: Option<String>,
     web_shown: bool,
     web_zoom: f32,
+    /// How many times the person came back to this tab (memory saver).
+    revisits: u32,
     /// Safari-style Reader: this page shown as clean, easy-to-read text.
     reader: bool,
     /// Blocks the Reader leaves out (menus, buttons, link lists), worked out once per page.
@@ -441,6 +443,8 @@ pub struct Sanaga {
     drm_dismissed: HashSet<String>,
     /// The protected-site page's "always open this way" box.
     drm_always_pick: bool,
+    /// The tab shown at the memory saver's last step (to count revisits).
+    saver_last_tab: u64,
     identity_ask: bool,
     /// Sidebar: its search, the group being renamed in place.
     sidebar_filter: String,
@@ -755,6 +759,7 @@ impl Sanaga {
             translate_ask: false,
             drm_dismissed: HashSet::new(),
             drm_always_pick: true,
+            saver_last_tab: 0,
             identity_ask: false,
             sidebar_filter: String::new(),
             group_renaming: None,

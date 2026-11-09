@@ -241,6 +241,14 @@ impl Sanaga {
             net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
         }
         if let Some(t) = self.tabs.get_mut(active) {
+            // a tab shown again counts as a revisit (Chrome keeps often
+            // revisited tabs awake: see MECHANICS.md)
+            if t.id != self.saver_last_tab {
+                if t.last_active > 0.0 {
+                    t.revisits = t.revisits.saturating_add(1);
+                }
+                self.saver_last_tab = t.id;
+            }
             t.last_active = now;
             if t.sleeping && matches!(t.view, View::Web) && t.web.is_none() && t.web_pending.is_none() {
                 t.sleeping = false;
@@ -248,13 +256,19 @@ impl Sanaga {
                 t.web_pending = Some(t.url().to_string());
             }
         }
-        // (minutes before a tab sleeps, most pages kept running at once)
-        let level = if self.low_power_active() { 3 } else { self.store.settings.memory_saver };
-        let (minutes, cap) = match level {
-            1 => (60.0, 12),
-            2 => (20.0, 6),
-            3 => (5.0, 3),
-            _ => return,
+        // (minutes before an inactive tab sleeps, most pages kept running at
+        // once, revisits above which the timer leaves a tab awake). The three
+        // levels are Chrome's (MECHANICS.md): 6 h - 2 h × level, revisits
+        // 5 / 15 / 15. The energy saver mode is Sanaga's own: 5 min.
+        let (minutes, cap, max_revisits) = if self.low_power_active() {
+            (5.0, 3, u32::MAX)
+        } else {
+            match self.store.settings.memory_saver {
+                1 => (360.0, 12, 5),
+                2 => (240.0, 6, 15),
+                3 => (120.0, 3, 15),
+                _ => return,
+            }
         };
         let mut running: Vec<(f64, usize)> = Vec::new();
         for (i, t) in self.tabs.iter_mut().enumerate() {
@@ -267,7 +281,7 @@ impl Sanaga {
             if i == active || t.web.is_none() || t.audio || calling || t.pinned || t.form_dirty {
                 continue;
             }
-            if t.last_active > 0.0 && now - t.last_active > minutes * 60.0 {
+            if t.last_active > 0.0 && now - t.last_active > minutes * 60.0 && t.revisits <= max_revisits {
                 put_to_sleep(t);
             } else {
                 running.push((t.last_active, i));

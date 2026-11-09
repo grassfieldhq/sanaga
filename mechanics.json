@@ -1,27 +1,184 @@
 {
   "version": 1,
   "values": [
-    { "name": "interface refresh at rest", "group": "processor", "value": 1000, "unit": "ms", "source": "src/app/web.rs pump_web (idle)" },
-    { "name": "interface refresh at rest, low power mode", "group": "processor", "value": 3000, "unit": "ms", "source": "src/app/web.rs pump_web (idle, low_power_active)" },
-    { "name": "interface refresh while a page is used", "group": "processor", "value": 250, "unit": "ms", "source": "src/app/web.rs pump_web (wait)" },
-    { "name": "interface refresh while a page loads", "group": "processor", "value": 100, "unit": "ms", "source": "src/app/web.rs pump_web (wait)" },
-    { "name": "fast refresh kept after mouse or keyboard in a page", "group": "processor", "value": 1.5, "unit": "s", "source": "src/app/web.rs pump_web (web_busy_until)" },
-    { "name": "memory counter measured every", "group": "processor", "value": 10, "unit": "s", "source": "src/net.rs memory_used_cached" },
-    { "name": "password helper checks new fields at most every", "group": "processor", "value": 1000, "unit": "ms", "source": "assets/passwords.js soon()" },
-    { "name": "memory saver level 1: minutes before a tab sleeps", "group": "memory", "value": 60, "unit": "min", "source": "src/app/plus.rs memory_saver_step" },
-    { "name": "memory saver level 1: pages running at most", "group": "memory", "value": 12, "source": "src/app/plus.rs memory_saver_step" },
-    { "name": "memory saver level 2: minutes before a tab sleeps", "group": "memory", "value": 20, "unit": "min", "source": "src/app/plus.rs memory_saver_step" },
-    { "name": "memory saver level 2: pages running at most", "group": "memory", "value": 6, "source": "src/app/plus.rs memory_saver_step" },
-    { "name": "memory saver level 3 (and low power): minutes before a tab sleeps", "group": "memory", "value": 5, "unit": "min", "source": "src/app/plus.rs memory_saver_step" },
-    { "name": "memory saver level 3 (and low power): pages running at most", "group": "memory", "value": 3, "source": "src/app/plus.rs memory_saver_step" },
-    { "name": "page memory limit: share of the computer's memory", "group": "memory", "value": "1/8", "source": "src/page.rs page_memory_limit" },
-    { "name": "page memory limit: lowest", "group": "memory", "value": 768, "unit": "MB", "source": "src/page.rs page_memory_limit" },
-    { "name": "page memory limit: highest", "group": "memory", "value": 2048, "unit": "MB", "source": "src/page.rs page_memory_limit" },
-    { "name": "page starts giving memory back at", "group": "memory", "value": 0.33, "unit": "of the limit", "source": "src/page.rs pressure_settings" },
-    { "name": "page gives memory back firmly at", "group": "memory", "value": 0.5, "unit": "of the limit", "source": "src/page.rs pressure_settings" },
-    { "name": "page memory checked every", "group": "memory", "value": 10, "unit": "s", "source": "src/page.rs pressure_settings" },
-    { "name": "short message shown for", "group": "interface", "value": 4, "unit": "s", "source": "src/app/extras.rs show_notice" },
-    { "name": "protected sites opened elsewhere without asking (default)", "group": "protected sites", "value": false, "source": "src/store.rs Settings::default drm_auto" },
-    { "name": "'always open this way' box ticked at first", "group": "protected sites", "value": true, "source": "src/app/mod.rs drm_always_pick" }
+    {
+      "name": "interface refresh at rest",
+      "group": "processor",
+      "value": 1000,
+      "unit": "ms",
+      "source": "src/app/web.rs pump_web (idle)"
+    },
+    {
+      "name": "interface refresh at rest, low power mode",
+      "group": "processor",
+      "value": 3000,
+      "unit": "ms",
+      "source": "src/app/web.rs pump_web (idle, low_power_active)"
+    },
+    {
+      "name": "interface refresh while a page is used",
+      "group": "processor",
+      "value": 250,
+      "unit": "ms",
+      "source": "src/app/web.rs pump_web (wait)"
+    },
+    {
+      "name": "interface refresh while a page loads",
+      "group": "processor",
+      "value": 100,
+      "unit": "ms",
+      "source": "src/app/web.rs pump_web (wait)"
+    },
+    {
+      "name": "fast refresh kept after mouse or keyboard in a page",
+      "group": "processor",
+      "value": 1.5,
+      "unit": "s",
+      "source": "src/app/web.rs pump_web (web_busy_until)"
+    },
+    {
+      "name": "memory counter measured every",
+      "group": "processor",
+      "value": 10,
+      "unit": "s",
+      "source": "src/net.rs memory_used_cached"
+    },
+    {
+      "name": "password helper checks new fields at most every",
+      "group": "processor",
+      "value": 1000,
+      "unit": "ms",
+      "source": "assets/passwords.js soon()"
+    },
+    {
+      "name": "memory saver level 1: minutes before a tab sleeps",
+      "group": "memory",
+      "value": 360,
+      "unit": "min",
+      "source": "Chrome 0xb734420/0xb7344d0: 6 h - 2 h x level (MECHANICS.md); Sanaga src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 1: pages running at most",
+      "group": "memory",
+      "value": 12,
+      "source": "src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 2: minutes before a tab sleeps",
+      "group": "memory",
+      "value": 240,
+      "unit": "min",
+      "source": "Chrome 0xb734420/0xb7344d0: 6 h - 2 h x level (MECHANICS.md); Sanaga src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 2: pages running at most",
+      "group": "memory",
+      "value": 6,
+      "source": "src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 3: minutes before a tab sleeps",
+      "group": "memory",
+      "value": 120,
+      "unit": "min",
+      "source": "Chrome 0xb734420/0xb7344d0: 6 h - 2 h x level (MECHANICS.md); Sanaga src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 3: pages running at most",
+      "group": "memory",
+      "value": 3,
+      "source": "src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 1: revisits above which the timer keeps a tab awake",
+      "group": "memory",
+      "value": 5,
+      "source": "Chrome 0x77ec8b0, table 0x2b42138 (MECHANICS.md); Sanaga src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 2: revisits above which the timer keeps a tab awake",
+      "group": "memory",
+      "value": 15,
+      "source": "Chrome 0x77ec8b0, table 0x2b42138 (MECHANICS.md); Sanaga src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "memory saver level 3: revisits above which the timer keeps a tab awake",
+      "group": "memory",
+      "value": 15,
+      "source": "Chrome 0x77ec8b0, table 0x2b42138 (MECHANICS.md); Sanaga src/app/plus.rs memory_saver_step"
+    },
+    {
+      "name": "energy saver mode: minutes before a tab sleeps",
+      "group": "memory",
+      "value": 5,
+      "unit": "min",
+      "source": "Sanaga's own rule, src/app/plus.rs memory_saver_step (low_power_active)"
+    },
+    {
+      "name": "energy saver mode: pages running at most",
+      "group": "memory",
+      "value": 3,
+      "source": "Sanaga's own rule, src/app/plus.rs memory_saver_step (low_power_active)"
+    },
+    {
+      "name": "page memory limit: share of the computer's memory",
+      "group": "memory",
+      "value": "1/8",
+      "source": "src/page.rs page_memory_limit"
+    },
+    {
+      "name": "page memory limit: lowest",
+      "group": "memory",
+      "value": 768,
+      "unit": "MB",
+      "source": "src/page.rs page_memory_limit"
+    },
+    {
+      "name": "page memory limit: highest",
+      "group": "memory",
+      "value": 2048,
+      "unit": "MB",
+      "source": "src/page.rs page_memory_limit"
+    },
+    {
+      "name": "page starts giving memory back at",
+      "group": "memory",
+      "value": 0.33,
+      "unit": "of the limit",
+      "source": "src/page.rs pressure_settings"
+    },
+    {
+      "name": "page gives memory back firmly at",
+      "group": "memory",
+      "value": 0.5,
+      "unit": "of the limit",
+      "source": "src/page.rs pressure_settings"
+    },
+    {
+      "name": "page memory checked every",
+      "group": "memory",
+      "value": 10,
+      "unit": "s",
+      "source": "src/page.rs pressure_settings"
+    },
+    {
+      "name": "short message shown for",
+      "group": "interface",
+      "value": 4,
+      "unit": "s",
+      "source": "src/app/extras.rs show_notice"
+    },
+    {
+      "name": "protected sites opened elsewhere without asking (default)",
+      "group": "protected sites",
+      "value": false,
+      "source": "src/store.rs Settings::default drm_auto"
+    },
+    {
+      "name": "'always open this way' box ticked at first",
+      "group": "protected sites",
+      "value": true,
+      "source": "src/app/mod.rs drm_always_pick"
+    }
   ]
 }

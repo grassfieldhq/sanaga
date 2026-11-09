@@ -1006,7 +1006,7 @@ impl Sanaga {
         if show.shows(Section::Performance, tr("Économiseur de mémoire"), &[tr("Mode économie d'énergie"), tr("Moteur d'affichage des pages"), tr("Charger les images")]) {
             any = true;
             group(ui, th, "", |ui, rows| {
-                rows.row(ui, tr("Économiseur de mémoire"), "", false, |ui| {
+                rows.row(ui, tr("Économiseur de mémoire"), tr("Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome"), false, |ui| {
                     if let Some(v) = popup(ui, "memory", st.memory_saver, &[(0u8, tr("Désactivé")), (1, tr("Modéré")), (2, tr("Équilibré")), (3, tr("Maximal"))]) {
                         st.memory_saver = v;
                         changed = true;

@@ -39,6 +39,7 @@ impl Sanaga {
             web_pending: None,
             web_shown: false,
             web_zoom: 1.0,
+            revisits: 0,
             reader: false,
             reader_skip: Vec::new(),
             pinned: false,

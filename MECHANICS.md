@@ -1,0 +1,88 @@
+# Mechanics taken from the original
+
+Values and rules read in the original (Google Chrome for Linux, the program
+`opt/google/chrome/chrome` of `google-chrome-stable_current_amd64.deb`,
+SHA-256 `fa67e06a5bcd0525739996fb8e3ecff449039e6165c15ea7968d3935e59e829e`),
+with where they were found, and how Sanaga uses them. Addresses are the
+program's virtual addresses.
+
+How they were read: the program is stripped and 307 MB, so the built-in
+engine didn't discover these functions (`native_function_find` gave "not
+inside any discovered function") and `native_function_pseudocode` couldn't
+be used on them. They were found from their texts (`native_strings_find`),
+then from the instructions that reach those texts (`lea [rip+…]` and `call`
+scans of the code), and read as machine code with objdump.
+
+## Memory saver (sleeping tabs)
+
+### Three levels — observed
+Chrome's Settings page (resource 22297 of `resources.pak`) offers three
+levels, stored in the preference
+`performance_tuning.high_efficiency_mode.aggressiveness`:
+`CONSERVATIVE = 0`, `MEDIUM = 1`, `AGGRESSIVE = 2`. Their French names
+(`locales/fr.pak`, resources 6542–6547): **Modéré**, **Équilibré
+(recommandé)**, **Maximal** — "tabs become inactive after a long / an
+optimal / a short period".
+
+Sanaga: the same three levels and names (Settings › Performance ›
+Économiseur de mémoire), `memory_saver` 1, 2, 3.
+
+### Delay before an inactive tab sleeps — observed
+Two functions compute it and pass it to `StartDiscardTimerIfEnabled`
+(`0x77ec8b0`, named by the text `0x1e4f402` and the source path
+`0x1e86263`, `chrome/browser/performance_manager/policies/memory_saver_mode_policy.cc`, line 174):
+
+- `0xb734420` (a tab becomes eligible), at `0xb73445a`
+- `0xb7344d0` (every tab, when the level changes), at `0xb734527`
+
+Both do:
+
+```
+level = this->mode            // [rdi+0x60], 0..2 (checked < 3)
+delay = 0x50775d800 + level × 0xfffffffe52d8b800   // microseconds
+      = 21 600 000 000 − level × 7 200 000 000 µs
+      = 6 h − 2 h × level
+```
+
+| Level | Delay |
+|---|---|
+| Conservative / Modéré (0) | **6 hours** |
+| Medium / Équilibré (1) | **4 hours** |
+| Aggressive / Maximal (2) | **2 hours** |
+
+Sanaga: `src/app/plus.rs` `memory_saver_step` — 360, 240 and 120 minutes.
+
+### Often revisited tabs stay awake — values observed, meaning inferred
+In `StartDiscardTimerIfEnabled` (`0x77ec8b0`), at `0x77ec92a`–`0x77ec947`:
+
+```
+record = per-tab record copied by 0xe7f5870 (48 bytes)
+limit  = table_0x2b42138[level]          // bytes 5, 15, 15
+if record.field_0x28 > limit: return     // no timer for this tab
+```
+
+The table at `0x2b42138` holds **5, 15, 15** (Conservative, Medium,
+Aggressive). The program also holds the text `num_revisits` (`0x1b7876b`):
+the compared field is most likely the number of times the tab was revisited
+(inferred, not proven from the code alone).
+
+Sanaga: a tab shown again counts one revisit (`Tab::revisits`); the timer
+doesn't put to sleep a tab revisited more than 5 / 15 / 15 times.
+
+### Sanaga's own rules (not Chrome's)
+- At most 12 / 6 / 3 pages running at once (the least recently seen sleep
+  first). Chrome has no such count; it relies on its timer and on memory
+  pressure.
+- Energy saver mode (on battery or always): inactive tabs sleep after
+  **5 minutes**, at most 3 pages running. Chrome's energy saver doesn't put
+  tabs to sleep, so there is no Chrome value for it.
+- Never asleep: the tab shown, a page playing sound, a call, a pinned tab, a
+  form being filled in.
+
+## Also observed, not used yet
+- Chrome keeps a list "Toujours laisser ces sites actifs" (sites never put to
+  sleep), `fr.pak` 6548–6557.
+- Chrome's energy saver: on when unplugged, or only at or below a battery
+  level (`fr.pak` 6560–6561, the level itself was not read).
+- Inactive tabs show a dotted circle around their site icon (`fr.pak`
+  6564–6565).
