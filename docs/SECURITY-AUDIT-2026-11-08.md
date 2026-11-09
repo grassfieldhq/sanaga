@@ -236,6 +236,24 @@ bundle those requests fail rather than fall back. The favicon fetch is gone
 features ureq already builds (no new crate). Test:
 `requests_trust_the_systems_certificates`.
 
+## Re-audit (cd11df2): PASS WITH CONDITIONS, and what followed
+
+The re-audit accepted the 15 fixes and both deviations (#3, #12), and asked
+for the following. Each is fixed in a commit of its own:
+
+| Re-audit item | Fix | Commits |
+|---|---|---|
+| **N1 (medium)** Sanaga's own light-engine downloads were neither marked nor asked about; a page could set `data-sanaga-source` and get one real click to open view-source of any address | `vs:` is accepted only when the tab shows a view-source address and its view shows Sanaga's own source page (checked in Rust). Light-engine downloads get `user.xdg.origin.url` / `user.xdg.referrer.url`; a fetch the person asked for goes straight to Downloads, one nobody asked for now (a restored tab) waits behind the same question and is fetched again only if allowed; view-source of something that is not text shows an error instead of saving a file | `e1d555d`, `86a5834` |
+| **N2 (low)** preview and floating windows skipped the question | their views get the same state (page shown, the person's actions); the address the person opened there counts like a typed one; a download from a view Sanaga does not follow is always asked about | `cf96fe8` |
+| **N3 (low)** one download without a click for 10 s after any navigation, restore included | an action in the page (WebKit's user gesture) allows one download and is forgotten when a new page is shown; an address the person opens allows only the download that navigation itself turns into; restored and woken tabs get nothing | `dd35149` |
+| **N4 (low)** allowed sites shared by private tabs, containers and profiles | kept per WebKit network session (profile, container, private), in memory only; the light engine's per window, private apart | `9413194` |
+| **N5 (low)** a page could raise its own "Save password?" | only trusted submit/click/Enter events, and only for a password field the person typed into (or Sanaga filled) | `5e2bb5c` |
+| **N6 (low)** a same-user process could stall the socket listener | non-blocking accept; each connection read on its own short-lived thread (at most 8), the whole message within 500 ms and 64 KiB or dropped (`guard::read_bounded`); the rate limit applies to delivered messages | `70afd4b` |
+| **R3 (low)** imported extensions switched on at install | installed switched off; the Extensions page shows the sites, what that allows and the code; on only by the person's click | `36167a7` |
+| **C2** packaging | [packaging/DISTRIBUTIONS.md](../packaging/DISTRIBUTIONS.md): `SANAGA_DISTRO=grassfield`, `--release --locked`, dependencies on bubblewrap, xdg-dbus-proxy and the GStreamer codec packages | `f6ce542` |
+| **C3** live checks with WebKitGTK 6 | **open** until WebKitGTK 6 is installed (checklist below, items 12–16 added) | — |
+| **C4** Apple device names, frames, "Safari" identity | **open**, for the owner (not touched) | — |
+
 ## Build and test status
 
 | Check | Result |
@@ -243,7 +261,7 @@ features ureq already builds (no new crate). Test:
 | `cargo fetch --locked` (Cargo.lock consistent with Cargo.toml) | passes |
 | `cargo clippy --locked --all-targets -- -D warnings` (debug, WebKit pkg-config stubbed: `SYSTEM_DEPS_WEBKITGTK_6_0_NO_PKG_CONFIG=1`, same for `JAVASCRIPTCOREGTK_6_0`) | passes |
 | `cargo clippy --locked --bin sanaga -- -D warnings` with `debug-assertions` off (the release `cfg` paths: test hooks compiled out) | passes |
-| `cargo test --manifest-path tools/guard-tests/Cargo.toml` | 18 passed |
+| `cargo test --manifest-path tools/guard-tests/Cargo.toml` | 19 passed (after the re-audit fixes) |
 | `cargo build`, `cargo test` of the whole crate | **not run**: WebKitGTK 6 is not installed on the machine used; the other new tests (translation batches, tool-less AI, file permissions, system certificates, extension matches) were type-checked but not executed |
 | `python3 tools/i18n.py check` | all texts translated |
 
@@ -273,3 +291,16 @@ separate question for the owner and were left as they are.
 10. A second `sanaga https://example.org` while Sanaga runs: a new tab;
     `sanaga 'javascript:alert(1)'`: nothing.
 11. `stat` on `~/.local/share/sanaga` (0700) and its files (0600).
+12. Reader / light engine on an address that is a file: saved with both
+    `user.xdg.*` attributes; a restored light-engine tab whose address is a
+    file asks first.
+13. A page setting `data-sanaga-source` on itself, then a click on an
+    `a[data-u]`: nothing opens.
+14. A typed address that is a file downloads at once; a page reached by a
+    typed address that starts a download by itself asks; a restored tab
+    that starts one asks.
+15. An allowance given in a private tab does not apply in a normal tab or a
+    container.
+16. A page calling `form.requestSubmit()` on a password it filled itself: no
+    "Save password?"; installing a `.user.js`: switched off, review card
+    shown.

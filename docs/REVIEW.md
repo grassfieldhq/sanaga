@@ -89,7 +89,9 @@ The first security audit failed; the 15 findings and their fixes are in
 [SECURITY-AUDIT-2026-11-08.md](SECURITY-AUDIT-2026-11-08.md). The fixes change
 how Sanaga talks to pages (its scripts now run in an isolated JavaScript
 world), downloads, passwords, translation, favicons, the codec install, the
-single-instance socket and file permissions. **They were written without a
+single-instance socket and file permissions; after the re-audit, extensions
+installed from a file (and AI-written ones) also start switched off, with a
+review of their sites and code. **They were written without a
 WebKitGTK 6 build at hand and have not been checked live yet**: every row
 above that touches these features must be checked again before release.
 

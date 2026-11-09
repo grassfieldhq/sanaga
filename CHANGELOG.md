@@ -19,6 +19,13 @@ All notable changes to Sanaga are listed here. The format follows
   text-only, bounded and reset on navigation.
 - No one-click codec install: the exact command in a terminal, and none at
   all on a distribution build (`SANAGA_DISTRO`).
+- Re-audit fixes: light-engine downloads marked and asked about like
+  WebKit's; view-source links only from Sanaga's own source page; the
+  no-question download allowance tied to a real action in the page (none
+  for restored tabs), kept per profile, container and private session, and
+  applied to preview windows; "Save password?" only after a real sign-in;
+  a slow peer can't stall the single-instance socket; extensions installed
+  from a file are switched off until reviewed.
 - Favicons come from WebKit; AI-written extensions are installed switched
   off; private temporary folders; escaped `.desktop` entries; a checked and
   bounded single-instance socket; debug-only test hooks; private data
