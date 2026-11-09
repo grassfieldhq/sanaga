@@ -38,12 +38,20 @@
     if (t && t.matches && t.type !== 'password' && t.matches(USER)) rememberUser(t.value);
   }, true);
 
-  // --- saving: a sign-in is sent (form, button, Enter, leaving the page) ---
+  // --- saving: a sign-in the person really sent (a real submit, click or
+  // Enter, or leaving the page) with a password the person really typed (or
+  // Sanaga filled): a page can't raise the "Save password?" question itself,
+  // with values of its own choosing ---
+  var typed = new WeakSet();
+  document.addEventListener('input', function (ev) {
+    var t = ev.target;
+    if (ev.isTrusted && t && t.tagName === 'INPUT' && t.type === 'password') typed.add(t);
+  }, true);
   var last = '';
   function capture(scope) {
     var s = scope && scope.querySelector ? scope : document;
     var p = pwField(s) || pwField(document);
-    if (!p || !p.value) return;
+    if (!p || !p.value || !typed.has(p)) return;
     var u = userField(p.form || s) || userField(document);
     var user = u && u.value ? u.value : rememberedUser();
     var msg = 'pw:save\n' + e(location.origin) + '\n' + e(user) + '\n' + e(p.value);
@@ -51,13 +59,14 @@
     last = msg;
     send(msg);
   }
-  document.addEventListener('submit', function (ev) { capture(ev.target); }, true);
+  document.addEventListener('submit', function (ev) { if (ev.isTrusted) capture(ev.target); }, true);
   document.addEventListener('click', function (ev) {
+    if (!ev.isTrusted) return;
     var b = ev.target.closest && ev.target.closest('button,input[type=submit],input[type=button],[role=button],a');
     if (b) capture(b.form || b.closest('form') || document);
   }, true);
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter' && ev.target && ev.target.tagName === 'INPUT') capture(ev.target.form || document);
+    if (ev.isTrusted && ev.key === 'Enter' && ev.target && ev.target.tagName === 'INPUT') capture(ev.target.form || document);
   }, true);
   window.addEventListener('pagehide', function () { capture(document); });
 
@@ -126,7 +135,7 @@
     var pw = pwField();
     var uf = userField(pw ? (pw.form || document) : document);
     if (uf) { setv(uf, u); rememberUser(u); }
-    if (pw) setv(pw, p);
+    if (pw) { setv(pw, p); typed.add(pw); }
     return pw || uf ? 'filled' : 'nofield';
   };
 
