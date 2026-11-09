@@ -151,6 +151,7 @@ pub fn set_tooltip(text: String) {
 }
 
 /// Test aid: a mouse click at (x, y), pressed then released.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn gtk_click(x: f64, y: f64, button: u32) {
     let b = match button {
         3 => PointerButton::Secondary,
@@ -166,6 +167,7 @@ pub fn gtk_click(x: f64, y: f64, button: u32) {
 }
 
 /// Test aid: like `inject`, optionally all in one frame.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn inject_together(together: bool, events: Vec<Event>) {
     if together {
         INJECT_NOW.with(|i| i.borrow_mut().extend(events));
@@ -178,6 +180,7 @@ pub fn inject_together(together: bool, events: Vec<Event>) {
 }
 
 /// Test aid: input events added to the next frames.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn inject(events: Vec<Event>) {
     INJECT.with(|i| i.borrow_mut().extend(events));
     if let Some(h) = host() {
@@ -267,6 +270,7 @@ fn children(w: &impl IsA<gtk::Widget>) -> Vec<gtk::Widget> {
 }
 
 /// Test aid: where each part of the window really is.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn debug_allocations() {
     let Some(h) = host() else { return };
     for c in children(&h.overlay) {
@@ -348,6 +352,7 @@ fn watch_gestures(view: &webkit6::WebView, host: std::rc::Weak<Host>) {
 const SWIPE_GO: f64 = 22.0;
 
 /// Test aid: the swipe arrow, and the navigation a finished swipe asks for.
+#[cfg_attr(not(debug_assertions), allow(dead_code))] // (test aids: debug builds)
 pub fn test_swipe(dir: i32, progress: f64, finish: bool) {
     let Some(h) = host() else { return };
     show_swipe(&h, dir, progress);

@@ -400,6 +400,7 @@ pub struct Sanaga {
     /// Picture of the page shown while a menu covers it (the real page view
     /// can't sit under Sanaga's menus, so it steps aside behind this picture).
     freeze: Option<(u64, TextureHandle)>,
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
     live_step: usize,
     freeze_asked: Option<f64>,
     freeze_tx: Sender<(u64, egui::ColorImage)>,
