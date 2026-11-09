@@ -35,6 +35,9 @@ pub enum PageSignal {
     /// The page asks something (alert, confirm, prompt, leave the page, a
     /// login): Sanaga shows it in its own design (see `dialog`).
     Dialog(u64),
+    /// A link to a site whose videos need a DRM WebKit doesn't have
+    /// (Netflix…): not loaded here; Sanaga opens it where it plays.
+    Protected(String),
 }
 
 /// Why a page did not load.
@@ -609,6 +612,16 @@ impl PageView {
             // window (WebKit leaves this to the browser)
             if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
                 if let Some(a) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>().and_then(|n| n.navigation_action()) {
+                    // a link to Netflix, Disney+, Spotify… (clicked, or opened
+                    // in a new window): nothing is loaded here, where it can't
+                    // play; Sanaga opens it where it does
+                    if a.navigation_type() == webkit6::NavigationType::LinkClicked || kind == webkit6::PolicyDecisionType::NewWindowAction {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::identity::protected_url(u).is_some()) {
+                            decision.ignore();
+                            o(PageSignal::Protected(u));
+                            return true;
+                        }
+                    }
                     let m = a.modifiers();
                     let ctrl = m & gtk::gdk::ModifierType::CONTROL_MASK.bits() != 0;
                     let shift = m & gtk::gdk::ModifierType::SHIFT_MASK.bits() != 0;

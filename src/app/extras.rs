@@ -309,10 +309,19 @@ impl Sanaga {
 
     /// Short message shown at the bottom of the window for a few seconds.
     pub(super) fn show_notice(&mut self, ctx: &egui::Context, content: Rect, th: &Theme) {
-        let Some((msg, t0)) = &self.notice else { return };
+        let Some((msg, t0)) = &self.notice else {
+            crate::shell::toast(None);
+            return;
+        };
         let now = ctx.input(|i| i.time);
         if now - t0 > 4.0 {
             self.notice = None;
+            crate::shell::toast(None);
+            return;
+        }
+        // in the window, above the page (the page would hide a drawn one)
+        if crate::shell::toast(Some(msg)) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
             return;
         }
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("notice")));

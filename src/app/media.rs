@@ -127,6 +127,10 @@ impl Sanaga {
         }
         let Some(service) = self.drm_bar_service() else { return };
         let url = self.tabs[self.active].url().to_string();
+        // (not a site the person chose to open in Sanaga anyway)
+        if crate::identity::protected_url(&url).is_none() {
+            return;
+        }
         let Some(way) = crate::identity::handoffs(service).into_iter().next() else { return };
         crate::identity::open_with(&way, &url);
         self.drm_dismissed.insert(host_of(&url));

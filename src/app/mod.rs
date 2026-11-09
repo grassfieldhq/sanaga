@@ -81,6 +81,8 @@ enum Internal {
     Import,
     CreateExtension,
     Onboarding,
+    /// A protected site (Netflix…) opened where it plays: `sanaga://protected?u=…`.
+    Protected,
 }
 
 /// Sanaga's own pages have English addresses; the French ones of earlier
@@ -127,6 +129,7 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://import" => Internal::Import,
         "sanaga://create-extension" => Internal::CreateExtension,
         "sanaga://start" => Internal::Onboarding,
+        p if p.starts_with("sanaga://protected") => Internal::Protected,
         _ => return None,
     })
 }
@@ -147,6 +150,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Import => tr("Importer depuis un autre navigateur"),
         Internal::CreateExtension => tr("Créer une extension"),
         Internal::Onboarding => tr("Bienvenue dans Sanaga"),
+        Internal::Protected => tr("Contenu protégé"),
     }
 }
 
@@ -435,6 +439,8 @@ pub struct Sanaga {
     translate_ask: bool,
     /// Sites whose DRM bar was dismissed; the identity chooser is open.
     drm_dismissed: HashSet<String>,
+    /// The protected-site page's "always open this way" box.
+    drm_always_pick: bool,
     identity_ask: bool,
     /// Sidebar: its search, the group being renamed in place.
     sidebar_filter: String,
@@ -748,6 +754,7 @@ impl Sanaga {
             translating: None,
             translate_ask: false,
             drm_dismissed: HashSet::new(),
+            drm_always_pick: true,
             identity_ask: false,
             sidebar_filter: String::new(),
             group_renaming: None,

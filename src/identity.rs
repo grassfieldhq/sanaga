@@ -110,11 +110,38 @@ pub fn drm_service(host: &str) -> Option<&'static str> {
     DRM_SITES.iter().find(|(s, _)| matches(host, s)).map(|(_, n)| *n)
 }
 
+/// The service, when opening this address in Sanaga would only show a
+/// player that can't play: a page of a DRM site (not the small players
+/// other sites embed, which play previews without DRM).
+pub fn protected_url(url: &str) -> Option<&'static str> {
+    let u = url::Url::parse(url).ok()?;
+    if !matches!(u.scheme(), "http" | "https") || u.path().starts_with("/embed") {
+        return None;
+    }
+    let service = drm_service(u.host_str()?)?;
+    let staying = STAY.lock().is_ok_and(|s| s.iter().any(|x| *x == service));
+    (!staying).then_some(service)
+}
+
+/// Services the person chose to open in Sanaga anyway (until it closes).
+static STAY: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+pub fn stay_here(service: &'static str) {
+    if let Ok(mut s) = STAY.lock() {
+        if !s.contains(&service) {
+            s.push(service);
+        }
+    }
+}
+
 /// A way to play a DRM site: the service's own app, or a browser that has
-/// Widevine. (label, program, arguments before the address)
+/// Widevine.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Handoff {
+    /// "Ouvrir dans Google Chrome"
     pub label: String,
+    /// "Google Chrome"
+    pub name: String,
     pub program: String,
     pub app: bool,
 }
@@ -139,36 +166,83 @@ fn has_widevine(program: &str) -> bool {
 /// What is installed to play `service` (its app first, then browsers that
 /// have Widevine).
 pub fn handoffs(service: &str) -> Vec<Handoff> {
+    // (looked up once per run: the bar and the page ask every frame)
+    static FOUND: std::sync::OnceLock<(Option<String>, Vec<(String, &'static str)>)> = std::sync::OnceLock::new();
+    let (spotify, browsers) = FOUND.get_or_init(find_handoffs);
     let mut out = Vec::new();
-    let has = |p: &str| std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|d| d.join(p).is_file()));
     if service == "Spotify" {
-        for p in ["spotify", "spotify-launcher"] {
-            if has(p) {
-                out.push(Handoff { label: crate::i18n::tr("Ouvrir dans l'application Spotify").into(), program: p.into(), app: true });
-                break;
-            }
+        if let Some(p) = spotify {
+            out.push(Handoff { label: crate::i18n::tr("Ouvrir dans l'application Spotify").into(), name: "Spotify".into(), program: p.clone(), app: true });
         }
     }
-    for (p, name) in [
-        ("google-chrome-stable", "Google Chrome"),
-        ("chromium", "Chromium"),
-        ("brave", "Brave"),
-        ("vivaldi-stable", "Vivaldi"),
-        ("microsoft-edge-stable", "Microsoft Edge"),
-        ("firefox", "Firefox"),
-        ("zen-browser", "Zen"),
-    ] {
-        if has(p) && has_widevine(p) {
-            out.push(Handoff { label: crate::i18n::tf("Ouvrir dans {}", &[&name]), program: p.into(), app: false });
-        }
+    for (p, name) in browsers {
+        out.push(Handoff { label: crate::i18n::tf("Ouvrir dans {}", &[name]), name: name.to_string(), program: p.clone(), app: false });
     }
     out
+}
+
+/// The programs on this computer that can play protected video: installed
+/// normally (in PATH) or as a Flatpak (its launcher in flatpak's exports).
+fn find_handoffs() -> (Option<String>, Vec<(String, &'static str)>) {
+    let mut dirs: Vec<std::path::PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(std::path::PathBuf::from(home).join(".local/share/flatpak/exports/bin"));
+    }
+    dirs.push("/var/lib/flatpak/exports/bin".into());
+    // a program in PATH is started by its name, a Flatpak by its launcher's path
+    let find = |p: &str| {
+        dirs.iter().map(|d| d.join(p)).find(|f| f.is_file()).map(|f| if f.to_string_lossy().contains("/flatpak/exports/") { f.to_string_lossy().to_string() } else { p.to_string() })
+    };
+    let spotify = ["spotify", "spotify-launcher", "com.spotify.Client"].iter().find_map(|p| find(p));
+    let mut browsers: Vec<(String, &'static str)> = Vec::new();
+    for (p, name) in [
+        ("google-chrome-stable", "Google Chrome"),
+        ("com.google.Chrome", "Google Chrome"),
+        ("chromium", "Chromium"),
+        ("brave", "Brave"),
+        ("com.brave.Browser", "Brave"),
+        ("vivaldi-stable", "Vivaldi"),
+        ("microsoft-edge-stable", "Microsoft Edge"),
+        ("com.microsoft.Edge", "Microsoft Edge"),
+        ("firefox", "Firefox"),
+        ("org.mozilla.firefox", "Firefox"),
+        ("zen-browser", "Zen"),
+    ] {
+        if browsers.iter().any(|(_, n)| *n == name) || !has_widevine(p) {
+            continue;
+        }
+        if let Some(path) = find(p) {
+            browsers.push((path, name));
+        }
+    }
+    (spotify, browsers)
+}
+
+/// The command that installs a browser able to play protected video on
+/// this system (shown, to copy), or None when the system is not known.
+pub fn browser_install_hint() -> Option<String> {
+    let has = |p: &str| std::path::Path::new(p).exists();
+    let admin = "sudo";
+    Some(if has("/usr/bin/pacman") {
+        format!("{admin} pacman -S firefox")
+    } else if has("/usr/bin/apt") {
+        format!("{admin} apt install firefox")
+    } else if has("/usr/bin/dnf") {
+        format!("{admin} dnf install firefox")
+    } else if has("/usr/bin/zypper") {
+        format!("{admin} zypper install MozillaFirefox")
+    } else if has("/usr/bin/flatpak") {
+        "flatpak install flathub org.mozilla.firefox".to_string()
+    } else {
+        return None;
+    })
 }
 
 /// Chrome-family browsers open the page as an app window of its own (no
 /// tabs, no address bar: it looks like part of the desktop).
 fn chrome_family(program: &str) -> bool {
-    ["google-chrome-stable", "chromium", "brave", "vivaldi-stable", "microsoft-edge-stable"].contains(&program)
+    let p = program.rsplit('/').next().unwrap_or(program);
+    ["google-chrome-stable", "chromium", "brave", "vivaldi-stable", "microsoft-edge-stable", "com.google.Chrome", "com.brave.Browser", "com.microsoft.Edge"].contains(&p)
 }
 
 /// Open the page with that browser or app.
@@ -181,7 +255,7 @@ pub fn open_with(h: &Handoff, url: &str) {
         cmd.arg(format!("--uri={uri}"));
     } else if !h.app && chrome_family(&h.program) {
         cmd.arg(format!("--app={url}"));
-    } else if !h.app && h.program == "firefox" {
+    } else if !h.app && (h.program == "firefox" || h.program.ends_with("org.mozilla.firefox")) {
         cmd.args(["--new-window", url]);
     } else if !h.app {
         cmd.arg(url);
@@ -203,6 +277,9 @@ mod tests {
         assert_eq!(drm_service("www.netflix.com"), Some("Netflix"));
         assert_eq!(drm_service("open.spotify.com"), Some("Spotify"));
         assert_eq!(drm_service("spotify.com"), None);
+        assert_eq!(protected_url("https://www.netflix.com/browse"), Some("Netflix"));
+        assert_eq!(protected_url("https://open.spotify.com/embed/track/1"), None);
+        assert_eq!(protected_url("https://example.com/netflix.com"), None);
         assert_eq!(Identity::from_key("chrome"), Identity::Chrome);
     }
 }

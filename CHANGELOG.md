@@ -7,6 +7,15 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Netflix, Disney+, Spotify and the other DRM sites are no longer loaded in
+  Sanaga, where they can't play: an address typed, a favourite or a link
+  clicked goes straight to the app or browser that plays them (Chrome,
+  Chromium with Widevine, Brave, Edge, Firefox, also as Flatpaks, or the
+  Spotify app), and the tab stays where it was. The first time, a Sanaga
+  page offers it in one click, with "Always open this way" ticked; without
+  such a browser it gives the command to install Firefox.
+- Sanaga's short messages are shown above the page (they were hidden under
+  web pages).
 - Release tags follow Semantic Versioning exactly: `0.4.0`, no `v` in front
   (the releases are named the same way).
 

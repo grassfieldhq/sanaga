@@ -40,6 +40,8 @@ pub(super) enum WebEvent {
     LoadFailed { tab: u64, url: String, kind: crate::page::LoadError, detail: String },
     /// The page asks something (alert, confirm, prompt, login…).
     Dialog { tab: u64, key: u64 },
+    /// A link to a protected site (Netflix…), stopped before loading.
+    Protected { tab: u64, url: String },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -201,6 +203,7 @@ impl PageMaker {
                 PageSignal::OpenLink(url, how) => WebEvent::OpenLink { tab: id, url, how },
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
+                PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         WebEvent::Tool { tab: id, what: what.to_string(), arg: arg.to_string() }
@@ -331,6 +334,11 @@ impl Sanaga {
             WebEvent::OpenLink { tab, url, how } => self.open_link_from(tab, &url, how),
             WebEvent::LoadFailed { tab, url, kind, detail } => self.show_load_error(tab, &url, kind, &detail),
             WebEvent::Dialog { tab, key } => self.page_dialog(tab, key),
+            WebEvent::Protected { tab, url } => {
+                if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
+                    self.protected_site(i, &url);
+                }
+            }
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
             WebEvent::Crashed { tab, memory } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {

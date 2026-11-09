@@ -23,6 +23,9 @@ struct Host {
     insets: Cell<[i32; 4]>,
     /// Arrow shown while swiping back / forward over a page.
     swipe_hint: gtk::Label,
+    /// Sanaga's short messages ("Link copied"…), above the page: drawn by
+    /// the interface they would be hidden under it.
+    toast: gtk::Label,
     /// The mobile simulator's drawn device, above the page (clicks go through).
     device_frame: gtk::DrawingArea,
     device_pic: Rc<RefCell<Option<gtk::cairo::ImageSurface>>>,
@@ -215,7 +218,7 @@ pub fn attach(view: &webkit6::WebView) {
 /// The simulator's frame and the swipe arrow stay above the pages (GTK draws
 /// the overlays in the order they were added).
 fn raise_overlays(h: &Host) {
-    for w in [h.device_frame.upcast_ref::<gtk::Widget>(), h.swipe_hint.upcast_ref::<gtk::Widget>()] {
+    for w in [h.device_frame.upcast_ref::<gtk::Widget>(), h.swipe_hint.upcast_ref::<gtk::Widget>(), h.toast.upcast_ref::<gtk::Widget>()] {
         if w.next_sibling().is_some() {
             h.overlay.remove_overlay(w);
             h.overlay.add_overlay(w);
@@ -357,6 +360,34 @@ pub fn test_swipe(dir: i32, progress: f64, finish: bool) {
     }
 }
 
+/// Show a short message at the bottom of the page, above it (None hides it).
+/// False when there is no GTK window (the interface draws it then).
+pub fn toast(text: Option<&str>) -> bool {
+    let Some(h) = host() else { return false };
+    let l = &h.toast;
+    match text {
+        Some(t) => {
+            let [_, _, _, bottom] = h.insets.get();
+            if l.margin_bottom() != bottom + 28 {
+                l.set_margin_bottom(bottom + 28);
+            }
+            if l.text() != t {
+                l.set_text(t);
+            }
+            if !l.is_visible() {
+                l.set_visible(true);
+                raise_overlays(&h);
+            }
+        }
+        None => {
+            if l.is_visible() {
+                l.set_visible(false);
+            }
+        }
+    }
+    true
+}
+
 /// The arrow at the page's edge while swiping (`dir` 0 hides it).
 fn show_swipe(h: &Host, dir: i32, progress: f64) {
     let l = &h.swipe_hint;
@@ -388,7 +419,7 @@ pub fn set_page_area(insets: [i32; 4]) {
     }
     h.insets.set(insets);
     for c in children(&h.overlay) {
-        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() {
+        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() && c != *h.toast.upcast_ref::<gtk::Widget>() {
             apply_insets(&c, insets);
         }
     }
@@ -862,7 +893,8 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
         let css = gtk::CssProvider::new();
         css.load_from_string(
             "#sanaga-swipe { background: rgba(255,255,255,0.97); color: #1a73e8; border-radius: 999px; padding: 6px 15px 9px 15px; font-size: 24px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
-             #sanaga-swipe.ready { background: #1a73e8; color: white; }",
+             #sanaga-swipe.ready { background: #1a73e8; color: white; }
+             #sanaga-toast { background: rgba(30,30,32,0.92); color: white; border-radius: 999px; padding: 8px 18px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.28); }",
         );
         gtk::style_context_add_provider_for_display(&display, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
     }
@@ -1031,14 +1063,25 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             }
         });
     }
+    // short messages, at the bottom of the page (clicks go through them)
+    let toast = gtk::Label::new(None);
+    toast.set_widget_name("sanaga-toast");
+    toast.set_halign(gtk::Align::Center);
+    toast.set_valign(gtk::Align::End);
+    toast.set_visible(false);
+    toast.set_can_target(false);
+    toast.set_wrap(true);
+    toast.set_max_width_chars(70);
     overlay.add_overlay(&device_frame);
     overlay.add_overlay(&swipe_hint);
+    overlay.add_overlay(&toast);
     let host_rc = Rc::new(Host {
         overlay: overlay.clone(),
         area: area.clone(),
         window: window.clone(),
         insets: Cell::new([0, 88, 0, 0]),
         swipe_hint,
+        toast,
         device_frame,
         device_pic,
         nav: Cell::new(0),
