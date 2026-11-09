@@ -426,8 +426,18 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
         let (d2, denied2, site_ref) = (dest.clone(), denied.clone(), referrer.clone());
         download.connect_decide_destination(move |download, suggested| {
             let uri = download.request().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_default();
-            // (a download Sanaga started itself has no page: never asked)
-            if let Some(state) = download.web_view().as_ref().and_then(view_state) {
+            // (a download Sanaga started itself has no page: never asked; a
+            // page Sanaga doesn't follow is always asked)
+            let view = download.web_view();
+            if view.is_some() && view.as_ref().and_then(view_state).is_none() {
+                let site = download_site(&site_ref, &uri);
+                PENDING_DOWNLOADS.with(|q| {
+                    q.borrow_mut().push(PendingDownload { download: download.clone(), suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                });
+                ask_downloads(site);
+                return true;
+            }
+            if let Some(state) = view.as_ref().and_then(view_state) {
                 let site = download_site(&site_ref, &uri);
                 // a real action of the person's in that page, not used yet;
                 // or the address the person opened turning into a download
@@ -843,7 +853,37 @@ pub fn plain_view(engine: Option<&Engine>) -> WebView {
         st.set_enable_webgl(true);
         st.set_media_playback_requires_user_gesture(false);
     }
+    // its downloads follow the same rule as a tab's (see download_needs_ask):
+    // the page shown, and the person's actions in it
+    let state = Rc::new(ViewState::default());
+    VIEW_STATES.with(|s| s.borrow_mut().push((view.downgrade(), state.clone())));
+    view.connect_load_changed(move |v, ev| {
+        if matches!(ev, LoadEvent::Committed) {
+            *state.committed.borrow_mut() = v.uri().map(|u| u.to_string()).unwrap_or_default();
+            state.gesture.set(None);
+            state.typed.set(None);
+        }
+    });
+    view.connect_decide_policy(|v, decision, kind| {
+        if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
+            if let Some(nav) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() {
+                if nav.navigation_action().is_some_and(|a| a.is_user_gesture()) {
+                    mark_gesture(v);
+                }
+            }
+        }
+        false
+    });
     view
+}
+
+/// Open an address the person asked for in a small window (a link preview):
+/// if it turns into a download, it goes straight to Downloads.
+pub fn load_by_person(view: &WebView, url: &str) {
+    if let Some(s) = view_state(view) {
+        s.typed.set(Some(Instant::now()));
+    }
+    view.load_uri(url);
 }
 
 /// A WebKit snapshot (GDK texture) as a cairo picture (to draw a device

@@ -430,7 +430,8 @@ pub fn float_window(engine: Option<&crate::page::Engine>, title: &str, url: Opti
     win.set_titlebar(Some(&header));
     win.set_child(Some(&view));
     match (url, html) {
-        (Some(u), _) => view.load_uri(u),
+        // (asked for by the person: a link preview, a floating video)
+        (Some(u), _) => crate::page::load_by_person(&view, u),
         (None, Some((page, base))) => view.load_html(page, Some(base)),
         _ => return false,
     }
