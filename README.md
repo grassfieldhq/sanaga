@@ -68,8 +68,11 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
   site's name on top; a site that insists can be silenced.
 
 **Tabs and windows**
-- Chrome-style tab row: pinned tabs, drag to reorder, tab groups with colours,
-  folding and naming, mute, duplicate, “new tab to the right”, reopen closed tab.
+- Chrome-style tab row: pinned tabs, drag to reorder, mute, duplicate, “new tab
+  to the right”, reopen closed tab.
+- Tab groups as in Chrome: a coloured label before the group's tabs (click to
+  fold), an editor that opens at once (name, colour, actions), drag a tab in or
+  out of a group.
 - Many tabs: arrows and a counter open the searchable list of all tabs; tab
   overview with thumbnails (Ctrl+Shift+O); tab search (Ctrl+Shift+A).
 - Tab switcher: hold Ctrl and press Tab to see the tabs used last as

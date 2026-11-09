@@ -62,6 +62,12 @@ All notable changes to Sanaga are listed here. The format follows
 - Profile emoji and a launcher of its own per profile.
 
 ### Changed
+- Tab groups work as in Chrome: every tab stays in the tab bar; a group is a
+  coloured label before its tabs with a line of its colour under them; click
+  folds it; a new group opens its editor at once (name, colour, new tab,
+  ungroup, move to a new window, close); dragging a tab into or out of a
+  group adds or removes it; colours, names and folding are kept with the
+  session. New tabs (Ctrl+T) are no longer put in the shown tab's group.
 - Sanaga now runs on **GTK 4 and WebKitGTK 6** (it needs `gtk4` and
   `webkitgtk-6.0`): pages are composed on the graphics card, an idle page costs
   nothing, animated pages cost less, and screen readers can read the pages as

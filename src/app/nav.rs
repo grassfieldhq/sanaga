@@ -42,8 +42,9 @@ impl Sanaga {
             reader: false,
             reader_skip: Vec::new(),
             pinned: false,
-            // a new tab joins the group shown (Safari's tab groups)
-            group: self.current_group,
+            // a new tab has no group (Chrome); "new tab in the group" and links
+            // opened from a grouped tab set it
+            group: 0,
             muted: false,
             audio: false,
             thumb: None,
@@ -110,7 +111,15 @@ impl Sanaga {
             .map(|t| {
                 let parent = t.parent.and_then(|p| kept.iter().position(|k| k.id == p)).map(|k| k.to_string()).unwrap_or_default();
                 let active = if Some(t.id) == shown { "1" } else { "" };
-                format!("{}\t{}\t{}\t{}\t{}\t{}\t{}", t.url(), self.groups.get(t.group).map(|g| g.replace('\t', " ")).unwrap_or_default(), if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " "), parent, active)
+                let g = t.group;
+                let group = match self.groups.get(g) {
+                    _ if g == 0 => String::new(),
+                    Some(n) if !n.trim().is_empty() => n.replace(['\t', '\u{1f}'], " "),
+                    _ => format!("\u{1f}{g}"),
+                };
+                let color = if g > 0 { self.group_colors.get(g).map(|c| c.to_string()).unwrap_or_default() } else { String::new() };
+                let folded = if self.group_folded(g) { "1" } else { "" };
+                format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", t.url(), group, if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " "), parent, active, color, folded)
             })
             .collect();
         self.store.save_session(self.slot, &urls);

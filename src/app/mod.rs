@@ -21,6 +21,7 @@ mod mainmenu;
 mod sidebar;
 mod bookmarks;
 mod buttons;
+mod groups;
 mod dialogs;
 mod errors;
 mod switcher;
@@ -535,6 +536,10 @@ pub struct Sanaga {
     last_dialog_host: String,
     silenced_sites: HashSet<String>,
     error_tabs: HashSet<u64>,
+    /// The group whose editor is open (name, colour…), and where the group
+    /// labels are in the tab bar.
+    group_editor: Option<usize>,
+    group_label_rects: Vec<(usize, Rect)>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -800,6 +805,8 @@ impl Sanaga {
             last_dialog_host: String::new(),
             silenced_sites: HashSet::new(),
             error_tabs: HashSet::new(),
+            group_editor: None,
+            group_label_rects: Vec::new(),
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -865,6 +872,7 @@ impl Sanaga {
         // restored tabs don't load now: each one loads when it is first shown
         app.restoring = true;
         let mut parents: Vec<(usize, usize)> = Vec::new();
+        let mut group_keys: Vec<(String, usize)> = Vec::new();
         // the tab that was shown when Sanaga closed
         let mut shown_at: Option<usize> = None;
         let first_tab = app.tabs.len();
@@ -877,13 +885,23 @@ impl Sanaga {
             let container = parts.next().unwrap_or("").to_string();
             let parent: Option<usize> = parts.next().and_then(|p| p.parse().ok());
             let was_shown = parts.next() == Some("1");
+            let color: Option<u8> = parts.next().and_then(|c| c.parse().ok());
+            let folded = parts.next() == Some("1");
+            // (a group without a name is saved as "\u{1f}N")
             app.current_group = if group.is_empty() || group == app.groups[0] {
                 0
-            } else if let Some(g) = app.groups.iter().position(|x| *x == group) {
+            } else if let Some(&(_, g)) = group_keys.iter().find(|(k, _)| *k == group) {
                 g
             } else {
-                app.groups.push(group);
-                app.groups.len() - 1
+                app.groups.push(if group.starts_with('\u{1f}') { String::new() } else { group.clone() });
+                let g = app.groups.len() - 1;
+                group_keys.push((group, g));
+                app.sync_group_meta();
+                if let Some(c) = color {
+                    app.group_colors[g] = c;
+                }
+                app.group_collapsed[g] = folded;
+                g
             };
             let (reader, u) = match u.strip_prefix("lecteur:") {
                 Some(rest) => (true, rest.to_string()),
@@ -1288,6 +1306,18 @@ impl Sanaga {
                         }
                         "overflow" => self.overflow_open = !self.overflow_open,
                         "aimenu" => self.ai_menu_open = !self.ai_menu_open,
+                        a if a.starts_with("grouptab:") => {
+                            if let Ok(i) = a[9..].parse::<usize>() {
+                                if i < self.tabs.len() {
+                                    self.tab_to_new_group(i);
+                                }
+                            }
+                        }
+                        a if a.starts_with("foldgroup:") => {
+                            if let Ok(g) = a[10..].parse::<usize>() {
+                                self.toggle_group_fold(g);
+                            }
+                        }
                         "launcher" => self.add_profile_launcher(),
                         a if a.starts_with("settingsfind:") => {
                             self.settings_filter = a[13..].to_string();
@@ -1489,6 +1519,7 @@ impl Sanaga {
         self.note_recent();
         self.tab_switcher(&ctx, &th);
         self.ai_menu(&ctx, &th);
+        self.group_editor_popup(&ctx, &th);
         self.dialog_sheet(&ctx, &th);
         self.site_settings_panel(&ctx, &th);
         self.container_chooser(&ctx, &th);
