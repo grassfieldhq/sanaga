@@ -444,6 +444,21 @@ pub fn window_list() -> Vec<(usize, String)> {
     WINDOWS.with(|w| w.borrow().iter().map(|x| (x.host.slot, x.host.window.title().map(|t| t.to_string()).unwrap_or_default())).collect())
 }
 
+/// A picture of a part of the window as GTK last drew it (a web page: what
+/// is on screen, even while its page is busy or frozen by an alert).
+pub fn widget_texture(w: &impl IsA<gtk::Widget>) -> Option<gdk::Texture> {
+    let w = w.as_ref();
+    if !w.is_visible() || w.width() < 2 || w.height() < 2 {
+        return None;
+    }
+    let parent = w.parent()?;
+    let snap = gtk::Snapshot::new();
+    parent.snapshot_child(w, &snap);
+    let node = snap.to_node()?;
+    let renderer = w.native()?.renderer()?;
+    Some(renderer.render_texture(&node, None))
+}
+
 /// Is Ctrl held down right now? (The keyboard's real state, even while a
 /// page had the keyboard.)
 pub fn ctrl_held() -> Option<bool> {

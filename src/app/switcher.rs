@@ -24,6 +24,9 @@ impl Sanaga {
         if self.recent.first() != Some(&id) {
             self.recent.retain(|x| *x != id);
             self.recent.insert(0, id);
+            if !self.restoring {
+                self.save_session();
+            }
         }
         let alive: Vec<u64> = self.tabs.iter().map(|t| t.id).collect();
         self.recent.retain(|x| alive.contains(x));

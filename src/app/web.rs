@@ -404,7 +404,12 @@ impl Sanaga {
                 let now = self.ctx.input(|i| i.time);
                 match self.freeze_asked {
                     None => {
-                        if let Some(w) = &tab.web {
+                        // first the picture GTK already has (instant)
+                        let quick = tab.web.as_ref().and_then(|w| crate::shell::widget_texture(&w.webview())).and_then(super::tabs::surface_to_full_image);
+                        if let Some(img) = quick {
+                            self.freeze = Some((active_id, self.ctx.load_texture("page-freeze", img, egui::TextureOptions::LINEAR)));
+                            self.freeze_asked = Some(now);
+                        } else if let Some(w) = &tab.web {
                             let (tx, ctx) = (self.freeze_tx.clone(), self.ctx.clone());
                             w.webview().snapshot(webkit6::SnapshotRegion::Visible, webkit6::SnapshotOptions::NONE, None::<&webkit6::gio::Cancellable>, move |res| {
                                 if let Some(img) = res.ok().and_then(super::tabs::surface_to_full_image) {

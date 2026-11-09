@@ -865,6 +865,8 @@ impl Sanaga {
         // restored tabs don't load now: each one loads when it is first shown
         app.restoring = true;
         let mut parents: Vec<(usize, usize)> = Vec::new();
+        // the tab that was shown when Sanaga closed
+        let mut shown_at: Option<usize> = None;
         let first_tab = app.tabs.len();
         for line in start {
             let mut parts = line.split('\t');
@@ -874,6 +876,7 @@ impl Sanaga {
             let saved_title = parts.next().unwrap_or("").to_string();
             let container = parts.next().unwrap_or("").to_string();
             let parent: Option<usize> = parts.next().and_then(|p| p.parse().ok());
+            let was_shown = parts.next() == Some("1");
             app.current_group = if group.is_empty() || group == app.groups[0] {
                 0
             } else if let Some(g) = app.groups.iter().position(|x| *x == group) {
@@ -895,6 +898,9 @@ impl Sanaga {
             if let Some(p) = parent {
                 parents.push((i, p));
             }
+            if was_shown {
+                shown_at = Some(i);
+            }
             app.tabs[i].group = app.current_group;
             // tabs load when shown: until then they keep their saved title
             if !saved_title.is_empty() && app.tabs[i].entries[app.tabs[i].idx].title.is_empty() {
@@ -913,7 +919,7 @@ impl Sanaga {
             }
         }
         app.restoring = false;
-        app.active = app.tabs.len() - 1;
+        app.active = shown_at.filter(|&i| i < app.tabs.len()).unwrap_or(app.tabs.len() - 1);
         app.current_group = app.tabs[app.active].group;
         app.overview_open = overview;
         if slot > 0 {
