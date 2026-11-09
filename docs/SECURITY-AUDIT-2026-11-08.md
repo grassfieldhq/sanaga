@@ -254,6 +254,37 @@ for the following. Each is fixed in a commit of its own:
 | **C3** live checks with WebKitGTK 6 | **open** until WebKitGTK 6 is installed (checklist below, items 12–16 added) | — |
 | **C4** Apple device names, frames, "Safari" identity | **open**, for the owner (not touched) | — |
 
+## Merge of main (12 commits, up to c7e4fe4)
+
+The owner's work on main (tab groups, Ctrl+Tab switcher, error pages and page
+dialogs, the summarise / translate menu, Ctrl+click and middle-click, open in
+a private tab, close-button side, default browser on Omarchy, codec packages,
+release packaging) was merged into this branch (`77b6ada`, a merge commit).
+Conflicts and how they were resolved:
+
+| File | Resolution |
+|---|---|
+| `src/page.rs` | `PageSignal` keeps `Favicon` (WebKit's icons) and gains `OpenLink`, `LoadFailed`, `Dialog`; the isolated world, message checks and download rules unchanged |
+| `src/app/web.rs`, `src/app/mod.rs` | both sides' arms, fields and initialisers |
+| `src/app/translate.rs` | batch bounds and generation counter kept; main's 20 target languages replace the old target function |
+| `src/codecs.rs` | `detect()`/`check_now()` kept, main's Flatpak check added to `detect()`; `install()` returns nothing under `SANAGA_DISTRO` **or** in a Flatpak |
+| README, translations | both sides kept; tables rebuilt |
+
+The new code was then checked against the same rules, and the fixes
+extended to it:
+
+| New feature (main) | Finding | Fix |
+|---|---|---|
+| Error pages (`errors.rs`) | their buttons called `window.ipc` from the page's own world: broken by the isolated channel, and before it any page could send `tool:tls-allow:<host>` to go on despite a bad certificate | the two Sanaga buttons are handled by an isolated-world script on a real click; Rust accepts `tls-allow` only while that tab shows Sanaga's error page for a certificate failure on that host, `safe` only while it shows an error page (`a92de43`) |
+| Ctrl+click / middle click / Shift+click | a script's synthetic click with modifiers would open tabs (pop-ups without a click), and any scheme could be opened (sanaga://, file: from a web page) | needs WebKit's user gesture; web addresses only (a local file only from a local page): `guard::link_may_open_elsewhere`, tested (`cef429a`) |
+| Open link in a private tab / from a container | Shift+click opened a new window with the profile's data from a private tab or a container | a tab of the same kind instead; "open in a private tab" follows the same address rule (`cef429a`) |
+| Page dialogs (alert, confirm, prompt, HTTP login) | WebKit's own signals (not page messages); the sheet names the site; HTTP credentials kept for the session only (a private tab's session is in memory) | no change needed |
+| Summarise / translate menu | Sanaga's interface only; it calls the same summary and translation, with their tool-less rule and batch bounds | no change needed |
+| Ctrl+Tab switcher | thumbnails are textures in memory, never written to disk; private tabs are not saved in sessions | no change needed |
+| Make default browser on Omarchy | writes the general default (`xdg-settings`, `xdg-mime` → `~/.config/mimeapps.list`), and the desktop's own setting unless it routes links to the general one (`omarchy-browser.desktop`); only reads `omarchy-cmd-default-browser`; never writes Omarchy's files. Runs only from Sanaga's buttons (Settings, welcome tour; the live-test hook is debug-only); opening Settings only reads | no change needed |
+| Codec packages | no privileged helper anywhere; the Arch and Fedora packages (codecs as dependencies) are now built with `SANAGA_DISTRO`; the Flatpak never offers; the .deb shares its program with the generic archive, which keeps the offer; Arch, Debian and Fedora packages depend on bubblewrap and xdg-dbus-proxy (`a315780`) | — |
+| Release workflow | only GitHub's own token, used by `gh`, nothing printed; now read-only by default and writable for the publish job only, every action pinned to a commit, the Flatpak source generator fetched at a fixed commit (`a315780`). Left as designed by the owner: a release is published on every push to main, and its tag is moved by force to the new commit | — |
+
 ## Build and test status
 
 | Check | Result |
@@ -261,7 +292,7 @@ for the following. Each is fixed in a commit of its own:
 | `cargo fetch --locked` (Cargo.lock consistent with Cargo.toml) | passes |
 | `cargo clippy --locked --all-targets -- -D warnings` (debug, WebKit pkg-config stubbed: `SYSTEM_DEPS_WEBKITGTK_6_0_NO_PKG_CONFIG=1`, same for `JAVASCRIPTCOREGTK_6_0`) | passes |
 | `cargo clippy --locked --bin sanaga -- -D warnings` with `debug-assertions` off (the release `cfg` paths: test hooks compiled out) | passes |
-| `cargo test --manifest-path tools/guard-tests/Cargo.toml` | 19 passed (after the re-audit fixes) |
+| `cargo test --manifest-path tools/guard-tests/Cargo.toml` | 20 passed (after the merge of main and its fixes) |
 | `cargo build`, `cargo test` of the whole crate | **not run**: WebKitGTK 6 is not installed on the machine used; the other new tests (translation batches, tool-less AI, file permissions, system certificates, extension matches) were type-checked but not executed |
 | `python3 tools/i18n.py check` | all texts translated |
 
@@ -304,3 +335,9 @@ separate question for the owner and were left as they are.
 16. A page calling `form.requestSubmit()` on a password it filled itself: no
     "Save password?"; installing a `.user.js`: switched off, review card
     shown.
+17. A bad certificate: the error page's "Go on" works; a normal page posting
+    `tool:tls-allow:<host>` (it can't reach the channel) or setting
+    `data-sanaga-error` changes nothing.
+18. A script's `a.dispatchEvent(new MouseEvent('click', {ctrlKey: true}))`
+    opens no tab; Ctrl+click on a `sanaga://` or `file:` link from a web page
+    opens nothing; Shift+click in a container opens a tab in that container.

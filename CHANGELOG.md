@@ -26,6 +26,12 @@ All notable changes to Sanaga are listed here. The format follows
   applied to preview windows; "Save password?" only after a real sign-in;
   a slow peer can't stall the single-instance socket; extensions installed
   from a file are switched off until reviewed.
+- After merging main: the error page's buttons go through Sanaga's
+  isolated world and are accepted only for that failure; Ctrl+click and
+  middle-click open only real clicks on web links, and keep private tabs and
+  containers apart; codec packages are built with `SANAGA_DISTRO` and depend
+  on WebKit's sandbox; release actions pinned, write access for publishing
+  only.
 - Favicons come from WebKit; AI-written extensions are installed switched
   off; private temporary folders; escaped `.desktop` entries; a checked and
   bounded single-instance socket; debug-only test hooks; private data
