@@ -29,8 +29,14 @@ if [ "${1:-}" = "--uninstall" ]; then
     exit 0
 fi
 
-echo "Building Sanaga (release)…"
-cargo build --release --locked
+if [ -f Cargo.toml ]; then
+    echo "Building Sanaga (release)…"
+    cargo build --release --locked
+elif [ ! -x target/release/sanaga ]; then
+    echo "The program is missing: target/release/sanaga" >&2
+    exit 1
+fi
+# (from a downloaded archive the program is already built)
 
 install -Dm755 target/release/sanaga "$BIN"
 for s in $SIZES; do

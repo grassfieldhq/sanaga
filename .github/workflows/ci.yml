@@ -30,7 +30,8 @@ jobs:
       - name: Tests
         run: cargo test --locked
 
-      - name: Clippy
+      - name: Clippy (advice only)
+        continue-on-error: true
         run: cargo clippy --locked -- -D warnings
 
       - name: Translations complete

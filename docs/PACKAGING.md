@@ -25,6 +25,9 @@ Spotify app or in an installed browser that has Widevine.
 
 ## Building the packages
 
+GitHub builds all of them at every push and publishes them in Releases — see
+[RELEASING.md](RELEASING.md). By hand:
+
 ```sh
 # Arch (from packaging/arch/)
 makepkg -si

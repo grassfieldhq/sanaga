@@ -7,7 +7,7 @@
 #          python3 flatpak-cargo-generator.py Cargo.lock -o packaging/flatpak/cargo-sources.json
 id: site.grassfield.Sanaga
 runtime: org.gnome.Platform
-runtime-version: '49'
+runtime-version: '50'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -67,4 +67,11 @@ modules:
     sources:
       - type: dir
         path: ../..
+        # build folders (local and on GitHub) stay out
+        skip:
+          - target
+          - shots
+          - flatpak_app
+          - .flatpak-builder
+          - repo
       - cargo-sources.json

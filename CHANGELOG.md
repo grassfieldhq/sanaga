@@ -34,6 +34,9 @@ All notable changes to Sanaga are listed here. The format follows
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
 ### Added (November 2026)
+- Packages for every Linux distribution, built and published by GitHub at
+  every push: Flatpak, .deb (Debian, Ubuntu), .rpm (Fedora), Arch package and
+  a .tar.gz with an installer (`docs/RELEASING.md`).
 - Settings › Appearance: the tabs' close button on the left (macOS) or the
   right (Chrome), in the tab bar and the vertical tabs.
 - Error pages in Sanaga's design for every kind of failure (DNS, offline with

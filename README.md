@@ -158,9 +158,24 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 
 ## Install
 
-Packages bring everything, video codecs included — see
-[docs/PACKAGING.md](docs/PACKAGING.md) (Arch / AUR, Flatpak, Debian / Ubuntu).
-To build from source:
+Download a package from the
+[Releases page](https://github.com/grassfieldhq/sanaga/releases) (the
+**nightly** pre-release is the latest code of `main`). Packages bring
+everything, video codecs included:
+
+| Your system | Download | Install |
+|---|---|---|
+| **Any distribution** (openSUSE, Debian 12, Solus…) | `sanaga-*.flatpak` | `flatpak install --user sanaga-*.flatpak` |
+| Debian 13, Ubuntu 24.04+, Mint, Pop!_OS… | `sanaga_*_amd64.deb` | `sudo apt install ./sanaga_*_amd64.deb` |
+| Fedora 43+ | `sanaga-*.x86_64.rpm` | `sudo dnf install ./sanaga-*.x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS, Omarchy… | `sanaga-*.pkg.tar.zst` | `sudo pacman -U sanaga-*.pkg.tar.zst` |
+| Others (GTK 4 and WebKitGTK 6 installed) | `sanaga-*-x86_64-linux.tar.gz` | unpack, then `./install.sh` (no admin rights) |
+
+The packages are built by GitHub at every push (see
+[docs/RELEASING.md](docs/RELEASING.md)); how the codecs come in:
+[docs/PACKAGING.md](docs/PACKAGING.md).
+
+### From source
 
 
 Sanaga runs on Linux (Wayland or X11). You need:

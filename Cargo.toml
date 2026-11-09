@@ -34,6 +34,29 @@ assets = [
     ["README.md", "usr/share/doc/sanaga/", "644"],
 ]
 
+# Fedora package (`cargo generate-rpm`, after `cargo build --release`): the
+# codecs come in as dependencies here too.
+[package.metadata.generate-rpm]
+summary = "A fast, light web browser built on WebKitGTK"
+assets = [
+    { source = "target/release/sanaga", dest = "/usr/bin/sanaga", mode = "755" },
+    { source = "packaging/sanaga.desktop", dest = "/usr/share/applications/sanaga.desktop", mode = "644" },
+    { source = "packaging/sanaga.svg", dest = "/usr/share/icons/hicolor/scalable/apps/sanaga.svg", mode = "644" },
+    { source = "packaging/site.grassfield.Sanaga.metainfo.xml", dest = "/usr/share/metainfo/site.grassfield.Sanaga.metainfo.xml", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/licenses/sanaga/LICENSE", mode = "644", doc = true },
+    { source = "README.md", dest = "/usr/share/doc/sanaga/README.md", mode = "644", doc = true },
+]
+
+[package.metadata.generate-rpm.requires]
+gtk4 = "*"
+"webkitgtk6.0" = "*"
+gstreamer1-plugins-base = "*"
+gstreamer1-plugins-good = "*"
+gstreamer1-plugins-bad-free = "*"
+gstreamer1-plugin-libav = "*"
+libsecret = "*"
+hicolor-icon-theme = "*"
+
 [dependencies]
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "clipboard", "links"] }
 ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "charset", "cookies"] }
