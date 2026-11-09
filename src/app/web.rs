@@ -156,12 +156,13 @@ pub(super) fn watch_page_input(w: &PageView) {
     w.webview().add_controller(watch);
 }
 
-/// Load an address, or HTML made by Sanaga (e.g. a page's source).
-fn load_into(w: &PageView, url: &str) {
+/// Load an address (asked for now by the person, or not: a restored or
+/// woken tab), or HTML made by Sanaga (e.g. a page's source).
+fn load_into(w: &PageView, url: &str, by_person: bool) {
     match url.strip_prefix(super::source::HTML_MARK) {
         Some(html) => w.webview().load_html(html, None),
         None => {
-            let _ = w.load_url(url);
+            let _ = w.load_url(url, by_person);
         }
     }
 }
@@ -517,9 +518,10 @@ impl Sanaga {
                     continue;
                 }
                 let Some(url) = self.tabs[i].web_pending.take() else { continue };
+                let by_person = std::mem::take(&mut self.tabs[i].web_by_person);
                 let w = self.build_webview(i);
                 self.prepare_view(i, &w, show);
-                load_into(&w, &url);
+                load_into(&w, &url, by_person);
                 self.tabs[i].web = Some(w);
                 self.tabs[i].web_shown = show;
                 self.tabs[i].web_zoom = 1.0;
@@ -528,7 +530,7 @@ impl Sanaga {
             let tab = &mut self.tabs[i];
             let Some(w) = &tab.web else { continue };
             if let Some(url) = tab.web_pending.take() {
-                load_into(w, &url);
+                load_into(w, &url, std::mem::take(&mut tab.web_by_person));
             }
             if show != tab.web_shown {
                 let _ = w.set_visible(show);

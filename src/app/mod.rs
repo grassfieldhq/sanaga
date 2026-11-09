@@ -182,6 +182,8 @@ struct Tab {
     full: bool,
     web: Option<crate::page::PageView>,
     web_pending: Option<String>,
+    /// The person asked for `web_pending` now (not a restored or woken tab).
+    web_by_person: bool,
     web_shown: bool,
     web_zoom: f32,
     /// Safari-style Reader: this page shown as clean, easy-to-read text.

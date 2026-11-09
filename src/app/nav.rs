@@ -37,6 +37,7 @@ impl Sanaga {
             full: false,
             web: None,
             web_pending: None,
+            web_by_person: false,
             web_shown: false,
             web_zoom: 1.0,
             reader: false,
@@ -207,6 +208,8 @@ impl Sanaga {
             tab.view = View::Web;
             tab.loading = true;
             tab.web_pending = Some(url);
+            // (a restored tab: nobody asked for it now)
+            tab.web_by_person = !self.restoring;
             return;
         }
         if !is_web_url {

@@ -202,6 +202,8 @@ impl Sanaga {
                 t.sleeping = false;
                 t.loading = true;
                 t.web_pending = Some(t.url().to_string());
+                // (woken from sleep: not a new request of the person's)
+                t.web_by_person = false;
             }
         }
         // (minutes before a tab sleeps, most pages kept running at once)

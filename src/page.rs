@@ -75,17 +75,21 @@ thread_local! {
 struct ViewState {
     /// The address of the page shown (committed): the referrer of its downloads.
     committed: RefCell<String>,
-    /// When the person last acted on the page (a click that navigates, an
-    /// address opened from Sanaga's interface), and whether a download has
-    /// already used that action.
+    /// When the person last acted in the page itself (a click or key that
+    /// navigates: WebKit's user gesture), and whether a download has already
+    /// used that action. Forgotten when a new page is shown.
     gesture: Cell<Option<Instant>>,
     gesture_used: Cell<bool>,
+    /// When the person asked Sanaga to open an address in this view (typed,
+    /// a favourite…; never a restored tab): only a download that this very
+    /// navigation turns into may use it (it ends when a page is shown).
+    typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
 }
 
-/// The person acted on this page (a click that navigates, an address
-/// opened from Sanaga's interface): it may start one download.
+/// The person acted in this page (a click or key that navigates): it may
+/// start one download.
 fn mark_gesture(v: &WebView) {
     if let Some(s) = view_state(v) {
         s.gesture.set(Some(Instant::now()));
@@ -425,9 +429,13 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
             // (a download Sanaga started itself has no page: never asked)
             if let Some(state) = download.web_view().as_ref().and_then(view_state) {
                 let site = download_site(&site_ref, &uri);
-                let fresh = state.gesture.get().is_some_and(|t| t.elapsed() <= GESTURE_WINDOW);
+                // a real action of the person's in that page, not used yet;
+                // or the address the person opened turning into a download
+                let recent = |t: Option<Instant>| t.is_some_and(|t| t.elapsed() <= GESTURE_WINDOW);
+                let in_page = recent(state.gesture.get()) && !state.gesture_used.get();
+                let fresh = in_page || recent(state.typed.get());
                 let allowed = DOWNLOAD_SITES.with(|d| d.borrow().contains(&site));
-                if download_needs_ask(fresh, state.gesture_used.get(), allowed) {
+                if download_needs_ask(fresh, false, allowed) {
                     // the download waits (WebKit 2.40+) until the person answers
                     PENDING_DOWNLOADS.with(|q| {
                         q.borrow_mut().push(PendingDownload { download: download.clone(), suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
@@ -435,8 +443,10 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                     ask_downloads(site);
                     return true;
                 }
+                // (one download per action)
                 if fresh {
                     state.gesture_used.set(true);
+                    state.typed.set(None);
                 }
             }
             let path = choose_destination(download, suggested, &uri);
@@ -590,6 +600,9 @@ impl PageView {
                 LoadEvent::Started | LoadEvent::Redirected => apply_site(v, &host_of_uri(&uri)),
                 LoadEvent::Committed => {
                     *st.committed.borrow_mut() = uri.clone();
+                    // a new page: its downloads need its own actions
+                    st.gesture.set(None);
+                    st.typed.set(None);
                     let js = crate::site_prefs::for_host(&host_of_uri(&uri)).script();
                     if !js.is_empty() {
                         v.evaluate_javascript(&js, None, None, None::<&gtk::gio::Cancellable>, |_| {});
@@ -743,9 +756,13 @@ impl PageView {
             self.view.reload();
         }
     }
-    pub fn load_url(&self, url: &str) -> R<()> {
-        // an address opened from Sanaga's interface: the person's own action
-        mark_gesture(&self.view);
+    /// Open an address. `by_person`: the person asked for it now (typed, a
+    /// favourite, a link in Sanaga), not a restored or woken tab; if this
+    /// address itself turns into a download, it goes straight to Downloads.
+    pub fn load_url(&self, url: &str, by_person: bool) -> R<()> {
+        if let Some(s) = view_state(&self.view) {
+            s.typed.set(by_person.then(Instant::now));
+        }
         self.view.load_uri(url);
         Ok(())
     }
