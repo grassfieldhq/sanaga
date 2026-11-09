@@ -6,6 +6,12 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Release tags follow Semantic Versioning exactly: `0.4.0`, no `v` in front
+  (the releases are named the same way).
+
+## [0.4.0] — 2026-11-09
+
 ### Added
 - Profiles as in Chrome: the profile's picture (photo, sign or initial on its
   colour) at the right of the toolbar, with the name for extra profiles; its
@@ -22,6 +28,10 @@ All notable changes to Sanaga are listed here. The format follows
 - With the address bar (or the tabs) at the bottom, the suggestions, the ⋮
   menu, Share, the » menu, the ✦ menu, the favourite popover, the group
   editor and the website settings open above it instead of off the bottom.
+
+## [0.3.0] — 2026-11-09
+
+### Fixed
 - “Sign in with Google” (and Apple, Microsoft, Facebook, GitHub…) inside
   other sites (X, Reddit…): the sign-in frame's request to use its cookies
   (Storage Access) was refused silently; sign-in services now get it, other
