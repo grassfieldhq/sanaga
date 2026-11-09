@@ -158,6 +158,7 @@ Sanaga runs on Linux (Wayland or X11). You need:
 | Rust 1.88+ | `rustup` | `rustup` | `rustup` |
 | GTK 4 | `gtk4` | `libgtk-4-dev` | `gtk4-devel` |
 | WebKitGTK 6 | `webkitgtk-6.0` | `libwebkitgtk-6.0-dev` | `webkitgtk6.0-devel` |
+| WebKit's page sandbox | `bubblewrap` `xdg-dbus-proxy` | `bubblewrap` `xdg-dbus-proxy` | `bubblewrap` `xdg-dbus-proxy` |
 | Video codecs (YouTube…) | `gst-libav` `gst-plugins-bad` `gst-plugin-va` | `gstreamer1.0-libav` `gstreamer1.0-plugins-bad` `gstreamer1.0-vaapi` | `gstreamer1-plugin-libav` `gstreamer1-plugins-bad-free` |
 | *(optional)* passwords | `libsecret` (`secret-tool`) | `libsecret-tools` | `libsecret` |
 | *(optional)* video recording | `ffmpeg` | `ffmpeg` | `ffmpeg` |
@@ -178,6 +179,11 @@ applications menu, icon — without admin rights:
 packaging/install.sh              # build and install
 packaging/install.sh --uninstall  # remove it (your data stays)
 ```
+
+Packaging Sanaga for a distribution (the Grassfield build uses
+`SANAGA_DISTRO=grassfield` and depends on `bubblewrap`, `xdg-dbus-proxy` and
+the GStreamer codec packages): see
+[packaging/DISTRIBUTIONS.md](packaging/DISTRIBUTIONS.md).
 
 ## Usage
 
