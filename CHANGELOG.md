@@ -6,7 +6,22 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Profiles as in Chrome: the profile's picture (photo, sign or initial on its
+  colour) at the right of the toolbar, with the name for extra profiles; its
+  menu lists this profile, the others (one click opens their window), add a
+  profile, a Guest window (`--guest`, nothing kept), manage profiles and close
+  this profile. `sanaga://profiles` is now “Who's using Sanaga?”: profile
+  cards, adding (name and colour), deleting, and this profile customised
+  (name, colour, picture: initial, a sign or a photo).
+- Share popover redesigned: the page, its link with a Copy button, “Send to”
+  (e-mail, WhatsApp, Telegram, X, Facebook, LinkedIn), the actions as tiles
+  and the QR code.
+
 ### Fixed
+- With the address bar (or the tabs) at the bottom, the suggestions, the ⋮
+  menu, Share, the » menu, the ✦ menu, the favourite popover, the group
+  editor and the website settings open above it instead of off the bottom.
 - “Sign in with Google” (and Apple, Microsoft, Facebook, GitHub…) inside
   other sites (X, Reddit…): the sign-in frame's request to use its cookies
   (Storage Access) was refused silently; sign-in services now get it, other

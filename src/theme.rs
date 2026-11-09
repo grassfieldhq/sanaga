@@ -185,8 +185,8 @@ fn base_theme(dark: bool, private: bool) -> Theme {
     }
 }
 
-pub fn badge_color(seed: &str) -> Color32 {
-    const P: [Color32; 8] = [
+/// The colours of profiles, groups and badges.
+pub const PALETTE: [Color32; 8] = [
         c(0x0E, 0x7C, 0x66),
         c(0x1A, 0x5F, 0xD0),
         c(0xD9, 0x5B, 0x1F),
@@ -196,6 +196,9 @@ pub fn badge_color(seed: &str) -> Color32 {
         c(0x4F, 0x8A, 0x10),
         c(0xB0, 0x7A, 0x00),
     ];
+
+pub fn badge_color(seed: &str) -> Color32 {
+    const P: [Color32; 8] = PALETTE;
     let h = seed.bytes().fold(7u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
     P[(h % 8) as usize]
 }

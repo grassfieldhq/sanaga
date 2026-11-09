@@ -128,6 +128,10 @@ pub struct Settings {
     pub app_icon: u8,
     /// The profile's emoji (shown on its badge and its launcher icon).
     pub profile_emoji: String,
+    /// The profile's name as shown (empty: its folder's name, "Personnel"
+    /// for the main profile) and its colour (0: chosen from the name).
+    pub profile_name: String,
+    pub profile_color: u8,
     /// Sites protected by a DRM (Netflix…) open by themselves in a browser
     /// that can play them.
     pub drm_auto: bool,
@@ -230,6 +234,8 @@ impl Default for Settings {
             tree_tabs: true,
             app_icon: 0,
             profile_emoji: String::new(),
+            profile_name: String::new(),
+            profile_color: 0,
             drm_auto: false,
             tab_switcher: true,
             translate_to: String::new(),
@@ -259,6 +265,19 @@ pub struct Download {
     pub ok: bool,
     pub time: u64,
     pub error: String,
+}
+
+/// A profile as shown in the profile menu and on the profiles page.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProfileInfo {
+    /// Its folder ("" for the main profile).
+    pub key: String,
+    pub name: String,
+    /// 1..=8: a colour of the palette; 0: chosen from the name.
+    pub color: u8,
+    pub emoji: String,
+    /// Its own picture (avatar.png in its folder).
+    pub photo: Option<PathBuf>,
 }
 
 pub struct Store {
@@ -319,6 +338,45 @@ impl Store {
             .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
             .unwrap_or_else(|| PathBuf::from("."))
             .join("sanaga")
+    }
+
+    /// The folder of a profile ("": the main one).
+    pub fn profile_dir(key: &str) -> PathBuf {
+        if key.is_empty() {
+            Self::root_dir()
+        } else {
+            Self::root_dir().join("profils").join(key)
+        }
+    }
+
+    /// How a profile looks (name, colour, emoji, photo), read from its own
+    /// settings: the profile menu shows the other profiles too.
+    pub fn profile_info(key: &str) -> ProfileInfo {
+        let dir = Self::profile_dir(key);
+        let mut info = ProfileInfo { key: key.to_string(), name: String::new(), color: 0, emoji: String::new(), photo: None };
+        if let Ok(t) = std::fs::read_to_string(dir.join("settings.txt")) {
+            for l in t.lines() {
+                match l.split_once('=') {
+                    Some(("profile_name", v)) => info.name = v.trim().to_string(),
+                    Some(("profile_color", v)) => info.color = v.trim().parse().unwrap_or(0),
+                    Some(("profile_emoji", v)) => info.emoji = v.trim().to_string(),
+                    _ => {}
+                }
+            }
+        }
+        if info.name.is_empty() {
+            info.name = if key.is_empty() { crate::i18n::tr("Personnel").to_string() } else { key.to_string() };
+        }
+        let photo = dir.join("avatar.png");
+        if photo.exists() {
+            info.photo = Some(photo);
+        }
+        info
+    }
+
+    /// Every profile: the main one first, then the others by name.
+    pub fn all_profiles() -> Vec<ProfileInfo> {
+        std::iter::once(String::new()).chain(Self::profiles()).map(|k| Self::profile_info(&k)).collect()
     }
 
     /// Names of the extra profiles.
@@ -446,6 +504,8 @@ impl Store {
                         "tree_tabs" => st.tree_tabs = v == "1",
                         "app_icon" => st.app_icon = v.parse().unwrap_or(0),
                         "profile_emoji" => st.profile_emoji = v.to_string(),
+                        "profile_name" => st.profile_name = v.to_string(),
+                        "profile_color" => st.profile_color = v.parse().unwrap_or(0),
                         "drm_auto" => st.drm_auto = v == "1",
                         "tab_switcher" => st.tab_switcher = v == "1",
                         "translate_to" => st.translate_to = v.to_string(),
@@ -511,8 +571,8 @@ impl Store {
             clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model), b(st.notif_prompts), clean(&st.translate_with)
         );
         let more = format!(
-            "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\ntranslate_to={}\nclose_right={}\n",
-            st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right)
+            "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\ntranslate_to={}\nclose_right={}\nprofile_name={}\nprofile_color={}\n",
+            st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right), clean(&st.profile_name), st.profile_color
         );
         let _ = write_atomic(&dir.join("settings.txt"), t + &more);
     }

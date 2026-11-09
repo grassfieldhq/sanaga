@@ -142,10 +142,10 @@ impl Sanaga {
         }
         let keys: Vec<&'static str> = crate::store::TOOLBAR_BUTTONS.iter().map(|b| b.0).filter(|k| self.tb_overflow(k) && *k != "memory").collect();
         let w = 250.0;
-        let pos = pos2((self.overflow_rect.right() - w).max(8.0), self.overflow_rect.bottom() + 6.0);
+        let (pos, pivot, _) = super::layout::popover_place(ctx, self.overflow_rect, (self.overflow_rect.right() - w).max(8.0), 6.0);
         let mut pick: Option<&'static str> = None;
         let dark = self.store.settings.dark;
-        let area = egui::Area::new(egui::Id::new("overflow-menu")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
+        let area = egui::Area::new(egui::Id::new("overflow-menu")).order(egui::Order::Foreground).pivot(pivot).fixed_pos(pos).show(ctx, |ui| {
             Frame::new()
                 .fill(th.page)
                 .stroke(Stroke::new(1.0, th.hairline.gamma_multiply(0.6)))

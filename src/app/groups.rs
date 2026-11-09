@@ -98,15 +98,18 @@ impl Sanaga {
         let anchor = self.group_label_rects.iter().find(|(k, _)| *k == g).map(|(_, r)| *r);
         let screen = ctx.content_rect();
         let w = 280.0;
-        let pos = match anchor {
-            Some(r) => pos2((r.left()).clamp(8.0, screen.right() - w - 8.0), r.bottom() + 6.0),
-            None => pos2(screen.center().x - w / 2.0, screen.top() + 110.0),
+        let (pos, pivot) = match anchor {
+            Some(r) => {
+                let (p, pv, _) = super::layout::popover_place(ctx, r, r.left().clamp(8.0, screen.right() - w - 8.0), 6.0);
+                (p, pv)
+            }
+            None => (pos2(screen.center().x - w / 2.0, screen.top() + 110.0), egui::Align2::LEFT_TOP),
         };
         let mut act: Option<&str> = None;
         let mut color: Option<u8> = None;
         let dark = self.store.settings.dark;
         let first = self.group_editing == Some(g);
-        let area = egui::Area::new(egui::Id::new("group-editor")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
+        let area = egui::Area::new(egui::Id::new("group-editor")).order(egui::Order::Foreground).pivot(pivot).fixed_pos(pos).show(ctx, |ui| {
             Frame::new()
                 .fill(th.page)
                 .stroke(Stroke::new(1.0, th.hairline.gamma_multiply(0.6)))

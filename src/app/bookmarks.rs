@@ -40,7 +40,8 @@ impl Sanaga {
         let star: Rect = ctx.data(|d| d.get_temp(egui::Id::new("star-rect"))).unwrap_or(Rect::from_min_size(pos2(400.0, 40.0), vec2(20.0, 20.0)));
         let mut done = false;
         let mut remove = false;
-        let area = egui::Area::new(egui::Id::new("star-popover")).order(egui::Order::Foreground).fixed_pos(pos2(star.left() - 16.0, star.bottom() + 10.0)).show(ctx, |ui| {
+        let (at, pivot, _) = super::layout::popover_place(ctx, star, star.left() - 16.0, 10.0);
+        let area = egui::Area::new(egui::Id::new("star-popover")).order(egui::Order::Foreground).pivot(pivot).fixed_pos(at).show(ctx, |ui| {
             Frame::new()
                 .fill(th.page)
                 .stroke(Stroke::new(1.0, th.hairline.gamma_multiply(0.6)))
