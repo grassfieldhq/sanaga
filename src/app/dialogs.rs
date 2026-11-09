@@ -21,7 +21,8 @@ pub(super) struct DialogState {
 }
 
 impl Sanaga {
-    /// A page asks something: it waits in line, its tab comes to the front.
+    /// A page asks something: it waits in line on its own tab (shown when
+    /// that tab is; a background tab never takes the front).
     pub(super) fn page_dialog(&mut self, tab: u64, key: u64) {
         let Some(info) = crate::page::dialog(key) else { return };
         // a site silenced by the person: answered without asking
@@ -32,25 +33,25 @@ impl Sanaga {
         self.dialogs.push((tab, key));
     }
 
+    /// The question of the tab shown, if it has one waiting (tab, key).
+    pub(super) fn shown_dialog(&self) -> Option<(u64, u64)> {
+        let active = self.tabs.get(self.active).map(|t| t.id)?;
+        self.dialogs.iter().copied().find(|(t, _)| *t == active)
+    }
+
     pub(super) fn dialog_sheet(&mut self, ctx: &egui::Context, th: &Theme) {
-        // answered or gone (tab closed): next one
-        while let Some(&(tab, key)) = self.dialogs.first() {
-            let tab_open = self.tabs.iter().any(|t| t.id == tab);
-            if crate::page::dialog(key).is_some() && tab_open {
-                break;
-            }
+        // answered or gone (tab closed): dropped
+        let tabs = &self.tabs;
+        self.dialogs.retain(|&(tab, key)| {
+            let tab_open = tabs.iter().any(|t| t.id == tab);
             if !tab_open {
                 crate::page::answer_dialog(key, false, "", "");
             }
-            self.dialogs.remove(0);
-        }
-        let Some(&(tab, key)) = self.dialogs.first() else { return };
+            tab_open && crate::page::dialog(key).is_some()
+        });
+        // only the question of the tab shown: a background tab's waits there
+        let Some((_, key)) = self.shown_dialog() else { return };
         let Some(info) = crate::page::dialog(key) else { return };
-        if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
-            if self.active != i {
-                self.active = i;
-            }
-        }
         if self.dialog_state.key != key {
             let same_site = self.last_dialog_host == info.host;
             self.dialog_state = DialogState { key, text: if let DialogKind::Prompt(d) = &info.kind { d.clone() } else { String::new() }, password: String::new(), fresh: true, count: if same_site { self.dialog_state.count + 1 } else { 1 }, silence: false };
@@ -80,7 +81,9 @@ impl Sanaga {
                         let head = match &info.kind {
                             DialogKind::Login(_) => tf("{} demande de vous connecter", &[&site]),
                             DialogKind::Leave => tf("Quitter {} ?", &[&site]),
-                            _ => tf("{} dit :", &[&site]),
+                            // (it may come from a frame of another site
+                            // inside the page: WebKit doesn't say which)
+                            _ => tf("Une page sur {} dit :", &[&site]),
                         };
                         ui.label(RichText::new(head).size(14.5).family(bold()).color(th.text));
                     });
@@ -153,7 +156,7 @@ impl Sanaga {
             }
             let (text, password) = (std::mem::take(&mut self.dialog_state.text), std::mem::take(&mut self.dialog_state.password));
             crate::page::answer_dialog(key, ok, &text, &password);
-            self.dialogs.remove(0);
+            self.dialogs.retain(|&(_, k)| k != key);
             self.switcher_refocus = true;
         }
     }

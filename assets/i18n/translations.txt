@@ -1055,3 +1055,4 @@ Retirer la photo⟂Remove the photo⟂Quitar la foto⟂Remover a foto⟂Foto ent
 Photo du profil⟂Profile photo⟂Foto del perfil⟂Foto do perfil⟂Profilfoto
 Images⟂Images⟂Imágenes⟂Imagens⟂Bilder
 Cette image ne peut pas être lue.⟂This picture can't be read.⟂No se puede leer esta imagen.⟂Esta imagem não pode ser lida.⟂Dieses Bild kann nicht gelesen werden.
+Une page sur {} dit :⟂A page on {} says:⟂Una página en {} dice:⟂Uma página em {} diz:⟂Eine Seite auf {} sagt:

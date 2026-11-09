@@ -490,7 +490,7 @@ impl Sanaga {
         if !self.web_ok {
             return;
         }
-        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || self.switcher.is_some() || self.ai_menu_open || self.profile_open || self.group_editor.is_some() || !self.dialogs.is_empty() || egui::Popup::is_any_open(&self.ctx);
+        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || self.switcher.is_some() || self.ai_menu_open || self.profile_open || self.group_editor.is_some() || self.shown_dialog().is_some() || egui::Popup::is_any_open(&self.ctx);
         // A menu over a page: the page sits above Sanaga's drawing, so take a
         // picture of it first and show that picture while the menu is open
         // (instead of a blank page).
