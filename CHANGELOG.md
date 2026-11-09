@@ -6,6 +6,33 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- “Sign in with Google” (and Apple, Microsoft, Facebook, GitHub…) inside
+  other sites (X, Reddit…): the sign-in frame's request to use its cookies
+  (Storage Access) was refused silently; sign-in services now get it, other
+  sites are asked about, as in Safari.
+- A window opened by a page (sign-in, payment) that closes itself brings back
+  the page that opened it, not the next tab.
+- A message from a background page (e.g. a video it cannot play) no longer
+  brings that tab to the front.
+- The per-site identity is no longer switched for frames inside a page (it
+  could reload the whole tab with the frame's address).
+
+### Changed
+- Less processor use: Sanaga's own window measures its memory in the
+  background every 10 s (it walked every process every 2 s on the window's
+  thread: a 30 ms hitch each time); a page playing sound no longer makes the
+  window refresh 4 times a second; the password helper only looks at new
+  form fields (it watched every style change of busy pages such as Gmail, X
+  or YouTube).
+- Video: without an AV1 decoder in the graphics card, sites get VP9 or H.264
+  instead of AV1 (decoded by the processor otherwise); on YouTube, VP9 too
+  when the card only decodes H.264.
+- Memory: a page's process gives memory back (caches, JavaScript memory)
+  from about 340 MB on 8 GB computers, 680 MB from 16 GB (WebKit waited for
+  1 GB); drawing apps and games draw with the graphics card (2D canvas).
+- Browser games can capture the mouse (pointer lock), as in Chrome.
+
 ## [0.2.0] — 2026-11-09
 
 ### Added

@@ -18,6 +18,8 @@ pub(super) struct PermAsk {
     pub site: String,
     pub kind: &'static str,
     pub req: webkit6::PermissionRequest,
+    /// For "storage": the site asking to use its cookies inside this page.
+    pub asking: String,
 }
 
 pub(super) type PermQueue = Rc<RefCell<VecDeque<PermAsk>>>;
@@ -29,8 +31,32 @@ pub(super) fn kind_label(kind: &str) -> &'static str {
         "camera+micro" => tr("votre caméra et votre micro"),
         "location" => tr("votre position"),
         "notifications" => tr("vous envoyer des notifications"),
+        "storage" => tr("ses cookies sur ce site (connexion)"),
         _ => tr("un accès"),
     }
+}
+
+/// Sign-in services that sites embed ("Sign in with Google" button…): they
+/// may use their cookies inside the page they are on without asking (as in
+/// Firefox), so signing in through them works.
+const SIGN_IN_PROVIDERS: [&str; 12] = [
+    "google.com",
+    "apple.com",
+    "microsoftonline.com",
+    "live.com",
+    "microsoft.com",
+    "facebook.com",
+    "github.com",
+    "linkedin.com",
+    "x.com",
+    "twitter.com",
+    "auth0.com",
+    "okta.com",
+];
+
+fn sign_in_provider(domain: &str) -> bool {
+    let d = domain.trim_start_matches('.');
+    SIGN_IN_PROVIDERS.iter().any(|p| d == *p || d.ends_with(&format!(".{p}")))
 }
 
 /// Listen to WebKit's permission requests for one tab.
@@ -47,6 +73,24 @@ pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: Perm
             "location"
         } else if req.is::<webkit6::NotificationPermissionRequest>() {
             "notifications"
+        } else if req.is::<webkit6::PointerLockPermissionRequest>() {
+            // games (Krunker, 3D viewers): the mouse turns the view, as in
+            // Chrome
+            req.allow();
+            return true;
+        } else if let Some(s) = req.downcast_ref::<webkit6::WebsiteDataAccessPermissionRequest>() {
+            // a frame of another site (a sign-in button) asks for its cookies
+            // (Storage Access, after a click): sign-in services get them,
+            // other sites are asked about, as in Safari
+            let asking = s.requesting_domain().map(|d| d.to_string()).unwrap_or_default();
+            if sign_in_provider(&asking) {
+                req.allow();
+                return true;
+            }
+            let site = wv.uri().map(|u| u.to_string()).and_then(|u| url::Url::parse(&u).ok()).map(|p| p.origin().ascii_serialization()).unwrap_or_default();
+            queue.borrow_mut().push_back(PermAsk { tab, site, kind: "storage", req: req.clone(), asking });
+            ctx.request_repaint();
+            return true;
         } else {
             return false; // anything else: WebKit's default (refused)
         };
@@ -54,7 +98,7 @@ pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: Perm
             let u = u.to_string();
             url::Url::parse(&u).ok().map(|p| p.origin().ascii_serialization()).unwrap_or(u)
         });
-        queue.borrow_mut().push_back(PermAsk { tab, site: site.unwrap_or_default(), kind, req: req.clone() });
+        queue.borrow_mut().push_back(PermAsk { tab, site: site.unwrap_or_default(), kind, req: req.clone(), asking: String::new() });
         ctx.request_repaint();
         true
     });
@@ -275,7 +319,11 @@ impl Sanaga {
     pub(super) fn permission_bar(&mut self, ui: &mut Ui, th: &Theme) {
         let Some(ask) = &self.perm_current else { return };
         let mut answer: Option<(bool, bool)> = None; // (allow, remember)
-        let text = tf("{} souhaite accéder à {}.", &[&host_of(&ask.site), &kind_label(ask.kind)]);
+        let text = if ask.kind == "storage" {
+            tf("{} souhaite utiliser ses cookies sur {} (souvent pour vous connecter).", &[&ask.asking, &host_of(&ask.site)])
+        } else {
+            tf("{} souhaite accéder à {}.", &[&host_of(&ask.site), &kind_label(ask.kind)])
+        };
         ui.horizontal_centered(|ui| {
             ui.add_space(14.0);
             let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
@@ -595,6 +643,17 @@ fn put_to_sleep(t: &mut Tab) {
 
 fn glib_timespan(period_secs: u64) -> webkit6::glib::TimeSpan {
     webkit6::glib::TimeSpan::from_seconds(period_secs as i64)
+}
+
+#[cfg(test)]
+mod sign_in_tests {
+    #[test]
+    fn sign_in_services() {
+        assert!(super::sign_in_provider("google.com"));
+        assert!(super::sign_in_provider("accounts.google.com"));
+        assert!(!super::sign_in_provider("notgoogle.com"));
+        assert!(!super::sign_in_provider("disqus.com"));
+    }
 }
 
 #[cfg(test)]

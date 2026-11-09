@@ -282,6 +282,28 @@ pub fn memory_used() -> Option<u64> {
     }
 }
 
+/// The memory used by Sanaga and its engine, measured in a background
+/// thread every 10 s while someone looks at it (the toolbar's counter):
+/// measuring walks every process of the computer and costs some 30 ms, too
+/// much for the window's own thread (the window would hitch).
+pub fn memory_used_cached() -> u64 {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    static VALUE: AtomicU64 = AtomicU64::new(0);
+    static WANTED: AtomicBool = AtomicBool::new(false);
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    WANTED.store(true, Ordering::Relaxed);
+    STARTED.call_once(|| {
+        let _ = std::thread::Builder::new().name("sanaga-memory".into()).spawn(|| loop {
+            // (not shown since the last measure: nothing to do)
+            if WANTED.swap(false, Ordering::Relaxed) {
+                VALUE.store(memory_used().unwrap_or(0), Ordering::Relaxed);
+            }
+            std::thread::sleep(std::time::Duration::from_secs(10));
+        });
+    });
+    VALUE.load(Ordering::Relaxed)
+}
+
 pub fn human_bytes(b: u64) -> String {
     if b >= 1024 * 1024 * 1024 {
         tf("{} Go", &[&format!("{:.1}", b as f64 / 1073741824.0)])

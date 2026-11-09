@@ -1390,7 +1390,10 @@ impl Sanaga {
                     }
                 }
             }
-            ctx0.request_repaint_after(std::time::Duration::from_millis(100));
+            // (only while steps remain: CPU measurements need the real pace)
+            if self.live_step < steps.len() {
+                ctx0.request_repaint_after(std::time::Duration::from_millis(100));
+            }
         }
         self.memory_saver_step(now);
         // simulator video: stop with the simulator, feed the encoder

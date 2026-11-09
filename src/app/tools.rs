@@ -185,8 +185,11 @@ impl Sanaga {
         if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
             eprintln!("page tool {what} {arg}");
         }
+        // a tool the person asked for in a page shows that page; messages a
+        // page sends by itself (a video it can't play, an answer) never pull
+        // a background tab to the front
         if let Some(i) = self.tab_index(tab) {
-            if what != "zap-done" && what != "pip-info" {
+            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe") {
                 self.active = i;
             }
         }

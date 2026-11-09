@@ -386,7 +386,7 @@ impl Sanaga {
         let now = ui.input(|i| i.time);
         if self.tb("memory") {
         if now - self.mem.0 > 2.0 {
-            self.mem = (now, net::memory_used().unwrap_or(0));
+            self.mem = (now, net::memory_used_cached());
         }
         let mg = ui.painter().layout_no_wrap(tf("{} Mo", &[&format!("{:.0}", self.mem.1 as f64 / 1048576.0)]), FontId::proportional(11.5), th.sub);
         let mr = slot_r(&mut rx, mg.size().x + 30.0);

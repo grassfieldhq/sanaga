@@ -93,11 +93,26 @@
     asked = key;
     send('pw:get\n' + e(location.origin));
   }
+  // Light on busy pages (mail, social networks, videos): only added elements
+  // are looked at (not every style or class change), only when one of them
+  // holds a text field, at most once a second, and never in a hidden tab.
+  // A field shown later in another way is found when it gets the focus.
   var timer = 0;
-  function soon() { if (!timer) timer = setTimeout(function () { timer = 0; ask(); }, 400); }
+  function soon() { if (!timer && !document.hidden) timer = setTimeout(function () { timer = 0; ask(); }, 1000); }
+  function hasField(n) {
+    return n.nodeType === 1 && (n.tagName === 'INPUT' || (n.firstElementChild && n.getElementsByTagName('input').length > 0));
+  }
+  function added(list) {
+    if (timer || document.hidden) return;
+    for (var i = 0; i < list.length; i++) {
+      var nodes = list[i].addedNodes;
+      for (var j = 0; j < nodes.length; j++) if (hasField(nodes[j])) { soon(); return; }
+    }
+  }
   function start() {
     ask();
-    new MutationObserver(soon).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['type', 'style', 'class', 'hidden'] });
+    new MutationObserver(added).observe(document.documentElement, { childList: true, subtree: true });
+    document.addEventListener('visibilitychange', soon);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 

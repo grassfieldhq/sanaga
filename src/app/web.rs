@@ -251,7 +251,9 @@ impl Sanaga {
             // (page loading, mouse or keys in the page), rarely when idle.
             let now = ctx.input(|i| i.time);
             let activity = PAGE_INPUT.swap(false, std::sync::atomic::Ordering::Relaxed);
-            if activity || got_event || self.tabs.iter().any(|t| t.loading || t.audio) {
+            // (a page playing sound needs no fast ticks: its icon is refreshed
+            // every second)
+            if activity || got_event || self.tabs.iter().any(|t| t.loading) {
                 self.web_busy_until = now + 1.5;
             }
             // (GTK runs WebKit on its own: these ticks only refresh Sanaga's
