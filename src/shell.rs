@@ -771,7 +771,15 @@ fn instance_socket(urls: &[String]) -> Option<std::path::PathBuf> {
 }
 
 // (message limits and checks: see guard.rs, testable without GTK)
-use crate::guard::{accept_forwarded, allow_message, MAX_LINES, MAX_MESSAGE};
+use crate::guard::{accept_forwarded, allow_message, read_bounded, MAX_LINES, MAX_MESSAGE, MAX_READERS, READ_DEADLINE};
+
+thread_local! {
+    /// When the last messages from other launches arrived (rate limit).
+    static RECENT_MESSAGES: RefCell<std::collections::VecDeque<Instant>> = const { RefCell::new(std::collections::VecDeque::new()) };
+}
+
+/// Connections being read now (each on its own short-lived thread).
+static READERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// Is the other end of the socket this same user (SO_PEERCRED)?
 #[cfg(target_os = "linux")]
@@ -807,6 +815,10 @@ fn forward_to_running(sock: &std::path::Path, urls: &[String]) -> bool {
 /// Addresses sent by another launch of Sanaga (on the main loop): only what
 /// `accept_forwarded` lets through.
 fn incoming(text: String, profile: Vec<String>) {
+    // a few messages at a time
+    if !RECENT_MESSAGES.with(|r| allow_message(&mut r.borrow_mut(), Instant::now())) {
+        return;
+    }
     let lines: Vec<String> = text.lines().filter_map(accept_forwarded).take(MAX_LINES).collect();
     if lines.is_empty() {
         return;
@@ -880,25 +892,41 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
             // only this user (the folder is closed already)
             let _ = std::fs::set_permissions(sock, std::fs::Permissions::from_mode(0o600));
             let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
+            // (accepting never waits for a peer: a slow or silent one can't
+            // hold up the others)
+            let _ = listener.set_nonblocking(true);
             std::thread::Builder::new()
                 .name("sanaga-instance".into())
-                .spawn(move || {
-                    use std::io::Read;
-                    let mut recent = std::collections::VecDeque::new();
-                    for stream in listener.incoming().flatten() {
-                        // the same user only, a few messages at a time, small ones
-                        if !same_user(&stream) || !allow_message(&mut recent, Instant::now()) {
+                .spawn(move || loop {
+                    let stream = match listener.accept() {
+                        Ok((s, _)) => s,
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            std::thread::sleep(Duration::from_millis(50));
                             continue;
                         }
-                        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                        let mut buf = Vec::new();
-                        let _ = (&stream).take(MAX_MESSAGE as u64 + 1).read_to_end(&mut buf);
-                        if buf.len() > MAX_MESSAGE {
+                        Err(_) => {
+                            std::thread::sleep(Duration::from_millis(200));
                             continue;
                         }
-                        let text = String::from_utf8_lossy(&buf).to_string();
-                        let profile = profile.clone();
-                        glib::MainContext::default().invoke(move || incoming(text, profile));
+                    };
+                    // the same user only, a few connections at a time
+                    if !same_user(&stream) || READERS.load(std::sync::atomic::Ordering::Relaxed) >= MAX_READERS {
+                        continue;
+                    }
+                    let _ = stream.set_nonblocking(false);
+                    READERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let profile = profile.clone();
+                    let started = std::thread::Builder::new().name("sanaga-instance-read".into()).spawn(move || {
+                        // a small message, sent at once: a slow peer is dropped
+                        let message = read_bounded(&stream, MAX_MESSAGE, READ_DEADLINE);
+                        READERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                        if let Some(buf) = message {
+                            let text = String::from_utf8_lossy(&buf).to_string();
+                            glib::MainContext::default().invoke(move || incoming(text, profile));
+                        }
+                    });
+                    if started.is_err() {
+                        READERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                     }
                 })
                 .ok();

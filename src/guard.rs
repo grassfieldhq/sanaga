@@ -235,6 +235,37 @@ pub const MAX_LINES: usize = 64;
 const RATE_MAX: usize = 20;
 const RATE_WINDOW: Duration = Duration::from_secs(10);
 
+/// Connections read at the same time, and how long one may take to send
+/// its message.
+pub const MAX_READERS: usize = 8;
+pub const READ_DEADLINE: Duration = Duration::from_millis(500);
+
+/// Read one message from another launch: at most `max` bytes, and all of it
+/// before `deadline` (a slow or silent peer is dropped). None: too big, too
+/// slow, or an error.
+pub fn read_bounded(stream: &std::os::unix::net::UnixStream, max: usize, deadline: Duration) -> Option<Vec<u8>> {
+    use std::io::Read;
+    let end = Instant::now() + deadline;
+    let mut reader = stream;
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 4096];
+    loop {
+        let left = end.checked_duration_since(Instant::now()).filter(|d| !d.is_zero())?;
+        reader.set_read_timeout(Some(left)).ok()?;
+        match reader.read(&mut chunk) {
+            Ok(0) => return Some(buf),
+            Ok(n) => {
+                buf.extend_from_slice(&chunk[..n]);
+                if buf.len() > max {
+                    return None;
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => return None,
+        }
+    }
+}
+
 /// At most RATE_MAX messages in RATE_WINDOW: true when this one may pass.
 pub fn allow_message(times: &mut std::collections::VecDeque<Instant>, now: Instant) -> bool {
     while times.front().is_some_and(|t| now.duration_since(*t) > RATE_WINDOW) {
@@ -526,6 +557,27 @@ mod tests {
             assert_eq!(accept_forwarded(bad), None, "{bad}");
         }
         assert_eq!(accept_forwarded(&format!("https://a.org/{}", "x".repeat(9000))), None);
+    }
+
+    #[test]
+    fn slow_or_big_messages_are_dropped() {
+        use std::io::Write;
+        use std::os::unix::net::UnixStream;
+        // a message sent at once
+        let (mut a, b) = UnixStream::pair().unwrap();
+        a.write_all(b"https://example.org/").unwrap();
+        a.shutdown(std::net::Shutdown::Write).unwrap();
+        assert_eq!(read_bounded(&b, 1024, Duration::from_millis(500)).as_deref(), Some(&b"https://example.org/"[..]));
+        // a peer that says nothing: dropped at the deadline
+        let (_a, b) = UnixStream::pair().unwrap();
+        let t = Instant::now();
+        assert_eq!(read_bounded(&b, 1024, Duration::from_millis(100)), None);
+        assert!(t.elapsed() < Duration::from_secs(2));
+        // too big
+        let (mut a, b) = UnixStream::pair().unwrap();
+        a.write_all(&[b'x'; 2048]).unwrap();
+        a.shutdown(std::net::Shutdown::Write).unwrap();
+        assert_eq!(read_bounded(&b, 1024, Duration::from_millis(500)), None);
     }
 
     #[test]
