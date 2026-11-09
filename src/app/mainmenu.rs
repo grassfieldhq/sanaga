@@ -167,11 +167,7 @@ impl Sanaga {
             self.menu_open = false;
         }
         match id {
-            "newgroup" => {
-                self.new_group("");
-                self.sidebar_open = true;
-                self.group_renaming = Some(self.groups.len() - 1);
-            }
+            "newgroup" => self.group_shown_tab(),
             "overview" => self.toggle_overview(),
             "container" | "focus" | "ontop" | "pip" | "site" | "zap" | "edittext" | "unlock" | "archive" => self.run_shortcut(id),
             "contacts" => self.fill_contacts(),

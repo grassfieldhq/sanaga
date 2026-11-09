@@ -21,6 +21,10 @@ mod mainmenu;
 mod sidebar;
 mod bookmarks;
 mod buttons;
+mod groups;
+mod dialogs;
+mod errors;
+mod switcher;
 mod media;
 mod containers;
 mod sitepanel;
@@ -538,6 +542,25 @@ pub struct Sanaga {
     /// An extension just installed from a file, switched off until the
     /// person has read it (shown on the Extensions page).
     ext_review: Option<String>,
+    /// Tabs by last use (most recent first), the Ctrl+Tab switcher, and the
+    /// page to give the keyboard back to once it is shown.
+    recent: Vec<u64>,
+    switcher: Option<switcher::Switcher>,
+    switcher_refocus: bool,
+    /// The ✦ menu (summarise / translate) and where its button is.
+    ai_menu_open: bool,
+    ai_menu_rect: Rect,
+    /// Questions from pages waiting (tab, key), the one being answered, the
+    /// site of the last one, the sites silenced; tabs showing an error page.
+    dialogs: Vec<(u64, u64)>,
+    dialog_state: dialogs::DialogState,
+    last_dialog_host: String,
+    silenced_sites: HashSet<String>,
+    error_tabs: HashSet<u64>,
+    /// The group whose editor is open (name, colour…), and where the group
+    /// labels are in the tab bar.
+    group_editor: Option<usize>,
+    group_label_rects: Vec<(usize, Rect)>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -808,6 +831,18 @@ impl Sanaga {
             zap_armed: None,
             pip_armed: None,
             ext_review: None,
+            recent: Vec::new(),
+            switcher: None,
+            switcher_refocus: false,
+            ai_menu_open: false,
+            ai_menu_rect: Rect::NOTHING,
+            dialogs: Vec::new(),
+            dialog_state: Default::default(),
+            last_dialog_host: String::new(),
+            silenced_sites: HashSet::new(),
+            error_tabs: HashSet::new(),
+            group_editor: None,
+            group_label_rects: Vec::new(),
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -873,6 +908,9 @@ impl Sanaga {
         // restored tabs don't load now: each one loads when it is first shown
         app.restoring = true;
         let mut parents: Vec<(usize, usize)> = Vec::new();
+        let mut group_keys: Vec<(String, usize)> = Vec::new();
+        // the tab that was shown when Sanaga closed
+        let mut shown_at: Option<usize> = None;
         let first_tab = app.tabs.len();
         for line in start {
             let mut parts = line.split('\t');
@@ -882,13 +920,24 @@ impl Sanaga {
             let saved_title = parts.next().unwrap_or("").to_string();
             let container = parts.next().unwrap_or("").to_string();
             let parent: Option<usize> = parts.next().and_then(|p| p.parse().ok());
+            let was_shown = parts.next() == Some("1");
+            let color: Option<u8> = parts.next().and_then(|c| c.parse().ok());
+            let folded = parts.next() == Some("1");
+            // (a group without a name is saved as "\u{1f}N")
             app.current_group = if group.is_empty() || group == app.groups[0] {
                 0
-            } else if let Some(g) = app.groups.iter().position(|x| *x == group) {
+            } else if let Some(&(_, g)) = group_keys.iter().find(|(k, _)| *k == group) {
                 g
             } else {
-                app.groups.push(group);
-                app.groups.len() - 1
+                app.groups.push(if group.starts_with('\u{1f}') { String::new() } else { group.clone() });
+                let g = app.groups.len() - 1;
+                group_keys.push((group, g));
+                app.sync_group_meta();
+                if let Some(c) = color {
+                    app.group_colors[g] = c;
+                }
+                app.group_collapsed[g] = folded;
+                g
             };
             let (reader, u) = match u.strip_prefix("lecteur:") {
                 Some(rest) => (true, rest.to_string()),
@@ -902,6 +951,9 @@ impl Sanaga {
             }
             if let Some(p) = parent {
                 parents.push((i, p));
+            }
+            if was_shown {
+                shown_at = Some(i);
             }
             app.tabs[i].group = app.current_group;
             // tabs load when shown: until then they keep their saved title
@@ -921,7 +973,7 @@ impl Sanaga {
             }
         }
         app.restoring = false;
-        app.active = app.tabs.len() - 1;
+        app.active = shown_at.filter(|&i| i < app.tabs.len()).unwrap_or(app.tabs.len() - 1);
         app.current_group = app.tabs[app.active].group;
         app.overview_open = overview;
         if slot > 0 {
@@ -1276,6 +1328,23 @@ impl Sanaga {
                             ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("menu-more"), true));
                         }
                         "overflow" => self.overflow_open = !self.overflow_open,
+                        "aimenu" => self.ai_menu_open = !self.ai_menu_open,
+                        "makedefault" => {
+                            self.make_default_browser_pub();
+                            eprintln!("live default browser: {:?}", self.is_default_browser);
+                        }
+                        a if a.starts_with("grouptab:") => {
+                            if let Ok(i) = a[9..].parse::<usize>() {
+                                if i < self.tabs.len() {
+                                    self.tab_to_new_group(i);
+                                }
+                            }
+                        }
+                        a if a.starts_with("foldgroup:") => {
+                            if let Ok(g) = a[10..].parse::<usize>() {
+                                self.toggle_group_fold(g);
+                            }
+                        }
                         "launcher" => self.add_profile_launcher(),
                         a if a.starts_with("settingsfind:") => {
                             self.settings_filter = a[13..].to_string();
@@ -1288,6 +1357,10 @@ impl Sanaga {
                             }
                         }
                         "title" => eprintln!("live title {}", self.tabs[self.active].title()),
+                        "tabs" => {
+                            let list: Vec<String> = self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
+                            eprintln!("live tabs {}", list.join(" | "));
+                        }
                         a if a.starts_with("key:") => {
                             if let Some(key) = egui::Key::from_name(&a[4..]) {
                                 let m = Default::default();
@@ -1499,6 +1572,11 @@ impl Sanaga {
         self.star_popover(&ctx, &th);
         self.translate_question(&ctx, &th);
         self.identity_chooser(&ctx, &th);
+        self.note_recent();
+        self.tab_switcher(&ctx, &th);
+        self.ai_menu(&ctx, &th);
+        self.group_editor_popup(&ctx, &th);
+        self.dialog_sheet(&ctx, &th);
         self.site_settings_panel(&ctx, &th);
         self.container_chooser(&ctx, &th);
         self.overflow_menu(&ctx, &th);

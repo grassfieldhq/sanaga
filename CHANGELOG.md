@@ -64,6 +64,19 @@ All notable changes to Sanaga are listed here. The format follows
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
 ### Added (November 2026)
+- Packages for every Linux distribution, built and published by GitHub at
+  every push: Flatpak, .deb (Debian, Ubuntu), .rpm (Fedora), Arch package and
+  a .tar.gz with an installer (`docs/RELEASING.md`).
+- Settings › Appearance: the tabs' close button on the left (macOS) or the
+  right (Chrome), in the tab bar and the vertical tabs.
+- Error pages in Sanaga's design for every kind of failure (DNS, offline with
+  automatic reload, refused, timeout, certificate, blocked port, missing file).
+- alert / confirm / prompt / leave-page / HTTP login shown as Sanaga sheets.
+- ✦ menu: summarise or translate; translation target language (Settings ›
+  Intelligence, or in the menu).
+- Right-click a link › Open link in a private tab.
+- Tab switcher: Ctrl+Tab shows the tabs used last as pictures (most recent
+  first); Ctrl+Page Down / Up follow the tab bar.
 - Containers: tabs with their own cookies, logins and site data.
 - Network blocker of ads and trackers (WebKit content blocker), on by default,
   switchable per site.
@@ -84,6 +97,12 @@ All notable changes to Sanaga are listed here. The format follows
 - Profile emoji and a launcher of its own per profile.
 
 ### Changed
+- Tab groups work as in Chrome: every tab stays in the tab bar; a group is a
+  coloured label before its tabs with a line of its colour under them; click
+  folds it; a new group opens its editor at once (name, colour, new tab,
+  ungroup, move to a new window, close); dragging a tab into or out of a
+  group adds or removes it; colours, names and folding are kept with the
+  session. New tabs (Ctrl+T) are no longer put in the shown tab's group.
 - Sanaga now runs on **GTK 4 and WebKitGTK 6** (it needs `gtk4` and
   `webkitgtk-6.0`): pages are composed on the graphics card, an idle page costs
   nothing, animated pages cost less, and screen readers can read the pages as
@@ -95,6 +114,11 @@ All notable changes to Sanaga are listed here. The format follows
 - Ctrl+N opens a new window (it opened a tab).
 
 ### Fixed
+- Make default browser: on Omarchy (and desktops with a routing entry), the
+  choice goes to the general mimeapps.list that the routing entry reads, with
+  web links and HTML files; checked the same way the desktop does.
+- Ctrl+click / middle click on a link opens it in a tab behind (Ctrl+Shift:
+  in front, Shift: a new window), under the page and in its container.
 - A file the browser cannot show (archive, installer, unknown type) sent
   without a “download” header was silently ignored; it is now downloaded.
 - Clicking an address suggestion did nothing.

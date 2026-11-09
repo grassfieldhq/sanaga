@@ -63,15 +63,35 @@ pub(super) fn read_batch(msg: &str) -> Option<(usize, Vec<String>)> {
     (!texts.is_empty() && texts.len() <= 80 && size <= 6000).then_some((from, texts))
 }
 
-/// The language to translate into, in words for the model.
-fn target_language() -> &'static str {
-    match crate::i18n::language() {
-        "fr" => "French",
-        "es" => "Spanish",
-        "pt" => "Portuguese",
-        "de" => "German",
-        _ => "English",
-    }
+/// Languages pages can be translated into: code, name for the model, name
+/// shown (in the language itself when the interface's fonts can draw it).
+pub(super) const LANGUAGES: [(&str, &str, &str); 20] = [
+    ("fr", "French", "Français"),
+    ("en", "English", "English"),
+    ("es", "Spanish", "Español"),
+    ("pt", "Portuguese", "Português"),
+    ("de", "German", "Deutsch"),
+    ("it", "Italian", "Italiano"),
+    ("nl", "Dutch", "Nederlands"),
+    ("pl", "Polish", "Polski"),
+    ("tr", "Turkish", "Türkçe"),
+    ("sw", "Swahili", "Kiswahili"),
+    ("ha", "Hausa", "Hausa"),
+    ("yo", "Yoruba", "Yorùbá"),
+    ("ln", "Lingala", "Lingála"),
+    ("wo", "Wolof", "Wolof"),
+    ("ar", "Arabic", "Arabic — العربية"),
+    ("ru", "Russian", "Русский"),
+    ("zh-CN", "Simplified Chinese", "Chinese (中文)"),
+    ("ja", "Japanese", "Japanese (日本語)"),
+    ("ko", "Korean", "Korean (한국어)"),
+    ("hi", "Hindi", "Hindi (हिन्दी)"),
+];
+
+/// The language chosen (Settings › Intelligence), else the interface's.
+pub(super) fn target(chosen: &str) -> (&'static str, &'static str, &'static str) {
+    let code = if chosen.is_empty() { crate::i18n::language() } else { chosen };
+    LANGUAGES.iter().copied().find(|l| l.0 == code).unwrap_or(LANGUAGES[1])
 }
 
 /// A JSON array of strings, read leniently from a model's answer.
@@ -114,7 +134,7 @@ impl Sanaga {
         if let Some((u, _)) = self.current_page() {
             let enc: String = url::form_urlencoded::byte_serialize(u.as_bytes()).collect();
             let a = self.active;
-            self.navigate(a, format!("https://translate.google.com/translate?sl=auto&tl={}&u={enc}", crate::i18n::language()), None, true);
+            self.navigate(a, format!("https://translate.google.com/translate?sl=auto&tl={}&u={enc}", target(&self.store.settings.translate_to).0), None, true);
         }
     }
 
@@ -177,7 +197,7 @@ impl Sanaga {
         }
         let tx = self.ai_tx.clone();
         let repaint = self.ctx.clone();
-        let lang = target_language();
+        let lang = target(&self.store.settings.translate_to).1;
         let generation = self.translate_gen;
         std::thread::Builder::new()
             .name("sanaga-translate".into())
@@ -224,6 +244,89 @@ impl Sanaga {
     }
 
     /// The first time: Google or the AI? (and remember it)
+    /// The ✦ button's menu: summarise the page, or translate it (into the
+    /// language chosen right here or in Settings › Intelligence).
+    pub(super) fn ai_menu(&mut self, ctx: &egui::Context, th: &Theme) {
+        if !self.ai_menu_open {
+            return;
+        }
+        let w = 300.0;
+        let pos = pos2((self.ai_menu_rect.right() - w).max(8.0), self.ai_menu_rect.bottom() + 6.0);
+        let mut act: Option<&str> = None;
+        let dark = self.store.settings.dark;
+        let lang = target(&self.store.settings.translate_to);
+        let engine = match self.store.settings.translate_with.as_str() {
+            "google" => "Google Traduction".to_string(),
+            "ai" => self.ai_provider().label().to_string(),
+            _ => String::new(),
+        };
+        let mut chosen = self.store.settings.translate_to.clone();
+        let area = egui::Area::new(egui::Id::new("ai-menu")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
+            Frame::new()
+                .fill(th.page)
+                .stroke(Stroke::new(1.0, th.hairline.gamma_multiply(0.6)))
+                .corner_radius(CornerRadius::same(14))
+                .shadow(egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: egui::Color32::from_black_alpha(if dark { 110 } else { 45 }) })
+                .inner_margin(egui::Margin::same(6))
+                .show(ui, |ui| {
+                    ui.set_width(w - 12.0);
+                    let mut row = |ui: &mut Ui, icon: crate::icons::Icon, title: &str, sub: &str, key: &'static str| {
+                        let (r, resp) = ui.allocate_exact_size(vec2(w - 12.0, 48.0), Sense::click());
+                        if resp.hovered() {
+                            ui.painter().rect_filled(r, CornerRadius::same(9), th.accent.gamma_multiply(0.14));
+                        }
+                        crate::icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 20.0, r.center().y), vec2(16.0, 16.0)), icon, th.accent);
+                        ui.painter().text(pos2(r.left() + 40.0, r.top() + 16.0), egui::Align2::LEFT_CENTER, title, FontId::proportional(14.0), th.text);
+                        ui.painter().text(pos2(r.left() + 40.0, r.top() + 33.0), egui::Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
+                        if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                            act = Some(key);
+                        }
+                    };
+                    row(ui, crate::icons::Icon::Sparkle, tr("Résumer la page"), tr("Les points essentiels, à côté de la page — Ctrl+Maj+Y"), "summary");
+                    let sub = if engine.is_empty() { tf("En {}", &[&lang.2]) } else { tf("En {} · avec {}", &[&lang.2, &engine]) };
+                    row(ui, crate::icons::Icon::Mail, tr("Traduire la page"), &sub, "translate");
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(12.0);
+                        ui.label(egui::RichText::new(tr("Traduire vers")).size(12.5).color(th.sub));
+                        let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&target("").2]) } else { target(code).2.to_string() };
+                        egui::ComboBox::from_id_salt("ai-menu-lang").selected_text(label(&chosen)).width(160.0).show_ui(ui, |ui| {
+                            if ui.selectable_label(chosen.is_empty(), label("")).clicked() {
+                                chosen.clear();
+                            }
+                            for (code, _, name) in LANGUAGES {
+                                if ui.selectable_label(chosen == code, name).clicked() {
+                                    chosen = code.to_string();
+                                }
+                            }
+                        });
+                    });
+                    ui.add_space(6.0);
+                });
+        });
+        if chosen != self.store.settings.translate_to {
+            self.store.settings.translate_to = chosen;
+            self.store.save_settings();
+        }
+        let anchor = self.ai_menu_rect;
+        let combo_open = egui::Popup::is_any_open(ctx);
+        let outside = ctx.input(|i| i.pointer.any_pressed()) && !combo_open && !ctx.pointer_interact_pos().map(|p| area.response.rect.contains(p) || anchor.contains(p)).unwrap_or(false);
+        if outside || ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.ai_menu_open = false;
+        }
+        match act {
+            Some("summary") => {
+                self.ai_menu_open = false;
+                self.summarize_page();
+            }
+            Some("translate") => {
+                self.ai_menu_open = false;
+                self.translate_page();
+            }
+            _ => {}
+        }
+    }
+
     pub(super) fn translate_question(&mut self, ctx: &egui::Context, th: &Theme) {
         if !self.translate_ask {
             return;

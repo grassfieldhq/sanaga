@@ -57,17 +57,28 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - Built-in PDF reader (search, zoom, print, annotations).
 - Files the browser can't show (archives, installers…) are downloaded; a
   downloads bar and page.
-- Translation of the page with Google, or in place with the AI of your choice
-  (Claude Code run with no tools, Claude, a local Ollama model — offline).
+- The ✦ button: summarise the page, or translate it into the language you
+  choose (20 languages; Google, or in place with the AI of your choice:
+  Claude Code run with no tools, Claude, a local Ollama model — offline).
   Codex and Gemini CLI can read local files even locked down, so Sanaga never
   sends them the text of a page.
-- Page summaries (✦, Ctrl+Shift+Y) and extensions written from a description.
+- Extensions written from a description.
+- Clear error pages: site not found, no connection (reloads by itself when it
+  comes back), refused, too slow, invalid certificate (back to safety, or go
+  on knowingly), blocked port — with search and archived-copy shortcuts.
+- Alerts, confirmations, prompts and site logins in Sanaga's own sheets, the
+  site's name on top; a site that insists can be silenced.
 
 **Tabs and windows**
-- Chrome-style tab row: pinned tabs, drag to reorder, tab groups with colours,
-  folding and naming, mute, duplicate, “new tab to the right”, reopen closed tab.
+- Chrome-style tab row: pinned tabs, drag to reorder, mute, duplicate, “new tab
+  to the right”, reopen closed tab.
+- Tab groups as in Chrome: a coloured label before the group's tabs (click to
+  fold), an editor that opens at once (name, colour, actions), drag a tab in or
+  out of a group.
 - Many tabs: arrows and a counter open the searchable list of all tabs; tab
   overview with thumbnails (Ctrl+Shift+O); tab search (Ctrl+Shift+A).
+- Tab switcher: hold Ctrl and press Tab to see the tabs used last as
+  pictures; let go to show one (Ctrl+Page Down / Up follow the tab bar).
 - Vertical tabs as a **tree**: a tab opened from a page goes under it; fold a
   branch, close it in one go.
 - Several windows (Ctrl+N), all restored at start; move a tab or a whole tab
@@ -151,6 +162,26 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 
 ## Install
 
+Download a package from the
+[Releases page](https://github.com/grassfieldhq/sanaga/releases) (the latest
+one, named after its version, e.g. **v0.1.0**). Packages bring
+everything, video codecs included:
+
+| Your system | Download | Install |
+|---|---|---|
+| **Any distribution** (openSUSE, Debian 12, Solus…) | `sanaga-*.flatpak` | `flatpak install --user sanaga-*.flatpak` |
+| Debian 13, Ubuntu 24.04+, Mint, Pop!_OS… | `sanaga_*_amd64.deb` | `sudo apt install ./sanaga_*_amd64.deb` |
+| Fedora 43+ | `sanaga-*.x86_64.rpm` | `sudo dnf install ./sanaga-*.x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS, Omarchy… | `sanaga-*.pkg.tar.zst` | `sudo pacman -U sanaga-*.pkg.tar.zst` |
+| Others (GTK 4 and WebKitGTK 6 installed) | `sanaga-*-x86_64-linux.tar.gz` | unpack, then `./install.sh` (no admin rights) |
+
+The packages are built by GitHub at every push (see
+[docs/RELEASING.md](docs/RELEASING.md)); how the codecs come in:
+[docs/PACKAGING.md](docs/PACKAGING.md).
+
+### From source
+
+
 Sanaga runs on Linux (Wayland or X11). You need:
 
 | What | Arch / Manjaro | Debian / Ubuntu (24.04+) | Fedora |
@@ -206,7 +237,8 @@ sanaga --screenshot out.png   # draw the window once, save a picture, quit
 | New window | Ctrl+N |
 | Reopen closed tab | Ctrl+Shift+T |
 | New private tab | Ctrl+Shift+N |
-| Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
+| Tab switcher (tabs used last) | Ctrl+Tab / Ctrl+Shift+Tab |
+| Next / previous tab in the bar | Ctrl+Page Down / Ctrl+Page Up |
 | Address bar | Ctrl+L, F6 |
 | Reload | Ctrl+R, F5 |
 | Back / forward / home | Alt+← / Alt+→ / Alt+Home |

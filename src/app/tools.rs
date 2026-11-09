@@ -196,6 +196,16 @@ impl Sanaga {
         match what {
             "preview" => self.preview_link(arg),
             "container-link" => self.container_ask = Some(arg.to_string()),
+            "tls-allow" => self.accept_certificate(tab, arg),
+            "safe" => {
+                if let Some(i) = self.tab_index(tab) {
+                    self.go_home(i);
+                }
+            }
+            "private-link" => {
+                self.open_tab(arg, true);
+                self.focus_address = false;
+            }
             "pip" => self.start_pip(),
             "pip-info" => self.pip_info(tab, arg),
             "zap" => self.start_zapper(),
@@ -207,6 +217,40 @@ impl Sanaga {
             "probe" if cfg!(debug_assertions) => eprintln!("live probe {arg}"),
             _ => {}
         }
+    }
+
+    /// A link opened from a page with Ctrl / middle / Shift: a tab behind
+    /// (0) or in front (1), under the page it came from, in its container
+    /// and private if the page is; or a new window (2).
+    pub(super) fn open_link_from(&mut self, tab: u64, url: &str, how: u8) {
+        let Some(from) = self.tabs.iter().position(|t| t.id == tab) else { return };
+        let (private, container, group) = (self.tabs[from].private, self.tabs[from].container.clone(), self.tabs[from].group);
+        if how == 2 && !private {
+            self.new_window(vec![url.to_string()]);
+            return;
+        }
+        let shown_id = self.tabs[self.active].id;
+        let i = self.open_tab(url, private);
+        self.focus_address = false;
+        self.tabs[i].parent = Some(tab);
+        self.tabs[i].container = container;
+        self.tabs[i].group = group;
+        // next to the page it came from, after the links already opened from it
+        let mut to = from + 1;
+        while to < self.tabs.len() - 1 && self.tabs[to].parent == Some(tab) && to != i {
+            to += 1;
+        }
+        let to = to.min(self.tabs.len() - 1);
+        if to != i {
+            self.move_tab(i, to);
+        }
+        if how == 0 {
+            // a tab behind: the page shown stays
+            if let Some(k) = self.tabs.iter().position(|t| t.id == shown_id) {
+                self.active = k;
+            }
+        }
+        self.save_session();
     }
 
     /// Escape: stop the tool running in the page. True when one was running.

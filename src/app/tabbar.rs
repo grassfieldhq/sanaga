@@ -34,9 +34,7 @@ impl Sanaga {
                 ui.close();
             }
             if ui.button(tr("Nouveau groupe d'onglets")).clicked() {
-                self.new_group("");
-                let g = self.groups.len() - 1;
-                self.group_editing = Some(g);
+                self.group_shown_tab();
                 ui.close();
             }
             if !self.closed.is_empty() && ui.button(tr("Rouvrir l'onglet fermé (Ctrl+Maj+T)")).clicked() {
@@ -50,83 +48,18 @@ impl Sanaga {
         if self.window_buttons_in() == super::layout::WindowButtonsIn::TabRow {
             left = window_buttons(ui, full.left() + 18.0, cy) + 14.0;
         }
-        // the group shown, at the start of the bar, when there are groups:
-        // its menu switches group, makes one, or shows them all in the sidebar
-        if self.groups.len() > 1 {
-            let g = self.current_group;
-            let name = if g == 0 { tr("Onglets").to_string() } else { self.group_label(g) };
-            let gal = ui.painter().layout_no_wrap(name.clone(), FontId::new(12.5, bold()), th.text);
-            let cw = (gal.size().x + 54.0).min(210.0);
-            let chip = Rect::from_min_size(pos2(left, cy - TRACK_H / 2.0), vec2(cw, TRACK_H));
-            let cresp = ui.interact(chip, egui::Id::new("tabbar-group"), Sense::click());
-            ui.painter().rect_filled(chip, CornerRadius::same((TRACK_H / 2.0) as u8), if cresp.hovered() { th.track.gamma_multiply(1.6) } else { th.track });
-            let dot = pos2(chip.left() + 14.0, cy);
-            if g == 0 {
-                icons::paint(ui.painter(), Rect::from_center_size(dot, vec2(12.0, 12.0)), Icon::Grid, th.accent);
-            } else {
-                ui.painter().rect_filled(Rect::from_center_size(dot, vec2(11.0, 11.0)), CornerRadius::same(3), self.group_color(g));
-            }
-            ui.painter().with_clip_rect(chip.shrink2(vec2(24.0, 0.0))).galley(pos2(chip.left() + 26.0, cy - gal.size().y / 2.0), gal, th.text);
-            icons::paint(ui.painter(), Rect::from_center_size(pos2(chip.right() - 12.0, cy), vec2(9.0, 9.0)), Icon::Down, th.sub);
-            let mut pick: Option<usize> = None;
-            let mut make = false;
-            let mut sidebar = false;
-            cresp.tip(tr("Groupe d'onglets")).menu_on_press(|ui| {
-                ui.set_min_width(230.0);
-                for k in 0..self.groups.len() {
-                    let label = if k == 0 { tr("Onglets").to_string() } else { self.group_label(k) };
-                    let n = self.tabs.iter().filter(|t| t.group == k && !t.pinned).count();
-                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width().max(220.0), 28.0), Sense::click());
-                    let accent = ui.visuals().selection.stroke.color;
-                    if resp.hovered() {
-                        ui.painter().rect_filled(r, CornerRadius::same(6), accent);
-                    }
-                    let col = if resp.hovered() { Color32::WHITE } else { ui.visuals().text_color() };
-                    if k == g {
-                        ui.painter().text(pos2(r.left() + 10.0, r.center().y), Align2::LEFT_CENTER, "✓", FontId::proportional(12.0), col);
-                    }
-                    if k == 0 {
-                        icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 30.0, r.center().y), vec2(12.0, 12.0)), Icon::Grid, col);
-                    } else {
-                        ui.painter().rect_filled(Rect::from_center_size(pos2(r.left() + 30.0, r.center().y), vec2(11.0, 11.0)), CornerRadius::same(3), self.group_color(k));
-                    }
-                    ui.painter().text(pos2(r.left() + 44.0, r.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), col);
-                    ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, n.to_string(), FontId::proportional(12.0), if resp.hovered() { Color32::WHITE } else { th.sub });
-                    if resp.clicked() {
-                        pick = Some(k);
-                        ui.close();
-                    }
-                }
-                ui.separator();
-                if super::sidebar::menu_item(ui, Icon::Plus, tr("Nouveau groupe d'onglets")) {
-                    make = true;
-                }
-                if super::sidebar::menu_item(ui, Icon::Sidebar, tr("Afficher les groupes dans la barre latérale")) {
-                    sidebar = true;
-                }
-            });
-            if let Some(k) = pick {
-                self.switch_group(k);
-            }
-            if make {
-                self.new_group("");
-                self.sidebar_open = true;
-                self.group_renaming = Some(self.groups.len() - 1);
-            }
-            if sidebar {
-                self.sidebar_open = true;
-            }
-            left = chip.right() + 6.0;
-        }
         let plus_d = TRACK_H;
-        // the tabs shown: pinned first, a folded group keeps only the tab shown
-        let order = self.strip_tabs();
+        // the tabs shown: pinned first, then tabs and group labels (Chrome)
+        let items = self.strip_items();
+        let order: Vec<usize> = items.iter().filter_map(|it| if let super::groups::StripItem::Tab(i) = it { Some(*i) } else { None }).collect();
+        let labels_w: f32 = items.iter().map(|it| if let super::groups::StripItem::Label(g) = it { self.label_width(ui, *g) } else { 0.0 }).sum();
+        self.group_label_rects.clear();
         let pinned_n = order.iter().filter(|&&i| self.tabs[i].pinned).count();
         let normal_n = (order.len() - pinned_n).max(1) as f32;
         let right_full = full.right() - 8.0 - plus_d - 6.0;
         // too many tabs to show their titles: arrows at both ends of the track
         // and a button with their number (it opens the list of all tabs)
-        let fits = |right: f32| (right - left - pinned_n as f32 * PIN_W) / normal_n >= MIN_W;
+        let fits = |right: f32| (right - left - pinned_n as f32 * PIN_W - labels_w) / normal_n >= MIN_W;
         let overflow = !fits(right_full);
         let count_w = if overflow { 52.0 } else { 0.0 };
         let right = right_full - if overflow { count_w + 6.0 } else { 0.0 };
@@ -135,10 +68,10 @@ impl Sanaga {
         ui.painter().rect_filled(track, round, th.track);
         let arrow = TRACK_H;
         let area = if overflow { track.shrink2(vec2(arrow, 0.0)) } else { track };
-        let room = area.width() - pinned_n as f32 * PIN_W;
+        let room = area.width() - pinned_n as f32 * PIN_W - labels_w;
         // equal widths, never so narrow that the titles go (then it scrolls)
         let w = (room / normal_n).max(MIN_W);
-        let total = pinned_n as f32 * PIN_W + normal_n * w;
+        let total = pinned_n as f32 * PIN_W + labels_w + normal_n * w;
         let max_scroll = (total - area.width()).max(0.0);
         if max_scroll > 0.0 && ui.rect_contains_pointer(full) {
             let d = ui.input(|i| i.smooth_scroll_delta);
@@ -169,15 +102,22 @@ impl Sanaga {
             }
         }
         let mut x = area.left() - self.tab_scroll;
-        let rects: Vec<Rect> = order
-            .iter()
-            .map(|&i| {
-                let tw = if self.tabs[i].pinned { PIN_W } else { w };
-                let r = Rect::from_min_size(pos2(x, track.top()), vec2(tw, TRACK_H));
-                x += tw;
-                r
-            })
-            .collect();
+        let mut rects: Vec<Rect> = Vec::new();
+        let mut labels: Vec<(usize, Rect)> = Vec::new();
+        for it in &items {
+            match *it {
+                super::groups::StripItem::Label(g) => {
+                    let lw = self.label_width(ui, g);
+                    labels.push((g, Rect::from_min_size(pos2(x, track.top()), vec2(lw, TRACK_H))));
+                    x += lw;
+                }
+                super::groups::StripItem::Tab(i) => {
+                    let tw = if self.tabs[i].pinned { PIN_W } else { w };
+                    rects.push(Rect::from_min_size(pos2(x, track.top()), vec2(tw, TRACK_H)));
+                    x += tw;
+                }
+            }
+        }
         // keep the shown tab in view when it changes
         if let Some(p) = order.iter().position(|&i| i == self.active) {
             if p != self.tab_scroll_seen.0 || self.tabs.len() != self.tab_scroll_seen.1 {
@@ -211,6 +151,15 @@ impl Sanaga {
             }
         }
 
+        // the groups: their labels, and a line of their colour under their tabs
+        for &(g, r) in &labels {
+            if area.intersects(r) {
+                self.draw_label(ui, g, r);
+            }
+            let end = order.iter().zip(&rects).filter(|(i, _)| self.tabs[**i].group == g && !self.tabs[**i].pinned).map(|(_, rr)| rr.right()).fold(r.right(), f32::max);
+            let y = track.bottom() - 1.5;
+            ui.painter().line_segment([pos2(r.left() + 6.0, y), pos2(end - 6.0, y)], Stroke::new(2.0, self.group_color(g)));
+        }
         for (k, &i) in order.iter().enumerate() {
             let rect = rects[k];
             if !area.intersects(rect) {
@@ -244,7 +193,8 @@ impl Sanaga {
             let g = ui.painter().layout_no_wrap(title.clone(), font.clone(), text_col);
             let max_text = (rect.width() - 2.0 * (16.0 + 10.0) - 20.0).max(0.0);
             let tw = g.size().x.min(max_text);
-            let group_dot = (tab.group > 0 && !tab.pinned).then(|| self.group_color(tab.group));
+            // (a group's colour runs under its tabs; no dot needed)
+            let group_dot: Option<Color32> = None;
             let lead = 16.0 + 6.0 + if group_dot.is_some() { 10.0 } else { 0.0 };
             let block = if icon_only { 16.0 } else { lead + tw };
             let x0 = rect.center().x - block / 2.0;
@@ -281,9 +231,12 @@ impl Sanaga {
                     }
                 }
             }
-            // sound: a small speaker on the right, click to mute
+            // the close button's side (Settings › Appearance); the speaker takes the other
+            let close_right = self.store.settings.close_right;
+            // sound: a small speaker, click to mute
             if (tab.audio || tab.muted) && !tab.pinned {
-                let sr = Rect::from_center_size(pos2(pill.right() - 14.0, rect.center().y), vec2(18.0, 18.0));
+                let sx = if close_right { pill.left() + 14.0 } else { pill.right() - 14.0 };
+                let sr = Rect::from_center_size(pos2(sx, rect.center().y), vec2(18.0, 18.0));
                 let sresp = ui.interact(sr, ui.id().with(("sound", tab.id)), Sense::click());
                 if sresp.hovered() {
                     ui.painter().circle_filled(sr.center(), 9.0, th.track);
@@ -293,9 +246,10 @@ impl Sanaga {
                     mute = Some(i);
                 }
             }
-            // close button on the left of a hovered tab (macOS)
+            // close button of a hovered tab: on the left (macOS) or the right (Chrome)
             if hovered && !tab.pinned {
-                let cr = Rect::from_center_size(pos2(pill.left() + 13.0, rect.center().y), vec2(18.0, 18.0));
+                let cx = if close_right { pill.right() - 13.0 } else { pill.left() + 13.0 };
+                let cr = Rect::from_center_size(pos2(cx, rect.center().y), vec2(18.0, 18.0));
                 let cresp = ui.interact(cr, ui.id().with(("close", tab.id)), Sense::click());
                 ui.painter().circle_filled(cr.center(), 9.0, if cresp.hovered() { th.track } else { Color32::TRANSPARENT });
                 icons::paint(ui.painter(), cr.shrink(5.0), Icon::Close, th.sub);
@@ -350,7 +304,14 @@ impl Sanaga {
             self.suggest_open = false;
         }
         if let Some((from, to)) = drop_at {
+            if !self.tabs[from].pinned {
+                let g = self.tabs[to].group;
+                if self.tabs[from].group != g {
+                    self.tabs[from].group = g;
+                }
+            }
             self.move_tab(from, to);
+            self.save_session();
         }
         if let Some(i) = close {
             self.close_tab(i);

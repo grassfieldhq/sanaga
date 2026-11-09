@@ -1,0 +1,77 @@
+# Sanaga as a Flatpak (Flathub). Everything comes with it, the video codecs
+# included: the GNOME runtime brings WebKitGTK 6 and GStreamer, and the
+# freedesktop "ffmpeg-full" extension brings H.264 / AAC (used by gst-libav).
+#
+# Build:   flatpak-builder --user --install build packaging/flatpak/site.grassfield.Sanaga.yml
+# Before:  generate the Rust sources list (offline build):
+#          python3 flatpak-cargo-generator.py Cargo.lock -o packaging/flatpak/cargo-sources.json
+id: site.grassfield.Sanaga
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: sanaga
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=dri
+  # downloads
+  - --filesystem=xdg-download
+  # passwords in the system keyring; screen readers
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.a11y.Bus
+add-extensions:
+  # H.264, AAC… for YouTube & co.
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    version: '25.08'
+    add-ld-path: .
+cleanup-commands:
+  - mkdir -p /app/lib/ffmpeg
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/sanaga/cargo
+modules:
+  # secret-tool: Sanaga stores passwords in the keyring through it
+  - name: libsecret
+    buildsystem: meson
+    config-opts:
+      - -Dmanpage=false
+      - -Dvapi=false
+      - -Dgtk_doc=false
+      - -Dintrospection=false
+      - -Dbash_completion=disabled
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/libsecret/0.21/libsecret-0.21.7.tar.xz
+        sha256: 6b452e4750590a2b5617adc40026f28d2f4903de15f1250e1d1c40bfd68ed55e
+
+  - name: sanaga
+    buildsystem: simple
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml
+      - cargo --offline build --release
+      - install -Dm755 target/release/sanaga /app/bin/sanaga
+      - install -Dm644 packaging/sanaga.svg /app/share/icons/hicolor/scalable/apps/site.grassfield.Sanaga.svg
+      - sed -e 's/^Icon=sanaga$/Icon=site.grassfield.Sanaga/' packaging/sanaga.desktop > site.grassfield.Sanaga.desktop
+      - install -Dm644 site.grassfield.Sanaga.desktop /app/share/applications/site.grassfield.Sanaga.desktop
+      - install -Dm644 packaging/site.grassfield.Sanaga.metainfo.xml /app/share/metainfo/site.grassfield.Sanaga.metainfo.xml
+    sources:
+      - type: dir
+        path: ../..
+        # build folders (local and on GitHub) stay out
+        skip:
+          - target
+          - shots
+          - flatpak_app
+          - .flatpak-builder
+          - repo
+      - cargo-sources.json

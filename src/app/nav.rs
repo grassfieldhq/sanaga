@@ -43,8 +43,9 @@ impl Sanaga {
             reader: false,
             reader_skip: Vec::new(),
             pinned: false,
-            // a new tab joins the group shown (Safari's tab groups)
-            group: self.current_group,
+            // a new tab has no group (Chrome); "new tab in the group" and links
+            // opened from a grouped tab set it
+            group: 0,
             muted: false,
             audio: false,
             thumb: None,
@@ -105,11 +106,21 @@ impl Sanaga {
         // one line per tab: address, group name, pinned, title, container, and
         // the place of the tab it was opened from (tree tabs)
         let kept: Vec<&Tab> = self.tabs.iter().filter(|t| !t.private && !t.entries.is_empty()).collect();
+        let shown = self.tabs.get(self.active).map(|t| t.id);
         let urls: Vec<String> = kept
             .iter()
             .map(|t| {
                 let parent = t.parent.and_then(|p| kept.iter().position(|k| k.id == p)).map(|k| k.to_string()).unwrap_or_default();
-                format!("{}\t{}\t{}\t{}\t{}\t{}", t.url(), self.groups.get(t.group).map(|g| g.replace('\t', " ")).unwrap_or_default(), if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " "), parent)
+                let active = if Some(t.id) == shown { "1" } else { "" };
+                let g = t.group;
+                let group = match self.groups.get(g) {
+                    _ if g == 0 => String::new(),
+                    Some(n) if !n.trim().is_empty() => n.replace(['\t', '\u{1f}'], " "),
+                    _ => format!("\u{1f}{g}"),
+                };
+                let color = if g > 0 { self.group_colors.get(g).map(|c| c.to_string()).unwrap_or_default() } else { String::new() };
+                let folded = if self.group_folded(g) { "1" } else { "" };
+                format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", t.url(), group, if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " "), parent, active, color, folded)
             })
             .collect();
         self.store.save_session(self.slot, &urls);
@@ -563,6 +574,8 @@ impl Sanaga {
                 (sc(c, Key::N), "window"),
                 (sc(c, Key::W), "close"),
                 (sc(c, Key::Tab), "next"),
+                (sc(c, Key::PageDown), "tabright"),
+                (sc(c, Key::PageUp), "tableft"),
                 (sc(c, Key::L), "addr"),
                 (sc(Modifiers::NONE, Key::F6), "addr"),
                 (sc(c, Key::R), "reload"),
@@ -618,14 +631,10 @@ impl Sanaga {
                 }
                 "translate" => self.translate_page(),
                 "close" => self.close_tab(a),
-                "next" | "prev" => {
-                    // within the tabs of the current group, in tab-bar order
-                    let order = self.visible_tabs();
-                    if let Some(p) = order.iter().position(|&x| x == a) {
-                        let n = order.len();
-                        self.active = order[if t == "next" { (p + 1) % n } else { (p + n - 1) % n }];
-                    }
-                }
+                // Ctrl+Tab: the tabs used last, as pictures (or the tab bar's order)
+                "next" | "prev" if self.store.settings.tab_switcher => self.switch_tabs(if t == "next" { 1 } else { -1 }),
+                "next" | "tabright" => self.tab_bar_step(true),
+                "prev" | "tableft" => self.tab_bar_step(false),
                 "addr" => self.focus_address = true,
                 "reload" => self.reload(a),
                 "back" => self.go_history(a, -1),

@@ -81,10 +81,8 @@ impl Sanaga {
     /// The tabs shown in the tab bar (a folded group shows only its label;
     /// the shown tab always stays visible).
     pub(super) fn strip_tabs(&self) -> Vec<usize> {
-        // Safari's tab groups: the tab bar shows the group of the tab shown
-        // (and the pinned tabs, in every group)
-        let g = self.tabs.get(self.active).filter(|t| !t.pinned).map(|t| t.group).unwrap_or(self.current_group);
-        self.visible_tabs().into_iter().filter(|&i| i == self.active || self.tabs[i].pinned || self.tabs[i].group == g).collect()
+        // all tabs (Chrome): a folded group hides its tabs, except the one shown
+        self.visible_tabs().into_iter().filter(|&i| i == self.active || self.tabs[i].pinned || !self.group_folded(self.tabs[i].group)).collect()
     }
 
     /// A group's name for lists ("Groupe 2" when it has none).
@@ -165,14 +163,21 @@ impl Sanaga {
         self.save_session();
     }
 
-    /// Put tab `i` in a new group of its own.
+    /// Put tab `i` in a new group of its own, and open the group's editor
+    /// (name, colour) at once, as Chrome does.
     pub(super) fn tab_to_new_group(&mut self, i: usize) {
         self.groups.push(String::new());
         self.sync_group_meta();
         let g = self.groups.len() - 1;
+        // a colour not used yet
+        let used: Vec<u8> = (1..g).filter_map(|k| self.group_colors.get(k).copied()).collect();
+        if let Some(free) = (1..GROUP_COLORS.len() as u8).find(|c| !used.contains(c)) {
+            self.group_colors[g] = free;
+        }
         self.tabs[i].pinned = false;
         self.tabs[i].group = g;
         self.group_editing = Some(g);
+        self.group_editor = Some(g);
         self.save_session();
     }
 
@@ -349,13 +354,14 @@ impl Sanaga {
         if self.groups.len() <= 1 {
             if ui.button(tr("Ajouter l'onglet à un nouveau groupe")).clicked() {
                 self.tab_to_new_group(i);
-                done = true;
+                return true;
             }
         } else {
             ui.menu_button(tr("Ajouter l'onglet au groupe"), |ui| {
                 if ui.button(tr("Nouveau groupe")).clicked() {
                     self.tab_to_new_group(i);
                     done = true;
+                    ui.close();
                 }
                 ui.separator();
                 for g in 1..self.groups.len() {

@@ -237,14 +237,24 @@ impl Sanaga {
                 }
                 let ic = pos2(r.left() + 16.0, r.center().y);
                 let title = tab.title();
-                if tab.loading {
+                // close on the left: it takes the icon's place while the tab is hovered
+                let close_left = !self.store.settings.close_right && ui.rect_contains_pointer(r);
+                if close_left {
+                    let cr = Rect::from_center_size(ic, vec2(20.0, 20.0));
+                    let cresp = ui.interact(cr, egui::Id::new(("vclose-left", tab.id)), Sense::click());
+                    ui.painter().rect_filled(cr, CornerRadius::same(6), if cresp.hovered() { th.border } else { th.omnibox_hover });
+                    icons::paint(ui.painter(), cr.shrink(5.0), Icon::Close, th.sub);
+                    if cresp.tip(tr("Fermer l'onglet (Ctrl+W)")).clicked() {
+                        close = Some(i);
+                    }
+                } else if tab.loading {
                     spinner(ui.painter(), ic, 6.5, time, th.accent);
                 } else if tab.private {
                     icons::paint(ui.painter(), Rect::from_center_size(ic, vec2(15.0, 15.0)), Icon::Private, tth.accent);
                 } else {
                     site_badge(ui.painter(), ic, 8.0, tab.url(), &title);
                 }
-                let show_close = active || ui.rect_contains_pointer(r);
+                let show_close = self.store.settings.close_right && (active || ui.rect_contains_pointer(r));
                 let text_right = r.right() - if show_close { 30.0 } else { 10.0 };
                 let clip = Rect::from_min_max(pos2(ic.x + 14.0, r.top()), pos2(text_right, r.bottom()));
                 ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, &title, FontId::proportional(13.0), if active { th.text } else { th.text.gamma_multiply(0.85) });

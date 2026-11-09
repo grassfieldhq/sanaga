@@ -335,11 +335,14 @@ impl Sanaga {
             let r = slot_r(&mut rx, 36.0);
             let on = self.summary.is_some();
             let can = matches!(self.tabs[a].view, View::Web);
-            if tool_button(ui, r, Icon::Sparkle, can, on, th).tip(tr("Résumer la page")).clicked() {
+            let resp = tool_button(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th).tip(tr("Résumer ou traduire la page"));
+            self.ai_menu_rect = resp.rect;
+            if resp.clicked() {
                 if on && self.summary.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
                     self.summary = None;
                 } else {
-                    self.summarize_page();
+                    self.ai_menu_open = !self.ai_menu_open;
+                    self.menu_open = false;
                 }
             }
         }

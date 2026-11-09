@@ -330,12 +330,33 @@ pub(super) fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar:
 }
 
 /// Is Sanaga the system's default web browser? (`xdg-settings`)
+/// Desktops that send links to a routing entry of their own, which then
+/// opens the browser chosen in the general list (Omarchy).
+const ROUTERS: [&str; 1] = ["omarchy-browser.desktop"];
+
+/// `xdg-settings get default-web-browser`; `general`: from the general list
+/// only (not the desktop's own, which may hold a routing entry).
+fn xdg_default_browser(general: bool) -> String {
+    let mut cmd = std::process::Command::new("xdg-settings");
+    cmd.args(["get", "default-web-browser"]);
+    if general {
+        cmd.env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "");
+    }
+    cmd.output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
+}
+
 fn default_browser_is_sanaga() -> bool {
-    std::process::Command::new("xdg-settings")
-        .args(["get", "default-web-browser"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "sanaga.desktop")
-        .unwrap_or(false)
+    // Omarchy says itself which browser its routing entry opens
+    if let Ok(o) = std::process::Command::new("omarchy-cmd-default-browser").output() {
+        if o.status.success() {
+            return String::from_utf8_lossy(&o.stdout).trim() == "sanaga.desktop";
+        }
+    }
+    match xdg_default_browser(false) {
+        b if b == "sanaga.desktop" => true,
+        b if b.is_empty() || ROUTERS.contains(&b.as_str()) => xdg_default_browser(true) == "sanaga.desktop",
+        _ => false,
+    }
 }
 
 fn launcher_installed() -> bool {
@@ -833,6 +854,21 @@ impl Sanaga {
                         changed = true;
                     }
                 }
+                rows.row(ui, tr("Traduire vers"), "", false, |ui| {
+                    let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&super::translate::target("").2]) } else { super::translate::target(code).2.to_string() };
+                    egui::ComboBox::from_id_salt("translate-to").selected_text(label(&st.translate_to)).width(220.0).show_ui(ui, |ui| {
+                        if ui.selectable_label(st.translate_to.is_empty(), label("")).clicked() && !st.translate_to.is_empty() {
+                            st.translate_to.clear();
+                            changed = true;
+                        }
+                        for (code, _, name) in super::translate::LANGUAGES {
+                            if ui.selectable_label(st.translate_to == code, name).clicked() && st.translate_to != code {
+                                st.translate_to = code.to_string();
+                                changed = true;
+                            }
+                        }
+                    });
+                });
             });
             ui.add_space(12.0);
             group(ui, th, "", |ui, rows| {
@@ -1126,6 +1162,13 @@ impl Sanaga {
                 }
                 changed_more |= rows.switch(ui, tr("Mode compact"), tr("Barre d'outils et onglets plus bas : plus de place pour la page"), &mut st.compact);
                 changed_more |= rows.switch(ui, tr("Onglets en arbre"), tr("Onglets verticaux : un onglet ouvert depuis une page se range dessous"), &mut st.tree_tabs);
+                rows.row(ui, tr("Bouton de fermeture des onglets"), "", false, |ui| {
+                    if let Some(v) = segmented(ui, th, &[tr("À gauche"), tr("À droite")], if st.close_right { 1 } else { 0 }) {
+                        st.close_right = v == 1;
+                        changed_more = true;
+                    }
+                });
+                changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));
             let current = self.store.settings.app_icon as usize;
@@ -1347,10 +1390,21 @@ impl Sanaga {
             self.notice = Some((tr("Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.").into(), now));
             return;
         }
-        let ok = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status().is_ok_and(|s| s.success());
-        // HTML files too
-        let _ = std::process::Command::new("xdg-mime").args(["default", "sanaga.desktop", "text/html", "application/xhtml+xml"]).status();
-        self.is_default_browser = Some(default_browser_is_sanaga());
+        // 1. the general list (~/.config/mimeapps.list): what every desktop
+        //    reads, and where Omarchy's routing entry looks for the browser
+        let general = |program: &str, args: &[&str]| {
+            std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
+        };
+        general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
+        // web links and HTML files
+        general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);
+        // 2. the desktop's own setting (GNOME, KDE…), unless it routes links
+        //    to the general choice by itself (Omarchy)
+        if !ROUTERS.contains(&xdg_default_browser(false).as_str()) {
+            let _ = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status();
+        }
+        let ok = default_browser_is_sanaga();
+        self.is_default_browser = Some(ok);
         self.notice = Some((if ok { tr("Sanaga est maintenant votre navigateur par défaut.") } else { tr("Impossible de changer le navigateur par défaut.") }.into(), now));
     }
 }

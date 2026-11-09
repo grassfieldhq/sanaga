@@ -1,0 +1,212 @@
+# Sanaga's installable packages, built by GitHub for every distribution.
+#
+# The release is named after the version in Cargo.toml, as usual: v0.1.0.
+#
+#   push to main        → the release v<version> is made, or its packages
+#                          replaced if it exists (its tag moves to the commit)
+#   push a tag v1.2.3   → the release v1.2.3 (the tag must match the version
+#                          in Cargo.toml)
+#   Actions › Release › Run workflow → same as a push to main
+#
+# A new version number in Cargo.toml therefore gives a new release.
+#
+# Packages: Flatpak (every distribution, video codecs included), .deb
+# (Debian, Ubuntu, Mint, Pop!_OS…), .rpm (Fedora), Arch package
+# (Arch, Manjaro, EndeavourOS, Omarchy…) and a .tar.gz with an installer for
+# the others.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            if [[ "${GITHUB_REF#refs/tags/}" != "v$version" ]]; then
+              echo "::error::The tag ${GITHUB_REF#refs/tags/} does not match the version $version in Cargo.toml"
+              exit 1
+            fi
+          fi
+          tag="v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  deb:
+    name: Debian / Ubuntu (.deb) and generic archive
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libwebkitgtk-6.0-dev libsoup-3.0-dev libjavascriptcoregtk-6.0-dev \
+            libxkbcommon-dev libwayland-dev libgl1-mesa-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and test
+        run: |
+          cargo build --release --locked
+          cargo test --release --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+      - name: .deb package
+        run: |
+          cargo deb --no-build
+          mkdir -p dist
+          cp target/debian/*.deb "dist/sanaga_${{ needs.version.outputs.version }}_amd64.deb"
+      - name: Generic archive (program + installer)
+        run: |
+          name="sanaga-${{ needs.version.outputs.version }}-x86_64-linux"
+          mkdir -p "$name/target/release" "$name/packaging"
+          cp target/release/sanaga "$name/target/release/"
+          cp packaging/install.sh packaging/sanaga.desktop packaging/sanaga.svg "$name/packaging/"
+          cp README.md LICENSE CHANGELOG.md "$name/"
+          printf '#!/bin/sh\nexec "$(dirname "$0")/packaging/install.sh" "$@"\n' > "$name/install.sh"
+          chmod +x "$name/install.sh" "$name/packaging/install.sh"
+          tar czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-and-archive
+          path: dist/*
+
+  rpm:
+    name: Fedora (.rpm)
+    needs: version
+    runs-on: ubuntu-24.04
+    # the oldest Fedora the package is for (it also runs on the newer ones)
+    container: fedora:43
+    steps:
+      - name: System libraries
+        run: dnf install -y --allowerasing git gcc pkgconf-pkg-config gtk4-devel webkitgtk6.0-devel libsoup3-devel curl tar gzip xz
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --release --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-generate-rpm
+      - name: .rpm package
+        run: |
+          cargo generate-rpm
+          mkdir -p dist
+          cp target/generate-rpm/*.rpm "dist/sanaga-${{ needs.version.outputs.version }}.x86_64.rpm"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm
+          path: dist/*
+
+  arch:
+    name: Arch Linux (.pkg.tar.zst)
+    needs: version
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    steps:
+      - name: System libraries
+        run: pacman -Syu --noconfirm --needed base-devel git rust gtk4 webkitgtk-6.0 gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-libav libsecret hicolor-icon-theme
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package (built from this commit)
+        run: |
+          useradd -m builder
+          mkdir -p /tmp/pkg
+          sed -e "s|^source=.*|source=(\"sanaga::git+file://$GITHUB_WORKSPACE#commit=$GITHUB_SHA\")|" packaging/arch/PKGBUILD > /tmp/pkg/PKGBUILD
+          chown -R builder /tmp/pkg
+          git config --system --add safe.directory '*'
+          su builder -c "cd /tmp/pkg && makepkg --noconfirm --nodeps"
+          mkdir -p dist
+          for f in /tmp/pkg/sanaga-[0-9]*.pkg.tar.zst; do cp "$f" dist/; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: dist/*
+
+  flatpak:
+    name: Flatpak (every distribution)
+    needs: version
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust sources for the offline build
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install -q aiohttp tomlkit pyyaml
+          curl -sSfL -o /tmp/flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
+          /tmp/venv/bin/python /tmp/flatpak-cargo-generator.py Cargo.lock -o packaging/flatpak/cargo-sources.json
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/site.grassfield.Sanaga.yml
+          bundle: sanaga-${{ needs.version.outputs.version }}.flatpak
+          upload-artifact: true
+          artifact-name: flatpak
+
+  publish:
+    name: Publish
+    needs: [version, deb, rpm, arch, flatpak]
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.version.outputs.tag }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect the packages
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*.flatpak' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          (cd dist && sha256sum * > SHA256SUMS)
+          ls -l dist
+      - name: Release notes
+        run: |
+          # this version's part of the changelog, else the unreleased part
+          section() { awk -v v="$1" 'index($0, "## [" v "]") == 1 {p=1; next} /^## \[/ {if (p) exit} p' CHANGELOG.md; }
+          section "$VERSION" > notes.md
+          grep -q '[^[:space:]]' notes.md || section Unreleased > notes.md
+          cat packaging/RELEASE-INSTALL.md >> notes.md
+      - name: Publish
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            # built from main: the version's tag points at this commit
+            git tag -f "$TAG" "$GITHUB_SHA"
+            git push -f origin "refs/tags/$TAG"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file notes.md --prerelease=false --latest
+            # the packages of the earlier build go
+            for a in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do gh release delete-asset "$TAG" "$a" --yes; done
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag --latest
+          fi
+          gh release upload "$TAG" dist/* --clobber
