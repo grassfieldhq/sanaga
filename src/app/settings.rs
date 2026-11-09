@@ -1325,12 +1325,12 @@ impl Sanaga {
         let now = self.ctx.input(|i| i.time);
         match crate::webext::install(&path) {
             Ok((name, id)) => {
-                if !self.store.extensions_on.contains(&id) {
-                    self.store.extensions_on.push(id);
-                    self.store.save_extensions();
-                }
-                self.refresh_extensions();
-                self.notice = Some((tf("Extension « {} » installée et activée.", &[&name]), now));
+                // installed switched off: the person reads what it would do
+                // (sites, code) on the Extensions page, then turns it on
+                self.ext_review = Some(id);
+                self.notice = Some((tf("« {} » est installée mais désactivée : lisez-la, puis activez-la.", &[&name]), now));
+                let a = self.active;
+                self.navigate(a, "sanaga://extensions".into(), None, true);
             }
             Err(e) => self.notice = Some((tf("Impossible d'installer l'extension : {}", &[&e]), now)),
         }

@@ -276,11 +276,44 @@ impl Sanaga {
         let mut toggle_mobile = false;
         let mut open_folder = false;
         let mut install = false;
+        let mut review_done = false;
         let on = self.store.extensions_on.clone();
+        // an extension just installed (switched off): what it would do, first
+        let review = self.ext_review.as_ref().and_then(|id| list.iter().find(|e| e.id == *id)).cloned();
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Extensions"));
             ui.label(RichText::new(tr("Les extensions ajoutent des fonctions aux pages web. Les changements s'appliquent tout de suite aux pages ouvertes.")).size(13.0).color(th.sub));
             ui.add_space(12.0);
+            if let Some(e) = &review {
+                Frame::new().fill(th.accent.gamma_multiply(0.12)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label(RichText::new(tf("« {} » est installée mais désactivée.", &[&e.name])).size(14.0).family(bold()).color(th.text));
+                    let where_ = if e.matches.is_empty() { tr("Tous les sites").to_string() } else { e.matches.join(", ") };
+                    ui.label(RichText::new(tf("Où elle agirait : {}", &[&where_])).color(th.text));
+                    ui.label(RichText::new(tr("Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.")).size(12.5).color(th.sub));
+                    egui::CollapsingHeader::new(tr("Voir le code")).default_open(true).show(ui, |ui| {
+                        let mut code = if e.js.is_empty() { e.css.clone() } else { e.js.clone() };
+                        egui::ScrollArea::vertical().id_salt("ext-review-code").max_height(320.0).show(ui, |ui| {
+                            ui.add(TextEdit::multiline(&mut code).code_editor().desired_width(f32::INFINITY).interactive(false));
+                        });
+                    });
+                    ui.horizontal(|ui| {
+                        let b = egui::Button::new(RichText::new(tr("Activer l'extension")).color(Color32::WHITE)).fill(th.accent);
+                        if ui.add(b).clicked() {
+                            toggle = Some(e.id.clone());
+                            review_done = true;
+                        }
+                        if ui.button(tr("Supprimer")).clicked() {
+                            delete = Some(e.id.clone());
+                            review_done = true;
+                        }
+                        if ui.button(tr("Plus tard")).clicked() {
+                            review_done = true;
+                        }
+                    });
+                });
+                ui.add_space(12.0);
+            }
             // built-in, native: the mobile simulator
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -339,6 +372,9 @@ impl Sanaga {
             });
             ui.label(RichText::new(tr("Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)")).size(11.5).color(th.sub));
         });
+        if review_done || review.is_none() {
+            self.ext_review = None;
+        }
         if install {
             self.install_extension_dialog();
         }

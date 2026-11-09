@@ -955,3 +955,6 @@ Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y com
 Activer l'extension⟂Turn On Extension⟂Activar la extensión⟂Ativar a extensão⟂Erweiterung einschalten
 « {} » est activée : elle s'applique aux pages ouvertes.⟂“{}” is on: it applies to the open pages.⟂«{}» está activada: se aplica a las páginas abiertas.⟂«{}» está ativada: aplica-se às páginas abertas.⟂„{}“ ist eingeschaltet: Sie gilt für die geöffneten Seiten.
 Ce n'est pas une page de texte : il n'y a pas de source à afficher.⟂This is not a text page: there is no source to show.⟂No es una página de texto: no hay código fuente que mostrar.⟂Não é uma página de texto: não há código-fonte para mostrar.⟂Das ist keine Textseite: Es gibt keinen Quelltext anzuzeigen.
+« {} » est installée mais désactivée.⟂“{}” is installed but turned off.⟂«{}» está instalada pero desactivada.⟂«{}» está instalada mas desativada.⟂„{}“ ist installiert, aber ausgeschaltet.
+Plus tard⟂Later⟂Más tarde⟂Mais tarde⟂Später
+« {} » est installée mais désactivée : lisez-la, puis activez-la.⟂“{}” is installed but turned off: read it, then turn it on.⟂«{}» está instalada pero desactivada: revísala y luego actívala.⟂«{}» está instalada mas desativada: leia-a e depois ative-a.⟂„{}“ ist installiert, aber ausgeschaltet: Lies sie und schalte sie dann ein.

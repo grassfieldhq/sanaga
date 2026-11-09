@@ -535,6 +535,9 @@ pub struct Sanaga {
     /// the floating video: the page's answer is accepted from there only.
     zap_armed: Option<u64>,
     pip_armed: Option<u64>,
+    /// An extension just installed from a file, switched off until the
+    /// person has read it (shown on the Extensions page).
+    ext_review: Option<String>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -804,6 +807,7 @@ impl Sanaga {
             light_download_pending: Vec::new(),
             zap_armed: None,
             pip_armed: None,
+            ext_review: None,
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
