@@ -34,6 +34,8 @@ All notable changes to Sanaga are listed here. The format follows
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
 ### Added (November 2026)
+- Settings › Appearance: the tabs' close button on the left (macOS) or the
+  right (Chrome), in the tab bar and the vertical tabs.
 - Error pages in Sanaga's design for every kind of failure (DNS, offline with
   automatic reload, refused, timeout, certificate, blocked port, missing file).
 - alert / confirm / prompt / leave-page / HTTP login shown as Sanaga sheets.

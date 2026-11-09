@@ -231,9 +231,12 @@ impl Sanaga {
                     }
                 }
             }
-            // sound: a small speaker on the right, click to mute
+            // the close button's side (Settings › Appearance); the speaker takes the other
+            let close_right = self.store.settings.close_right;
+            // sound: a small speaker, click to mute
             if (tab.audio || tab.muted) && !tab.pinned {
-                let sr = Rect::from_center_size(pos2(pill.right() - 14.0, rect.center().y), vec2(18.0, 18.0));
+                let sx = if close_right { pill.left() + 14.0 } else { pill.right() - 14.0 };
+                let sr = Rect::from_center_size(pos2(sx, rect.center().y), vec2(18.0, 18.0));
                 let sresp = ui.interact(sr, ui.id().with(("sound", tab.id)), Sense::click());
                 if sresp.hovered() {
                     ui.painter().circle_filled(sr.center(), 9.0, th.track);
@@ -243,9 +246,10 @@ impl Sanaga {
                     mute = Some(i);
                 }
             }
-            // close button on the left of a hovered tab (macOS)
+            // close button of a hovered tab: on the left (macOS) or the right (Chrome)
             if hovered && !tab.pinned {
-                let cr = Rect::from_center_size(pos2(pill.left() + 13.0, rect.center().y), vec2(18.0, 18.0));
+                let cx = if close_right { pill.right() - 13.0 } else { pill.left() + 13.0 };
+                let cr = Rect::from_center_size(pos2(cx, rect.center().y), vec2(18.0, 18.0));
                 let cresp = ui.interact(cr, ui.id().with(("close", tab.id)), Sense::click());
                 ui.painter().circle_filled(cr.center(), 9.0, if cresp.hovered() { th.track } else { Color32::TRANSPARENT });
                 icons::paint(ui.painter(), cr.shrink(5.0), Icon::Close, th.sub);

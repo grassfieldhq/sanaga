@@ -1137,6 +1137,12 @@ impl Sanaga {
                 }
                 changed_more |= rows.switch(ui, tr("Mode compact"), tr("Barre d'outils et onglets plus bas : plus de place pour la page"), &mut st.compact);
                 changed_more |= rows.switch(ui, tr("Onglets en arbre"), tr("Onglets verticaux : un onglet ouvert depuis une page se range dessous"), &mut st.tree_tabs);
+                rows.row(ui, tr("Bouton de fermeture des onglets"), "", false, |ui| {
+                    if let Some(v) = segmented(ui, th, &[tr("À gauche"), tr("À droite")], if st.close_right { 1 } else { 0 }) {
+                        st.close_right = v == 1;
+                        changed_more = true;
+                    }
+                });
                 changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));

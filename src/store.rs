@@ -135,6 +135,9 @@ pub struct Settings {
     pub tab_switcher: bool,
     /// Language pages are translated into ("" = the interface's).
     pub translate_to: String,
+    /// Where a tab's close button is: false on the left (macOS), true on the
+    /// right (Chrome, Windows).
+    pub close_right: bool,
 }
 
 /// A container: tabs that keep their own cookies and logins, separate from
@@ -230,6 +233,7 @@ impl Default for Settings {
             drm_auto: false,
             tab_switcher: true,
             translate_to: String::new(),
+            close_right: false,
         }
     }
 }
@@ -445,6 +449,7 @@ impl Store {
                         "drm_auto" => st.drm_auto = v == "1",
                         "tab_switcher" => st.tab_switcher = v == "1",
                         "translate_to" => st.translate_to = v.to_string(),
+                        "close_right" => st.close_right = v == "1",
                         "toolbar" => {
                             st.toolbar = v.to_string();
                             // buttons added since: shown unless switched off ("-key")
@@ -506,8 +511,8 @@ impl Store {
             clean(&st.home), st.engine.key(), b(st.images), b(st.dark), st.zoom, b(st.restore_tabs), b(st.show_bookmarks_bar), if st.webkit { "webkit" } else { "lite" }, st.reader_size, st.reader_theme, b(st.itp), b(st.ntp_reading), b(st.ntp_frequent), b(st.ntp_reports), clean(&st.fill_name), clean(&st.fill_email), clean(&st.fill_phone), clean(&st.fill_address), b(st.passwords), clean(&st.sync_dir), st.memory_saver, clean(&st.language), clean(&st.toolbar), st.accent, st.theme, st.tabs_pos, st.bar_pos, clean(&st.ai), clean(&st.ai_model), b(st.notif_prompts), clean(&st.translate_with)
         );
         let more = format!(
-            "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\ntranslate_to={}\n",
-            st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to)
+            "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\ntranslate_to={}\nclose_right={}\n",
+            st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right)
         );
         let _ = write_atomic(&dir.join("settings.txt"), t + &more);
     }
