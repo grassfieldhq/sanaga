@@ -208,6 +208,20 @@ pub fn link_may_open_elsewhere(link: &str, page: &str) -> bool {
     }
 }
 
+/// Identity providers whose sign-in frames ("Sign in with Google"…) may use
+/// their cookies inside the page they are on without asking (Storage
+/// Access, after a click in the frame), so signing in through them works.
+/// Social networks (Facebook, X, LinkedIn…) are not on the list: their
+/// frames are everywhere and follow people from site to site, so the person
+/// is asked, as in Safari. Each profile, container and private session keeps
+/// its own cookies: a grant never crosses them.
+const SIGN_IN_PROVIDERS: [&str; 7] = ["google.com", "apple.com", "microsoftonline.com", "live.com", "microsoft.com", "auth0.com", "okta.com"];
+
+pub fn sign_in_provider(domain: &str) -> bool {
+    let d = domain.trim_start_matches('.').to_ascii_lowercase();
+    SIGN_IN_PROVIDERS.iter().any(|p| d == *p || d.ends_with(&format!(".{p}")))
+}
+
 // ---------------------------------------------------------------- .desktop entries
 
 /// One argument of a .desktop file's Exec key, as the Desktop Entry
@@ -602,6 +616,18 @@ mod tests {
         assert!(link_may_open_elsewhere("file:///home/me/b.html", "file:///home/me/a.html"));
         assert!(!link_may_open_elsewhere("data:text/html,x", "https://b.example/"));
         assert!(!link_may_open_elsewhere("", "https://b.example/"));
+    }
+
+    #[test]
+    fn only_sign_in_services_get_their_cookies_without_asking() {
+        assert!(sign_in_provider("google.com"));
+        assert!(sign_in_provider("accounts.google.com"));
+        assert!(sign_in_provider("login.microsoftonline.com"));
+        assert!(!sign_in_provider("facebook.com"));
+        assert!(!sign_in_provider("x.com"));
+        assert!(!sign_in_provider("linkedin.com"));
+        assert!(!sign_in_provider("evilgoogle.com"));
+        assert!(!sign_in_provider("google.com.evil.example"));
     }
 
     #[test]

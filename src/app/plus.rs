@@ -36,28 +36,7 @@ pub(super) fn kind_label(kind: &str) -> &'static str {
     }
 }
 
-/// Sign-in services that sites embed ("Sign in with Google" button…): they
-/// may use their cookies inside the page they are on without asking (as in
-/// Firefox), so signing in through them works.
-const SIGN_IN_PROVIDERS: [&str; 12] = [
-    "google.com",
-    "apple.com",
-    "microsoftonline.com",
-    "live.com",
-    "microsoft.com",
-    "facebook.com",
-    "github.com",
-    "linkedin.com",
-    "x.com",
-    "twitter.com",
-    "auth0.com",
-    "okta.com",
-];
-
-fn sign_in_provider(domain: &str) -> bool {
-    let d = domain.trim_start_matches('.');
-    SIGN_IN_PROVIDERS.iter().any(|p| d == *p || d.ends_with(&format!(".{p}")))
-}
+use crate::guard::sign_in_provider;
 
 /// Listen to WebKit's permission requests for one tab.
 pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: PermQueue, ctx: egui::Context) {

@@ -284,7 +284,10 @@ impl Sanaga {
         };
         if let Some(u) = send_to {
             self.share_open = false;
-            self.open_tab(&u, self.tabs[self.active].private);
+            // (in a tab of the same kind: private, or the same container)
+            let (private, container) = (self.tabs[self.active].private, self.tabs[self.active].container.clone());
+            let i = self.open_tab(&u, private);
+            self.tabs[i].container = container;
             return;
         }
         match id {
