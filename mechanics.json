@@ -179,6 +179,13 @@
       "group": "protected sites",
       "value": true,
       "source": "src/app/mod.rs drm_always_pick"
+    },
+    {
+      "name": "energy saver 'low battery' choice: battery level at or below",
+      "group": "energy",
+      "value": 20,
+      "unit": "%",
+      "source": "Chrome 0xbfb613a (NumberToString16(0x14) for message 0x19a1, MECHANICS.md); Sanaga src/app/tools.rs LOW_BATTERY_PERCENT"
     }
   ]
 }

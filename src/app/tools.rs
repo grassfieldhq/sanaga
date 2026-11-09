@@ -149,6 +149,8 @@ impl Sanaga {
         match self.store.settings.low_power {
             2 => true,
             1 => self.on_battery.1,
+            // Chrome's "only when the battery is at or below 20 %" (MECHANICS.md)
+            3 => self.on_battery.1 && self.battery_low,
             _ => false,
         }
     }
@@ -158,10 +160,11 @@ impl Sanaga {
         if now - self.on_battery.0 < 30.0 {
             return;
         }
-        let was = self.on_battery.1;
-        let on = on_battery();
+        let was = self.low_power_active();
+        let (on, level) = on_battery();
         self.on_battery = (now, on);
-        if on && !was && self.store.settings.low_power == 1 && now > 5.0 {
+        self.battery_low = level.is_some_and(|l| l <= LOW_BATTERY_PERCENT);
+        if self.low_power_active() && !was && matches!(self.store.settings.low_power, 1 | 3) && now > 5.0 {
             self.notice = Some((tr("Sur batterie : mode économie d'énergie (onglets inactifs mis en veille plus tôt).").into(), now));
         }
     }
@@ -452,20 +455,32 @@ impl Sanaga {
 }
 
 /// Does the computer run on its battery now?
-fn on_battery() -> bool {
-    let Ok(rd) = std::fs::read_dir("/sys/class/power_supply") else { return false };
+/// Chrome's energy saver threshold: "only when the battery is at or below
+/// 20 %" (Chrome 0xbfb613a, see MECHANICS.md).
+pub(super) const LOW_BATTERY_PERCENT: u8 = 20;
+
+/// Whether the computer runs on its battery, and the battery's level (%).
+fn on_battery() -> (bool, Option<u8>) {
+    let Ok(rd) = std::fs::read_dir("/sys/class/power_supply") else { return (false, None) };
     let mut battery_discharging = false;
+    let mut level: Option<u8> = None;
     for e in rd.flatten() {
         let p = e.path();
         let kind = std::fs::read_to_string(p.join("type")).unwrap_or_default();
         if kind.trim() == "Mains" && std::fs::read_to_string(p.join("online")).is_ok_and(|v| v.trim() == "1") {
-            return false;
+            return (false, None);
         }
-        if kind.trim() == "Battery" && std::fs::read_to_string(p.join("status")).is_ok_and(|v| v.trim() == "Discharging") {
-            battery_discharging = true;
+        if kind.trim() == "Battery" {
+            if std::fs::read_to_string(p.join("status")).is_ok_and(|v| v.trim() == "Discharging") {
+                battery_discharging = true;
+            }
+            // (several batteries: the lowest)
+            if let Some(c) = std::fs::read_to_string(p.join("capacity")).ok().and_then(|v| v.trim().parse::<u8>().ok()) {
+                level = Some(level.map_or(c, |l| l.min(c)));
+            }
         }
     }
-    battery_discharging
+    (battery_discharging, level)
 }
 
 #[cfg(test)]

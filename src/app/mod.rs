@@ -526,6 +526,8 @@ pub struct Sanaga {
     focus_mode: bool,
     /// Battery: when last checked, and whether the computer runs on it.
     on_battery: (f64, bool),
+    /// The battery is at or below Chrome's threshold (20 %).
+    battery_low: bool,
     /// The website settings panel of the page shown.
     site_panel: bool,
     /// Open this address (or a new tab: "") in a container: the chooser.
@@ -820,6 +822,7 @@ impl Sanaga {
             web_dir: web_dir_kept,
             focus_mode: false,
             on_battery: (-100.0, false),
+            battery_low: false,
             site_panel: false,
             container_ask: None,
             new_container_name: String::new(),

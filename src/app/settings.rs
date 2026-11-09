@@ -1013,7 +1013,7 @@ impl Sanaga {
                     }
                 });
                 rows.row(ui, tr("Mode économie d'énergie"), tr("Onglets inactifs mis en veille plus tôt, moins de réveils"), false, |ui| {
-                    if let Some(v) = popup(ui, "low-power", st.low_power, &[(0u8, tr("Désactivé")), (1, tr("Sur batterie")), (2, tr("Toujours"))]) {
+                    if let Some(v) = popup(ui, "low-power", st.low_power, &[(0u8, tr("Désactivé")), (3, tr("Batterie à 20 % ou moins")), (1, tr("Sur batterie")), (2, tr("Toujours"))]) {
                         st.low_power = v;
                         changed = true;
                     }

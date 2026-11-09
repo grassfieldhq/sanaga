@@ -79,10 +79,38 @@ doesn't put to sleep a tab revisited more than 5 / 15 / 15 times.
 - Never asleep: the tab shown, a page playing sound, a call, a pinned tab, a
   form being filled in.
 
+## Energy saver — observed
+
+Chrome's energy saver (`battery_saver_mode`, managed in
+`chrome/browser/performance_manager/user_tuning/battery_saver_mode_manager.cc`)
+has four states in its Settings page (resource 22297 of `resources.pak`):
+`DISABLED`, `ENABLED_BELOW_THRESHOLD`, `ENABLED_ON_BATTERY = 2`,
+`ENABLED = 3`.
+
+The threshold is written into the label "Activer uniquement lorsque le
+niveau de la batterie est inférieur ou égal à $1 %" (`fr.pak` 6561, message
+`0x19a1`, name `batterySaverModeEnabledBelowThresholdLabel` at `0x1ce5170`).
+The code that builds it, at `0xbfb613a`–`0xbfb6188`:
+
+```
+s = NumberToString16(0x14)            // 0xbfb613a: mov esi, 0x14 → 20
+label = GetStringFUTF16(0x19a1, s)    // 0xbfb6151
+add("batterySaverModeEnabledBelowThresholdLabel", label)   // 0xbfb6176
+```
+
+So the threshold is **20 %**, inclusive ("inférieur ou égal").
+
+Sanaga: Settings › Performance › Mode économie d'énergie gains "Batterie à
+20 % ou moins" (`low_power = 3`): active when the computer runs on its
+battery and the battery's level (`/sys/class/power_supply/*/capacity`, the
+lowest one) is ≤ 20 (`src/app/tools.rs` `LOW_BATTERY_PERCENT`,
+`low_power_active`). The other choices stay: off, on battery (default),
+always. What the energy saver does in Sanaga (inactive tabs asleep after 5
+minutes, slower interface refresh) is Sanaga's own: Chrome's lowers frame
+rates and background work instead (not read here).
+
 ## Also observed, not used yet
 - Chrome keeps a list "Toujours laisser ces sites actifs" (sites never put to
   sleep), `fr.pak` 6548–6557.
-- Chrome's energy saver: on when unplugged, or only at or below a battery
-  level (`fr.pak` 6560–6561, the level itself was not read).
 - Inactive tabs show a dotted circle around their site icon (`fr.pak`
   6564–6565).

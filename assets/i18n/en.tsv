@@ -1045,3 +1045,4 @@ Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (
 {} a besoin des appels vidéo (WebRTC), que le moteur web installé sur ce système ne fournit pas. Sanaga ouvre donc la réunion dans un navigateur qui les gère, avec vos comptes habituels.	{} needs video calls (WebRTC), which the web engine installed on this system doesn't provide. So Sanaga opens the meeting in a browser that has them, with your usual accounts.
 Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Always open video calls and protected sites this way, without this page
 Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Open in Sanaga anyway (the call won't be able to connect)
+Batterie à 20 % ou moins	Battery at 20 % or less
