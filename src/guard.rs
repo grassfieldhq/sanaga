@@ -196,6 +196,18 @@ pub fn plausible_selector(s: &str) -> bool {
     !s.is_empty() && s.len() <= 512 && !s.chars().any(|c| c.is_control() || matches!(c, '{' | '}' | '<' | '@' | ';' | '\\'))
 }
 
+/// May a link of a page be opened elsewhere by Sanaga (Ctrl+click, middle
+/// click, "open in a private tab")? Web addresses only, or a local file from
+/// a local page: never Sanaga's own pages, scripts or other schemes.
+pub fn link_may_open_elsewhere(link: &str, page: &str) -> bool {
+    let scheme = |u: &str| url::Url::parse(u).ok().map(|x| x.scheme().to_string()).unwrap_or_default();
+    match scheme(link).as_str() {
+        "http" | "https" => true,
+        "file" => scheme(page) == "file",
+        _ => false,
+    }
+}
+
 // ---------------------------------------------------------------- .desktop entries
 
 /// One argument of a .desktop file's Exec key, as the Desktop Entry
@@ -578,6 +590,18 @@ mod tests {
         a.write_all(&[b'x'; 2048]).unwrap();
         a.shutdown(std::net::Shutdown::Write).unwrap();
         assert_eq!(read_bounded(&b, 1024, Duration::from_millis(500)), None);
+    }
+
+    #[test]
+    fn links_opened_elsewhere_are_web_addresses() {
+        assert!(link_may_open_elsewhere("https://a.example/x", "https://b.example/"));
+        assert!(link_may_open_elsewhere("http://a.example/", "https://b.example/"));
+        assert!(!link_may_open_elsewhere("javascript:alert(1)", "https://b.example/"));
+        assert!(!link_may_open_elsewhere("sanaga://settings", "https://b.example/"));
+        assert!(!link_may_open_elsewhere("file:///etc/passwd", "https://b.example/"));
+        assert!(link_may_open_elsewhere("file:///home/me/b.html", "file:///home/me/a.html"));
+        assert!(!link_may_open_elsewhere("data:text/html,x", "https://b.example/"));
+        assert!(!link_may_open_elsewhere("", "https://b.example/"));
     }
 
     #[test]

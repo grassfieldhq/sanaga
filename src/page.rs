@@ -827,8 +827,12 @@ impl PageView {
                     if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                         eprintln!("navigation {:?} kind={kind:?} modifiers={m:#x} button={} gesture={}", a.navigation_type(), a.mouse_button(), a.is_user_gesture());
                     }
-                    if a.navigation_type() == webkit6::NavigationType::LinkClicked && (ctrl || middle || shift) {
-                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| !u.starts_with("javascript:")) {
+                    // (a real click only, never a script's; a web address,
+                    // or a local file from a local page: never Sanaga's own
+                    // pages or other schemes)
+                    let page = v.uri().map(|u| u.to_string()).unwrap_or_default();
+                    if a.navigation_type() == webkit6::NavigationType::LinkClicked && (ctrl || middle || shift) && a.is_user_gesture() {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::guard::link_may_open_elsewhere(u, &page)) {
                             let how = if (ctrl || middle) && shift { 1 } else if ctrl || middle { 0 } else { 2 };
                             decision.ignore();
                             o(PageSignal::OpenLink(u, how));
@@ -918,17 +922,17 @@ impl PageView {
         });
         // the page did not load: Sanaga's own error page (not WebKit's)
         let o = on.clone();
-        view.connect_load_failed(move |_, _, uri, e| match {
+        view.connect_load_failed(move |_, _, uri, e| {
             if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                 eprintln!("load failed {uri}: domain={} message={:?}", e.domain().as_str(), e.message());
             }
-            classify(e)
-        } {
-            Some(kind) => {
-                o(PageSignal::LoadFailed(uri.to_string(), kind, e.message().to_string()));
-                true
+            match classify(e) {
+                Some(kind) => {
+                    o(PageSignal::LoadFailed(uri.to_string(), kind, e.message().to_string()));
+                    true
+                }
+                None => false,
             }
-            None => false,
         });
         let o = on.clone();
         view.connect_load_failed_with_tls_errors(move |_, uri, cert, flags| {
