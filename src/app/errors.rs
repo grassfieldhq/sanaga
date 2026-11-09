@@ -34,6 +34,9 @@ impl Sanaga {
         let Some(i) = self.tabs.iter().position(|t| t.id == tab) else { return };
         self.tabs[i].loading = false;
         self.error_tabs.insert(tab);
+        // what this tab's error page may ask of Sanaga (its buttons): only
+        // for this failure, while it is shown
+        self.error_pages.insert(tab, (kind, host_of(url)));
         let html = self.error_html(url, kind, detail);
         if let Some(w) = &self.tabs[i].web {
             w.webview().load_alternate_html(&html, url, None);
@@ -86,7 +89,8 @@ impl Sanaga {
         let web = url.starts_with("http://") || url.starts_with("https://");
         let mut buttons = String::new();
         if kind == LoadError::Certificate {
-            buttons.push_str(&format!("<button class=\"primary\" onclick=\"if(history.length>1)history.back();else if(window.ipc)window.ipc.postMessage('tool:safe:')\">{}</button>", tr("Revenir en lieu sûr")));
+            // (Sanaga's own buttons: handled by its isolated script, checked in Rust)
+            buttons.push_str(&format!("<button class=\"primary\" data-sanaga-action=\"safe\">{}</button>", tr("Revenir en lieu sûr")));
         } else {
             buttons.push_str(&format!("<button class=\"primary\" onclick=\"location.reload()\">{}</button>", tr("Réessayer")));
             if web && kind != LoadError::Offline {
@@ -97,7 +101,7 @@ impl Sanaga {
         let tips_html: String = tips.iter().map(|t| format!("<li>{t}</li>")).collect();
         let advanced = if kind == LoadError::Certificate {
             format!(
-                "<details><summary>{}</summary><p>{}</p><button class=\"danger\" onclick=\"window.ipc&&window.ipc.postMessage('tool:tls-allow:{}')\">{}</button><p class=\"code\">{}</p></details>",
+                "<details><summary>{}</summary><p>{}</p><button class=\"danger\" data-sanaga-action=\"tls-allow\" data-sanaga-arg=\"{}\">{}</button><p class=\"code\">{}</p></details>",
                 tr("Avancé"),
                 tr("Continuer expose ce que vous envoyez à ce site. Sanaga ne s'en souviendra que jusqu'à sa fermeture."),
                 esc(&host),
@@ -112,7 +116,7 @@ impl Sanaga {
         let danger = if dark { "#ff6b6b" } else { "#c0302a" };
         let auto_retry = if kind == LoadError::Offline { "window.addEventListener('online',function(){location.reload()});setInterval(function(){if(navigator.onLine)location.reload()},5000);" } else { "" };
         format!(
-            r#"<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{title_e}</title><meta name="color-scheme" content="{scheme}"><style>
+            r#"<!doctype html><html lang="{lang}" data-sanaga-error><head><meta charset="utf-8"><title>{title_e}</title><meta name="color-scheme" content="{scheme}"><style>
 *{{box-sizing:border-box}}html,body{{margin:0;height:100%}}
 body{{background:{bg};color:{fg};font:15px/1.55 Inter,"Noto Sans",system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:32px}}
 main{{max-width:560px;width:100%;animation:in .35s ease-out}}@keyframes in{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:none}}}}

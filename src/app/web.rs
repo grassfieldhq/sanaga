@@ -84,11 +84,24 @@ document.addEventListener('click', function (e) {
 }, true);
 "#;
 
+/// The buttons of Sanaga's own error page (back to safety, go on despite the
+/// certificate): a real click sends the action; Sanaga checks on its side
+/// that the tab shows that error page (see `page_tool`).
+const ERROR_ACTIONS_JS: &str = r#"
+document.addEventListener('click', function (e) {
+  if (!e.isTrusted || !window.ipc || !document.documentElement.hasAttribute('data-sanaga-error')) return;
+  var b = e.target && e.target.closest && e.target.closest('[data-sanaga-action]');
+  if (!b) return;
+  e.preventDefault();
+  window.ipc.postMessage('tool:' + b.getAttribute('data-sanaga-action') + ':' + (b.getAttribute('data-sanaga-arg') || ''));
+}, true);
+"#;
+
 /// The page tools whose answer may come from Sanaga's page scripts (the
 /// others are only asked from Sanaga's menus). Each one is still checked
 /// against what the person started (see `page_tool`).
 fn page_may_answer(what: &str) -> bool {
-    matches!(what, "pip-info" | "zap-done" | "media-unsupported") || (cfg!(debug_assertions) && what == "probe")
+    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow") || (cfg!(debug_assertions) && what == "probe")
 }
 
 fn shortcut_name(msg: &str) -> Option<&'static str> {
@@ -326,6 +339,10 @@ impl Sanaga {
                         self.translate_batches = 0;
                         self.translate_gen += 1;
                     }
+                    // an error page's buttons belong to that page only
+                    if self.error_pages.get(&tab).is_some_and(|(_, h)| *h != host_of(&url)) {
+                        self.error_pages.remove(&tab);
+                    }
                 }
                 if t.entries[t.idx].url.starts_with("view-source:") && url == "about:blank" {
                     return; // Sanaga's own source page: the address stays
@@ -346,6 +363,10 @@ impl Sanaga {
                     let private = t.private;
                     let title = t.entries[t.idx].title.clone();
                     let error_page = self.error_tabs.remove(&tab);
+                    if !error_page {
+                        // a real page now: no error page's button counts any more
+                        self.error_pages.remove(&tab);
+                    }
                     if !private && !url.starts_with("about:") && !error_page {
                         self.store.add_visit(&url, &title);
                         self.visited.insert(url);
@@ -678,7 +699,7 @@ impl Sanaga {
         PageMaker {
             ctx: self.web_context.clone(),
             base: self.web_dir.clone(),
-            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), SOURCE_LINKS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
+            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), SOURCE_LINKS_JS.to_string(), ERROR_ACTIONS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
             popups: self.popups.clone(),

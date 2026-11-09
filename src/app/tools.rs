@@ -189,22 +189,41 @@ impl Sanaga {
         }
         // a tool asked from a menu shows its tab; a page's answer never does
         if let Some(i) = self.tab_index(tab) {
-            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe") {
+            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe" | "safe" | "tls-allow") {
                 self.active = i;
             }
         }
         match what {
             "preview" => self.preview_link(arg),
             "container-link" => self.container_ask = Some(arg.to_string()),
-            "tls-allow" => self.accept_certificate(tab, arg),
-            "safe" => {
-                if let Some(i) = self.tab_index(tab) {
-                    self.go_home(i);
+            // the error page's buttons: only while that tab shows Sanaga's
+            // error page for this very failure (a certificate one, for this
+            // host, to go on despite it)
+            "tls-allow" => {
+                if self.error_pages.get(&tab).is_some_and(|(k, h)| *k == crate::page::LoadError::Certificate && h == arg) {
+                    self.error_pages.remove(&tab);
+                    self.accept_certificate(tab, arg);
                 }
             }
+            "safe" => {
+                if self.error_pages.remove(&tab).is_some() {
+                    if let Some(i) = self.tab_index(tab) {
+                        let back = self.tabs[i].web.as_ref().is_some_and(|w| w.can_go_back().unwrap_or(false));
+                        if back {
+                            self.go_history(i, -1);
+                        } else {
+                            self.go_home(i);
+                        }
+                    }
+                }
+            }
+            // (from the page's right-click menu: web addresses only)
             "private-link" => {
-                self.open_tab(arg, true);
-                self.focus_address = false;
+                let page = self.tabs.iter().find(|t| t.id == tab).map(|t| t.url().to_string()).unwrap_or_default();
+                if crate::guard::link_may_open_elsewhere(arg, &page) {
+                    self.open_tab(arg, true);
+                    self.focus_address = false;
+                }
             }
             "pip" => self.start_pip(),
             "pip-info" => self.pip_info(tab, arg),
@@ -225,7 +244,10 @@ impl Sanaga {
     pub(super) fn open_link_from(&mut self, tab: u64, url: &str, how: u8) {
         let Some(from) = self.tabs.iter().position(|t| t.id == tab) else { return };
         let (private, container, group) = (self.tabs[from].private, self.tabs[from].container.clone(), self.tabs[from].group);
-        if how == 2 && !private {
+        // a new window has the profile's data: from a private tab or a
+        // container, the link opens in a tab of the same kind instead
+        let how = if how == 2 && (private || !container.is_empty()) { 1 } else { how };
+        if how == 2 {
             self.new_window(vec![url.to_string()]);
             return;
         }

@@ -557,6 +557,9 @@ pub struct Sanaga {
     last_dialog_host: String,
     silenced_sites: HashSet<String>,
     error_tabs: HashSet<u64>,
+    /// Tabs showing Sanaga's error page: for what failure, on which host
+    /// (its buttons are accepted from there only).
+    error_pages: HashMap<u64, (crate::page::LoadError, String)>,
     /// The group whose editor is open (name, colour…), and where the group
     /// labels are in the tab bar.
     group_editor: Option<usize>,
@@ -841,6 +844,7 @@ impl Sanaga {
             last_dialog_host: String::new(),
             silenced_sites: HashSet::new(),
             error_tabs: HashSet::new(),
+            error_pages: HashMap::new(),
             group_editor: None,
             group_label_rects: Vec::new(),
         };
