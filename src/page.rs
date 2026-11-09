@@ -66,7 +66,9 @@ thread_local! {
     /// Downloads waiting for the person's answer, sites allowed to download
     /// (until Sanaga quits), and the windows that ask.
     static PENDING_DOWNLOADS: RefCell<Vec<PendingDownload>> = const { RefCell::new(Vec::new()) };
-    static DOWNLOAD_SITES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    /// (kept per network session: a profile, a container, the private
+    /// tabs; in memory only)
+    static DOWNLOAD_SITES: RefCell<Vec<(Option<NetworkSession>, String)>> = const { RefCell::new(Vec::new()) };
     static DOWNLOAD_ASK_SINKS: RefCell<Vec<(usize, AskSink)>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -106,6 +108,8 @@ pub use crate::guard::{download_needs_ask, download_site, is_shortcut_message, m
 /// A download waiting for the person's answer.
 struct PendingDownload {
     download: webkit6::Download,
+    /// The network session it belongs to (its allowance is kept there).
+    session: Option<NetworkSession>,
     suggested: String,
     uri: String,
     site: String,
@@ -134,17 +138,9 @@ fn ask_downloads(site: String) {
 }
 
 /// The person's answer for a site's waiting downloads: they go to the
-/// Downloads folder (and the site may download until Sanaga quits), or
-/// they are cancelled.
+/// Downloads folder (and the site may download until Sanaga quits, in that
+/// profile, container or private session only), or they are cancelled.
 pub fn answer_downloads(site: &str, allow: bool) {
-    if allow {
-        DOWNLOAD_SITES.with(|d| {
-            let mut d = d.borrow_mut();
-            if !d.iter().any(|s| s == site) {
-                d.push(site.to_string());
-            }
-        });
-    }
     let mine: Vec<PendingDownload> = PENDING_DOWNLOADS.with(|q| {
         let mut q = q.borrow_mut();
         let (mine, rest): (Vec<PendingDownload>, Vec<PendingDownload>) = q.drain(..).partition(|p| p.site == site);
@@ -153,6 +149,12 @@ pub fn answer_downloads(site: &str, allow: bool) {
     });
     for p in mine {
         if allow {
+            DOWNLOAD_SITES.with(|d| {
+                let mut d = d.borrow_mut();
+                if !d.iter().any(|(s, x)| *s == p.session && *x == p.site) {
+                    d.push((p.session.clone(), p.site.clone()));
+                }
+            });
             let path = choose_destination(&p.download, &p.suggested, &p.uri);
             *p.dest.borrow_mut() = Some(path);
         } else {
@@ -429,10 +431,11 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
             // (a download Sanaga started itself has no page: never asked; a
             // page Sanaga doesn't follow is always asked)
             let view = download.web_view();
+            let session = view.as_ref().and_then(|v| v.network_session());
             if view.is_some() && view.as_ref().and_then(view_state).is_none() {
                 let site = download_site(&site_ref, &uri);
                 PENDING_DOWNLOADS.with(|q| {
-                    q.borrow_mut().push(PendingDownload { download: download.clone(), suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                    q.borrow_mut().push(PendingDownload { download: download.clone(), session, suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
                 });
                 ask_downloads(site);
                 return true;
@@ -444,11 +447,11 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                 let recent = |t: Option<Instant>| t.is_some_and(|t| t.elapsed() <= GESTURE_WINDOW);
                 let in_page = recent(state.gesture.get()) && !state.gesture_used.get();
                 let fresh = in_page || recent(state.typed.get());
-                let allowed = DOWNLOAD_SITES.with(|d| d.borrow().contains(&site));
+                let allowed = DOWNLOAD_SITES.with(|d| d.borrow().iter().any(|(s, x)| *s == session && *x == site));
                 if download_needs_ask(fresh, false, allowed) {
                     // the download waits (WebKit 2.40+) until the person answers
                     PENDING_DOWNLOADS.with(|q| {
-                        q.borrow_mut().push(PendingDownload { download: download.clone(), suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                        q.borrow_mut().push(PendingDownload { download: download.clone(), session, suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
                     });
                     ask_downloads(site);
                     return true;
