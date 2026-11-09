@@ -573,7 +573,7 @@ pub struct Sanaga {
     error_tabs: HashSet<u64>,
     /// Tabs showing Sanaga's error page: for what failure, on which host
     /// (its buttons are accepted from there only).
-    error_pages: HashMap<u64, (crate::page::LoadError, String)>,
+    error_pages: HashMap<u64, errors::ErrorPage>,
     /// The group whose editor is open (name, colour…), and where the group
     /// labels are in the tab bar.
     group_editor: Option<usize>,

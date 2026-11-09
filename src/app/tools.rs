@@ -174,6 +174,11 @@ impl Sanaga {
         self.tabs.iter().position(|t| t.id == id)
     }
 
+    /// The address the page of tab `id` really shows now (WebKit's).
+    fn tab_shows(&self, id: u64) -> Option<String> {
+        self.page_of(id).and_then(|w| w.uri())
+    }
+
     fn page_of(&self, id: u64) -> Option<&crate::page::PageView> {
         self.tabs.iter().find(|t| t.id == id).and_then(|t| t.web.as_ref())
     }
@@ -201,14 +206,22 @@ impl Sanaga {
             // the error page's buttons: only while that tab shows Sanaga's
             // error page for this very failure (a certificate one, for this
             // host, to go on despite it)
+            // (the button sends the error page's secret; the tab must still
+            // show that error page: the failed address, committed, armed)
             "tls-allow" => {
-                if self.error_pages.get(&tab).is_some_and(|(k, h)| *k == crate::page::LoadError::Certificate && h == arg) {
-                    self.error_pages.remove(&tab);
-                    self.accept_certificate(tab, arg);
+                let showing = self.tab_shows(tab);
+                let ok = self.error_pages.get(&tab).is_some_and(|e| {
+                    e.shown && e.kind == crate::page::LoadError::Certificate && showing.as_deref() == Some(e.url.as_str()) && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
+                });
+                if ok {
+                    let host = self.error_pages.remove(&tab).map(|e| host_of(&e.url)).unwrap_or_default();
+                    self.accept_certificate(tab, &host);
                 }
             }
             "safe" => {
-                if self.error_pages.remove(&tab).is_some() {
+                let showing = self.tab_shows(tab);
+                let ok = self.error_pages.get(&tab).is_some_and(|e| e.shown && showing.as_deref() == Some(e.url.as_str()) && super::errors::error_action_arg(arg, e.token).is_some());
+                if ok && self.error_pages.remove(&tab).is_some() {
                     if let Some(i) = self.tab_index(tab) {
                         let back = self.tabs[i].web.as_ref().is_some_and(|w| w.can_go_back().unwrap_or(false));
                         if back {

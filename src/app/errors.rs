@@ -28,6 +28,31 @@ fn icon(kind: LoadError) -> &'static str {
     }
 }
 
+/// Sanaga's error page shown in a tab: the failure, the address that failed,
+/// and the secret its buttons must send back (given to Sanaga's isolated
+/// world once the error page is committed; a new page has none).
+pub(super) struct ErrorPage {
+    pub kind: LoadError,
+    pub url: String,
+    pub token: u64,
+    pub shown: bool,
+}
+
+/// A fresh secret for one error page.
+pub(super) fn new_token() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+    h.finish().max(1)
+}
+
+/// The action an error-page button sent ("token|argument"), if its secret
+/// is this page's.
+pub(super) fn error_action_arg(arg: &str, token: u64) -> Option<&str> {
+    let (t, rest) = arg.split_once('|')?;
+    (token != 0 && t.parse::<u64>().ok() == Some(token)).then_some(rest)
+}
+
 impl Sanaga {
     /// A page did not load: Sanaga's page in its place.
     pub(super) fn show_load_error(&mut self, tab: u64, url: &str, kind: LoadError, detail: &str) {
@@ -35,8 +60,8 @@ impl Sanaga {
         self.tabs[i].loading = false;
         self.error_tabs.insert(tab);
         // what this tab's error page may ask of Sanaga (its buttons): only
-        // for this failure, while it is shown
-        self.error_pages.insert(tab, (kind, host_of(url)));
+        // for this failure, while it is shown (armed once it is committed)
+        self.error_pages.insert(tab, ErrorPage { kind, url: url.to_string(), token: 0, shown: false });
         let html = self.error_html(url, kind, detail);
         if let Some(w) = &self.tabs[i].web {
             w.webview().load_alternate_html(&html, url, None);
@@ -116,7 +141,7 @@ impl Sanaga {
         let danger = if dark { "#ff6b6b" } else { "#c0302a" };
         let auto_retry = if kind == LoadError::Offline { "window.addEventListener('online',function(){location.reload()});setInterval(function(){if(navigator.onLine)location.reload()},5000);" } else { "" };
         format!(
-            r#"<!doctype html><html lang="{lang}" data-sanaga-error><head><meta charset="utf-8"><title>{title_e}</title><meta name="color-scheme" content="{scheme}"><style>
+            r#"<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{title_e}</title><meta name="color-scheme" content="{scheme}"><style>
 *{{box-sizing:border-box}}html,body{{margin:0;height:100%}}
 body{{background:{bg};color:{fg};font:15px/1.55 Inter,"Noto Sans",system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:32px}}
 main{{max-width:560px;width:100%;animation:in .35s ease-out}}@keyframes in{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:none}}}}
@@ -152,5 +177,17 @@ details{{color:{sub};font-size:13px}}summary{{cursor:pointer;user-select:none}}p
         if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
             crate::page::accept_certificate(&w.webview(), host);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn error_buttons_need_this_pages_secret() {
+        assert_eq!(super::error_action_arg("42|bank.example", 42), Some("bank.example"));
+        assert_eq!(super::error_action_arg("41|bank.example", 42), None);
+        assert_eq!(super::error_action_arg("bank.example", 42), None);
+        assert_eq!(super::error_action_arg("0|x", 0), None);
+        assert_ne!(super::new_token(), 0);
     }
 }

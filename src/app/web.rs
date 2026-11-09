@@ -87,13 +87,16 @@ document.addEventListener('click', function (e) {
 /// The buttons of Sanaga's own error page (back to safety, go on despite the
 /// certificate): a real click sends the action; Sanaga checks on its side
 /// that the tab shows that error page (see `page_tool`).
+/// (Nothing a page can set counts: the secret is given by Sanaga to its own
+/// world in that error page only, and checked in Rust with the failed
+/// address.)
 const ERROR_ACTIONS_JS: &str = r#"
 document.addEventListener('click', function (e) {
-  if (!e.isTrusted || !window.ipc || !document.documentElement.hasAttribute('data-sanaga-error')) return;
+  if (!e.isTrusted || !window.ipc || !window.__sanagaErrorToken) return;
   var b = e.target && e.target.closest && e.target.closest('[data-sanaga-action]');
   if (!b) return;
   e.preventDefault();
-  window.ipc.postMessage('tool:' + b.getAttribute('data-sanaga-action') + ':' + (b.getAttribute('data-sanaga-arg') || ''));
+  window.ipc.postMessage('tool:' + b.getAttribute('data-sanaga-action') + ':' + window.__sanagaErrorToken + '|' + (b.getAttribute('data-sanaga-arg') || ''));
 }, true);
 "#;
 
@@ -341,9 +344,21 @@ impl Sanaga {
                         self.translate_batches = 0;
                         self.translate_gen += 1;
                     }
-                    // an error page's buttons belong to that page only
-                    if self.error_pages.get(&tab).is_some_and(|(_, h)| *h != host_of(&url)) {
-                        self.error_pages.remove(&tab);
+                    // an error page's buttons belong to that page only: it is
+                    // armed when it is committed itself (its secret goes to
+                    // Sanaga's world there), and forgotten at the next commit
+                    match self.error_pages.get_mut(&tab) {
+                        Some(e) if !e.shown && e.url == url => {
+                            e.shown = true;
+                            e.token = super::errors::new_token();
+                            if let Some(w) = &t.web {
+                                let _ = w.evaluate_own(&format!("window.__sanagaErrorToken = '{}';", e.token));
+                            }
+                        }
+                        Some(_) => {
+                            self.error_pages.remove(&tab);
+                        }
+                        None => {}
                     }
                 }
                 if t.entries[t.idx].url.starts_with("view-source:") && url == "about:blank" {
@@ -365,10 +380,6 @@ impl Sanaga {
                     let private = t.private;
                     let title = t.entries[t.idx].title.clone();
                     let error_page = self.error_tabs.remove(&tab);
-                    if !error_page {
-                        // a real page now: no error page's button counts any more
-                        self.error_pages.remove(&tab);
-                    }
                     if !private && !url.starts_with("about:") && !error_page {
                         self.store.add_visit(&url, &title);
                         self.visited.insert(url);
