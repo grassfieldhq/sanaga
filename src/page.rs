@@ -387,6 +387,11 @@ fn apply_site(v: &WebView, host: &str) {
         if st.enables_javascript_markup() != prefs.js {
             st.set_enable_javascript_markup(prefs.js);
         }
+        // video formats the processor would decode at a high cost (see codecs.rs)
+        let hw = crate::codecs::hardware_only_types(is_video_site(host));
+        if st.media_content_types_requiring_hardware_support().map(|g| g.to_string()) != hw {
+            st.set_media_content_types_requiring_hardware_support(hw.as_deref());
+        }
     }
     let Some(ucm) = v.user_content_manager() else { return };
     let block = prefs.blocker && BLOCKER_ON.load(std::sync::atomic::Ordering::Relaxed);
@@ -403,6 +408,26 @@ fn apply_site(v: &WebView, host: &str) {
     if !css.is_empty() {
         ucm.add_style_sheet(&webkit6::UserStyleSheet::new(&css, UserContentInjectedFrames::AllFrames, webkit6::UserStyleLevel::User, &[], &[]));
     }
+}
+
+/// Sites that offer every video in H.264 as well (see codecs.rs).
+fn is_video_site(host: &str) -> bool {
+    let h = host.trim_start_matches("www.").trim_start_matches("m.").trim_start_matches("music.");
+    h == "youtube.com" || h == "youtube-nocookie.com"
+}
+
+/// Set the identity (user agent) chosen for `host`, before asking for a page
+/// there. True when it changed. A simulated device's identity is left alone.
+fn set_identity(v: &WebView, host: &str, default_ua: &str) -> bool {
+    let Some(st) = WebViewExt::settings(v) else { return false };
+    let current = st.user_agent().map(|u| u.to_string()).unwrap_or_default();
+    let ours = current == default_ua || crate::identity::Identity::ALL.iter().any(|i| i.user_agent() == Some(current.as_str()));
+    let want = crate::identity::for_host(host).user_agent().unwrap_or(default_ua).to_string();
+    if !ours || want == current {
+        return false;
+    }
+    st.set_user_agent(Some(&want));
+    true
 }
 
 fn host_of_uri(uri: &str) -> String {
@@ -482,13 +507,14 @@ pub fn profile_context(dir: &Path) -> Engine {
     crate::store::ensure_private_dir(dir);
     crate::store::close_files(dir);
     let d = dir.to_string_lossy().to_string();
+    limit_network();
     let session = NetworkSession::new(Some(&d), Some(&d));
     if let Some(cm) = session.cookie_manager() {
         cm.set_persistent_storage(&dir.join("cookies").to_string_lossy(), CookiePersistentStorage::Text);
     }
     accept_cookies(&session);
     enable_favicons(&session);
-    let engine = Engine { ctx: WebContext::new(), session };
+    let engine = Engine { ctx: new_context(), session };
     secure_context(&engine);
     ENGINES.with(|cs| cs.borrow_mut().push((dir.to_path_buf(), engine.clone())));
     engine
@@ -502,12 +528,48 @@ fn enable_favicons(session: &NetworkSession) {
     }
 }
 
+/// The memory a page's process may use before WebKit starts giving memory
+/// back (caches, decoded pictures, unused JavaScript memory), in MB. WebKit's
+/// own default is the whole memory up to 3 GB, so it only tidies up once a
+/// page uses 1 GB or more; Sanaga starts at a third of this (about 340 MB on
+/// 8 GB, 680 MB from 16 GB) and is firmer from a half.
+fn page_memory_limit() -> u32 {
+    let total_mb = std::fs::read_to_string("/proc/meminfo")
+        .ok()
+        .and_then(|m| m.lines().find(|l| l.starts_with("MemTotal:")).and_then(|l| l.split_whitespace().nth(1)).and_then(|k| k.parse::<u64>().ok()))
+        .map(|kb| kb / 1024)
+        .unwrap_or(8192);
+    (total_mb / 8).clamp(768, 2048) as u32
+}
+
+fn pressure_settings() -> webkit6::MemoryPressureSettings {
+    let mut s = webkit6::MemoryPressureSettings::new();
+    s.set_memory_limit(page_memory_limit());
+    s.set_conservative_threshold(0.33);
+    s.set_strict_threshold(0.5);
+    // checked every 10 s (WebKit: 30 s)
+    s.set_poll_interval(10.0);
+    s
+}
+
+/// The processes of a profile's pages, with Sanaga's memory limits.
+fn new_context() -> WebContext {
+    WebContext::builder().memory_pressure_settings(&pressure_settings()).build()
+}
+
+/// The network process's memory limits (once, before the first session).
+fn limit_network() {
+    static NETWORK: std::sync::Once = std::sync::Once::new();
+    NETWORK.call_once(|| NetworkSession::set_memory_pressure_settings(&mut pressure_settings()));
+}
+
 /// An engine that keeps nothing (no profile folder: tests, screenshots).
 pub fn ephemeral_engine() -> Engine {
+    limit_network();
     let session = NetworkSession::new_ephemeral();
     accept_cookies(&session);
     enable_favicons(&session);
-    let engine = Engine { ctx: WebContext::new(), session };
+    let engine = Engine { ctx: new_context(), session };
     secure_context(&engine);
     engine
 }
@@ -540,6 +602,7 @@ fn private_session() -> NetworkSession {
     PRIVATE.with(|p| {
         p.borrow_mut()
             .get_or_insert_with(|| {
+                limit_network();
                 let s = NetworkSession::new_ephemeral();
                 accept_cookies(&s);
                 enable_favicons(&s);
@@ -682,6 +745,8 @@ const KEY_WINDOW: Duration = Duration::from_millis(1500);
 
 pub struct PageView {
     view: WebView,
+    /// WebKit's own identity (user agent) for this page.
+    default_ua: String,
 }
 
 impl PageView {
@@ -742,6 +807,9 @@ impl PageView {
         view.add_controller(keys);
         if let Some(st) = WebViewExt::settings(&view) {
             st.set_enable_webgl(true);
+            // drawing apps and games (Photopea, Canva, canvas games) draw
+            // with the graphics card
+            st.set_enable_2d_canvas_acceleration(true);
             st.set_enable_webaudio(true);
             // video calls (Meet, Teams, Jitsi…) and adaptive video streaming
             st.set_enable_webrtc(true);
@@ -814,6 +882,7 @@ impl PageView {
         // that refuse WebKit, or the person's choice): set before the page is
         // asked for. A simulated device's identity is left alone.
         let default_ua = WebViewExt::settings(&view).and_then(|s| s.user_agent()).map(|u| u.to_string()).unwrap_or_default();
+        let default_ua_kept = default_ua.clone();
         let o = on.clone();
         view.connect_decide_policy(move |v, decision, kind| {
             // Ctrl+click, middle click, Shift+click on a link: a new tab or
@@ -870,20 +939,20 @@ impl PageView {
                 return false;
             }
             let Some(nav) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>() else { return false };
-            let Some(req) = nav.navigation_action().and_then(|a| a.request()) else { return false };
+            let Some(action) = nav.navigation_action() else { return false };
+            // Only a link clicked by the person: WebKit asks here for the
+            // frames inside a page too (a "Sign in with Google" frame…), and
+            // loading such a frame's address would replace the whole tab.
+            // (Addresses typed or opened by Sanaga get their identity in load_url.)
+            if action.navigation_type() != webkit6::NavigationType::LinkClicked || !action.is_user_gesture() {
+                return false;
+            }
+            let Some(req) = action.request() else { return false };
             let uri = req.uri().map(|u| u.to_string()).unwrap_or_default();
             let Some(host) = url::Url::parse(&uri).ok().and_then(|u| u.host_str().map(|h| h.to_string())) else { return false };
-            let Some(st) = WebViewExt::settings(v) else { return false };
-            let current = st.user_agent().map(|u| u.to_string()).unwrap_or_default();
-            let ours = current == default_ua || crate::identity::Identity::ALL.iter().any(|i| i.user_agent() == Some(current.as_str()));
-            if !ours {
+            if !set_identity(v, &host, &default_ua) {
                 return false;
             }
-            let want = crate::identity::for_host(&host).user_agent().unwrap_or(&default_ua).to_string();
-            if want == current {
-                return false;
-            }
-            st.set_user_agent(Some(&want));
             // ask again with the new identity (a form being sent goes on as it is)
             if req.http_method().is_none_or(|m| m == "GET") {
                 decision.ignore();
@@ -983,7 +1052,7 @@ impl PageView {
             webkit6::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
             _ => {}
         });
-        PageView { view }
+        PageView { view, default_ua: default_ua_kept }
     }
 
     pub fn webview(&self) -> WebView {
@@ -1010,6 +1079,7 @@ impl PageView {
         if let Some(s) = view_state(&self.view) {
             s.typed.set(by_person.then(Instant::now));
         }
+        set_identity(&self.view, &host_of_uri(url), &self.default_ua);
         self.view.load_uri(url);
         Ok(())
     }

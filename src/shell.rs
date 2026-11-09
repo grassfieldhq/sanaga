@@ -895,7 +895,8 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     // one Sanaga per data folder and profile (web apps run on their own; a
     // screenshot never talks to a running Sanaga)
     let sock = instance_socket(&urls);
-    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:")) && sock.is_some();
+    // (a guest window keeps nothing and runs on its own too)
+    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:") || u == "invite:") && sock.is_some();
     if let Some(sock) = sock.as_ref().filter(|_| single) {
         if forward_to_running(sock, &urls) {
             return Ok(());

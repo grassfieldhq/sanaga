@@ -78,12 +78,15 @@ impl Sanaga {
         if i >= self.tabs.len() {
             return;
         }
-        // like Chrome: closing the shown tab shows its right neighbour (else the
-        // left one) in the same group; closing another tab keeps the shown one
+        // like Chrome: closing the shown tab shows the page that opened it
+        // (a sign-in window closing itself goes back to its site), else its
+        // right neighbour (else the left one) in the same group; closing
+        // another tab keeps the shown one
         let active_id = self.tabs.get(self.active).map(|t| t.id);
         let closing_active = i == self.active;
         let order = self.visible_tabs();
-        let neighbour = order.iter().position(|&x| x == i).and_then(|p| order.get(p + 1).or(if p > 0 { order.get(p - 1) } else { None })).map(|&x| self.tabs[x].id);
+        let opener = self.tabs[i].parent.filter(|p| order.iter().any(|&x| self.tabs[x].id == *p));
+        let neighbour = opener.or_else(|| order.iter().position(|&x| x == i).and_then(|p| order.get(p + 1).or(if p > 0 { order.get(p - 1) } else { None })).map(|&x| self.tabs[x].id));
         let t = self.tabs.remove(i);
         if !t.private && !t.entries.is_empty() {
             self.closed.push(t.url().to_string());

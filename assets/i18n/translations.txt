@@ -1018,3 +1018,40 @@ Vérifiez le numéro de port dans l'adresse.⟂Check the port number in the addr
 Déplier le groupe — clic droit : nom, couleur…⟂Expand the group — right-click: name, colour…⟂Desplegar el grupo — clic derecho: nombre, color…⟂Expandir o grupo — clique direito: nome, cor…⟂Gruppe aufklappen — Rechtsklick: Name, Farbe…
 Replier le groupe — clic droit : nom, couleur…⟂Collapse the group — right-click: name, colour…⟂Plegar el grupo — clic derecho: nombre, color…⟂Recolher o grupo — clique direito: nome, cor…⟂Gruppe zuklappen — Rechtsklick: Name, Farbe…
 Bouton de fermeture des onglets⟂Tab close button⟂Botón para cerrar pestañas⟂Botão para fechar separadores⟂Schließen-Schaltfläche der Tabs
+ses cookies sur ce site (connexion)⟂its cookies on this site (sign-in)⟂sus cookies en este sitio (inicio de sesión)⟂os seus cookies neste site (início de sessão)⟂seine Cookies auf dieser Website (Anmeldung)
+{} souhaite utiliser ses cookies sur {} (souvent pour vous connecter).⟂{} wants to use its cookies on {} (often to sign you in).⟂{} quiere usar sus cookies en {} (a menudo para iniciar sesión).⟂{} quer usar os seus cookies em {} (muitas vezes para iniciar sessão).⟂{} möchte seine Cookies auf {} verwenden (oft für die Anmeldung).
+Copié ✓⟂Copied ✓⟂Copiado ✓⟂Copiado ✓⟂Kopiert ✓
+Envoyer vers⟂Send to⟂Enviar a⟂Enviar para⟂Senden an
+Dans la liste de lecture⟂In the reading list⟂En la lista de lectura⟂Na lista de leitura⟂In der Leseliste
+Dans les favoris⟂In favourites⟂En favoritos⟂Nos favoritos⟂In den Favoriten
+Application web⟂Web app⟂Aplicación web⟂Aplicação web⟂Web-App
+Code QR⟂QR code⟂Código QR⟂Código QR⟂QR-Code
+Copier titre et lien⟂Copy title and link⟂Copiar título y enlace⟂Copiar título e link⟂Titel und Link kopieren
+Invité⟂Guest⟂Invitado⟂Convidado⟂Gast
+{} — profils⟂{} — profiles⟂{} — perfiles⟂{} — perfis⟂{} — Profile
+Rien n'est gardé après la fermeture de la fenêtre⟂Nothing is kept once the window is closed⟂No se guarda nada al cerrar la ventana⟂Nada é guardado depois de fechar a janela⟂Nach dem Schließen des Fensters wird nichts gespeichert
+Favoris, historique, mots de passe et cookies à part⟂Its own favourites, history, passwords and cookies⟂Favoritos, historial, contraseñas y cookies propios⟂Favoritos, histórico, palavras-passe e cookies próprios⟂Eigene Favoriten, Verlauf, Passwörter und Cookies
+Personnaliser le profil⟂Customise profile⟂Personalizar el perfil⟂Personalizar o perfil⟂Profil anpassen
+Autres profils⟂Other profiles⟂Otros perfiles⟂Outros perfis⟂Andere Profile
+Ajouter un profil⟂Add a profile⟂Añadir un perfil⟂Adicionar um perfil⟂Profil hinzufügen
+Ouvrir une fenêtre Invité⟂Open a Guest window⟂Abrir una ventana de invitado⟂Abrir uma janela de convidado⟂Gastfenster öffnen
+Fermer ce profil ({})⟂Close this profile ({})⟂Cerrar este perfil ({})⟂Fechar este perfil ({})⟂Dieses Profil schließen ({})
+Qui utilise Sanaga ?⟂Who's using Sanaga?⟂¿Quién usa Sanaga?⟂Quem está a usar o Sanaga?⟂Wer nutzt Sanaga?
+Chaque profil a ses favoris, son historique, ses mots de passe et ses cookies, et s'ouvre dans ses propres fenêtres.⟂Each profile has its own favourites, history, passwords and cookies, and opens in its own windows.⟂Cada perfil tiene sus favoritos, su historial, sus contraseñas y sus cookies, y se abre en sus propias ventanas.⟂Cada perfil tem os seus favoritos, histórico, palavras-passe e cookies, e abre nas suas próprias janelas.⟂Jedes Profil hat eigene Favoriten, Verlauf, Passwörter und Cookies und öffnet sich in eigenen Fenstern.
+Cette fenêtre⟂This window⟂Esta ventana⟂Esta janela⟂Dieses Fenster
+Supprimer ce profil⟂Delete this profile⟂Eliminar este perfil⟂Eliminar este perfil⟂Dieses Profil löschen
+Ajouter⟂Add⟂Añadir⟂Adicionar⟂Hinzufügen
+Supprimer le profil « {} » ?⟂Delete the profile “{}”?⟂¿Eliminar el perfil «{}»?⟂Eliminar o perfil «{}»?⟂Profil „{}“ löschen?
+Ses favoris, son historique, ses mots de passe enregistrés dans Sanaga et ses cookies seront effacés de cet ordinateur. Fermez d'abord ses fenêtres.⟂Its favourites, history, passwords saved in Sanaga and cookies will be erased from this computer. Close its windows first.⟂Sus favoritos, su historial, las contraseñas guardadas en Sanaga y sus cookies se borrarán de este ordenador. Cierra antes sus ventanas.⟂Os favoritos, o histórico, as palavras-passe guardadas no Sanaga e os cookies serão apagados deste computador. Feche primeiro as janelas dele.⟂Favoriten, Verlauf, in Sanaga gespeicherte Passwörter und Cookies werden von diesem Computer gelöscht. Schließen Sie zuerst seine Fenster.
+Nouveau profil⟂New profile⟂Nuevo perfil⟂Novo perfil⟂Neues Profil
+Nom (ex. Travail, École)⟂Name (e.g. Work, School)⟂Nombre (p. ej. Trabajo, Escuela)⟂Nome (ex. Trabalho, Escola)⟂Name (z. B. Arbeit, Schule)
+Couleur⟂Colour⟂Color⟂Cor⟂Farbe
+Créer et ouvrir⟂Create and open⟂Crear y abrir⟂Criar e abrir⟂Erstellen und öffnen
+Personnaliser ce profil⟂Customise this profile⟂Personalizar este perfil⟂Personalizar este perfil⟂Dieses Profil anpassen
+Image du profil⟂Profile picture⟂Imagen del perfil⟂Imagem do perfil⟂Profilbild
+Initiale⟂Initial⟂Inicial⟂Inicial⟂Initiale
+Choisir une photo…⟂Choose a photo…⟂Elegir una foto…⟂Escolher uma foto…⟂Foto auswählen…
+Retirer la photo⟂Remove the photo⟂Quitar la foto⟂Remover a foto⟂Foto entfernen
+Photo du profil⟂Profile photo⟂Foto del perfil⟂Foto do perfil⟂Profilfoto
+Images⟂Images⟂Imágenes⟂Imagens⟂Bilder
+Cette image ne peut pas être lue.⟂This picture can't be read.⟂No se puede leer esta imagen.⟂Esta imagem não pode ser lida.⟂Dieses Bild kann nicht gelesen werden.

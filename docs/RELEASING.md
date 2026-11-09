@@ -5,12 +5,17 @@ has to be built on your computer.
 
 | You do | GitHub builds | Published as |
 |---|---|---|
-| push to `main` | every package | the release named after the version in `Cargo.toml`, e.g. **v0.1.0** (made the first time, its packages replaced at the next pushes) |
-| push a tag `v1.2.3` | every package | the release **v1.2.3** |
+| push to `main` | every package | the release named after the version in `Cargo.toml`, e.g. **0.4.0** (made the first time, its packages replaced at the next pushes) |
+| push a tag `1.2.3` | every package | the release **1.2.3** (`1.2.3-beta.1`: a pre-release) |
 | Actions › Release › *Run workflow* | every package | same as a push to `main` |
 
 A new version number in `Cargo.toml` therefore gives a new release; the
 earlier ones stay as they are.
+
+Tags and releases follow [Semantic Versioning](https://semver.org/) exactly:
+`MAJOR.MINOR.PATCH` (`0.4.0`), optionally a pre-release part (`1.0.0-rc.1`),
+**no `v` in front**. MAJOR goes up for changes that break something, MINOR
+for new features, PATCH for fixes only.
 
 The packages:
 
@@ -28,25 +33,26 @@ stays as it was.
 
 ## Making a release
 
-1. Put the version in `Cargo.toml` (`version = "0.2.0"`) and in
-   `packaging/arch/PKGBUILD` (`pkgver=0.2.0`); run `cargo build` once so
+1. Put the version in `Cargo.toml` (`version = "0.5.0"`) and in
+   `packaging/arch/PKGBUILD` (`pkgver=0.5.0`); run `cargo build` once so
    `Cargo.lock` follows.
-2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.2.0] — 2026-11-09`
+2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.5.0] — 2026-11-10`
    and start a new empty `## [Unreleased]` above it. That part of the
    changelog becomes the release's notes.
 3. Commit, then tag and push:
 
    ```sh
-   git commit -am "Sanaga 0.2.0"
-   git tag v0.2.0
+   git commit -am "Sanaga 0.5.0"
+   git tag 0.5.0
    git push origin main --tags
    ```
 
 4. Follow the build in the repository's **Actions** tab (about 20–30
    minutes, the Flatpak is the longest). The release appears in **Releases**.
 
-The tag must match the version in `Cargo.toml` (`v0.2.0` ↔ `0.2.0`), otherwise
-the build stops at once and says so.
+The tag must be the version in `Cargo.toml` (tag `0.5.0` ↔ `version =
+"0.5.0"`), otherwise the build stops at once and says so; a version that is
+not Semantic Versioning stops it too.
 
 ## Later
 

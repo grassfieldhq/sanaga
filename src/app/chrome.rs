@@ -109,9 +109,12 @@ impl Sanaga {
         }
         let sel = self.suggest_sel;
         let mut go: Option<String> = None;
+        // under the field, or above it when the address bar is at the bottom
+        let (at, pivot, _) = super::layout::popover_place(ui.ctx(), addr, addr.left(), 4.0);
         let area = egui::Area::new(egui::Id::new("suggestions"))
             .order(egui::Order::Foreground)
-            .fixed_pos(pos2(addr.left(), addr.bottom() + 4.0))
+            .pivot(pivot)
+            .fixed_pos(at)
             .show(ui.ctx(), |ui| {
                 Frame::new()
                     .fill(th.page)

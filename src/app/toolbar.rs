@@ -253,22 +253,6 @@ impl Sanaga {
                 self.go_home(a);
             }
         }
-        // profile badge (only for extra profiles, like Safari)
-        if !self.store.profile.is_empty() {
-            let emoji = self.store.settings.profile_emoji.trim();
-            let drawable = !emoji.is_empty() && ui.painter().fonts_mut(|f| f.has_glyphs(&FontId::new(12.0, bold()), emoji));
-            let name = if drawable { format!("{emoji} {}", self.store.profile) } else { self.store.profile.clone() };
-            let g = ui.painter().layout_no_wrap(name.clone(), FontId::new(12.0, bold()), Color32::WHITE);
-            let pr = Rect::from_min_size(pos2(x + 6.0, cy - 12.0), vec2(g.size().x + 20.0, 24.0));
-            let presp = ui.interact(pr, egui::Id::new("profile-chip"), Sense::click());
-            ui.painter().rect_filled(pr, CornerRadius::same(12), crate::theme::badge_color(&self.store.profile));
-            ui.painter().galley(pos2(pr.left() + 10.0, cy - g.size().y / 2.0), g, Color32::WHITE);
-            if presp.tip(tr("Profil de cette fenêtre — cliquer pour gérer les profils")).clicked() {
-                let a = self.active;
-                self.navigate(a, "sanaga://profiles".into(), None, true);
-            }
-            x = pr.right() + 4.0;
-        }
         let left_end = x + 8.0;
 
         // right side, from the edge inwards
@@ -286,6 +270,10 @@ impl Sanaga {
             self.overflow_open = false;
         }
         self.menu_rect = mresp.rect;
+        // the profile's picture (Chrome): its menu
+        let pr = self.profile_button(ui, rx - 2.0, cy, th);
+        rx = pr.left() - 2.0;
+        right_slots.borrow_mut().push(pr);
         // the buttons tucked away (»)
         if self.has_overflow() {
             let r = slot_r(&mut rx, 30.0);
@@ -386,7 +374,7 @@ impl Sanaga {
         let now = ui.input(|i| i.time);
         if self.tb("memory") {
         if now - self.mem.0 > 2.0 {
-            self.mem = (now, net::memory_used().unwrap_or(0));
+            self.mem = (now, net::memory_used_cached());
         }
         let mg = ui.painter().layout_no_wrap(tf("{} Mo", &[&format!("{:.0}", self.mem.1 as f64 / 1048576.0)]), FontId::proportional(11.5), th.sub);
         let mr = slot_r(&mut rx, mg.size().x + 30.0);

@@ -251,7 +251,7 @@ impl Sanaga {
             return;
         }
         let w = 300.0;
-        let pos = pos2((self.ai_menu_rect.right() - w).max(8.0), self.ai_menu_rect.bottom() + 6.0);
+        let (pos, pivot, _) = super::layout::popover_place(ctx, self.ai_menu_rect, (self.ai_menu_rect.right() - w).max(8.0), 6.0);
         let mut act: Option<&str> = None;
         let dark = self.store.settings.dark;
         let lang = target(&self.store.settings.translate_to);
@@ -261,7 +261,7 @@ impl Sanaga {
             _ => String::new(),
         };
         let mut chosen = self.store.settings.translate_to.clone();
-        let area = egui::Area::new(egui::Id::new("ai-menu")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
+        let area = egui::Area::new(egui::Id::new("ai-menu")).order(egui::Order::Foreground).pivot(pivot).fixed_pos(pos).show(ctx, |ui| {
             Frame::new()
                 .fill(th.page)
                 .stroke(Stroke::new(1.0, th.hairline.gamma_multiply(0.6)))

@@ -12,7 +12,8 @@ impl Sanaga {
             return;
         }
         let w = 300.0;
-        let pos = pos2(self.menu_rect.right() - w, self.menu_rect.bottom() + 6.0);
+        // under the ⋮ button, or above it when the bar is at the bottom
+        let (pos, pivot, room) = super::layout::popover_place(ctx, self.menu_rect, self.menu_rect.right() - w, 6.0);
         let act: std::cell::Cell<Option<&'static str>> = std::cell::Cell::new(None);
         let zoom = self.tabs[self.active].zoom;
         let cur_url = self.tabs[self.active].url().to_string();
@@ -22,12 +23,12 @@ impl Sanaga {
         let bm_bar = self.store.settings.show_bookmarks_bar;
         let more_id = egui::Id::new("menu-more");
         let more = ctx.data(|d| d.get_temp::<bool>(more_id)).unwrap_or(false);
-        let max_h = (ctx.content_rect().bottom() - pos.y - 24.0).max(200.0);
+        let max_h = (room - 12.0).max(200.0);
         let dark = self.store.settings.dark;
         let (focus, on_top) = (self.focus_mode, self.on_top);
         let editing = self.editing_text == Some(self.tabs[self.active].id);
         let unlocked = crate::site_prefs::for_host(&host_of(&cur_url)).unlock;
-        let area = egui::Area::new(egui::Id::new("main-menu")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
+        let area = egui::Area::new(egui::Id::new("main-menu")).order(egui::Order::Foreground).pivot(pivot).fixed_pos(pos).show(ctx, |ui| {
             Frame::new()
                 .fill(th.page)
                 .stroke(Stroke::new(1.0, th.hairline.gamma_multiply(0.6)))

@@ -20,6 +20,9 @@ pub struct Status {
     pub opus: bool,
     /// Hardware decoding (VA-API): smoother video, less battery.
     pub hardware: bool,
+    /// The graphics card decodes AV1 / VP9 itself.
+    pub hw_av1: bool,
+    pub hw_vp9: bool,
 }
 
 impl Status {
@@ -62,7 +65,7 @@ fn in_flatpak() -> bool {
 /// What the system can decode now (a few milliseconds per decoder).
 fn detect() -> Status {
     if in_flatpak() {
-        return Status { h264: true, aac: true, av1: true, vp9: true, opus: true, hardware: true };
+        return Status { h264: true, aac: true, av1: true, vp9: true, opus: true, hardware: true, hw_av1: true, hw_vp9: true };
     }
     Status {
         h264: any(&["avdec_h264", "openh264dec", "vah264dec", "vaapih264dec", "nvh264dec"]),
@@ -72,6 +75,8 @@ fn detect() -> Status {
         // (WebM / MSE audio also needs the Opus parser)
         opus: has("opusdec") && any(&["opusparse", "avdec_opus"]),
         hardware: any(&["vah264dec", "vaapih264dec", "nvh264dec"]),
+        hw_av1: any(&["vaav1dec", "vaapiav1dec", "nvav1dec"]),
+        hw_vp9: any(&["vavp9dec", "vaapivp9dec", "nvvp9dec"]),
     }
 }
 
@@ -88,7 +93,7 @@ pub fn check_now() -> Status {
 pub fn check_in_background() {
     if in_flatpak() {
         if let Ok(mut c) = cell().lock() {
-            *c = Some(Status { h264: true, aac: true, av1: true, vp9: true, opus: true, hardware: true });
+            *c = Some(Status { h264: true, aac: true, av1: true, vp9: true, opus: true, hardware: true, hw_av1: true, hw_vp9: true });
         }
         return;
     }
@@ -111,6 +116,29 @@ pub fn distribution() -> Option<String> {
 
 fn distribution_from(built: &str, run: &str) -> Option<String> {
     [built.trim(), run.trim()].into_iter().find(|d| !d.is_empty()).map(|d| d.to_ascii_lowercase())
+}
+
+/// Video formats a site may only use when the graphics card decodes them
+/// (WebKit's "content types requiring hardware support"; the site then picks
+/// another format). Decoded by the processor, AV1 costs several times what
+/// H.264 costs, and keeps a laptop's fans running: without an AV1 decoder in
+/// the graphics card, sites get VP9 or H.264. `video_site` (YouTube, which
+/// offers everything in H.264 too): VP9 as well when the card has no VP9
+/// decoder. None: everything allowed (not known yet, or the Flatpak).
+pub fn hardware_only_types(video_site: bool) -> Option<String> {
+    let st = status()?;
+    if in_flatpak() {
+        return None;
+    }
+    let mut v = Vec::new();
+    if !st.hw_av1 && (st.vp9 || st.h264) {
+        v.push(r#"video/*; codecs="av01*""#);
+    }
+    if video_site && !st.hw_vp9 && st.h264 {
+        v.push(r#"video/*; codecs="vp09*""#);
+        v.push(r#"video/*; codecs="vp9*""#);
+    }
+    (!v.is_empty()).then(|| v.join(":"))
 }
 
 /// The result, once known.

@@ -40,6 +40,20 @@ pub(super) const TOOLBAR_H: f32 = 52.0;
 /// The tab bar under it (macOS 27: a 28-pt track, 8 under the toolbar).
 pub(super) const TABBAR_H: f32 = 38.0;
 
+/// Where a popover attached to `anchor` (a toolbar button, the address
+/// field, a tab-bar label) opens: under it, or above it when the anchor is
+/// in the lower half of the window (address bar or tabs at the bottom, as
+/// in Safari). `left`: the popover's left edge. Gives the position for the
+/// area, its pivot, and the height there is room for.
+pub(super) fn popover_place(ctx: &egui::Context, anchor: Rect, left: f32, gap: f32) -> (egui::Pos2, Align2, f32) {
+    let screen = ctx.content_rect();
+    if anchor.center().y > screen.center().y {
+        (pos2(left, anchor.top() - gap), Align2::LEFT_BOTTOM, (anchor.top() - gap - screen.top() - 16.0).max(160.0))
+    } else {
+        (pos2(left, anchor.bottom() + gap), Align2::LEFT_TOP, (screen.bottom() - anchor.bottom() - gap - 16.0).max(160.0))
+    }
+}
+
 impl Sanaga {
     pub(super) fn tabs_at(&self) -> TabsAt {
         match self.store.settings.tabs_pos {

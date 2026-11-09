@@ -10,6 +10,7 @@ mod source;
 mod menus;
 mod nav;
 mod plus;
+mod profiles;
 mod pages;
 mod settings;
 mod layout;
@@ -458,6 +459,17 @@ pub struct Sanaga {
     bm_drag: Option<usize>,
     pw_shown: Option<(usize, String)>,
     new_profile_name: String,
+    new_profile_color: u8,
+    /// A guest window (`--guest`): nothing is kept.
+    guest: bool,
+    /// The profile menu and the button it hangs from.
+    profile_open: bool,
+    profile_rect: Rect,
+    /// Profile photos, loaded once (file date, picture).
+    avatar_tex: std::collections::HashMap<std::path::PathBuf, (std::time::SystemTime, egui::TextureHandle)>,
+    /// The profiles page: 0 all, 1 this profile customised, 2 adding one.
+    profile_section: u8,
+    profile_delete: Option<String>,
     web_context: Option<crate::page::Engine>,
     /// This window's number (0 = the first one) and what it asks of the
     /// window system: a new window (with these addresses), or quit everything.
@@ -492,6 +504,8 @@ pub struct Sanaga {
     clear_cache: bool,
     qr: Option<(String, TextureHandle)>,
     share_qr: bool,
+    /// When the link was copied from the Share popover (its button says so).
+    share_copied_at: f64,
     import_rx: Option<Receiver<importer::ImportDone>>,
     import_status: String,
     import_bookmarks: bool,
@@ -625,8 +639,10 @@ impl Sanaga {
         let profile = urls.iter().find_map(|u| u.strip_prefix("profil:").map(|s| s.to_string())).unwrap_or_default();
         // "fenetre:N": an extra window (number N), which starts with its own tabs
         let slot: usize = urls.iter().find_map(|u| u.strip_prefix("fenetre:").and_then(|n| n.parse().ok())).unwrap_or(0);
-        let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:").collect();
-        let store = if screenshot.is_some() { Store::ephemeral() } else { Store::load_profile(&profile) };
+        // `--guest`: a window that keeps nothing (its own memory-only data)
+        let guest = urls.iter().any(|u| u == "invite:");
+        let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:" && u != "invite:").collect();
+        let store = if screenshot.is_some() || guest { Store::ephemeral() } else { Store::load_profile(&profile) };
         // WebKit keeps cookies and site data per profile
         let web_dir = store.data_dir().map(|d| d.join("webkit"));
         let web_dir_kept = web_dir.clone();
@@ -777,6 +793,13 @@ impl Sanaga {
             bm_drag: None,
             pw_shown: None,
             new_profile_name: String::new(),
+            new_profile_color: 0,
+            guest,
+            profile_open: false,
+            profile_rect: Rect::NOTHING,
+            avatar_tex: Default::default(),
+            profile_section: 0,
+            profile_delete: None,
             web_context,
             slot,
             window_request: None,
@@ -804,6 +827,7 @@ impl Sanaga {
             clear_cache: true,
             qr: None,
             share_qr: false,
+            share_copied_at: -10.0,
             import_rx: None,
             import_status: String::new(),
             import_bookmarks: true,
@@ -1333,6 +1357,8 @@ impl Sanaga {
                         }
                         "overflow" => self.overflow_open = !self.overflow_open,
                         "aimenu" => self.ai_menu_open = !self.ai_menu_open,
+                        "sharemenu" => self.share_open = !self.share_open,
+                        "profilemenu" => self.profile_open = !self.profile_open,
                         "makedefault" => {
                             self.make_default_browser_pub();
                             eprintln!("live default browser: {:?}", self.is_default_browser);
@@ -1417,7 +1443,10 @@ impl Sanaga {
                     }
                 }
             }
-            ctx0.request_repaint_after(std::time::Duration::from_millis(100));
+            // (only while steps remain: CPU measurements need the real pace)
+            if self.live_step < steps.len() {
+                ctx0.request_repaint_after(std::time::Duration::from_millis(100));
+            }
         }
     }
 
@@ -1584,6 +1613,7 @@ impl Sanaga {
         self.site_settings_panel(&ctx, &th);
         self.container_chooser(&ctx, &th);
         self.overflow_menu(&ctx, &th);
+        self.profile_menu(&ctx, &th);
         let t_sync = std::time::Instant::now();
         self.sync_web(content);
         let sync_ms = t_sync.elapsed().as_secs_f64() * 1000.0;

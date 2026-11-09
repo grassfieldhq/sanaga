@@ -151,6 +151,8 @@ fn main() -> eframe::Result {
                     urls.push(format!("profil:{p}"));
                 }
             }
+            // a window that keeps nothing (Chrome's guest)
+            "--guest" | "--invite" => urls.push("invite:".into()),
             "--app" => {
                 if let Some(u) = args.next() {
                     urls.push(format!("webapp:{u}"));
@@ -162,6 +164,7 @@ fn main() -> eframe::Result {
                      Usage: sanaga [options] [address ...]\n\n\
                      Options:\n\
                      \x20 --profile NAME       use this profile (its own settings, history, cookies)\n\
+                     \x20 --guest              a guest window (nothing is kept)\n\
                      \x20 --app URL            open one site on its own, as a web app\n\
                      \x20 --new-window         open a new window (in the running Sanaga)\n\
                      \x20 --preview URL        preview a link in a small window\n\

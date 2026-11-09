@@ -50,7 +50,13 @@ impl Sanaga {
         let mut zap = false;
         let screen = ctx.content_rect();
         let dark = self.store.settings.dark;
-        egui::Area::new(egui::Id::new("site-panel")).order(egui::Order::Foreground).fixed_pos(pos2(screen.center().x - 200.0, screen.top() + 70.0)).show(ctx, |ui| {
+        // near the address bar: under it, or above it when it is at the bottom
+        let (at, pivot) = if self.bar_at() == super::layout::BarAt::Bottom {
+            (pos2(screen.center().x - 200.0, screen.bottom() - 70.0), egui::Align2::LEFT_BOTTOM)
+        } else {
+            (pos2(screen.center().x - 200.0, screen.top() + 70.0), egui::Align2::LEFT_TOP)
+        };
+        egui::Area::new(egui::Id::new("site-panel")).order(egui::Order::Foreground).pivot(pivot).fixed_pos(at).show(ctx, |ui| {
             Frame::new()
                 .fill(th.page)
                 .stroke(Stroke::new(1.0, th.border))

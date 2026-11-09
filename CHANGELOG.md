@@ -41,6 +41,58 @@ All notable changes to Sanaga are listed here. The format follows
 - Password AutoFill no longer lists accounts under the sign-in field nor
   fills a site's only account by itself: the accounts are offered in
   Sanaga's bar.
+- Release tags follow Semantic Versioning exactly: `0.4.0`, no `v` in front
+  (the releases are named the same way).
+
+## [0.4.0] — 2026-11-09
+
+### Added
+- Profiles as in Chrome: the profile's picture (photo, sign or initial on its
+  colour) at the right of the toolbar, with the name for extra profiles; its
+  menu lists this profile, the others (one click opens their window), add a
+  profile, a Guest window (`--guest`, nothing kept), manage profiles and close
+  this profile. `sanaga://profiles` is now “Who's using Sanaga?”: profile
+  cards, adding (name and colour), deleting, and this profile customised
+  (name, colour, picture: initial, a sign or a photo).
+- Share popover redesigned: the page, its link with a Copy button, “Send to”
+  (e-mail, WhatsApp, Telegram, X, Facebook, LinkedIn), the actions as tiles
+  and the QR code.
+
+### Fixed
+- With the address bar (or the tabs) at the bottom, the suggestions, the ⋮
+  menu, Share, the » menu, the ✦ menu, the favourite popover, the group
+  editor and the website settings open above it instead of off the bottom.
+
+## [0.3.0] — 2026-11-09
+
+### Fixed
+- “Sign in with Google” (and Apple, Microsoft, Facebook, GitHub…) inside
+  other sites (X, Reddit…): the sign-in frame's request to use its cookies
+  (Storage Access) was refused silently; sign-in services now get it, other
+  sites are asked about, as in Safari.
+- A window opened by a page (sign-in, payment) that closes itself brings back
+  the page that opened it, not the next tab.
+- A message from a background page (e.g. a video it cannot play) no longer
+  brings that tab to the front.
+- The per-site identity is no longer switched for frames inside a page (it
+  could reload the whole tab with the frame's address).
+
+### Changed
+- Less processor use: Sanaga's own window measures its memory in the
+  background every 10 s (it walked every process every 2 s on the window's
+  thread: a 30 ms hitch each time); a page playing sound no longer makes the
+  window refresh 4 times a second; the password helper only looks at new
+  form fields (it watched every style change of busy pages such as Gmail, X
+  or YouTube).
+- Video: without an AV1 decoder in the graphics card, sites get VP9 or H.264
+  instead of AV1 (decoded by the processor otherwise); on YouTube, VP9 too
+  when the card only decodes H.264.
+- Memory: a page's process gives memory back (caches, JavaScript memory)
+  from about 340 MB on 8 GB computers, 680 MB from 16 GB (WebKit waited for
+  1 GB); drawing apps and games draw with the graphics card (2D canvas).
+- Browser games can capture the mouse (pointer lock), as in Chrome.
+
+## [0.2.0] — 2026-11-09
 
 ### Added
 - Sign-in and payment windows opened by sites (`window.open`) are real pages
