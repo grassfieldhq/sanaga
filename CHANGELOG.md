@@ -34,6 +34,11 @@ All notable changes to Sanaga are listed here. The format follows
   ("System"), or a chosen accent; new Grassfield-style icon (also as SVG).
 
 ### Added (November 2026)
+- Error pages in Sanaga's design for every kind of failure (DNS, offline with
+  automatic reload, refused, timeout, certificate, blocked port, missing file).
+- alert / confirm / prompt / leave-page / HTTP login shown as Sanaga sheets.
+- ✦ menu: summarise or translate; translation target language (Settings ›
+  Intelligence, or in the menu).
 - Right-click a link › Open link in a private tab.
 - Tab switcher: Ctrl+Tab shows the tabs used last as pictures (most recent
   first); Ctrl+Page Down / Up follow the tab bar.

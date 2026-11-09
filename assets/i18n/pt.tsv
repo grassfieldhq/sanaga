@@ -938,3 +938,56 @@ Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres ›
 Sélecteur d'onglets (Ctrl+Tab)	Seletor de separadores (Ctrl+Tab)
 Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	Os separadores usados por último, em imagens; Ctrl+Page Down segue a barra de separadores
 Ouvrir le lien dans un onglet privé	Abrir a ligação num separador privado
+Cette page	Esta página
+{} demande de vous connecter	{} pede-lhe que inicie sessão
+Quitter {} ?	Sair de {}?
+{} dit :	{} diz:
+Ce que vous avez saisi sur cette page pourrait ne pas être enregistré.	O que escreveu nesta página pode não ser guardado.
+Espace : « {} ». Votre identifiant et votre mot de passe sont envoyés à ce site.	Área: «{}». O seu nome de utilizador e palavra-passe são enviados para este site.
+Votre identifiant et votre mot de passe sont envoyés à ce site.	O seu nome de utilizador e palavra-passe são enviados para este site.
+Identifiant	Nome de utilizador
+Mot de passe	Palavra-passe
+Ne plus laisser ce site afficher d'alertes	Não deixar este site mostrar mais alertas
+Rester	Ficar
+Se connecter	Iniciar sessão
+Ce site est introuvable	Não é possível encontrar este site
+L'adresse de {} ne mène nulle part : le nom du site n'existe pas, ou il ne répond plus.	O endereço de {} não leva a lado nenhum: o nome do site não existe ou já não responde.
+Vérifiez l'orthographe de l'adresse.	Verifique a ortografia do endereço.
+Cherchez le site par son nom.	Procure o site pelo nome.
+Si vous utilisez un VPN ou un pare-feu, vérifiez qu'il laisse passer ce site.	Se usa uma VPN ou firewall, verifique se deixa passar este site.
+Vous n'êtes pas connecté à Internet	Não está ligado à Internet
+Sanaga n'arrive pas à joindre le réseau. La page se rechargera toute seule dès que la connexion revient.	O Sanaga não consegue chegar à rede. A página recarrega-se sozinha assim que a ligação voltar.
+Vérifiez le Wi-Fi ou le câble réseau.	Verifique o Wi-Fi ou o cabo de rede.
+Désactivez le mode avion s'il est activé.	Desative o modo de avião se estiver ativo.
+Redémarrez votre box ou votre routeur.	Reinicie o seu modem ou router.
+Le site refuse la connexion	O site recusa a ligação
+{} est joignable, mais n'accepte pas la connexion en ce moment.	{} está acessível, mas não aceita a ligação neste momento.
+Le site est peut-être en maintenance : réessayez dans un moment.	O site pode estar em manutenção: tente novamente daqui a pouco.
+Vérifiez l'adresse, et le port s'il y en a un.	Verifique o endereço e a porta, se houver.
+Le site met trop de temps à répondre	O site está a demorar demasiado a responder
+{} n'a pas répondu à temps. Il est peut-être surchargé, ou votre connexion est lente.	{} não respondeu a tempo. Pode estar sobrecarregado ou a sua ligação está lenta.
+Réessayez dans un instant.	Tente novamente daqui a pouco.
+Vérifiez votre connexion.	Verifique a sua ligação.
+La connexion à ce site n'est pas privée	A sua ligação a este site não é privada
+Le certificat de {} n'est pas valide. Quelqu'un pourrait lire ou modifier ce que vous échangez avec ce site (mots de passe, messages, cartes bancaires).	O certificado de {} não é válido. Alguém pode ler ou alterar o que troca com este site (palavras-passe, mensagens, cartões bancários).
+Revenez en lieu sûr, sauf si vous savez exactement pourquoi ce site a un certificat non valide (un appareil de votre réseau, par exemple).	Volte para um lugar seguro, exceto se souber exatamente por que este site tem um certificado inválido (um aparelho da sua rede, por exemplo).
+Ce fichier est introuvable	Não é possível encontrar este ficheiro
+Le fichier {} n'existe pas (ou plus) sur cet ordinateur.	O ficheiro {} não existe (ou já não existe) neste computador.
+Cette page n'a pas pu être chargée	Não foi possível carregar esta página
+Le chargement de {} a échoué.	O carregamento de {} falhou.
+Revenir en lieu sûr	Voltar para um lugar seguro
+Réessayer	Tentar novamente
+Rechercher « {} »	Pesquisar «{}»
+Avancé	Avançado
+Continuer expose ce que vous envoyez à ce site. Sanaga ne s'en souviendra que jusqu'à sa fermeture.	Continuar expõe o que envia para este site. O Sanaga só se lembra disto até fechar.
+Continuer vers {} (dangereux)	Continuar para {} (perigoso)
+Détails techniques	Detalhes técnicos
+Traduire vers	Traduzir para
+Langue de Sanaga ({})	Idioma do Sanaga ({})
+Résumer ou traduire la page	Resumir ou traduzir a página
+Les points essentiels, à côté de la page — Ctrl+Maj+Y	Os pontos essenciais, ao lado da página — Ctrl+Shift+Y
+En {}	Para {}
+En {} · avec {}	Para {} · com {}
+Cette adresse utilise un port bloqué	Este endereço usa uma porta bloqueada
+Pour votre sécurité, les navigateurs n'ouvrent pas ce port : il sert à d'autres services (courrier, transfert de fichiers…).	Para sua segurança, os navegadores não abrem esta porta: serve outros serviços (correio, transferência de ficheiros…).
+Vérifiez le numéro de port dans l'adresse.	Verifique o número da porta no endereço.

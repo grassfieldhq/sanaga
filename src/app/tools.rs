@@ -193,6 +193,12 @@ impl Sanaga {
         match what {
             "preview" => self.preview_link(arg),
             "container-link" => self.container_ask = Some(arg.to_string()),
+            "tls-allow" => self.accept_certificate(tab, arg),
+            "safe" => {
+                if let Some(i) = self.tab_index(tab) {
+                    self.go_home(i);
+                }
+            }
             "private-link" => {
                 self.open_tab(arg, true);
                 self.focus_address = false;

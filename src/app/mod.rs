@@ -21,6 +21,8 @@ mod mainmenu;
 mod sidebar;
 mod bookmarks;
 mod buttons;
+mod dialogs;
+mod errors;
 mod switcher;
 mod media;
 mod containers;
@@ -523,6 +525,16 @@ pub struct Sanaga {
     recent: Vec<u64>,
     switcher: Option<switcher::Switcher>,
     switcher_refocus: bool,
+    /// The ✦ menu (summarise / translate) and where its button is.
+    ai_menu_open: bool,
+    ai_menu_rect: Rect,
+    /// Questions from pages waiting (tab, key), the one being answered, the
+    /// site of the last one, the sites silenced; tabs showing an error page.
+    dialogs: Vec<(u64, u64)>,
+    dialog_state: dialogs::DialogState,
+    last_dialog_host: String,
+    silenced_sites: HashSet<String>,
+    error_tabs: HashSet<u64>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -781,6 +793,13 @@ impl Sanaga {
             recent: Vec::new(),
             switcher: None,
             switcher_refocus: false,
+            ai_menu_open: false,
+            ai_menu_rect: Rect::NOTHING,
+            dialogs: Vec::new(),
+            dialog_state: Default::default(),
+            last_dialog_host: String::new(),
+            silenced_sites: HashSet::new(),
+            error_tabs: HashSet::new(),
         };
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
@@ -1262,6 +1281,7 @@ impl Sanaga {
                             ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("menu-more"), true));
                         }
                         "overflow" => self.overflow_open = !self.overflow_open,
+                        "aimenu" => self.ai_menu_open = !self.ai_menu_open,
                         "launcher" => self.add_profile_launcher(),
                         a if a.starts_with("settingsfind:") => {
                             self.settings_filter = a[13..].to_string();
@@ -1462,6 +1482,8 @@ impl Sanaga {
         self.identity_chooser(&ctx, &th);
         self.note_recent();
         self.tab_switcher(&ctx, &th);
+        self.ai_menu(&ctx, &th);
+        self.dialog_sheet(&ctx, &th);
         self.site_settings_panel(&ctx, &th);
         self.container_chooser(&ctx, &th);
         self.overflow_menu(&ctx, &th);

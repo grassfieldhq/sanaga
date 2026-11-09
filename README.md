@@ -57,9 +57,15 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - Built-in PDF reader (search, zoom, print, annotations).
 - Files the browser can't show (archives, installers…) are downloaded; a
   downloads bar and page.
-- Translation of the page with Google, or in place with the AI of your choice
-  (Claude Code, Codex, Claude, a local Ollama model — offline).
-- Page summaries (✦, Ctrl+Shift+Y) and extensions written from a description.
+- The ✦ button: summarise the page, or translate it into the language you
+  choose (20 languages; Google, or in place with the AI of your choice:
+  Claude Code, Codex, Claude, a local Ollama model — offline).
+- Extensions written from a description.
+- Clear error pages: site not found, no connection (reloads by itself when it
+  comes back), refused, too slow, invalid certificate (back to safety, or go
+  on knowingly), blocked port — with search and archived-copy shortcuts.
+- Alerts, confirmations, prompts and site logins in Sanaga's own sheets, the
+  site's name on top; a site that insists can be silenced.
 
 **Tabs and windows**
 - Chrome-style tab row: pinned tabs, drag to reorder, tab groups with colours,

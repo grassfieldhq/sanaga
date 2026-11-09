@@ -938,3 +938,56 @@ Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres ›
 Sélecteur d'onglets (Ctrl+Tab)	Tab switcher (Ctrl+Tab)
 Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	The tabs used last, as pictures; Ctrl+Page Down follows the tab bar
 Ouvrir le lien dans un onglet privé	Open link in a private tab
+Cette page	This page
+{} demande de vous connecter	{} asks you to sign in
+Quitter {} ?	Leave {}?
+{} dit :	{} says:
+Ce que vous avez saisi sur cette page pourrait ne pas être enregistré.	What you typed on this page may not be saved.
+Espace : « {} ». Votre identifiant et votre mot de passe sont envoyés à ce site.	Area: “{}”. Your user name and password are sent to this site.
+Votre identifiant et votre mot de passe sont envoyés à ce site.	Your user name and password are sent to this site.
+Identifiant	User name
+Mot de passe	Password
+Ne plus laisser ce site afficher d'alertes	Don't let this site show more alerts
+Rester	Stay
+Se connecter	Sign in
+Ce site est introuvable	This site can't be found
+L'adresse de {} ne mène nulle part : le nom du site n'existe pas, ou il ne répond plus.	{}'s address leads nowhere: the site's name doesn't exist, or it no longer answers.
+Vérifiez l'orthographe de l'adresse.	Check the address's spelling.
+Cherchez le site par son nom.	Search for the site by its name.
+Si vous utilisez un VPN ou un pare-feu, vérifiez qu'il laisse passer ce site.	If you use a VPN or a firewall, check that it lets this site through.
+Vous n'êtes pas connecté à Internet	You're not connected to the Internet
+Sanaga n'arrive pas à joindre le réseau. La page se rechargera toute seule dès que la connexion revient.	Sanaga can't reach the network. The page will reload by itself as soon as the connection is back.
+Vérifiez le Wi-Fi ou le câble réseau.	Check the Wi-Fi or the network cable.
+Désactivez le mode avion s'il est activé.	Turn off airplane mode if it's on.
+Redémarrez votre box ou votre routeur.	Restart your modem or router.
+Le site refuse la connexion	The site refused the connection
+{} est joignable, mais n'accepte pas la connexion en ce moment.	{} can be reached, but doesn't accept the connection right now.
+Le site est peut-être en maintenance : réessayez dans un moment.	The site may be under maintenance: try again in a moment.
+Vérifiez l'adresse, et le port s'il y en a un.	Check the address, and the port if there is one.
+Le site met trop de temps à répondre	The site is taking too long to answer
+{} n'a pas répondu à temps. Il est peut-être surchargé, ou votre connexion est lente.	{} didn't answer in time. It may be overloaded, or your connection is slow.
+Réessayez dans un instant.	Try again in a moment.
+Vérifiez votre connexion.	Check your connection.
+La connexion à ce site n'est pas privée	Your connection to this site is not private
+Le certificat de {} n'est pas valide. Quelqu'un pourrait lire ou modifier ce que vous échangez avec ce site (mots de passe, messages, cartes bancaires).	{}'s certificate is not valid. Someone could read or change what you exchange with this site (passwords, messages, bank cards).
+Revenez en lieu sûr, sauf si vous savez exactement pourquoi ce site a un certificat non valide (un appareil de votre réseau, par exemple).	Go back to safety, unless you know exactly why this site has an invalid certificate (a device on your network, for example).
+Ce fichier est introuvable	This file can't be found
+Le fichier {} n'existe pas (ou plus) sur cet ordinateur.	The file {} doesn't exist (or no longer exists) on this computer.
+Cette page n'a pas pu être chargée	This page couldn't be loaded
+Le chargement de {} a échoué.	Loading {} failed.
+Revenir en lieu sûr	Back to safety
+Réessayer	Try again
+Rechercher « {} »	Search for “{}”
+Avancé	Advanced
+Continuer expose ce que vous envoyez à ce site. Sanaga ne s'en souviendra que jusqu'à sa fermeture.	Going on exposes what you send to this site. Sanaga remembers it only until it closes.
+Continuer vers {} (dangereux)	Continue to {} (dangerous)
+Détails techniques	Technical details
+Traduire vers	Translate into
+Langue de Sanaga ({})	Sanaga's language ({})
+Résumer ou traduire la page	Summarise or translate the page
+Les points essentiels, à côté de la page — Ctrl+Maj+Y	The key points, next to the page — Ctrl+Shift+Y
+En {}	Into {}
+En {} · avec {}	Into {} · with {}
+Cette adresse utilise un port bloqué	This address uses a blocked port
+Pour votre sécurité, les navigateurs n'ouvrent pas ce port : il sert à d'autres services (courrier, transfert de fichiers…).	For your safety, browsers don't open this port: it belongs to other services (mail, file transfer…).
+Vérifiez le numéro de port dans l'adresse.	Check the port number in the address.

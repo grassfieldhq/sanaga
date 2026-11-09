@@ -938,3 +938,56 @@ Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres ›
 Sélecteur d'onglets (Ctrl+Tab)	Tab-Umschalter (Strg+Tab)
 Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets	Die zuletzt genutzten Tabs als Bilder; Strg+Bild ab folgt der Tableiste
 Ouvrir le lien dans un onglet privé	Link in privatem Tab öffnen
+Cette page	Diese Seite
+{} demande de vous connecter	{} bittet Sie, sich anzumelden
+Quitter {} ?	{} verlassen?
+{} dit :	{} meldet:
+Ce que vous avez saisi sur cette page pourrait ne pas être enregistré.	Was Sie auf dieser Seite eingegeben haben, wird möglicherweise nicht gespeichert.
+Espace : « {} ». Votre identifiant et votre mot de passe sont envoyés à ce site.	Bereich: „{}“. Benutzername und Passwort werden an diese Website gesendet.
+Votre identifiant et votre mot de passe sont envoyés à ce site.	Benutzername und Passwort werden an diese Website gesendet.
+Identifiant	Benutzername
+Mot de passe	Passwort
+Ne plus laisser ce site afficher d'alertes	Diese Website keine weiteren Meldungen anzeigen lassen
+Rester	Bleiben
+Se connecter	Anmelden
+Ce site est introuvable	Diese Website ist nicht erreichbar
+L'adresse de {} ne mène nulle part : le nom du site n'existe pas, ou il ne répond plus.	Die Adresse von {} führt nirgendwohin: Der Name der Website existiert nicht oder antwortet nicht mehr.
+Vérifiez l'orthographe de l'adresse.	Prüfen Sie die Schreibweise der Adresse.
+Cherchez le site par son nom.	Suchen Sie die Website über ihren Namen.
+Si vous utilisez un VPN ou un pare-feu, vérifiez qu'il laisse passer ce site.	Wenn Sie ein VPN oder eine Firewall nutzen, prüfen Sie, ob sie diese Website durchlässt.
+Vous n'êtes pas connecté à Internet	Sie sind nicht mit dem Internet verbunden
+Sanaga n'arrive pas à joindre le réseau. La page se rechargera toute seule dès que la connexion revient.	Sanaga erreicht das Netzwerk nicht. Die Seite lädt sich von selbst neu, sobald die Verbindung zurück ist.
+Vérifiez le Wi-Fi ou le câble réseau.	Prüfen Sie das WLAN oder das Netzwerkkabel.
+Désactivez le mode avion s'il est activé.	Schalten Sie den Flugmodus aus, falls er an ist.
+Redémarrez votre box ou votre routeur.	Starten Sie Ihr Modem oder Ihren Router neu.
+Le site refuse la connexion	Die Website verweigert die Verbindung
+{} est joignable, mais n'accepte pas la connexion en ce moment.	{} ist erreichbar, nimmt die Verbindung aber gerade nicht an.
+Le site est peut-être en maintenance : réessayez dans un moment.	Die Website wird vielleicht gewartet: Versuchen Sie es gleich noch einmal.
+Vérifiez l'adresse, et le port s'il y en a un.	Prüfen Sie die Adresse und den Port, falls angegeben.
+Le site met trop de temps à répondre	Die Website braucht zu lange für eine Antwort
+{} n'a pas répondu à temps. Il est peut-être surchargé, ou votre connexion est lente.	{} hat nicht rechtzeitig geantwortet. Sie ist vielleicht überlastet oder Ihre Verbindung ist langsam.
+Réessayez dans un instant.	Versuchen Sie es gleich noch einmal.
+Vérifiez votre connexion.	Prüfen Sie Ihre Verbindung.
+La connexion à ce site n'est pas privée	Ihre Verbindung zu dieser Website ist nicht privat
+Le certificat de {} n'est pas valide. Quelqu'un pourrait lire ou modifier ce que vous échangez avec ce site (mots de passe, messages, cartes bancaires).	Das Zertifikat von {} ist ungültig. Jemand könnte lesen oder verändern, was Sie mit dieser Website austauschen (Passwörter, Nachrichten, Bankkarten).
+Revenez en lieu sûr, sauf si vous savez exactement pourquoi ce site a un certificat non valide (un appareil de votre réseau, par exemple).	Kehren Sie in Sicherheit zurück, außer Sie wissen genau, warum diese Website ein ungültiges Zertifikat hat (etwa ein Gerät in Ihrem Netzwerk).
+Ce fichier est introuvable	Diese Datei wurde nicht gefunden
+Le fichier {} n'existe pas (ou plus) sur cet ordinateur.	Die Datei {} existiert (nicht mehr) auf diesem Computer.
+Cette page n'a pas pu être chargée	Diese Seite konnte nicht geladen werden
+Le chargement de {} a échoué.	Das Laden von {} ist fehlgeschlagen.
+Revenir en lieu sûr	Zurück in Sicherheit
+Réessayer	Erneut versuchen
+Rechercher « {} »	Nach „{}“ suchen
+Avancé	Erweitert
+Continuer expose ce que vous envoyez à ce site. Sanaga ne s'en souviendra que jusqu'à sa fermeture.	Fortfahren macht sichtbar, was Sie an diese Website senden. Sanaga merkt es sich nur bis zum Schließen.
+Continuer vers {} (dangereux)	Weiter zu {} (gefährlich)
+Détails techniques	Technische Details
+Traduire vers	Übersetzen in
+Langue de Sanaga ({})	Sprache von Sanaga ({})
+Résumer ou traduire la page	Seite zusammenfassen oder übersetzen
+Les points essentiels, à côté de la page — Ctrl+Maj+Y	Die wichtigsten Punkte neben der Seite — Strg+Umschalt+Y
+En {}	Auf {}
+En {} · avec {}	Auf {} · mit {}
+Cette adresse utilise un port bloqué	Diese Adresse nutzt einen gesperrten Port
+Pour votre sécurité, les navigateurs n'ouvrent pas ce port : il sert à d'autres services (courrier, transfert de fichiers…).	Zu Ihrer Sicherheit öffnen Browser diesen Port nicht: Er gehört zu anderen Diensten (E-Mail, Dateiübertragung…).
+Vérifiez le numéro de port dans l'adresse.	Prüfen Sie die Portnummer in der Adresse.

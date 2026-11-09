@@ -29,6 +29,158 @@ pub enum PageSignal {
     /// (0, a tab behind), Ctrl+Shift+click (1, a tab in front), Shift+click
     /// (2, a new window).
     OpenLink(String, u8),
+    /// The page could not be loaded: its address, what went wrong (see
+    /// `LoadError`) and the engine's own words.
+    LoadFailed(String, LoadError, String),
+    /// The page asks something (alert, confirm, prompt, leave the page, a
+    /// login): Sanaga shows it in its own design (see `dialog`).
+    Dialog(u64),
+}
+
+/// Why a page did not load.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoadError {
+    /// The site's name does not exist (DNS).
+    NotFound,
+    /// No internet connection.
+    Offline,
+    /// The server refused the connection.
+    Refused,
+    /// The server or the network did not answer in time.
+    Timeout,
+    /// The site's certificate is not valid (the connection is not private).
+    Certificate,
+    /// A local file that is not there.
+    NoFile,
+    /// A port browsers never open (it belongs to other services: mail, FTP…).
+    BlockedPort,
+    Other,
+}
+
+/// What a page asks, for Sanaga's own dialog.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DialogKind {
+    Alert,
+    Confirm,
+    Prompt(String),
+    /// "Leave this page?" (unsaved changes)
+    Leave,
+    /// A login asked by the site (HTTP authentication): the realm.
+    Login(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct DialogInfo {
+    pub kind: DialogKind,
+    pub message: String,
+    /// Where it comes from (the page's site).
+    pub host: String,
+}
+
+enum Pending {
+    Script(webkit6::ScriptDialog),
+    Auth(webkit6::AuthenticationRequest),
+}
+
+thread_local! {
+    static DIALOGS: RefCell<Vec<(u64, Pending, DialogInfo)>> = const { RefCell::new(Vec::new()) };
+    static NEXT_DIALOG: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
+    /// Certificates the person accepted to go on with, per host (this run only).
+    static TLS_SEEN: RefCell<Vec<(String, gtk::gio::TlsCertificate)>> = const { RefCell::new(Vec::new()) };
+}
+
+fn keep_dialog(p: Pending, info: DialogInfo) -> u64 {
+    let key = NEXT_DIALOG.with(|n| {
+        let k = n.get();
+        n.set(k + 1);
+        k
+    });
+    DIALOGS.with(|d| d.borrow_mut().push((key, p, info)));
+    key
+}
+
+/// What dialog `key` asks (None once answered).
+pub fn dialog(key: u64) -> Option<DialogInfo> {
+    DIALOGS.with(|d| d.borrow().iter().find(|x| x.0 == key).map(|x| x.2.clone()))
+}
+
+/// Answer dialog `key`: OK / Cancel, the text typed (prompt), or the user
+/// name and password (login).
+pub fn answer_dialog(key: u64, ok: bool, text: &str, password: &str) {
+    let Some((_, p, _)) = DIALOGS.with(|d| {
+        let mut d = d.borrow_mut();
+        d.iter().position(|x| x.0 == key).map(|i| d.remove(i))
+    }) else {
+        return;
+    };
+    match p {
+        Pending::Script(s) => {
+            match s.dialog_type() {
+                webkit6::ScriptDialogType::Confirm | webkit6::ScriptDialogType::BeforeUnloadConfirm => s.confirm_set_confirmed(ok),
+                webkit6::ScriptDialogType::Prompt => {
+                    if ok {
+                        s.prompt_set_text(text);
+                    } else {
+                        s.confirm_set_confirmed(false);
+                    }
+                }
+                _ => {}
+            }
+            s.close();
+        }
+        Pending::Auth(r) => {
+            if ok {
+                r.authenticate(Some(&webkit6::Credential::new(text, password, webkit6::CredentialPersistence::ForSession)));
+            } else {
+                r.cancel();
+            }
+        }
+    }
+}
+
+/// Go on to `host` despite its certificate (the person said so), and reload.
+pub fn accept_certificate(view: &WebView, host: &str) {
+    let cert = TLS_SEEN.with(|t| t.borrow().iter().find(|(h, _)| h == host).map(|(_, c)| c.clone()));
+    if let (Some(c), Some(s)) = (cert, view.network_session()) {
+        s.allow_tls_certificate_for_host(&c, host);
+        view.reload();
+    }
+}
+
+/// What kind of failure an engine error is.
+fn classify(e: &gtk::glib::Error) -> Option<LoadError> {
+    use gtk::gio;
+    // a load replaced by another, a download, a stop: not an error to show
+    if e.matches(webkit6::NetworkError::Cancelled) || e.matches(webkit6::PolicyError::FrameLoadInterruptedByPolicyChange) || e.matches(webkit6::PolicyError::CannotShowMimeType) {
+        return None;
+    }
+    if e.matches(webkit6::NetworkError::FileDoesNotExist) {
+        return Some(LoadError::NoFile);
+    }
+    if e.matches(webkit6::PolicyError::CannotUseRestrictedPort) {
+        return Some(LoadError::BlockedPort);
+    }
+    let offline = !gio::NetworkMonitor::default().is_network_available();
+    let msg = e.message().to_lowercase();
+    if offline {
+        return Some(LoadError::Offline);
+    }
+    if e.matches(gio::ResolverError::NotFound) || e.matches(gio::ResolverError::TemporaryFailure) || msg.contains("resolv") || msg.contains("name or service not known") {
+        return Some(LoadError::NotFound);
+    }
+    if e.matches(gio::IOErrorEnum::ConnectionRefused) || msg.contains("refused") {
+        return Some(LoadError::Refused);
+    }
+    if e.matches(gio::IOErrorEnum::TimedOut) || msg.contains("timed out") || msg.contains("timeout") {
+        return Some(LoadError::Timeout);
+    }
+    if e.matches(gio::IOErrorEnum::NetworkUnreachable) || e.matches(gio::IOErrorEnum::HostUnreachable) {
+        return Some(LoadError::Offline);
+    }
+    if msg.contains("certificate") || msg.contains("tls") {
+        return Some(LoadError::Certificate);
+    }
+    Some(LoadError::Other)
 }
 
 /// Makes the page a site opens with `window.open` (sign-in, payment windows):
@@ -475,6 +627,57 @@ impl PageView {
                 eprintln!("page menu: {} items", menu.n_items());
             }
             false
+        });
+        // the page did not load: Sanaga's own error page (not WebKit's)
+        let o = on.clone();
+        view.connect_load_failed(move |_, _, uri, e| match {
+            if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
+                eprintln!("load failed {uri}: domain={} message={:?}", e.domain().as_str(), e.message());
+            }
+            classify(e)
+        } {
+            Some(kind) => {
+                o(PageSignal::LoadFailed(uri.to_string(), kind, e.message().to_string()));
+                true
+            }
+            None => false,
+        });
+        let o = on.clone();
+        view.connect_load_failed_with_tls_errors(move |_, uri, cert, flags| {
+            let host = host_of_uri(uri);
+            TLS_SEEN.with(|t| {
+                let mut t = t.borrow_mut();
+                t.retain(|(h, _)| *h != host);
+                t.push((host.clone(), cert.clone()));
+            });
+            o(PageSignal::LoadFailed(uri.to_string(), LoadError::Certificate, format!("{flags:?}")));
+            true
+        });
+        // alert(), confirm(), prompt(), "leave this page?": Sanaga's dialogs
+        let o = on.clone();
+        view.connect_script_dialog(move |v, d| {
+            let kind = match d.dialog_type() {
+                webkit6::ScriptDialogType::Alert => DialogKind::Alert,
+                webkit6::ScriptDialogType::Confirm => DialogKind::Confirm,
+                webkit6::ScriptDialogType::Prompt => DialogKind::Prompt(d.prompt_get_default_text().map(|t| t.to_string()).unwrap_or_default()),
+                _ => DialogKind::Leave,
+            };
+            let info = DialogInfo { kind, message: d.message().map(|m| m.to_string()).unwrap_or_default(), host: host_of_uri(&v.uri().map(|u| u.to_string()).unwrap_or_default()) };
+            let key = keep_dialog(Pending::Script(d.clone()), info);
+            o(PageSignal::Dialog(key));
+            true
+        });
+        // a site asking for a user name and password (HTTP authentication)
+        let o = on.clone();
+        view.connect_authenticate(move |_, r| {
+            if r.is_for_proxy() {
+                return false;
+            }
+            let host = r.host().map(|h| h.to_string()).unwrap_or_default();
+            let info = DialogInfo { kind: DialogKind::Login(r.realm().map(|x| x.to_string()).unwrap_or_default()), message: String::new(), host };
+            let key = keep_dialog(Pending::Auth(r.clone()), info);
+            o(PageSignal::Dialog(key));
+            true
         });
         // a page that closes itself (window.close(), allowed by WebKit only
         // for windows a script opened): its tab closes
