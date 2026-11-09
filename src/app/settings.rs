@@ -330,12 +330,33 @@ pub(super) fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar:
 }
 
 /// Is Sanaga the system's default web browser? (`xdg-settings`)
+/// Desktops that send links to a routing entry of their own, which then
+/// opens the browser chosen in the general list (Omarchy).
+const ROUTERS: [&str; 1] = ["omarchy-browser.desktop"];
+
+/// `xdg-settings get default-web-browser`; `general`: from the general list
+/// only (not the desktop's own, which may hold a routing entry).
+fn xdg_default_browser(general: bool) -> String {
+    let mut cmd = std::process::Command::new("xdg-settings");
+    cmd.args(["get", "default-web-browser"]);
+    if general {
+        cmd.env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "");
+    }
+    cmd.output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
+}
+
 fn default_browser_is_sanaga() -> bool {
-    std::process::Command::new("xdg-settings")
-        .args(["get", "default-web-browser"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "sanaga.desktop")
-        .unwrap_or(false)
+    // Omarchy says itself which browser its routing entry opens
+    if let Ok(o) = std::process::Command::new("omarchy-cmd-default-browser").output() {
+        if o.status.success() {
+            return String::from_utf8_lossy(&o.stdout).trim() == "sanaga.desktop";
+        }
+    }
+    match xdg_default_browser(false) {
+        b if b == "sanaga.desktop" => true,
+        b if b.is_empty() || ROUTERS.contains(&b.as_str()) => xdg_default_browser(true) == "sanaga.desktop",
+        _ => false,
+    }
 }
 
 fn launcher_installed() -> bool {
@@ -1365,10 +1386,21 @@ impl Sanaga {
             self.notice = Some((tr("Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.").into(), now));
             return;
         }
-        let ok = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status().is_ok_and(|s| s.success());
-        // HTML files too
-        let _ = std::process::Command::new("xdg-mime").args(["default", "sanaga.desktop", "text/html", "application/xhtml+xml"]).status();
-        self.is_default_browser = Some(default_browser_is_sanaga());
+        // 1. the general list (~/.config/mimeapps.list): what every desktop
+        //    reads, and where Omarchy's routing entry looks for the browser
+        let general = |program: &str, args: &[&str]| {
+            std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
+        };
+        general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
+        // web links and HTML files
+        general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);
+        // 2. the desktop's own setting (GNOME, KDE…), unless it routes links
+        //    to the general choice by itself (Omarchy)
+        if !ROUTERS.contains(&xdg_default_browser(false).as_str()) {
+            let _ = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status();
+        }
+        let ok = default_browser_is_sanaga();
+        self.is_default_browser = Some(ok);
         self.notice = Some((if ok { tr("Sanaga est maintenant votre navigateur par défaut.") } else { tr("Impossible de changer le navigateur par défaut.") }.into(), now));
     }
 }

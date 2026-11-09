@@ -81,6 +81,9 @@ All notable changes to Sanaga are listed here. The format follows
 - Ctrl+N opens a new window (it opened a tab).
 
 ### Fixed
+- Make default browser: on Omarchy (and desktops with a routing entry), the
+  choice goes to the general mimeapps.list that the routing entry reads, with
+  web links and HTML files; checked the same way the desktop does.
 - Ctrl+click / middle click on a link opens it in a tab behind (Ctrl+Shift:
   in front, Shift: a new window), under the page and in its container.
 - A file the browser cannot show (archive, installer, unknown type) sent

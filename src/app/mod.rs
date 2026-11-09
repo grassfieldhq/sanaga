@@ -1306,6 +1306,10 @@ impl Sanaga {
                         }
                         "overflow" => self.overflow_open = !self.overflow_open,
                         "aimenu" => self.ai_menu_open = !self.ai_menu_open,
+                        "makedefault" => {
+                            self.make_default_browser_pub();
+                            eprintln!("live default browser: {:?}", self.is_default_browser);
+                        }
                         a if a.starts_with("grouptab:") => {
                             if let Ok(i) = a[9..].parse::<usize>() {
                                 if i < self.tabs.len() {
