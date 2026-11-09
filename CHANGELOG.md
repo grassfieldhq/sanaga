@@ -6,6 +6,29 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Security (audit of 8 November 2026)
+- Sanaga's page scripts and its message channel run in an isolated
+  JavaScript world, top frame only; page messages are checked against the
+  page shown and against what the person started.
+- Passwords are filled only after a click in Sanaga's bar (no fill on page
+  load, no account list in the page), with the origin checked again.
+- Downloads: safe file names, never an overwrite, extended attributes with
+  their origin, and Safari's question for downloads a site starts by itself.
+- Pages can no longer read the clipboard without a user gesture.
+- AI translation and summaries only with tool-less models; translation is
+  text-only, bounded and reset on navigation.
+- No one-click codec install: the exact command in a terminal, and none at
+  all on a distribution build (`SANAGA_DISTRO`).
+- Favicons come from WebKit; AI-written extensions are installed switched
+  off; private temporary folders; escaped `.desktop` entries; a checked and
+  bounded single-instance socket; debug-only test hooks; private data
+  permissions; the system's certificate store for Sanaga's own requests.
+
+### Changed
+- Password AutoFill no longer lists accounts under the sign-in field nor
+  fills a site's only account by itself: the accounts are offered in
+  Sanaga's bar.
+
 ### Added
 - Sign-in and payment windows opened by sites (`window.open`) are real pages
   linked to their opener, shown as new tabs, and close themselves when done.

@@ -11,13 +11,13 @@ Legend: ✅ Sanaga does not have the problem · 🟡 partly · ❌ not yet
 
 | Complaint | Usual culprit | Sanaga |
 |---|---|---|
-| The browser reports to its maker (telemetry, usage data) | Chrome, Edge, Firefox (opt-out) | ✅ No telemetry, no account, no update check. The only requests are the sites you open, their icons (from the site itself) and the search engine you chose. |
+| The browser reports to its maker (telemetry, usage data) | Chrome, Edge, Firefox (opt-out) | ✅ No telemetry, no account, no update check. The only requests are the sites you open, their icons (loaded by WebKit with the page, through the page's own session) and the search engine you chose. |
 | Search goes to an ad company by default | Chrome, Safari (Google) | ✅ DuckDuckGo (light version) by default; Google only with the `g` shortcut. |
 | Address bar sends every keystroke to a server for suggestions | Chrome, Firefox, Safari | ✅ Suggestions come from your history, favourites and tabs only — nothing leaves the computer while you type. |
 | Cross-site trackers, third-party cookies | Chrome (Privacy Sandbox, Topics) | ✅ WebKit's tracking prevention (ITP) on by default, with a privacy report. No Topics / ad measurement APIs. |
 | `<a ping>` reports which links you follow | Chrome, Safari | ✅ **Fixed during the audit**: Sanaga removes `ping` from a link before the click (WebKit ignores its own setting for this). |
 | Notification permission spam | All | ✅ **Fixed**: requests are refused quietly (a short note says so); Settings › Privacy can let sites ask again. |
-| Translation sends the page to a cloud service without saying so | Chrome | ✅ **Your choice**: Google Translate, or the AI you chose (Claude Code, Codex, Claude, Ollama — the page is translated in place, only its text is sent). Asked the first time; Settings › Intelligence. |
+| Translation sends the page to a cloud service without saying so | Chrome | ✅ **Your choice**: Google Translate, or the AI you chose (Claude Code with no tools, Claude, Ollama; never an assistant that can read your files — the page is translated in place, only its text is sent). Asked the first time; Settings › Intelligence. |
 | Passwords stored in the browser's own files | Chrome (Linux: basic store), Firefox (without primary password) | ✅ In the system keyring (Secret Service) — the list itself is read from the keyring. |
 | Fingerprinting | All | 🟡 ITP limits some of it; no dedicated fingerprinting protection yet. |
 | Cookie banners everywhere | All (Brave/Firefox auto-reject) | ✅ **Added**: built-in “No cookie banners” extension (on by default for new profiles) hides the common consent tools without accepting anything, and restores scrolling. |

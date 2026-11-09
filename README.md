@@ -58,7 +58,9 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - Files the browser can't show (archives, installers…) are downloaded; a
   downloads bar and page.
 - Translation of the page with Google, or in place with the AI of your choice
-  (Claude Code, Codex, Claude, a local Ollama model — offline).
+  (Claude Code run with no tools, Claude, a local Ollama model — offline).
+  Codex and Gemini CLI can read local files even locked down, so Sanaga never
+  sends them the text of a page.
 - Page summaries (✦, Ctrl+Shift+Y) and extensions written from a description.
 
 **Tabs and windows**
@@ -82,7 +84,8 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
   plus cookie-banner hiding.
 - Cross-site tracking prevention with a privacy report; no `<a ping>`; videos
   never start with sound; notification requests refused quietly.
-- Passwords and AutoFill in the system keyring; import of bookmarks, history
+- Passwords and AutoFill in the system keyring, filled only when you pick an
+  account in Sanaga's bar; import of bookmarks, history
   and passwords from Chrome, Chromium, Brave, Edge, Vivaldi and Firefox.
 - Private tabs, profiles (each with its emoji and its own launcher in your
   applications), sync of bookmarks, reading list and open tabs through any
@@ -124,7 +127,8 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
   (`.xpi`) that act inside pages, and user scripts (`.user.js`) —
   Settings › Extensions › Install an extension…
 - Your own `.js` / `.css` files, or extensions written for you from a
-  description (Sanaga alone, Ollama, Claude, Claude Code, Codex).
+  description (Sanaga alone, Ollama, Claude, Claude Code, Codex): written
+  switched off, you read the code and the sites it acts on, then turn it on.
 - Switching one on or off applies at once to the open pages.
 
 **For web developers**
@@ -264,8 +268,11 @@ engine bridge and a few system services.
   background service or a pop-up (password managers…) are not supported
   (WebKitGTK has no extension API).
 - Video sites (YouTube…) need the GStreamer codecs above (H.264, AAC, AV1,
-  Opus). Sanaga checks them and installs them in one click (Settings ›
-  General › Video and music, or the bar shown on the site).
+  Opus). Sanaga checks them, shows the exact install command and can open it
+  in a terminal, where the package manager asks for confirmation (Settings ›
+  General › Video and music, or the bar shown on the site). A distribution
+  that ships the codecs with Sanaga builds it with `SANAGA_DISTRO=<name>`
+  (e.g. `SANAGA_DISTRO=grassfield`): then Sanaga never offers to install them.
 - DRM video (Netflix, Disney+, Prime Video, Spotify web…) needs Widevine,
   which no WebKitGTK browser has. Sanaga opens these sites in the Spotify app
   or in an installed browser that has Widevine (Chrome, Chromium with
