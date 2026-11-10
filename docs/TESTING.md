@@ -52,6 +52,16 @@ SANAGA_LIVE_TEST="5:devices,6:devpick:22,9:shot,10:quit" \
 The synthetic clicks and keys go straight to Sanaga: they never reach other
 applications, whatever window has the focus.
 
+## The window in one command
+
+```sh
+tools/smoke.sh            # the debug build (test hooks are not in release builds)
+```
+
+It starts the real window on a temporary profile, waits for the interface,
+loads `tests/smoke.html` and asks the page its title through Sanaga's own
+channel. CI runs it under a virtual display (job `window`).
+
 ## Other switches
 
 | Variable | Effect |
@@ -59,6 +69,8 @@ applications, whatever window has the focus.
 | `SANAGA_DEBUG_FRAMES=1` | print each frame's duration |
 | `SANAGA_DEBUG_TICK=1` | print the web engine ticks |
 | `SANAGA_DEBUG_GL=1` | print the OpenGL version and errors |
+| `SANAGA_DEBUG_START=1` | print how long each step of the start took |
+| `SANAGA_DEBUG_BLOCKER=1` | print the block lists' fetch and compilation |
 | `SANAGA_DEBUG_FRAME=1` | print where the simulator's frame and browser buttons are |
 | `SANAGA_HWACCEL=never\|always` | force WebKit's hardware acceleration policy |
 | `SANAGA_BENCH_CYCLE=n` | show the next tab every 3 s, n times (memory tests) |

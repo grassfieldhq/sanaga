@@ -213,6 +213,7 @@ impl Sanaga {
     /// is closed and reloaded when you come back), like Chrome's.
     pub(super) fn memory_saver_step(&mut self, now: f64) {
         let active = self.active;
+        let split = self.split;
         if let Some(req) = self.tabs.get_mut(active).and_then(|t| t.lite_pending.take()) {
             let private = self.tabs[active].private;
             self.tabs[active].loading = true;
@@ -220,6 +221,14 @@ impl Sanaga {
             net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
         }
         if let Some(t) = self.tabs.get_mut(active) {
+            // a tab shown again counts as a revisit (Chrome keeps often
+            // revisited tabs awake: see MECHANICS.md)
+            if t.id != self.saver_last_tab {
+                if t.last_active > 0.0 {
+                    t.revisits = t.revisits.saturating_add(1);
+                }
+                self.saver_last_tab = t.id;
+            }
             t.last_active = now;
             if t.sleeping && matches!(t.view, View::Web) && t.web.is_none() && t.web_pending.is_none() {
                 t.sleeping = false;
@@ -229,13 +238,19 @@ impl Sanaga {
                 t.web_by_person = false;
             }
         }
-        // (minutes before a tab sleeps, most pages kept running at once)
-        let level = if self.low_power_active() { 3 } else { self.store.settings.memory_saver };
-        let (minutes, cap) = match level {
-            1 => (60.0, 12),
-            2 => (20.0, 6),
-            3 => (5.0, 3),
-            _ => return,
+        // (minutes before an inactive tab sleeps, most pages kept running at
+        // once, revisits above which the timer leaves a tab awake). The three
+        // levels are Chrome's (MECHANICS.md): 6 h - 2 h × level, revisits
+        // 5 / 15 / 15. The energy saver mode is Sanaga's own: 5 min.
+        let (minutes, cap, max_revisits) = if self.low_power_active() {
+            (5.0, 3, u32::MAX)
+        } else {
+            match self.store.settings.memory_saver {
+                1 => (360.0, 12, 5),
+                2 => (240.0, 6, 15),
+                3 => (120.0, 3, 15),
+                _ => return,
+            }
         };
         let mut running: Vec<(f64, usize)> = Vec::new();
         for (i, t) in self.tabs.iter_mut().enumerate() {
@@ -245,10 +260,11 @@ impl Sanaga {
                 let v = w.webview();
                 v.camera_capture_state() != webkit6::MediaCaptureState::None || v.microphone_capture_state() != webkit6::MediaCaptureState::None
             });
-            if i == active || t.web.is_none() || t.audio || calling || t.pinned || t.form_dirty {
+            // (nor the two tabs of a split view)
+            if i == active || t.web.is_none() || t.audio || calling || t.pinned || t.form_dirty || split.is_some_and(|(a, b)| t.id == a || t.id == b) {
                 continue;
             }
-            if t.last_active > 0.0 && now - t.last_active > minutes * 60.0 {
+            if t.last_active > 0.0 && now - t.last_active > minutes * 60.0 && t.revisits <= max_revisits {
                 put_to_sleep(t);
             } else {
                 running.push((t.last_active, i));
@@ -550,15 +566,79 @@ impl Sanaga {
         }
     }
 
-    /// Ctrl+Shift+A: find an open tab by its title or address (all groups).
+    /// Ctrl+K (or Ctrl+Shift+A): the command palette. One field for the
+    /// open tabs (all groups), Sanaga's commands, favourites, history, and
+    /// the web: type, pick with the arrows, Enter.
     pub(super) fn tab_search(&mut self, ctx: &egui::Context, th: &Theme) {
         if !self.tab_search_open {
             return;
         }
-        let w = 460.0;
+        enum Pick {
+            Tab(usize),
+            Command(&'static str),
+            Go(String),
+        }
+        let w = 560.0;
         let screen = ctx.content_rect();
         let pos = pos2(screen.center().x - w / 2.0, screen.top() + 60.0);
-        let q = self.tab_search_q.to_lowercase();
+        let q = self.tab_search_q.trim().to_lowercase();
+        // the lines: (what it does, icon address or "", title, small text)
+        let mut lines: Vec<(Pick, String, String, String)> = Vec::new();
+        for (i, t) in self.tabs.iter().enumerate() {
+            let title = t.title();
+            if !q.is_empty() && !title.to_lowercase().contains(&q) && !t.url().to_lowercase().contains(&q) {
+                continue;
+            }
+            let mut sub = host_of(t.url());
+            if self.groups.len() > 1 {
+                sub = format!("{sub} · {}", self.groups.get(t.group).cloned().unwrap_or_default());
+            }
+            if t.sleeping {
+                sub = format!("{sub} · {}", tr("en veille"));
+            }
+            lines.push((Pick::Tab(i), t.url().to_string(), title, format!("{} · {sub}", tr("Onglet"))));
+        }
+        if !q.is_empty() {
+            for (name, label) in super::buttons::commands() {
+                if label.to_lowercase().contains(&q) {
+                    lines.push((Pick::Command(name), String::new(), label.to_string(), tr("Commande").to_string()));
+                }
+            }
+            let mut seen: HashSet<String> = self.tabs.iter().map(|t| super::chrome::same_page_key(t.url())).collect();
+            let bm = self.store.bookmarks.iter().map(|b| (&b.url, &b.title, true));
+            let hist = self.store.history.iter().rev().take(6000).map(|v| (&v.url, &v.title, false));
+            let mut pages = 0;
+            for (u, t, fav) in bm.chain(hist) {
+                if pages >= 7 {
+                    break;
+                }
+                if (u.to_lowercase().contains(&q) || t.to_lowercase().contains(&q)) && seen.insert(super::chrome::same_page_key(u)) {
+                    let (site, rest) = super::toolbar::display_url(u, false);
+                    let kind = if fav { tr("Favori") } else { tr("Historique") };
+                    lines.push((Pick::Go(u.clone()), u.clone(), if t.is_empty() { u.clone() } else { t.clone() }, format!("{kind} · {site}{rest}")));
+                    pages += 1;
+                }
+            }
+            let typed = self.tab_search_q.trim().to_string();
+            let engine = self.store.settings.engine;
+            let direct = input_to_url(&typed, engine, "");
+            if direct != engine.search_url(&typed) {
+                lines.push((Pick::Go(direct.clone()), direct.clone(), direct, tr("Ouvrir cette adresse").to_string()));
+            }
+            lines.push((Pick::Go(engine.search_url(&typed)), String::new(), tf("Rechercher « {} »", &[&typed]), short_engine(engine).to_string()));
+        }
+        // arrows pick a line; the field keeps the keyboard
+        let (down, up, enter) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::ArrowDown), i.consume_key(egui::Modifiers::NONE, Key::ArrowUp), i.key_pressed(Key::Enter)));
+        if !lines.is_empty() {
+            if down {
+                self.palette_sel = (self.palette_sel + 1) % lines.len();
+            }
+            if up {
+                self.palette_sel = (self.palette_sel + lines.len() - 1) % lines.len();
+            }
+            self.palette_sel = self.palette_sel.min(lines.len() - 1);
+        }
+        let sel = self.palette_sel;
         let mut pick: Option<usize> = None;
         let area = egui::Area::new(egui::Id::new("tab-search")).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
             Frame::new()
@@ -570,55 +650,64 @@ impl Sanaga {
                 .show(ui, |ui| {
                     ui.set_width(w - 20.0);
                     let id = egui::Id::new("tab-search-input");
-                    let resp = ui.add(TextEdit::singleline(&mut self.tab_search_q).id(id).hint_text(tr("Rechercher dans les onglets")).desired_width(w - 20.0));
-                    if !resp.has_focus() && self.tab_search_q.is_empty() {
+                    let resp = ui.add(TextEdit::singleline(&mut self.tab_search_q).id(id).hint_text(tr("Onglets, commandes, favoris, historique, Web…")).desired_width(w - 20.0));
+                    if !resp.has_focus() {
                         resp.request_focus();
                     }
-                    let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+                    if resp.changed() {
+                        self.palette_sel = 0;
+                    }
                     ui.add_space(6.0);
-                    let mut first: Option<usize> = None;
-                    egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
-                        for (i, t) in self.tabs.iter().enumerate() {
-                            let title = t.title();
-                            if !q.is_empty() && !title.to_lowercase().contains(&q) && !t.url().to_lowercase().contains(&q) {
-                                continue;
-                            }
-                            first.get_or_insert(i);
+                    egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                        for (k, (what, icon, title, sub)) in lines.iter().enumerate() {
                             let (r, rr) = ui.allocate_exact_size(vec2(w - 20.0, 38.0), Sense::click());
-                            if rr.hovered() || i == self.active {
-                                ui.painter().rect_filled(r, CornerRadius::same(6), if rr.hovered() { th.omnibox_hover } else { th.omnibox });
+                            if k == sel {
+                                ui.painter().rect_filled(r, CornerRadius::same(6), th.accent.gamma_multiply(0.16));
+                                if down || up {
+                                    ui.scroll_to_rect(r, None);
+                                }
+                            } else if rr.hovered() {
+                                ui.painter().rect_filled(r, CornerRadius::same(6), th.omnibox_hover);
                             }
-                            site_badge(ui.painter(), pos2(r.left() + 16.0, r.center().y), 8.0, t.url(), &title);
+                            let ic = Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(15.0, 15.0));
+                            match what {
+                                Pick::Command(_) => crate::icons::paint(ui.painter(), ic, crate::icons::Icon::Grid, th.accent),
+                                _ if icon.is_empty() => crate::icons::paint(ui.painter(), ic, crate::icons::Icon::Search, th.sub),
+                                _ => site_badge(ui.painter(), ic.center(), 8.0, icon, title),
+                            }
                             let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
                             let p = ui.painter().with_clip_rect(clip);
-                            p.text(pos2(clip.left(), r.center().y - 7.0), Align2::LEFT_CENTER, &title, FontId::proportional(13.0), th.text);
-                            let mut sub = host_of(t.url());
-                            if self.groups.len() > 1 {
-                                sub = format!("{sub} · {}", self.groups.get(t.group).cloned().unwrap_or_default());
-                            }
-                            if t.sleeping {
-                                sub.push_str(" · en veille");
-                            }
+                            p.text(pos2(clip.left(), r.center().y - 7.0), Align2::LEFT_CENTER, title, FontId::proportional(13.0), th.text);
                             p.text(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
                             if rr.clicked() {
-                                pick = Some(i);
+                                pick = Some(k);
                             }
                         }
                     });
-                    if enter {
-                        pick = pick.or(first);
-                    }
                 });
         });
+        if enter && !lines.is_empty() {
+            pick = pick.or(Some(sel));
+        }
         if ctx.input(|i| i.pointer.any_pressed()) && !ctx.pointer_interact_pos().map(|p| area.response.rect.contains(p)).unwrap_or(false) {
             self.tab_search_open = false;
         }
-        if let Some(i) = pick {
+        if let Some((what, ..)) = pick.and_then(|k| lines.into_iter().nth(k)) {
             self.tab_search_open = false;
             self.tab_search_q.clear();
-            self.current_group = self.tabs[i].group;
-            self.active = i;
-            self.overview_open = false;
+            self.palette_sel = 0;
+            match what {
+                Pick::Tab(i) => {
+                    self.current_group = self.tabs[i].group;
+                    self.active = i;
+                    self.overview_open = false;
+                }
+                Pick::Command(name) => self.run_shortcut(name),
+                Pick::Go(url) => {
+                    let a = self.active;
+                    self.navigate(a, url, None, true);
+                }
+            }
         }
     }
 
@@ -653,7 +742,7 @@ impl Sanaga {
     }
 }
 
-fn put_to_sleep(t: &mut Tab) {
+pub(super) fn put_to_sleep(t: &mut Tab) {
     // WebKit keeps a closed page's process around: end it explicitly so the
     // memory really comes back (each tab's page runs in its own process).
     if let Some(w) = t.web.take() {

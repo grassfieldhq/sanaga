@@ -406,6 +406,104 @@ pub fn memory_used_cached() -> u64 {
     VALUE.load(Ordering::Relaxed)
 }
 
+/// One of Sanaga's processes, for the Activity page.
+#[derive(Clone, Debug)]
+pub struct Process {
+    /// 0 the interface, 1 the network, 2 a page, 3 a helper.
+    pub kind: u8,
+    pub bytes: u64,
+    /// Share of one processor core used over the last moments, in percent.
+    pub cpu: f32,
+}
+
+/// Sanaga's processes with their memory and processor use, measured on a
+/// background thread every 2 s while someone looks (the Activity page).
+pub fn processes_cached() -> Vec<Process> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Mutex;
+    static LIST: Mutex<Vec<Process>> = Mutex::new(Vec::new());
+    static WANTED: AtomicBool = AtomicBool::new(false);
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    WANTED.store(true, Ordering::Relaxed);
+    STARTED.call_once(|| {
+        let _ = std::thread::Builder::new().name("sanaga-activity".into()).spawn(|| {
+            // processor time used so far, per process (in clock ticks: 100 a second on Linux)
+            let ticks = |pid: u32| -> u64 {
+                std::fs::read_to_string(format!("/proc/{pid}/stat"))
+                    .ok()
+                    .and_then(|s| s.rsplit_once(')').map(|(_, r)| r.split_whitespace().skip(11).take(2).filter_map(|v| v.parse::<u64>().ok()).sum()))
+                    .unwrap_or(0)
+            };
+            let mut before: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
+            let mut at = std::time::Instant::now();
+            loop {
+                if WANTED.swap(false, Ordering::Relaxed) {
+                    let me = std::process::id();
+                    let secs = at.elapsed().as_secs_f32().max(0.1);
+                    at = std::time::Instant::now();
+                    let mut now: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
+                    let mut list = Vec::new();
+                    for pid in family_of(me) {
+                        let name = std::fs::read_to_string(format!("/proc/{pid}/comm")).unwrap_or_default();
+                        let kind = match name.trim() {
+                            _ if pid == me => 0,
+                            n if n.starts_with("WebKitNetwork") => 1,
+                            n if n.starts_with("WebKitWebProc") => 2,
+                            _ => 3,
+                        };
+                        let t = ticks(pid);
+                        let cpu = before.get(&pid).map(|b| t.saturating_sub(*b) as f32 / secs).unwrap_or(0.0);
+                        now.insert(pid, t);
+                        list.push(Process { kind, bytes: process_memory(pid), cpu });
+                    }
+                    before = now;
+                    list.sort_by(|a, b| a.kind.cmp(&b.kind).then(b.bytes.cmp(&a.bytes)));
+                    if let Ok(mut l) = LIST.lock() {
+                        *l = list;
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+        });
+    });
+    LIST.lock().map(|l| l.clone()).unwrap_or_default()
+}
+
+/// A process's fair share of memory, in bytes ("Pss": shared libraries are
+/// split between the processes using them).
+fn process_memory(pid: u32) -> u64 {
+    if let Ok(t) = std::fs::read_to_string(format!("/proc/{pid}/smaps_rollup")) {
+        if let Some(kb) = t.lines().find(|l| l.starts_with("Pss:")).and_then(|l| l.split_whitespace().nth(1)).and_then(|v| v.parse::<u64>().ok()) {
+            return kb * 1024;
+        }
+    }
+    0
+}
+
+/// A process and the processes it started, and theirs (Sanaga and its engine).
+fn family_of(root: u32) -> Vec<u32> {
+    let mut parents: Vec<(u32, u32)> = Vec::new();
+    if let Ok(dir) = std::fs::read_dir("/proc") {
+        for e in dir.flatten() {
+            let name = e.file_name();
+            let Some(pid) = name.to_str().and_then(|n| n.parse::<u32>().ok()) else { continue };
+            if let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+                if let Some(ppid) = stat.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(1)).and_then(|p| p.parse().ok()) {
+                    parents.push((pid, ppid));
+                }
+            }
+        }
+    }
+    let mut family = vec![root];
+    let mut k = 0;
+    while k < family.len() {
+        let p = family[k];
+        family.extend(parents.iter().filter(|(_, pp)| *pp == p).map(|(c, _)| *c));
+        k += 1;
+    }
+    family
+}
+
 pub fn human_bytes(b: u64) -> String {
     if b >= 1024 * 1024 * 1024 {
         tf("{} Go", &[&format!("{:.1}", b as f64 / 1073741824.0)])

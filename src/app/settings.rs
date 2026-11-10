@@ -372,6 +372,8 @@ enum Act {
     MakeDefault,
     ClearHistory,
     SyncNow,
+    /// Set the sync folder's secret phrase (true) or forget it here (false).
+    SyncSecret(bool),
     SaveKey,
     ForgetKey,
     FindModels,
@@ -591,6 +593,8 @@ impl Sanaga {
         let now = ui.input(|i| i.time);
         let confirm_clear = self.settings_confirm.is_some_and(|t| now - t < 4.0);
         let key_input = &mut self.ai_key_input;
+        let sync_phrase = &mut self.sync_phrase_input;
+        let profile_key = self.store.profile.clone();
         let st = &mut self.store.settings;
         let show = Shown { section, query: &query };
         let mut any = false;
@@ -884,6 +888,7 @@ impl Sanaga {
             any = true;
             group(ui, th, "", |ui, rows| {
                 changed |= rows.switch(ui, tr("Bloquer les publicités et les traceurs"), tr("Les demandes vers les régies publicitaires et les traceurs ne partent jamais"), &mut st.blocker);
+                changed |= rows.switch(ui, tr("Listes de blocage complètes"), tr("EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)"), &mut st.block_lists);
                 changed |= rows.switch(ui, tr("Empêcher le suivi intersites"), "", &mut st.itp);
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });
@@ -1010,14 +1015,14 @@ impl Sanaga {
         if show.shows(Section::Performance, tr("Économiseur de mémoire"), &[tr("Mode économie d'énergie"), tr("Moteur d'affichage des pages"), tr("Charger les images")]) {
             any = true;
             group(ui, th, "", |ui, rows| {
-                rows.row(ui, tr("Économiseur de mémoire"), "", false, |ui| {
+                rows.row(ui, tr("Économiseur de mémoire"), tr("Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome"), false, |ui| {
                     if let Some(v) = popup(ui, "memory", st.memory_saver, &[(0u8, tr("Désactivé")), (1, tr("Modéré")), (2, tr("Équilibré")), (3, tr("Maximal"))]) {
                         st.memory_saver = v;
                         changed = true;
                     }
                 });
                 rows.row(ui, tr("Mode économie d'énergie"), tr("Onglets inactifs mis en veille plus tôt, moins de réveils"), false, |ui| {
-                    if let Some(v) = popup(ui, "low-power", st.low_power, &[(0u8, tr("Désactivé")), (1, tr("Sur batterie")), (2, tr("Toujours"))]) {
+                    if let Some(v) = popup(ui, "low-power", st.low_power, &[(0u8, tr("Désactivé")), (3, tr("Batterie à 20 % ou moins")), (1, tr("Sur batterie")), (2, tr("Toujours"))]) {
                         st.low_power = v;
                         changed = true;
                     }
@@ -1054,6 +1059,23 @@ impl Sanaga {
                 });
                 if rows.link(ui, tr("Synchroniser maintenant"), &state, "") {
                     acts.push(Act::SyncNow);
+                }
+                // the secret phrase: what goes into the folder is sealed on this computer first
+                match crate::sync::has_secret(&profile_key) {
+                    Some(true) => {
+                        if rows.link(ui, tr("Chiffrement activé"), tr("Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur."), "") {
+                            acts.push(Act::SyncSecret(false));
+                        }
+                    }
+                    Some(false) => {
+                        rows.row(ui, tr("Phrase secrète"), tr("Chiffre le dossier : la même phrase sur chaque ordinateur"), false, |ui| {
+                            if ui.add_enabled(sync_phrase.chars().count() >= 8, egui::Button::new(tr("Chiffrer"))).clicked() {
+                                acts.push(Act::SyncSecret(true));
+                            }
+                            field(ui, sync_phrase, tr("8 caractères ou plus"), 200.0, true);
+                        });
+                    }
+                    None => {}
                 }
             });
             footnote(ui, th, tr("Choisissez un dossier partagé entre vos ordinateurs (Syncthing, Nextcloud, Dropbox, clé USB…). Sanaga y garde vos favoris, votre liste de lecture et vos onglets ouverts, et montre sur la page d'accueil les onglets de vos autres appareils."));
@@ -1168,6 +1190,7 @@ impl Sanaga {
                         changed_more = true;
                     }
                 });
+                changed_more |= rows.switch(ui, tr("Toujours afficher les URL en entier"), tr("Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome"), &mut st.full_urls);
                 changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));
@@ -1285,6 +1308,9 @@ impl Sanaga {
         if changed {
             crate::i18n::set_language(&self.store.settings.language);
             crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
+            crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
+            // (switched on: the lists are loaded, or fetched if there are none yet)
+            crate::page::prepare_lists();
             self.store.save_settings();
             if !self.store.settings.sync_dir.trim().is_empty() {
                 acts.push(Act::SyncNow);
@@ -1304,6 +1330,20 @@ impl Sanaga {
                     self.notice = Some((tr("Historique effacé.").into(), self.ctx.input(|i| i.time)));
                 }
                 Act::SyncNow => self.sync_now(),
+                Act::SyncSecret(set) => {
+                    let phrase = self.sync_phrase_input.trim().to_string();
+                    let ok = crate::sync::set_secret(&self.store.profile, set.then_some(phrase.as_str()));
+                    self.sync_phrase_input.clear();
+                    let msg = match (ok, set) {
+                        (false, _) => tr("Le trousseau du système n'est pas disponible."),
+                        (true, true) => tr("Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré."),
+                        (true, false) => tr("Phrase retirée de cet ordinateur."),
+                    };
+                    self.notice = Some((msg.into(), self.ctx.input(|i| i.time)));
+                    if ok {
+                        self.sync_now();
+                    }
+                }
                 Act::SaveKey => {
                     let key = self.ai_key_input.trim().to_string();
                     let ok = crate::keyring::store(&self.store.profile, crate::ai::KEY_SITE, "claude", &key);

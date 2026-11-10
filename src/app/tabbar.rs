@@ -71,6 +71,8 @@ impl Sanaga {
         let room = area.width() - pinned_n as f32 * PIN_W - labels_w;
         // equal widths, never so narrow that the titles go (then it scrolls)
         let w = (room / normal_n).max(MIN_W);
+        // the tabs take their new width smoothly when one opens or closes
+        let w = ui.ctx().animate_value_with_time(egui::Id::new("tabbar-width"), w, 0.14);
         let total = pinned_n as f32 * PIN_W + labels_w + normal_n * w;
         let max_scroll = (total - area.width()).max(0.0);
         if max_scroll > 0.0 && ui.rect_contains_pointer(full) {
@@ -102,6 +104,7 @@ impl Sanaga {
             }
         }
         let mut x = area.left() - self.tab_scroll;
+        let now = ui.input(|i| i.time);
         let mut rects: Vec<Rect> = Vec::new();
         let mut labels: Vec<(usize, Rect)> = Vec::new();
         for it in &items {
@@ -112,7 +115,13 @@ impl Sanaga {
                     x += lw;
                 }
                 super::groups::StripItem::Tab(i) => {
-                    let tw = if self.tabs[i].pinned { PIN_W } else { w };
+                    // a tab just opened grows into its place
+                    let grow = (((now - self.tabs[i].born) / 0.16).clamp(0.0, 1.0)) as f32;
+                    if grow < 1.0 {
+                        ui.ctx().request_repaint();
+                    }
+                    let grow = grow * grow * (3.0 - 2.0 * grow);
+                    let tw = (if self.tabs[i].pinned { PIN_W } else { w }) * grow;
                     rects.push(Rect::from_min_size(pos2(x, track.top()), vec2(tw, TRACK_H)));
                     x += tw;
                 }

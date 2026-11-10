@@ -495,16 +495,23 @@ impl Sanaga {
             text_right = zr.left() - 4.0;
         }
 
-        // when not editing: just the site's name, centred, with a padlock
+        // when not editing: the address as Chrome shows it (the site in full
+        // colour, the rest dimmed, https:// and www. left out unless the
+        // person wants it whole), centred, with a padlock
         if !focused {
-            let (label, col, lock) = if is_ntp || url.is_empty() {
-                (tr("Rechercher ou saisir le nom d'un site").to_string(), th.sub, false)
+            let font = FontId::proportional(14.0);
+            let (job, col, lock) = if is_ntp || url.is_empty() {
+                (egui::text::LayoutJob::simple_singleline(tr("Rechercher ou saisir le nom d'un site").to_string(), font, th.sub), th.sub, false)
             } else if url.starts_with("sanaga://") {
-                (self.tabs[a].title(), th.text, false)
+                (egui::text::LayoutJob::simple_singleline(self.tabs[a].title(), font, th.text), th.text, false)
             } else {
-                (host_of(&url), th.text, url.starts_with("https://"))
+                let (site, rest) = display_url(&url, self.store.settings.full_urls);
+                let mut job = egui::text::LayoutJob::default();
+                job.append(&site, 0.0, egui::TextFormat::simple(font.clone(), th.text));
+                job.append(&rest, 0.0, egui::TextFormat::simple(font, th.sub));
+                (job, th.text, url.starts_with("https://"))
             };
-            let g = ui.painter().layout_no_wrap(label, FontId::proportional(14.0), col);
+            let g = ui.painter().layout_job(job);
             let gw = g.size().x.min(text_right - star_r.right() - 30.0).max(0.0);
             let lock_w = if lock { 17.0 } else { 0.0 };
             let x0 = rect.center().x - (gw + lock_w) / 2.0;
@@ -527,6 +534,7 @@ impl Sanaga {
                 if self.suggest_sel.is_none() {
                     self.suggest_typed = self.tabs[a].address.clone();
                 }
+                self.inline_done = false;
                 self.suggest_sel = if esc {
                     None
                 } else {
@@ -571,12 +579,43 @@ impl Sanaga {
         if tab.address != before {
             self.suggest_open = true;
             self.suggest_sel = None;
+            // Typing forward at the end of the field completes the site's
+            // name ("wiki" → "wikipedia.org", the added part selected: the
+            // next letter replaces it, Enter goes there). Erasing never does.
+            let typed = tab.address.clone();
+            let forward = typed.len() > self.inline_typed.len() && typed.starts_with(&self.inline_typed);
+            let at_end = TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).is_some_and(|r| r.primary.index == egui::text::CharIndex(typed.chars().count()) && r.secondary.index == r.primary.index);
+            self.inline_typed = typed.clone();
+            self.inline_done = false;
+            if forward && at_end {
+                if let Some(site) = self.site_completion(&typed) {
+                    let full = format!("{typed}{}", &site[typed.len()..]);
+                    if let Some(mut state) = TextEdit::load_state(ui.ctx(), id) {
+                        let (from, to) = (egui::text::CCursor::new(typed.chars().count()), egui::text::CCursor::new(full.chars().count()));
+                        state.cursor.set_char_range(Some(egui::text::CCursorRange::two(from, to)));
+                        state.store(ui.ctx(), id);
+                        self.tabs[a].address = full;
+                        self.inline_done = true;
+                        // the site's address is looked up now (DNS), so the
+                        // page starts sooner on Enter; never for a private tab
+                        if !self.tabs[a].private {
+                            if let Some(e) = &self.web_context {
+                                e.session.prefetch_dns(&site);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !focused {
+            self.inline_done = false;
+            self.inline_typed.clear();
         }
         if resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
             match picked {
                 Some(u) => self.activate_suggestion(&u),
                 None => {
-                    let u = input_to_url(&tab.address, engine, &home);
+                    let u = input_to_url(&self.tabs[a].address, engine, &home);
                     self.navigate(a, u, None, true);
                 }
             }
@@ -604,5 +643,47 @@ impl Sanaga {
         if toolbar_checkboxes(ui, &mut self.store.settings.toolbar) {
             self.store.save_settings();
         }
+    }
+}
+
+/// The address as the address bar shows it when not editing: the site part
+/// and the rest. Like Chrome (MECHANICS.md): unless `full`, `https://`,
+/// `www.` and a lone `/` are left out; the path is shown decoded
+/// (`/wiki/Yaoundé`, not `/wiki/Yaound%C3%A9`). `http://` stays, as there
+/// is no padlock to tell it.
+pub(super) fn display_url(url: &str, full: bool) -> (String, String) {
+    let Ok(u) = url::Url::parse(url) else { return (url.to_string(), String::new()) };
+    let Some(host) = u.host_str() else { return (url.to_string(), String::new()) };
+    let host = if full { host } else { host.strip_prefix("www.").unwrap_or(host) };
+    let prefix = if full || u.scheme() != "https" { format!("{}://", u.scheme()) } else { String::new() };
+    let port = u.port().map(|p| format!(":{p}")).unwrap_or_default();
+    let mut rest = u.path().to_string();
+    if let Some(q) = u.query() {
+        rest.push('?');
+        rest.push_str(q);
+    }
+    if let Some(f) = u.fragment() {
+        rest.push('#');
+        rest.push_str(f);
+    }
+    if !full && rest == "/" {
+        rest.clear();
+    }
+    // decoded, unless that gives invisible characters (kept encoded then)
+    let decoded = percent_encoding::percent_decode_str(&rest).decode_utf8().ok().filter(|d| !d.chars().any(|c| c.is_control())).map(|d| d.to_string());
+    (format!("{prefix}{host}{port}"), decoded.unwrap_or(rest))
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::display_url;
+
+    #[test]
+    fn addresses_as_chrome_shows_them() {
+        assert_eq!(display_url("https://www.example.com/", false), ("example.com".into(), "".into()));
+        assert_eq!(display_url("https://fr.wikipedia.org/wiki/Yaound%C3%A9", false), ("fr.wikipedia.org".into(), "/wiki/Yaoundé".into()));
+        assert_eq!(display_url("http://site.test:8080/a?b=1#c", false), ("http://site.test:8080".into(), "/a?b=1#c".into()));
+        assert_eq!(display_url("https://www.example.com/", true), ("https://www.example.com".into(), "/".into()));
+        assert_eq!(display_url("https://x.test/a%0Ab", false), ("x.test".into(), "/a%0Ab".into()));
     }
 }

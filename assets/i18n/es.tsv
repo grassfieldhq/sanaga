@@ -1053,3 +1053,57 @@ Photo du profil	Foto del perfil
 Images	Imágenes
 Cette image ne peut pas être lue.	No se puede leer esta imagen.
 Une page sur {} dit :	Una página en {} dice:
+Contenu protégé	Contenido protegido
+{} s'ouvre dans {}…	{} se abre en {}…
+{} s'ouvre dans son application	{} se abre en su aplicación
+{} s'ouvre dans {}	{} se abre en {}
+{} ne peut pas être lu dans Sanaga	{} no se puede reproducir en Sanaga
+{} protège ses vidéos avec Widevine, un verrou que Google réserve à Chrome, Firefox et aux navigateurs de leur famille. Le moteur de Sanaga n'y a pas droit : Sanaga vous ouvre donc la page là où elle se lit, avec vos comptes habituels.	{} protege sus vídeos con Widevine, un candado que Google reserva a Chrome, Firefox y los navegadores de su familia. El motor de Sanaga no tiene derecho a usarlo: Sanaga abre la página donde se reproduce, con tus cuentas de siempre.
+Toujours ouvrir Netflix, Disney+, Spotify… ainsi, sans passer par cette page	Abrir siempre Netflix, Disney+, Spotify… así, sin pasar por esta página
+Installez Firefox ou Google Chrome : Sanaga y ouvrira ces sites d'un clic, directement.	Instala Firefox o Google Chrome: Sanaga abrirá allí estos sitios con un clic.
+Ouvrir quand même dans Sanaga (les vidéos ne se liront pas)	Abrir igualmente en Sanaga (los vídeos no se reproducirán)
+Commande copiée	Comando copiado
+Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome	Las pestañas inactivas se suspenden tras 6 h (moderado), 4 h (equilibrado) o 2 h (máximo), como en Chrome
+{} a besoin des appels vidéo (WebRTC), que le moteur web installé sur ce système ne fournit pas. Sanaga ouvre donc la réunion dans un navigateur qui les gère, avec vos comptes habituels.	{} necesita las videollamadas (WebRTC), que el motor web instalado en este sistema no ofrece. Sanaga abre la reunión en un navegador que las admite, con tus cuentas de siempre.
+Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Abrir siempre así las videollamadas y los sitios protegidos, sin pasar por esta página
+Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Abrir igualmente en Sanaga (la llamada no podrá conectarse)
+Batterie à 20 % ou moins	Batería al 20 % o menos
+Toujours afficher les URL en entier	Mostrar siempre las URL completas
+Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Si no, la barra de direcciones omite https:// y www. y muestra la dirección decodificada, como Chrome
+en veille	en reposo
+Commande	Comando
+Favori	Favorito
+Ouvrir cette adresse	Abrir esta dirección
+Onglets, commandes, favoris, historique, Web…	Pestañas, comandos, favoritos, historial, web…
+Listes de blocage complètes	Listas de bloqueo completas
+EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList y EasyPrivacy, descargadas una vez por semana de sus autores (easylist.to)
+Chiffrement activé	Cifrado activado
+Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	La carpeta solo contiene archivos sellados. Haga clic para quitar la frase de este ordenador.
+Phrase secrète	Frase secreta
+Chiffre le dossier : la même phrase sur chaque ordinateur	Cifra la carpeta: la misma frase en cada ordenador
+Chiffrer	Cifrar
+8 caractères ou plus	8 caracteres o más
+Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré.	Frase guardada en el llavero. La carpeta ahora está cifrada.
+Phrase retirée de cet ordinateur.	Frase quitada de este ordenador.
+Ce dossier est chiffré : saisissez sa phrase secrète.	Esta carpeta está cifrada: introduzca su frase secreta.
+Phrase secrète incorrecte pour ce dossier.	Frase secreta incorrecta para esta carpeta.
+manifest.json illisible ({})	manifest.json ilegible ({})
+Activité : mémoire et processeur	Actividad: memoria y procesador
+Vue partagée : deux onglets côte à côte	Vista dividida: dos pestañas lado a lado
+Aperçu mobile à côté de la page	Vista previa móvil junto a la página
+Activité	Actividad
+L'aperçu mobile côte à côte montre une page web : ouvrez-en une d'abord.	La vista previa móvil lado a lado muestra una página web: abra una primero.
+La vue partagée montre deux pages web : ouvrez-en une d'abord.	La vista dividida muestra dos páginas web: abra una primero.
+Ouvrez une deuxième page web pour la vue partagée.	Abra una segunda página web para la vista dividida.
+{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)	{} de memoria · {} % de un núcleo · {} página(s) en curso de {} pestaña(s)
+Processus	Procesos
+Interface de Sanaga	Interfaz de Sanaga
+Réseau	Red
+Page {}	Página {}
+Autres (bac à sable, auxiliaires)	Otros (entorno aislado, auxiliares)
+Mesure en cours…	Midiendo…
+Chaque page a son propre processus ; le moteur ne dit pas à quel onglet chacun appartient.	Cada página tiene su propio proceso; el motor no dice a qué pestaña pertenece cada uno.
+affiché	mostrada
+en cours · son	en curso · sonido
+en cours	en curso
+Mettre en veille	Poner en reposo

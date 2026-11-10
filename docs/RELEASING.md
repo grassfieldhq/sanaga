@@ -63,3 +63,15 @@ not Semantic Versioning stops it too.
 - **AUR**: `packaging/arch/PKGBUILD` builds from the release tag; publish it
   as the `sanaga` AUR package after the first tagged release.
 - **ARM (aarch64)**: the same jobs on GitHub's `ubuntu-24.04-arm` machines.
+
+## Checking a package
+
+Each package of a release carries a signed statement (Sigstore, made by
+`actions/attest-build-provenance`) saying it was built by this repository's
+Release workflow from a given commit. To check one:
+
+```sh
+gh attestation verify sanaga_0.4.0_amd64.deb --repo grassfieldhq/sanaga
+```
+
+`SHA256SUMS` in the release lists the packages' checksums.

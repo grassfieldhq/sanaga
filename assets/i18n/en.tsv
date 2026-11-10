@@ -1053,3 +1053,57 @@ Photo du profil	Profile photo
 Images	Images
 Cette image ne peut pas être lue.	This picture can't be read.
 Une page sur {} dit :	A page on {} says:
+Contenu protégé	Protected content
+{} s'ouvre dans {}…	{} is opening in {}…
+{} s'ouvre dans son application	{} opens in its app
+{} s'ouvre dans {}	{} opens in {}
+{} ne peut pas être lu dans Sanaga	{} can't play in Sanaga
+{} protège ses vidéos avec Widevine, un verrou que Google réserve à Chrome, Firefox et aux navigateurs de leur famille. Le moteur de Sanaga n'y a pas droit : Sanaga vous ouvre donc la page là où elle se lit, avec vos comptes habituels.	{} protects its videos with Widevine, a lock Google only licenses to Chrome, Firefox and browsers of their family. Sanaga's engine isn't allowed to use it, so Sanaga opens the page where it plays, with your usual accounts.
+Toujours ouvrir Netflix, Disney+, Spotify… ainsi, sans passer par cette page	Always open Netflix, Disney+, Spotify… this way, without this page
+Installez Firefox ou Google Chrome : Sanaga y ouvrira ces sites d'un clic, directement.	Install Firefox or Google Chrome: Sanaga will open these sites there in one click.
+Ouvrir quand même dans Sanaga (les vidéos ne se liront pas)	Open in Sanaga anyway (videos won't play)
+Commande copiée	Command copied
+Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome	Inactive tabs go to sleep after 6 h (moderate), 4 h (balanced) or 2 h (maximum), as in Chrome
+{} a besoin des appels vidéo (WebRTC), que le moteur web installé sur ce système ne fournit pas. Sanaga ouvre donc la réunion dans un navigateur qui les gère, avec vos comptes habituels.	{} needs video calls (WebRTC), which the web engine installed on this system doesn't provide. So Sanaga opens the meeting in a browser that has them, with your usual accounts.
+Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Always open video calls and protected sites this way, without this page
+Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Open in Sanaga anyway (the call won't be able to connect)
+Batterie à 20 % ou moins	Battery at 20 % or less
+Toujours afficher les URL en entier	Always show full URLs
+Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Otherwise the address bar leaves out https:// and www. and shows the address decoded, as Chrome does
+en veille	sleeping
+Commande	Command
+Favori	Favourite
+Ouvrir cette adresse	Open this address
+Onglets, commandes, favoris, historique, Web…	Tabs, commands, favourites, history, the web…
+Listes de blocage complètes	Full block lists
+EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList and EasyPrivacy, fetched once a week from their authors (easylist.to)
+Chiffrement activé	Encryption on
+Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	The folder only holds sealed files. Click to remove the phrase from this computer.
+Phrase secrète	Secret phrase
+Chiffre le dossier : la même phrase sur chaque ordinateur	Encrypts the folder: the same phrase on every computer
+Chiffrer	Encrypt
+8 caractères ou plus	8 characters or more
+Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré.	Phrase saved in the keyring. The folder is now encrypted.
+Phrase retirée de cet ordinateur.	Phrase removed from this computer.
+Ce dossier est chiffré : saisissez sa phrase secrète.	This folder is encrypted: enter its secret phrase.
+Phrase secrète incorrecte pour ce dossier.	Wrong secret phrase for this folder.
+manifest.json illisible ({})	manifest.json can't be read ({})
+Activité : mémoire et processeur	Activity: memory and processor
+Vue partagée : deux onglets côte à côte	Split view: two tabs side by side
+Aperçu mobile à côté de la page	Mobile preview next to the page
+Activité	Activity
+L'aperçu mobile côte à côte montre une page web : ouvrez-en une d'abord.	The side-by-side mobile preview shows a web page: open one first.
+La vue partagée montre deux pages web : ouvrez-en une d'abord.	Split view shows two web pages: open one first.
+Ouvrez une deuxième page web pour la vue partagée.	Open a second web page for the split view.
+{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)	{} of memory · {} % of one core · {} page(s) running out of {} tab(s)
+Processus	Processes
+Interface de Sanaga	Sanaga's interface
+Réseau	Network
+Page {}	Page {}
+Autres (bac à sable, auxiliaires)	Others (sandbox, helpers)
+Mesure en cours…	Measuring…
+Chaque page a son propre processus ; le moteur ne dit pas à quel onglet chacun appartient.	Each page has its own process; the engine doesn't say which tab each one belongs to.
+affiché	shown
+en cours · son	running · sound
+en cours	running
+Mettre en veille	Put to sleep

@@ -165,6 +165,116 @@ impl Sanaga {
         });
     }
 
+    /// `sanaga://activity`: what Sanaga uses right now, process by process,
+    /// and the tabs with their state — any running tab can be put to sleep.
+    pub(super) fn page_activity(&mut self, ui: &mut Ui, th: &Theme) {
+        let list = net::processes_cached();
+        // (measured every 2 s: the page follows)
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs(2));
+        let total: u64 = list.iter().map(|p| p.bytes).sum();
+        let cpu: f32 = list.iter().map(|p| p.cpu).sum();
+        let running = self.tabs.iter().filter(|t| t.web.is_some()).count();
+        let mut sleep: Option<usize> = None;
+        let mut show: Option<usize> = None;
+        let active = self.active;
+        centered_column(ui, |ui| {
+            ui.add_space(26.0);
+            ui.label(RichText::new(tr("Activité")).size(26.0).family(bold()).color(th.text));
+            ui.label(RichText::new(tf("{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)", &[&net::human_bytes(total), &format!("{cpu:.0}"), &running, &self.tabs.len()])).color(th.sub));
+            ui.add_space(16.0);
+            let card = |ui: &mut Ui, body: &mut dyn FnMut(&mut Ui)| {
+                Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    body(ui);
+                });
+            };
+            ui.label(RichText::new(tr("Processus")).size(15.0).family(bold()).color(th.text));
+            ui.add_space(6.0);
+            card(ui, &mut |ui| {
+                let mut page = 0;
+                for p in &list {
+                    let name = match p.kind {
+                        0 => tr("Interface de Sanaga").to_string(),
+                        1 => tr("Réseau").to_string(),
+                        2 => {
+                            page += 1;
+                            tf("Page {}", &[&page])
+                        }
+                        _ => continue,
+                    };
+                    if p.kind == 2 && p.bytes == 0 {
+                        continue;
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(name).color(th.text));
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            ui.label(RichText::new(format!("{:.0} %", p.cpu)).color(if p.cpu >= 20.0 { th.accent } else { th.sub }));
+                            ui.add_space(18.0);
+                            ui.label(RichText::new(net::human_bytes(p.bytes)).color(th.text));
+                        });
+                    });
+                }
+                // the small helpers of the engine (sandbox, display), together
+                let (other_bytes, other_cpu) = list.iter().filter(|p| p.kind == 3).fold((0u64, 0f32), |a, p| (a.0 + p.bytes, a.1 + p.cpu));
+                if other_bytes > 1 << 20 || other_cpu >= 1.0 {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(tr("Autres (bac à sable, auxiliaires)")).color(th.text));
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            ui.label(RichText::new(format!("{other_cpu:.0} %")).color(th.sub));
+                            ui.add_space(18.0);
+                            ui.label(RichText::new(net::human_bytes(other_bytes)).color(th.text));
+                        });
+                    });
+                }
+                if list.is_empty() {
+                    ui.label(RichText::new(tr("Mesure en cours…")).color(th.sub));
+                }
+            });
+            ui.add_space(4.0);
+            ui.label(RichText::new(tr("Chaque page a son propre processus ; le moteur ne dit pas à quel onglet chacun appartient.")).size(12.0).color(th.sub));
+            ui.add_space(18.0);
+            ui.label(RichText::new(tr("Onglets")).size(15.0).family(bold()).color(th.text));
+            ui.add_space(6.0);
+            card(ui, &mut |ui| {
+                for (i, t) in self.tabs.iter().enumerate() {
+                    let title = t.title();
+                    let state = if i == active {
+                        tr("affiché")
+                    } else if t.web.is_some() && t.audio {
+                        tr("en cours · son")
+                    } else if t.web.is_some() {
+                        tr("en cours")
+                    } else {
+                        tr("en veille")
+                    };
+                    ui.horizontal(|ui| {
+                        let (r, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
+                        site_badge(ui.painter(), r.center(), 8.0, t.url(), &title);
+                        let short: String = title.chars().take(56).collect();
+                        if ui.add(Label::new(RichText::new(short).color(th.text)).sense(Sense::click()).truncate()).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                            show = Some(i);
+                        }
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            // (the tab shown, pinned tabs and unsent forms never sleep)
+                            if i != active && t.web.is_some() && !t.pinned && !t.form_dirty && ui.button(tr("Mettre en veille")).clicked() {
+                                sleep = Some(i);
+                            }
+                            ui.label(RichText::new(state).color(th.sub));
+                        });
+                    });
+                }
+            });
+            ui.add_space(30.0);
+        });
+        if let Some(i) = sleep {
+            super::plus::put_to_sleep(&mut self.tabs[i]);
+        }
+        if let Some(i) = show {
+            self.current_group = self.tabs[i].group;
+            self.active = i;
+        }
+    }
+
     pub(super) fn page_about(&mut self, ui: &mut Ui, th: &Theme) {
         let cached: usize = self.tabs.iter().flat_map(|t| t.entries.iter()).filter_map(|e| e.doc.as_ref()).map(|d| d.bytes).sum();
         let rows = [

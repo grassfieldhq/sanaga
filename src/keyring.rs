@@ -68,7 +68,7 @@ fn parse_list(text: &str) -> Vec<(String, String)> {
     let (mut site, mut user, mut ours) = (None::<String>, None::<String>, false);
     let flush = |site: &mut Option<String>, user: &mut Option<String>, ours: &mut bool, out: &mut Vec<(String, String)>| {
         if let (Some(s), true) = (site.take(), *ours) {
-            if s != crate::ai::KEY_SITE {
+            if s != crate::ai::KEY_SITE && s != crate::sync::KEY_SITE {
                 let u = user.take().unwrap_or_default();
                 if !out.iter().any(|(a, b)| *a == s && *b == u) {
                     out.push((s, u));

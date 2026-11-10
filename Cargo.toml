@@ -22,7 +22,7 @@ path = "src/main.rs"
 maintainer = "Grassfield"
 section = "web"
 priority = "optional"
-depends = "libgtk-4-1, libwebkitgtk-6.0-4, bubblewrap, xdg-dbus-proxy, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, libsecret-tools"
+depends = "libgtk-4-1, libwebkitgtk-6.0-4, bubblewrap, xdg-dbus-proxy, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-nice, libsecret-tools"
 recommends = "gstreamer1.0-vaapi"
 suggests = "ffmpeg, chromium"
 extended-description = "A fast, light web browser built on WebKitGTK: containers, a network blocker of ads and trackers, settings for each website, tab groups and tree tabs, a reader, and a mobile simulator for web developers."
@@ -56,17 +56,24 @@ gstreamer1-plugins-base = "*"
 gstreamer1-plugins-good = "*"
 gstreamer1-plugins-bad-free = "*"
 gstreamer1-plugin-libav = "*"
+# video calls (WebRTC): ICE through GStreamer
+libnice-gstreamer1 = "*"
 libsecret = "*"
 hicolor-icon-theme = "*"
 
 [dependencies]
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "clipboard", "links"] }
 ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "charset", "cookies"] }
+# the interface's text: emoji in colour (the system's emoji font) with a
+# built-in black-and-white set when there is none
+epaint = { version = "0.37", default-features = false, features = ["color_fonts", "monochrome_emoji_fonts"] }
+# the system's big fonts (Chinese, Japanese, Korean, emoji) are mapped, not copied
+memmap2 = "0.9"
 url = "2.5"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico", "bmp"] }
 percent-encoding = "2"
 qrcode = { version = "0.14", default-features = false }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 aes = "0.8"
 cbc = "0.1"
 pbkdf2 = "0.12"
@@ -80,6 +87,11 @@ libc = "0.2"
 # TLS for Sanaga's own requests with the system's certificate authorities
 # (already built for ureq: same version and features, no new crate)
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+# extension manifests and model answers: real JSON
+serde_json = "1"
+# sync folder sealed with a secret phrase
+chacha20poly1305 = "0.10"
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
 
 # The window and the web engine: GTK 4 + WebKitGTK 6, on Linux and the BSDs.
 # (On Windows and macOS the build stops with a clear message: docs/PORTING.md.)

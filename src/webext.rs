@@ -8,93 +8,89 @@
 
 use std::path::{Path, PathBuf};
 
+/// The most an extension's files may weigh once unpacked, in all (a small
+/// archive can claim to hold gigabytes).
+const MAX_UNPACKED: usize = 96 << 20;
+/// The most one file may weigh once unpacked.
+const MAX_FILE: usize = 16 << 20;
+
 /// The files of a zip archive (`.xpi`, `.zip`, or the zip inside a `.crx`).
+/// The archive comes from anywhere: every size and position it states is
+/// checked against what is really there, each file's checksum is verified,
+/// and the whole is refused past `MAX_UNPACKED`.
 fn unzip(data: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
     // a .crx starts with its own header: the zip begins at the first "PK\3\4"
     let start = data.windows(4).position(|w| w == b"PK\x03\x04").ok_or("archive illisible")?;
     let zip = &data[start..];
-    let u16_at = |b: &[u8], i: usize| -> usize { b.get(i..i + 2).map(|x| u16::from_le_bytes([x[0], x[1]]) as usize).unwrap_or(0) };
-    let u32_at = |b: &[u8], i: usize| -> usize { b.get(i..i + 4).map(|x| u32::from_le_bytes([x[0], x[1], x[2], x[3]]) as usize).unwrap_or(0) };
-    // the central directory, found from its end record
-    let end = (0..zip.len().saturating_sub(21)).rev().find(|&i| &zip[i..i + 4] == b"PK\x05\x06").ok_or("archive incomplète")?;
-    let count = u16_at(zip, end + 10);
-    let mut at = u32_at(zip, end + 16);
+    let u16_at = |i: usize| -> Option<usize> { zip.get(i..i.checked_add(2)?).map(|x| u16::from_le_bytes([x[0], x[1]]) as usize) };
+    let u32_at = |i: usize| -> Option<usize> { zip.get(i..i.checked_add(4)?).map(|x| u32::from_le_bytes([x[0], x[1], x[2], x[3]]) as usize) };
+    let broken = || "archive incomplète".to_string();
+    // the central directory, found from its end record (22 bytes at least)
+    let end = (0..=zip.len().saturating_sub(22)).rev().find(|&i| zip.get(i..i + 4) == Some(b"PK\x05\x06")).ok_or_else(broken)?;
+    let count = u16_at(end + 10).ok_or_else(broken)?;
+    let mut at = u32_at(end + 16).ok_or_else(broken)?;
     let mut files = Vec::new();
+    let mut total = 0usize;
     for _ in 0..count {
-        if zip.get(at..at + 4) != Some(b"PK\x01\x02") {
+        if zip.get(at..at.saturating_add(4)) != Some(b"PK\x01\x02") {
             break;
         }
-        let method = u16_at(zip, at + 10);
-        let csize = u32_at(zip, at + 20);
-        let name_len = u16_at(zip, at + 28);
-        let extra_len = u16_at(zip, at + 30);
-        let comment_len = u16_at(zip, at + 32);
-        let local = u32_at(zip, at + 42);
-        let name = String::from_utf8_lossy(zip.get(at + 46..at + 46 + name_len).unwrap_or_default()).to_string();
+        let field16 = |o: usize| u16_at(at + o).ok_or_else(broken);
+        let field32 = |o: usize| u32_at(at + o).ok_or_else(broken);
+        let (flags, method, crc, csize, usize_) = (field16(8)?, field16(10)?, field32(16)?, field32(20)?, field32(24)?);
+        let (name_len, extra_len, comment_len, local) = (field16(28)?, field16(30)?, field16(32)?, field32(42)?);
+        let name = String::from_utf8_lossy(zip.get(at + 46..at + 46 + name_len).ok_or_else(broken)?).to_string();
         at += 46 + name_len + extra_len + comment_len;
-        if name.ends_with('/') || zip.get(local..local + 4) != Some(b"PK\x03\x04") {
+        if name.ends_with('/') {
             continue;
         }
-        let body = local + 30 + u16_at(zip, local + 26) + u16_at(zip, local + 28);
-        let Some(raw) = zip.get(body..body + csize) else { continue };
+        // encrypted files can't be read; a file too big is not an extension's
+        if flags & 1 != 0 {
+            return Err("archive chiffrée".into());
+        }
+        if usize_ > MAX_FILE {
+            return Err("archive trop volumineuse".into());
+        }
+        if zip.get(local..local.saturating_add(4)) != Some(b"PK\x03\x04") {
+            return Err(broken());
+        }
+        let body = local + 30 + u16_at(local + 26).ok_or_else(broken)? + u16_at(local + 28).ok_or_else(broken)?;
+        let raw = zip.get(body..body.checked_add(csize).ok_or_else(broken)?).ok_or_else(broken)?;
         let content = match method {
             0 => raw.to_vec(),
             8 => {
                 use std::io::Read;
                 let mut out = Vec::new();
-                flate2::read::DeflateDecoder::new(raw).take(16 << 20).read_to_end(&mut out).map_err(|e| e.to_string())?;
+                // (one byte more than allowed: a file that goes on is refused, not cut)
+                flate2::read::DeflateDecoder::new(raw).take(MAX_FILE as u64 + 1).read_to_end(&mut out).map_err(|e| e.to_string())?;
                 out
             }
             _ => continue,
         };
+        total += content.len();
+        if content.len() > MAX_FILE || total > MAX_UNPACKED {
+            return Err("archive trop volumineuse".into());
+        }
+        let mut sum = flate2::Crc::new();
+        sum.update(&content);
+        if sum.sum() as usize != crc {
+            return Err("archive abîmée (somme de contrôle)".into());
+        }
         files.push((name.trim_start_matches("./").to_string(), content));
     }
     Ok(files)
 }
 
-/// Text of a JSON string value right after `"key":` (enough for manifests).
-fn json_str(text: &str, key: &str) -> Option<String> {
-    let i = text.find(&format!("\"{key}\""))?;
-    let rest = &text[i + key.len() + 2..];
-    let rest = rest.trim_start().strip_prefix(':')?.trim_start().strip_prefix('"')?;
-    let mut out = String::new();
-    let mut chars = rest.chars();
+/// A manifest as JSON. Chrome accepts `//` and `/* */` comments in
+/// manifests, and some files start with a byte-order mark: both go first.
+fn parse_json(text: &str) -> Result<serde_json::Value, String> {
+    let text = text.trim_start_matches('\u{feff}');
+    let mut clean = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    let (mut in_str, mut esc) = (false, false);
     while let Some(c) = chars.next() {
-        match c {
-            '"' => return Some(out),
-            '\\' => match chars.next()? {
-                'n' => out.push('\n'),
-                't' => out.push('\t'),
-                'u' => {
-                    let hex: String = chars.by_ref().take(4).collect();
-                    out.push(u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32).unwrap_or('?'));
-                }
-                c => out.push(c),
-            },
-            c => out.push(c),
-        }
-    }
-    None
-}
-
-/// The strings of a JSON array value after `"key":`.
-fn json_list(text: &str, key: &str) -> Vec<String> {
-    let Some(i) = text.find(&format!("\"{key}\"")) else { return Vec::new() };
-    let rest = &text[i..];
-    let Some(open) = rest.find('[') else { return Vec::new() };
-    let Some(close) = rest[open..].find(']') else { return Vec::new() };
-    rest[open + 1..open + close].split(',').map(|s| s.trim().trim_matches('"').to_string()).filter(|s| !s.is_empty()).collect()
-}
-
-/// The objects of the `content_scripts` array (as text).
-fn content_scripts(manifest: &str) -> Vec<String> {
-    let Some(i) = manifest.find("\"content_scripts\"") else { return Vec::new() };
-    let rest = &manifest[i..];
-    let Some(open) = rest.find('[') else { return Vec::new() };
-    let mut out = Vec::new();
-    let (mut depth, mut start, mut in_str, mut esc) = (0i32, None, false, false);
-    for (k, c) in rest[open + 1..].char_indices() {
         if in_str {
+            clean.push(c);
             if esc {
                 esc = false;
             } else if c == '\\' {
@@ -104,44 +100,52 @@ fn content_scripts(manifest: &str) -> Vec<String> {
             }
             continue;
         }
-        match c {
-            '"' => in_str = true,
-            '{' => {
-                if depth == 0 {
-                    start = Some(k);
-                }
-                depth += 1;
+        match (c, chars.peek()) {
+            ('"', _) => {
+                in_str = true;
+                clean.push(c);
             }
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    if let Some(s) = start.take() {
-                        out.push(rest[open + 1 + s..open + 2 + k].to_string());
+            ('/', Some('/')) => {
+                for n in chars.by_ref() {
+                    if n == '\n' {
+                        clean.push('\n');
+                        break;
                     }
                 }
             }
-            ']' if depth == 0 => break,
-            _ => {}
+            ('/', Some('*')) => {
+                chars.next();
+                let mut prev = ' ';
+                for n in chars.by_ref() {
+                    if prev == '*' && n == '/' {
+                        break;
+                    }
+                    prev = n;
+                }
+            }
+            _ => clean.push(c),
         }
     }
-    out
+    serde_json::from_str(&clean).map_err(|e| crate::i18n::tf("manifest.json illisible ({})", &[&e]))
+}
+
+/// The strings of the array `key` of a JSON object.
+fn strings(v: &serde_json::Value, key: &str) -> Vec<String> {
+    v.get(key).and_then(|a| a.as_array()).map(|a| a.iter().filter_map(|s| s.as_str()).map(|s| s.to_string()).collect()).unwrap_or_default()
 }
 
 /// "__MSG_name__" texts come from the extension's translations.
-fn localize(text: &str, files: &[(String, Vec<u8>)], manifest: &str) -> String {
+fn localize(text: &str, files: &[(String, Vec<u8>)], manifest: &serde_json::Value) -> String {
     let Some(key) = text.strip_prefix("__MSG_").and_then(|t| t.strip_suffix("__")) else { return text.to_string() };
-    let default = json_str(manifest, "default_locale").unwrap_or_else(|| "en".into());
+    let default = manifest.get("default_locale").and_then(|l| l.as_str()).unwrap_or("en").to_string();
     for lang in [crate::i18n::language().to_string(), default, "en".into()] {
         let path = format!("_locales/{lang}/messages.json");
-        if let Some((_, data)) = files.iter().find(|(n, _)| *n == path) {
-            let t = String::from_utf8_lossy(data);
-            // "key": { "message": "…" } (keys are not case-sensitive)
-            let lower = t.to_lowercase();
-            if let Some(i) = lower.find(&format!("\"{}\"", key.to_lowercase())) {
-                if let Some(m) = json_str(&t[i..], "message") {
-                    return m;
-                }
-            }
+        let Some((_, data)) = files.iter().find(|(n, _)| *n == path) else { continue };
+        let Ok(messages) = parse_json(&String::from_utf8_lossy(data)) else { continue };
+        // "key": { "message": "…" } (keys are not case-sensitive)
+        let found = messages.as_object().and_then(|o| o.iter().find(|(k, _)| k.eq_ignore_ascii_case(key))).and_then(|(_, m)| m.get("message")).and_then(|m| m.as_str());
+        if let Some(m) = found {
+            return m.to_string();
         }
     }
     key.to_string()
@@ -180,9 +184,11 @@ fn js_lit(s: &str) -> String {
 /// name, or why it can't be used.
 fn convert(files: &[(String, Vec<u8>)]) -> Result<(String, String), String> {
     let manifest = files.iter().find(|(n, _)| n == "manifest.json").map(|(_, d)| String::from_utf8_lossy(d).to_string()).ok_or("manifest.json introuvable")?;
-    let name = localize(&json_str(&manifest, "name").unwrap_or_else(|| "Extension".into()), files, &manifest);
-    let description = localize(&json_str(&manifest, "description").unwrap_or_default(), files, &manifest);
-    let scripts = content_scripts(&manifest);
+    let manifest = parse_json(&manifest)?;
+    let text_of = |key: &str| manifest.get(key).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let name = localize(&Some(text_of("name")).filter(|n| !n.is_empty()).unwrap_or_else(|| "Extension".into()), files, &manifest);
+    let description = localize(&text_of("description"), files, &manifest);
+    let scripts: Vec<serde_json::Value> = manifest.get("content_scripts").and_then(|c| c.as_array()).cloned().unwrap_or_default();
     if scripts.is_empty() {
         return Err(crate::i18n::tr("Cette extension n'agit pas dans les pages (elle a besoin d'une fenêtre ou d'un service que Sanaga n'a pas).").into());
     }
@@ -193,12 +199,12 @@ fn convert(files: &[(String, Vec<u8>)]) -> Result<(String, String), String> {
     body.push_str(&format!("\nchrome.__id={};\n", js_lit(&name)));
     body.push_str(MATCH_JS);
     for cs in &scripts {
-        let matches: Vec<String> = json_list(cs, "matches");
-        let excludes: Vec<String> = json_list(cs, "exclude_matches");
+        let matches: Vec<String> = strings(cs, "matches");
+        let excludes: Vec<String> = strings(cs, "exclude_matches");
         let pats = matches.iter().map(|m| js_lit(m)).collect::<Vec<_>>().join(",");
         let ex = excludes.iter().map(|m| js_lit(m)).collect::<Vec<_>>().join(",");
         body.push_str(&format!("if(__m([{pats}])&&!([{ex}].length&&__m([{ex}]))){{\n"));
-        for css in json_list(cs, "css") {
+        for css in strings(cs, "css") {
             if let Some((_, d)) = files.iter().find(|(n, _)| *n == css.trim_start_matches('/')) {
                 body.push_str(&format!(
                     "(function(){{var s=document.createElement('style');s.textContent={};(document.head||document.documentElement).appendChild(s);}})();\n",
@@ -206,9 +212,9 @@ fn convert(files: &[(String, Vec<u8>)]) -> Result<(String, String), String> {
                 ));
             }
         }
-        let late = json_str(cs, "run_at").map(|r| r != "document_start").unwrap_or(true);
+        let late = cs.get("run_at").and_then(|r| r.as_str()).is_none_or(|r| r != "document_start");
         let mut code = String::new();
-        for js in json_list(cs, "js") {
+        for js in strings(cs, "js") {
             if let Some((_, d)) = files.iter().find(|(n, _)| *n == js.trim_start_matches('/')) {
                 code.push_str(&String::from_utf8_lossy(d));
                 code.push_str("\n;\n");
@@ -291,7 +297,11 @@ mod tests {
     /// A zip made by hand: one stored file.
     fn stored_zip(name: &str, body: &[u8]) -> Vec<u8> {
         let mut z = Vec::new();
-        let crc = 0u32;
+        let crc = {
+            let mut c = flate2::Crc::new();
+            c.update(body);
+            c.sum()
+        };
         z.extend_from_slice(b"PK\x03\x04");
         z.extend_from_slice(&[20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         z.extend_from_slice(&crc.to_le_bytes());
@@ -332,6 +342,58 @@ mod tests {
         assert_eq!(name, "Hello");
         assert!(text.contains("console.log('hi')"));
         assert!(text.contains("https://*.example.com/*"));
+    }
+
+    #[test]
+    fn manifests_are_read_as_json() {
+        // commas inside patterns, comments, a byte-order mark, escapes, keys
+        // that also appear as values: all things the old text scan got wrong
+        let manifest = "\u{feff}{ // a comment\n \"description\": \"has \\\"name\\\": inside\", /* block */ \"name\": \"__MSG_appName__\", \"default_locale\": \"en\",\n \"content_scripts\": [{\"matches\": [\"https://a.example/x,y/*\", \"https://b.example/*\"], \"js\": [\"/a.js\"], \"css\": [\"s.css\"], \"run_at\": \"document_start\"}]}";
+        let files = vec![
+            ("manifest.json".to_string(), manifest.as_bytes().to_vec()),
+            ("a.js".to_string(), b"var a = 1".to_vec()),
+            ("s.css".to_string(), b"body{}".to_vec()),
+            ("_locales/en/messages.json".to_string(), br#"{"APPNAME": {"message": "Real \"name\""}}"#.to_vec()),
+        ];
+        let (name, text) = convert(&files).unwrap();
+        assert_eq!(name, "Real \"name\"");
+        assert!(text.contains("\"https://a.example/x,y/*\",\"https://b.example/*\""));
+        assert!(text.contains("var a = 1") && text.contains("body{}"));
+        assert!(convert(&[("manifest.json".to_string(), b"{not json".to_vec())]).is_err());
+    }
+
+    #[test]
+    fn broken_archives_are_refused_not_trusted() {
+        let good = stored_zip("manifest.json", b"{}");
+        assert!(unzip(&good).is_ok());
+        // a wrong checksum
+        let mut bad = good.clone();
+        let at = bad.len() - 40;
+        bad[at] ^= 0xff;
+        let _ = unzip(&bad);
+        // an archive claiming more than it holds, cut anywhere, or with any
+        // byte changed: an error or fewer files, never a crash
+        for cut in 0..good.len() {
+            let _ = unzip(&good[..cut]);
+        }
+        let mut seed = 0x2545f4914f6cdd1du64;
+        for _ in 0..20_000 {
+            let mut z = good.clone();
+            for _ in 0..3 {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                let i = (seed as usize) % z.len();
+                z[i] = (seed >> 32) as u8;
+            }
+            if let Ok(files) = unzip(&z) {
+                let _ = convert(&files);
+            }
+        }
+        // odd manifests never crash the reader either
+        for m in ["", "[]", "null", "{\"content_scripts\":3}", "{\"content_scripts\":[1,{\"js\":7,\"matches\":[2]}]}", "{\"name\":{}}", "/*", "\"", "{\"a\":\"\\"] {
+            let _ = convert(&[("manifest.json".to_string(), m.as_bytes().to_vec())]);
+        }
     }
 
     #[test]

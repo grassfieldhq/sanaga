@@ -98,7 +98,7 @@ above that touches these features must be checked again before release.
 ## Known limits
 
 - Right-to-left text in Sanaga's own Reader / summary (see above).
-- Emoji typed in Sanaga's own interface show as initials.
+- Emoji in Sanaga's own interface need Noto Color Emoji to be in colour (black and white otherwise).
 - DRM video (Netflix, Spotify web) can't play in WebKitGTK.
 - Extensions needing a background page or a pop-up are not supported.
 - Keep on top and placing the floating video need Hyprland.

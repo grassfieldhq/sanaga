@@ -39,3 +39,42 @@ jobs:
 
       - name: Translations complete
         run: python3 tools/i18n.py check
+
+  # The real window under a virtual display: the interface starts, a page
+  # loads and answers. Advice only until it has proved steady on the runners
+  # (software OpenGL, WebKit's sandbox inside a container).
+  window:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: System libraries and a virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libwebkitgtk-6.0-dev libsoup-3.0-dev libjavascriptcoregtk-6.0-dev \
+            libxkbcommon-dev libwayland-dev libgl1-mesa-dev pkg-config \
+            xvfb libgl1-mesa-dri bubblewrap xdg-dbus-proxy dbus-x11
+          # WebKit's sandbox needs unprivileged user namespaces (Ubuntu 24.04 restricts them)
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: Build
+        run: cargo build --locked
+      - name: The window starts and shows a page
+        run: xvfb-run -a -s "-screen 0 1280x800x24" env LIBGL_ALWAYS_SOFTWARE=1 dbus-run-session -- tools/smoke.sh
+
+  # Known vulnerabilities in the crates Sanaga is built from.
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - name: cargo audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit

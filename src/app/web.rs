@@ -11,6 +11,8 @@ use webkit6::prelude::*;
 pub(super) enum WebEvent {
     Load { tab: u64, finished: bool, url: String },
     Title { tab: u64, title: String },
+    /// The page's address changed (pushState, #anchor, or a load).
+    Uri { tab: u64, url: String },
     NewTab { tab: u64, url: String },
     Shortcut(String),
     /// A page closed itself (a sign-in window when done): its tab closes.
@@ -42,6 +44,12 @@ pub(super) enum WebEvent {
     LoadFailed { tab: u64, url: String, kind: crate::page::LoadError, detail: String },
     /// The page asks something (alert, confirm, prompt, login…).
     Dialog { tab: u64, key: u64 },
+    /// A link to a protected site (Netflix…), stopped before loading.
+    Protected { tab: u64, url: String },
+    /// A click inside a page (split view: that page becomes the tab in use).
+    PageClicked { tab: u64 },
+    /// How far a page is scrolled, as a share of its height (mobile preview side by side).
+    Scrolled { tab: u64, share: f32 },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -53,14 +61,16 @@ const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
     var m = t.tagName === 'SOURCE' ? t.parentNode : t;
     if (!m || !m.error || m.error.code === 4) window.ipc.postMessage('tool:media-unsupported:');
   }
-}, true);"#;
+}, true);
+// video calls need WebRTC; some systems' WebKitGTK is built without it
+if (typeof RTCPeerConnection === 'undefined' && window.ipc && /^https?:$/.test(location.protocol)) window.ipc.postMessage('tool:no-webrtc:');"#;
 
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
   if (!e.isTrusted) return;
   var k = (e.key || '').toLowerCase();
   var ctrl = e.ctrlKey || e.metaKey;
-  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','delete','m','y','pagedown','pageup'].indexOf(k) >= 0)
+  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','k','e','delete','m','y','pagedown','pageup'].indexOf(k) >= 0)
     || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
     || k === 'f5' || k === 'f6' || k === 'f9' || k === 'f11' || k === 'f12'
     || (k === 'escape' && window.__sanagaTool);
@@ -122,6 +132,8 @@ fn shortcut_name(msg: &str) -> Option<&'static str> {
         (true, true, _, "o") => "overview",
         (true, true, _, "f") => "contacts",
         (true, true, _, "a") => "tabsearch",
+        (true, false, false, "k") => "tabsearch",
+        (true, true, _, "e") => "split",
         (true, true, _, "delete") => "cleardata",
         (true, false, false, "s") => "savepage",
         (true, false, true, "i") => "inspector",
@@ -163,12 +175,16 @@ static PAGE_INPUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool
 
 /// Note mouse, wheel and keyboard use inside a page: Sanaga then ticks fast
 /// for a moment, and slowly the rest of the time (saves CPU when idle).
-pub(super) fn watch_page_input(w: &PageView) {
+pub(super) fn watch_page_input(w: &PageView, tab: u64, tx: std::sync::mpsc::Sender<WebEvent>, ctx: egui::Context) {
     use gtk::prelude::*;
     let watch = gtk::EventControllerLegacy::new();
     watch.set_propagation_phase(gtk::PropagationPhase::Capture);
-    watch.connect_event(|_, ev| {
+    watch.connect_event(move |_, ev| {
         use gtk::gdk::EventType as E;
+        if ev.event_type() == E::ButtonPress {
+            let _ = tx.send(WebEvent::PageClicked { tab });
+            ctx.request_repaint();
+        }
         if matches!(
             ev.event_type(),
             E::MotionNotify | E::ButtonPress | E::ButtonRelease | E::Scroll | E::KeyPress | E::KeyRelease | E::TouchBegin | E::TouchUpdate | E::TouchEnd | E::EnterNotify
@@ -239,6 +255,7 @@ impl PageMaker {
                 PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
                 PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
                 PageSignal::Title(title) => WebEvent::Title { tab: id, title },
+                PageSignal::Uri(url) => WebEvent::Uri { tab: id, url },
                 PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
@@ -252,6 +269,7 @@ impl PageMaker {
                 PageSignal::OpenLink(url, how) => WebEvent::OpenLink { tab: id, url, how },
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
+                PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         if !page_may_answer(what) {
@@ -264,6 +282,8 @@ impl PageMaker {
                         WebEvent::FormDirty { tab: id, dirty: body == "form:dirty" }
                     } else if let Some(text) = body.strip_prefix("sum:") {
                         WebEvent::PageText { tab: id, text: text.to_string() }
+                    } else if let Some(share) = body.strip_prefix("scr:").and_then(|s| s.parse::<f32>().ok()) {
+                        WebEvent::Scrolled { tab: id, share }
                     } else if body.starts_with("pw:") {
                         WebEvent::Password { tab: id, msg: body }
                     } else if let Some(u) = body.strip_prefix("vs:") {
@@ -289,6 +309,9 @@ impl Sanaga {
     pub(super) fn pump_web(&mut self, ctx: &egui::Context) {
         if !self.web_ok {
             return;
+        }
+        if self.frame >= 2 {
+            self.ensure_engine();
         }
         let n = 0;
         // pages opened by sites (sign-in windows…) become tabs
@@ -374,8 +397,16 @@ impl Sanaga {
                     self.apply_site_zoom(ti);
                     return;
                 }
-                let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
                 if finished {
+                    // mobile preview side by side: the phone goes where the
+                    // page went, and hears about its scrolling again
+                    if let Some(c) = self.companion_of(tab) {
+                        self.sync_companion_scroll(tab);
+                        if super::chrome::same_page_key(self.tabs[c].url()) != super::chrome::same_page_key(&url) && url.starts_with("http") {
+                            self.navigate(c, url.clone(), None, true);
+                        }
+                    }
+                    let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
                     self.pages_loaded += 1;
                     let private = t.private;
                     let title = t.entries[t.idx].title.clone();
@@ -386,6 +417,37 @@ impl Sanaga {
                     }
                     self.save_session();
                 }
+            }
+            WebEvent::Uri { tab, url } => {
+                let active_id = self.tabs.get(self.active).map(|t| t.id);
+                let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
+                if !matches!(t.view, View::Web) || url.is_empty() || url == "about:blank" || t.entries.is_empty() {
+                    return;
+                }
+                let e = &mut t.entries[t.idx];
+                if e.url == url || e.url.starts_with("view-source:") {
+                    return;
+                }
+                let new_host = host_of(&url) != host_of(&e.url);
+                e.url = url.clone();
+                let title = e.title.clone();
+                if !(addr_focused && active_id == Some(tab)) {
+                    t.address = url.clone();
+                }
+                // a move inside a single-page site is a visit too (as in
+                // Chrome); a real load records its own when it finishes
+                let loading = t.loading || t.web.as_ref().is_some_and(|w| w.webview().is_loading());
+                let private = t.private;
+                if !loading && !private && !url.starts_with("about:") {
+                    self.store.add_visit(&url, &title);
+                }
+                // another site: its own zoom
+                if new_host {
+                    if let Some(ti) = self.tabs.iter().position(|x| x.id == tab) {
+                        self.apply_site_zoom(ti);
+                    }
+                }
+                self.save_session();
             }
             WebEvent::Title { tab, title } => {
                 let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
@@ -411,6 +473,11 @@ impl Sanaga {
             WebEvent::OpenLink { tab, url, how } => self.open_link_from(tab, &url, how),
             WebEvent::LoadFailed { tab, url, kind, detail } => self.show_load_error(tab, &url, kind, &detail),
             WebEvent::Dialog { tab, key } => self.page_dialog(tab, key),
+            WebEvent::Protected { tab, url } => {
+                if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
+                    self.protected_site(i, &url);
+                }
+            }
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
             WebEvent::Crashed { tab, memory } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
@@ -421,6 +488,25 @@ impl Sanaga {
                         tr("Le moteur de la page s'est arrêté. Les autres onglets ne sont pas touchés.")
                     };
                     t.view = View::Error(format!("{CRASH_MARK}{why}"));
+                }
+            }
+            WebEvent::Scrolled { tab, share } => {
+                // mobile preview side by side: the phone follows the page
+                if let Some(c) = self.companion_of(tab) {
+                    if let Some(w) = &self.tabs[c].web {
+                        let _ = w.evaluate_own(&format!("(function(){{var d=document.documentElement;window.scrollTo(0,{:.4}*Math.max(0,d.scrollHeight-window.innerHeight));}})();", share.clamp(0.0, 1.0)));
+                    }
+                }
+            }
+            WebEvent::PageClicked { tab } => {
+                // split view: the page clicked becomes the tab in use
+                if self.split.is_some_and(|(a, b)| tab == a || tab == b) {
+                    if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
+                        if i != self.active {
+                            self.current_group = self.tabs[i].group;
+                            self.active = i;
+                        }
+                    }
                 }
             }
             WebEvent::FormDirty { tab, dirty } => {
@@ -490,8 +576,44 @@ impl Sanaga {
         if !self.web_ok {
             return;
         }
+        // the window's first picture comes before the web engine starts
+        if self.web_context.is_none() {
+            if self.frame < 2 {
+                self.ctx.request_repaint();
+                return;
+            }
+            self.ensure_engine();
+        }
         let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || self.switcher.is_some() || self.ai_menu_open || self.profile_open || self.group_editor.is_some() || self.shown_dialog().is_some() || egui::Popup::is_any_open(&self.ctx);
-        // A menu over a page: the page sits above Sanaga's drawing, so take a
+        // A menu or a panel over a page: the interface is drawn again in a
+        // see-through layer above the page, which stays alive under it
+        // (shell.rs). One frame after the menu opens: by then the interface
+        // leaves the page area clear. The keyboard goes to the interface
+        // meanwhile, and back to the page afterwards.
+        let tab_live = self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Web) && t.web.is_some() && t.web_shown);
+        let live = overlay && !self.overview_open && self.device.is_none() && tab_live && crate::shell::live_overlay_available();
+        let ready = live && self.live_overlay;
+        if live != self.live_overlay {
+            self.live_overlay = live;
+            self.ctx.request_repaint();
+        }
+        crate::shell::set_live_overlay(ready);
+        if ready != self.live_shown {
+            self.live_shown = ready;
+            if ready {
+                crate::shell::focus_interface();
+            } else if !self.ctx.memory(|m| m.focused().is_some()) {
+                if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()).filter(|_| tab_live) {
+                    use gtk::prelude::WidgetExt;
+                    w.webview().grab_focus();
+                }
+            }
+        }
+        if live {
+            overlay = false;
+        }
+        // Where that layer can't be used (the mobile simulator, a system
+        // without it): the page sits above Sanaga's drawing, so take a
         // picture of it first and show that picture while the menu is open
         // (instead of a blank page).
         let active_id = self.tabs.get(self.active).map(|t| t.id).unwrap_or(0);
@@ -561,12 +683,37 @@ impl Sanaga {
         .map(|v| v.round().max(0.0) as i32);
         crate::shell::set_page_area(insets);
         let active = self.active;
+        // Split view: the tab in use and its companion side by side, each in
+        // its half of the page area (the first of the pair on the left),
+        // under a thin bar that says which one is in use.
+        let partner = self.split_partner();
+        self.split_shown = None;
+        let mut halves: Option<([i32; 4], [i32; 4], usize)> = None;
+        if let (Some(p), Some((left_id, _))) = (partner, self.split) {
+            let (bar, gap) = (3.0, 2.0);
+            // (a mobile preview: a phone's width on the right, the page keeps the rest)
+            let phone = self.tabs[p].companion || self.tabs[active].companion;
+            let mid = if phone { (content.right() - 393.0 - gap).max(content.left() + 320.0).round() } else { content.center().x.round() };
+            let left = Rect::from_min_max(pos2(content.left(), content.top() + bar), pos2(mid - gap / 2.0, content.bottom()));
+            let right = Rect::from_min_max(pos2(mid + gap / 2.0, content.top() + bar), content.right_bottom());
+            let place = |r: Rect| [(r.left() - win.left()) * zf, (r.top() + 1.0 - win.top()) * zf, (win.right() - r.right()) * zf, (win.bottom() - r.bottom()) * zf].map(|v| v.round().max(0.0) as i32);
+            let left_index = if self.tabs[active].id == left_id { active } else { p };
+            halves = Some((place(left), place(right), left_index));
+            self.split_shown = Some((left, right, left_index == active));
+            // the companion's page starts if it was asleep
+            let t = &mut self.tabs[p];
+            if t.web.is_none() && t.web_pending.is_none() {
+                t.sleeping = false;
+                t.loading = true;
+                t.web_pending = Some(t.url().to_string());
+            }
+        }
         for i in 0..self.tabs.len() {
-            let show = i == active && matches!(self.tabs[i].view, View::Web) && !overlay;
+            let show = (i == active || Some(i) == partner) && matches!(self.tabs[i].view, View::Web) && !overlay;
             if self.tabs[i].web.is_none() {
                 // A tab's page only starts when the tab is shown (100 open tabs
                 // don't mean 100 running pages).
-                if i != active {
+                if i != active && Some(i) != partner {
                     if self.tabs[i].web_pending.is_some() {
                         self.tabs[i].loading = false;
                     }
@@ -575,6 +722,17 @@ impl Sanaga {
                 let Some(url) = self.tabs[i].web_pending.take() else { continue };
                 let by_person = std::mem::take(&mut self.tabs[i].web_by_person);
                 let w = self.build_webview(i);
+                // a mobile preview's page introduces itself as a phone, with touch
+                if self.tabs[i].companion {
+                    use webkit6::prelude::*;
+                    let wk = w.webview();
+                    if let Some(st) = WebViewExt::settings(&wk) {
+                        st.set_user_agent(Some(super::devices::IOS_PHONE_UA));
+                    }
+                    if let Some(ucm) = wk.user_content_manager() {
+                        ucm.add_script(&webkit6::UserScript::new(super::devices::TOUCH_JS, webkit6::UserContentInjectedFrames::AllFrames, webkit6::UserScriptInjectionTime::Start, &[], &[]));
+                    }
+                }
                 self.prepare_view(i, &w, show);
                 load_into(&w, &url, by_person);
                 self.tabs[i].web = Some(w);
@@ -590,6 +748,13 @@ impl Sanaga {
             if show != tab.web_shown {
                 let _ = w.set_visible(show);
                 tab.web_shown = show;
+            }
+            if show {
+                let place = match halves {
+                    Some((left, right, left_index)) => if i == left_index { left } else { right },
+                    None => insets,
+                };
+                crate::shell::place_view(&w.webview(), place);
             }
             // in the simulator the page is scaled with the drawn device
             let want = tab.zoom * if i == active { dev_scale } else { 1.0 };
@@ -628,9 +793,10 @@ impl Sanaga {
             c.set_cache_model(webkit6::CacheModel::DocumentBrowser);
         }
         super::plus::watch_permissions(w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
-        watch_page_input(w);
+        watch_page_input(w, self.tabs[i].id, self.web_tx.clone(), self.ctx.clone());
         self.run_pending_clear(w);
-        if show {
+        // (the keyboard goes to the tab in use, not to its companion in a split view)
+        if show && i == self.active {
             use gtk::prelude::WidgetExt;
             wk.grab_focus();
         }

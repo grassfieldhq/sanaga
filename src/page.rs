@@ -38,6 +38,11 @@ pub enum PageSignal {
     /// The page asks something (alert, confirm, prompt, leave the page, a
     /// login): Sanaga shows it in its own design (see `dialog`).
     Dialog(u64),
+    /// The address shown changed (also without a load: pushState, #anchor).
+    Uri(String),
+    /// A link to a site whose videos need a DRM WebKit doesn't have
+    /// (Netflix…): not loaded here; Sanaga opens it where it plays.
+    Protected(String),
 }
 
 /// Why a page did not load.
@@ -163,13 +168,14 @@ fn classify(e: &gtk::glib::Error) -> Option<LoadError> {
     if e.matches(webkit6::PolicyError::CannotUseRestrictedPort) {
         return Some(LoadError::BlockedPort);
     }
+    // "Offline" only when the error itself says the network can't be
+    // reached (or a name can't be resolved with no network at all): the
+    // system's network monitor alone is sometimes wrong while the connection
+    // works, and every failure then looked like "no Internet"
     let offline = !gio::NetworkMonitor::default().is_network_available();
     let msg = e.message().to_lowercase();
-    if offline {
-        return Some(LoadError::Offline);
-    }
     if e.matches(gio::ResolverError::NotFound) || e.matches(gio::ResolverError::TemporaryFailure) || msg.contains("resolv") || msg.contains("name or service not known") {
-        return Some(LoadError::NotFound);
+        return Some(if offline { LoadError::Offline } else { LoadError::NotFound });
     }
     if e.matches(gio::IOErrorEnum::ConnectionRefused) || msg.contains("refused") {
         return Some(LoadError::Refused);
@@ -213,6 +219,9 @@ thread_local! {
     /// WebKit has compiled them.
     static BLOCKER: RefCell<Option<webkit6::UserContentFilter>> = const { RefCell::new(None) };
     static NO_FONTS: RefCell<Option<webkit6::UserContentFilter>> = const { RefCell::new(None) };
+    /// The big block lists (EasyList, EasyPrivacy), compiled by WebKit (see blocklist.rs).
+    static LISTS: RefCell<Vec<webkit6::UserContentFilter>> = const { RefCell::new(Vec::new()) };
+    static FILTERS_DIR: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
     /// The open pages (to give them the blocker once it is ready).
     static VIEWS: RefCell<Vec<gtk::glib::WeakRef<WebView>>> = const { RefCell::new(Vec::new()) };
     /// Download names picked whose files are not created yet.
@@ -355,12 +364,104 @@ fn blocker_ready() {
 /// The network blocker is switched on (Settings › Privacy).
 pub static BLOCKER_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
+/// The big block lists are used (Settings › Privacy).
+pub static LISTS_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+fn debug_lists(what: &str) {
+    if std::env::var_os("SANAGA_DEBUG_BLOCKER").is_some() {
+        eprintln!("block lists: {what}");
+    }
+}
+
+/// One compiled list is ready: it replaces the one of the same name.
+fn list_ready(f: webkit6::UserContentFilter) {
+    let id = f.identifier();
+    LISTS.with(|l| {
+        let mut l = l.borrow_mut();
+        l.retain(|x| x.identifier() != id);
+        l.push(f);
+    });
+    blocker_ready();
+}
+
+/// WebKit compiles one converted list (on its own thread; it takes a while).
+fn compile_list(store: &webkit6::UserContentFilterStore, k: usize, path: &Path) {
+    let started = std::time::Instant::now();
+    store.save_from_file(&crate::blocklist::list_id(k), &gtk::gio::File::for_path(path), None::<&gtk::gio::Cancellable>, move |res| match res {
+        Ok(f) => {
+            debug_lists(&format!("list {k} compiled in {:.1} s", started.elapsed().as_secs_f64()));
+            list_ready(f);
+        }
+        // (the list kept from last time, if any, stays in use)
+        Err(e) => eprintln!("listes de blocage : {e}"),
+    });
+}
+
+/// The big block lists: those compiled earlier are loaded at once (nothing
+/// asked of the network); when they are a week old (or not there yet) they
+/// are fetched and converted on a thread, then compiled by WebKit. A fetch
+/// that fails changes nothing: the lists kept go on being used.
+pub fn prepare_lists() {
+    use crate::blocklist::{list_id, MAX_LISTS};
+    let Some(dir) = FILTERS_DIR.with(|d| d.borrow().clone()) else { return };
+    if !LISTS_ON.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let store = webkit6::UserContentFilterStore::new(&dir.to_string_lossy());
+    let (kept, stale) = crate::blocklist::kept(&dir);
+    if LISTS.with(|l| l.borrow().is_empty()) {
+        for (k, path) in kept.iter().enumerate() {
+            let (store2, path) = (store.clone(), path.clone());
+            store.load(&list_id(k), None::<&gtk::gio::Cancellable>, move |res| match res {
+                Ok(f) => list_ready(f),
+                // converted but not compiled (Sanaga was closed meanwhile): compiled now
+                Err(_) => compile_list(&store2, k, &path),
+            });
+        }
+    }
+    static FETCHING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if !stale || FETCHING.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let result = crate::blocklist::update(&dir);
+        gtk::glib::MainContext::default().invoke(move || {
+            FETCHING.store(false, std::sync::atomic::Ordering::Relaxed);
+            let (files, n) = match result {
+                Ok(r) => r,
+                Err(e) => return debug_lists(&format!("not updated ({e})")),
+            };
+            debug_lists(&format!("{n} rules in {} lists", files.len()));
+            let store = webkit6::UserContentFilterStore::new(&dir.to_string_lossy());
+            for (k, path) in files.iter().enumerate() {
+                compile_list(&store, k, path);
+            }
+            for k in files.len()..MAX_LISTS {
+                let id = list_id(k);
+                LISTS.with(|l| l.borrow_mut().retain(|x| x.identifier().as_deref() != Some(id.as_str())));
+                store.remove(&id, None::<&gtk::gio::Cancellable>, |_| {});
+            }
+        });
+    });
+}
+
 /// Compile the blocker's rules (once; WebKit keeps them compiled in `dir`).
 pub fn prepare_filters(dir: &Path) {
     if BLOCKER.with(|b| b.borrow().is_some()) {
         return;
     }
     let _ = std::fs::create_dir_all(dir);
+    FILTERS_DIR.with(|d| *d.borrow_mut() = Some(dir.to_path_buf()));
+    // a compilation cut short (Sanaga closed meanwhile) leaves its work file behind
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with("ContentRuleList-") && !name.starts_with("ContentRuleList-sanaga-") {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
+    prepare_lists();
     let store = webkit6::UserContentFilterStore::new(&dir.to_string_lossy());
     let rules = gtk::glib::Bytes::from_owned(crate::site_prefs::blocker_rules().into_bytes());
     store.save("sanaga-blocker", &rules, None::<&gtk::gio::Cancellable>, |res| match res {
@@ -399,6 +500,14 @@ fn apply_site(v: &WebView, host: &str) {
         (true, Some(f)) => ucm.add_filter(f),
         _ => ucm.remove_filter_by_id("sanaga-blocker"),
     });
+    // the big lists, with the blocker (and their own switch)
+    if block && LISTS_ON.load(std::sync::atomic::Ordering::Relaxed) {
+        LISTS.with(|l| l.borrow().iter().for_each(|f| ucm.add_filter(f)));
+    } else {
+        for k in 0..crate::blocklist::MAX_LISTS {
+            ucm.remove_filter_by_id(&crate::blocklist::list_id(k));
+        }
+    }
     NO_FONTS.with(|b| match (!prefs.fonts, b.borrow().as_ref()) {
         (true, Some(f)) => ucm.add_filter(f),
         _ => ucm.remove_filter_by_id("sanaga-nofonts"),
@@ -859,6 +968,11 @@ impl PageView {
                 o(PageSignal::Favicon(uri.to_string(), tex.save_to_png_bytes().to_vec()));
             }
         });
+        // the page's address changed without a new page being loaded:
+        // single-page sites (YouTube, Google, Facebook, X…) move with
+        // history.pushState, and #anchors — the address bar follows
+        let o = on.clone();
+        view.connect_uri_notify(move |v| o(PageSignal::Uri(v.uri().map(|u| u.to_string()).unwrap_or_default())));
         let o = on.clone();
         view.connect_create(move |v, action| {
             // window.open(): a real page linked to this one (sign-in windows
@@ -889,6 +1003,16 @@ impl PageView {
             // window (WebKit leaves this to the browser)
             if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
                 if let Some(a) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>().and_then(|n| n.navigation_action()) {
+                    // a link to Netflix, Disney+, Spotify… (clicked, or opened
+                    // in a new window): nothing is loaded here, where it can't
+                    // play; Sanaga opens it where it does
+                    if a.navigation_type() == webkit6::NavigationType::LinkClicked || kind == webkit6::PolicyDecisionType::NewWindowAction {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::identity::protected_url(u).is_some()) {
+                            decision.ignore();
+                            o(PageSignal::Protected(u));
+                            return true;
+                        }
+                    }
                     let m = a.modifiers();
                     let ctrl = m & gtk::gdk::ModifierType::CONTROL_MASK.bits() != 0;
                     let shift = m & gtk::gdk::ModifierType::SHIFT_MASK.bits() != 0;

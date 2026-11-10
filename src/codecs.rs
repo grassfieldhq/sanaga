@@ -176,11 +176,11 @@ pub fn install() -> Option<Install> {
 fn install_for(id: &str, like: &str) -> Option<Install> {
     let is = |name: &str| id == name || like.split_whitespace().any(|l| l == name);
     let (manager, args, packages): (&str, &[&str], &[&str]) = if is("arch") {
-        ("pacman", &["-S", "--needed"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va"])
+        ("pacman", &["-S", "--needed"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va", "libnice"])
     } else if is("debian") || is("ubuntu") {
-        ("apt-get", &["install"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi"])
+        ("apt-get", &["install"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi", "gstreamer1.0-nice"])
     } else if is("fedora") {
-        ("dnf", &["install"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264"])
+        ("dnf", &["install"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264", "libnice-gstreamer1"])
     } else if is("suse") || is("opensuse") {
         ("zypper", &["install"], &["gstreamer-plugins-libav", "gstreamer-plugins-bad"])
     } else {
@@ -232,7 +232,7 @@ mod tests {
     fn the_command_shown_is_the_command_run() {
         let i = super::install_for("arch", "").unwrap();
         assert_eq!(i.command, i.argv.join(" "));
-        assert!(i.command.ends_with("pacman -S --needed gst-libav gst-plugins-bad gst-plugin-va"));
+        assert!(i.command.ends_with("pacman -S --needed gst-libav gst-plugins-bad gst-plugin-va libnice"));
         for (id, like) in [("arch", ""), ("ubuntu", "debian"), ("fedora", ""), ("opensuse-tumbleweed", "suse opensuse")] {
             let i = super::install_for(id, like).unwrap();
             assert!(!i.argv.iter().any(|a| a == "--noconfirm" || a == "-y" || a == "--non-interactive"), "{id}");

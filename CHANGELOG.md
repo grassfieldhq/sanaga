@@ -6,6 +6,55 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Menus and panels open over the living page: the page keeps moving
+  under them (a video goes on playing) instead of being replaced by a
+  picture of itself, and opening a menu no longer makes the window stutter.
+  The mobile simulator keeps the old way.
+- Split view (Ctrl+Shift+E): the tab in use and the web tab used before
+  it side by side; a click in a page makes it the tab in use.
+- Mobile preview next to the page (command palette › "Aperçu mobile à côté
+  de la page"): the same page as a phone gets it, a phone wide, following
+  the page's address and scrolling.
+- Activity page (`sanaga://activity`, command palette › "Activité"):
+  memory and processor of Sanaga's interface, network and page processes,
+  and every tab with its state; a running tab can be put to sleep.
+- Emoji in colour (the system's Noto Color Emoji, else a built-in black and
+  white set) and Chinese, Japanese and Korean text in the interface's own
+  texts (tab titles, menus, history).
+- A new tab grows into the tab bar, the other tabs take their new width
+  smoothly, and the overview's cards rise into place.
+- Command palette (Ctrl+K, also Ctrl+Shift+A): one field for the open
+  tabs, Sanaga's commands, favourites, history and the web; arrows and
+  Enter.
+- The address bar completes a site's name as you type ("wiki" →
+  "wikipedia.org", the added part selected) and looks its address up at
+  once, so the page starts sooner. Not in private tabs.
+- Full block lists: EasyList and EasyPrivacy (some 100 000 rules), fetched
+  once a week from easylist.to, converted on this computer and compiled
+  by WebKit. Settings › Privacy › "Listes de blocage complètes" (on by
+  default; the small built-in list stays). The first compilation takes
+  about two minutes in the background; the lists add about 40 MB to each
+  page's process.
+- Sync: favourites and reading list are merged entry by entry (an entry
+  added, renamed, moved or removed on one computer reaches the others; two
+  computers changing different things lose nothing), and the folder can be
+  encrypted with a secret phrase (Settings › Sync; XChaCha20-Poly1305, key
+  from the phrase with Argon2id, the phrase kept in the keyring).
+
+### Changed
+- Starts faster: the web engine is made after the window's first picture,
+  and GTK is told light or dark before it reads its theme (measured: the
+  interface drawn after about 1.0 s instead of 1.2–1.3 s).
+- The sidebar slides in and out; the loading bar moves with the screen's
+  refresh.
+- Address suggestions: the same page is listed once, addresses are shown
+  decoded, without https:// and www.
+- Extensions: manifests are read as real JSON (comments, commas inside
+  patterns, translations), archives are checked (sizes, checksums, a total
+  limit) and refused when damaged; AI answers are read from their place in
+  the JSON.
+
 ### Security (audit of 8 November 2026)
 - Sanaga's page scripts and its message channel run in an isolated
   JavaScript world, top frame only; page messages are checked against the
@@ -48,6 +97,39 @@ All notable changes to Sanaga are listed here. The format follows
 - Password AutoFill no longer lists accounts under the sign-in field nor
   fills a site's only account by itself: the accounts are offered in
   Sanaga's bar.
+- The address bar shows the page's address as Chrome does
+  (`fr.wikipedia.org/wiki/Yaoundé`: the site, then the path dimmed and
+  decoded; https:// and www. left out) instead of the site's name only, so
+  it changes from page to page. Settings › Apparence › "Toujours afficher
+  les URL en entier" shows the whole address.
+
+### Fixed
+- The address bar now follows every move of the page: sites that change
+  page without loading a new one (YouTube, Google, Facebook, X… with
+  history.pushState), #anchors and going back inside them. These moves are
+  also kept in the history and the restored session.
+- Sites behaving as if there were no Internet while connected (Google and
+  others): Sanaga and its engine now know whether there is a network from
+  the system's routes, not from NetworkManager's Internet check (on Ubuntu
+  that check often fails while the connection works, and pages were told
+  they were offline). A load error is only called "not connected" when the
+  error itself says so.
+- Video calls (Google Meet, Teams, Zoom, Jitsi, Whereby, Webex, Discord):
+  when this system's WebKitGTK is built without WebRTC (the call can't
+  connect, the "join" button stays stuck), they open in a browser that can
+  make calls, the way Netflix does. The .deb, .rpm and Arch packages now
+  bring libnice for GStreamer, which WebKit needs for calls.
+
+### Changed
+- Netflix, Disney+, Spotify and the other DRM sites are no longer loaded in
+  Sanaga, where they can't play: an address typed, a favourite or a link
+  clicked goes straight to the app or browser that plays them (Chrome,
+  Chromium with Widevine, Brave, Edge, Firefox, also as Flatpaks, or the
+  Spotify app), and the tab stays where it was. The first time, a Sanaga
+  page offers it in one click, with "Always open this way" ticked; without
+  such a browser it gives the command to install Firefox.
+- Sanaga's short messages are shown above the page (they were hidden under
+  web pages).
 - Release tags follow Semantic Versioning exactly: `0.4.0`, no `v` in front
   (the releases are named the same way).
 
