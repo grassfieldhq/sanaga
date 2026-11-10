@@ -1053,3 +1053,20 @@ Photo du profil	Foto do perfil
 Images	Imagens
 Cette image ne peut pas être lue.	Esta imagem não pode ser lida.
 Une page sur {} dit :	Uma página em {} diz:
+Contenu protégé	Conteúdo protegido
+{} s'ouvre dans {}…	{} está a abrir no {}…
+{} s'ouvre dans son application	{} abre na sua aplicação
+{} s'ouvre dans {}	{} abre no {}
+{} ne peut pas être lu dans Sanaga	{} não pode ser reproduzido no Sanaga
+{} protège ses vidéos avec Widevine, un verrou que Google réserve à Chrome, Firefox et aux navigateurs de leur famille. Le moteur de Sanaga n'y a pas droit : Sanaga vous ouvre donc la page là où elle se lit, avec vos comptes habituels.	{} protege os vídeos com Widevine, um cadeado que a Google reserva ao Chrome, ao Firefox e aos navegadores da mesma família. O motor do Sanaga não tem direito a usá-lo: o Sanaga abre a página onde ela se reproduz, com as suas contas habituais.
+Toujours ouvrir Netflix, Disney+, Spotify… ainsi, sans passer par cette page	Abrir sempre Netflix, Disney+, Spotify… assim, sem passar por esta página
+Installez Firefox ou Google Chrome : Sanaga y ouvrira ces sites d'un clic, directement.	Instale o Firefox ou o Google Chrome: o Sanaga abrirá estes sites lá com um clique.
+Ouvrir quand même dans Sanaga (les vidéos ne se liront pas)	Abrir mesmo assim no Sanaga (os vídeos não serão reproduzidos)
+Commande copiée	Comando copiado
+Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome	Os separadores inativos suspendem após 6 h (moderado), 4 h (equilibrado) ou 2 h (máximo), como no Chrome
+{} a besoin des appels vidéo (WebRTC), que le moteur web installé sur ce système ne fournit pas. Sanaga ouvre donc la réunion dans un navigateur qui les gère, avec vos comptes habituels.	{} precisa de chamadas de vídeo (WebRTC), que o motor web instalado neste sistema não fornece. O Sanaga abre a reunião num navegador que as suporta, com as suas contas habituais.
+Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Abrir sempre assim as chamadas de vídeo e os sites protegidos, sem passar por esta página
+Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Abrir mesmo assim no Sanaga (a chamada não poderá ligar-se)
+Batterie à 20 % ou moins	Bateria a 20 % ou menos
+Toujours afficher les URL en entier	Mostrar sempre os URLs completos
+Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Caso contrário, a barra de endereço omite https:// e www. e mostra o endereço descodificado, como o Chrome

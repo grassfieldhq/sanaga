@@ -81,6 +81,8 @@ enum Internal {
     Import,
     CreateExtension,
     Onboarding,
+    /// A protected site (Netflix…) opened where it plays: `sanaga://protected?u=…`.
+    Protected,
 }
 
 /// Sanaga's own pages have English addresses; the French ones of earlier
@@ -127,6 +129,7 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://import" => Internal::Import,
         "sanaga://create-extension" => Internal::CreateExtension,
         "sanaga://start" => Internal::Onboarding,
+        p if p.starts_with("sanaga://protected") => Internal::Protected,
         _ => return None,
     })
 }
@@ -147,6 +150,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Import => tr("Importer depuis un autre navigateur"),
         Internal::CreateExtension => tr("Créer une extension"),
         Internal::Onboarding => tr("Bienvenue dans Sanaga"),
+        Internal::Protected => tr("Contenu protégé"),
     }
 }
 
@@ -191,6 +195,8 @@ struct Tab {
     web_by_person: bool,
     web_shown: bool,
     web_zoom: f32,
+    /// How many times the person came back to this tab (memory saver).
+    revisits: u32,
     /// Safari-style Reader: this page shown as clean, easy-to-read text.
     reader: bool,
     /// Blocks the Reader leaves out (menus, buttons, link lists), worked out once per page.
@@ -443,6 +449,10 @@ pub struct Sanaga {
     translate_ask: bool,
     /// Sites whose DRM bar was dismissed; the identity chooser is open.
     drm_dismissed: HashSet<String>,
+    /// The protected-site page's "always open this way" box.
+    drm_always_pick: bool,
+    /// The tab shown at the memory saver's last step (to count revisits).
+    saver_last_tab: u64,
     identity_ask: bool,
     /// Sidebar: its search, the group being renamed in place.
     sidebar_filter: String,
@@ -524,6 +534,8 @@ pub struct Sanaga {
     focus_mode: bool,
     /// Battery: when last checked, and whether the computer runs on it.
     on_battery: (f64, bool),
+    /// The battery is at or below Chrome's threshold (20 %).
+    battery_low: bool,
     /// The website settings panel of the page shown.
     site_panel: bool,
     /// Open this address (or a new tab: "") in a container: the chooser.
@@ -782,6 +794,8 @@ impl Sanaga {
             translate_gen: 0,
             translate_ask: false,
             drm_dismissed: HashSet::new(),
+            drm_always_pick: true,
+            saver_last_tab: 0,
             identity_ask: false,
             sidebar_filter: String::new(),
             group_renaming: None,
@@ -842,6 +856,7 @@ impl Sanaga {
             web_dir: web_dir_kept,
             focus_mode: false,
             on_battery: (-100.0, false),
+            battery_low: false,
             site_panel: false,
             container_ask: None,
             new_container_name: String::new(),
@@ -1391,6 +1406,10 @@ impl Sanaga {
                         "tabs" => {
                             let list: Vec<String> = self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
                             eprintln!("live tabs {}", list.join(" | "));
+                        }
+                        "address" => {
+                            let focused = self.ctx.memory(|m| m.has_focus(egui::Id::new("address-bar")));
+                            eprintln!("live address {:?} focused={focused}", self.tabs[self.active].address);
                         }
                         a if a.starts_with("key:") => {
                             if let Some(key) = egui::Key::from_name(&a[4..]) {

@@ -1053,3 +1053,20 @@ Photo du profil	Profilfoto
 Images	Bilder
 Cette image ne peut pas être lue.	Dieses Bild kann nicht gelesen werden.
 Une page sur {} dit :	Eine Seite auf {} sagt:
+Contenu protégé	Geschützte Inhalte
+{} s'ouvre dans {}…	{} wird in {} geöffnet…
+{} s'ouvre dans son application	{} öffnet sich in seiner App
+{} s'ouvre dans {}	{} öffnet sich in {}
+{} ne peut pas être lu dans Sanaga	{} kann in Sanaga nicht abgespielt werden
+{} protège ses vidéos avec Widevine, un verrou que Google réserve à Chrome, Firefox et aux navigateurs de leur famille. Le moteur de Sanaga n'y a pas droit : Sanaga vous ouvre donc la page là où elle se lit, avec vos comptes habituels.	{} schützt seine Videos mit Widevine, einer Sperre, die Google nur Chrome, Firefox und verwandten Browsern erlaubt. Die Engine von Sanaga darf sie nicht nutzen: Sanaga öffnet die Seite dort, wo sie abgespielt wird, mit Ihren gewohnten Konten.
+Toujours ouvrir Netflix, Disney+, Spotify… ainsi, sans passer par cette page	Netflix, Disney+, Spotify… immer so öffnen, ohne diese Seite
+Installez Firefox ou Google Chrome : Sanaga y ouvrira ces sites d'un clic, directement.	Installieren Sie Firefox oder Google Chrome: Sanaga öffnet diese Seiten dort mit einem Klick.
+Ouvrir quand même dans Sanaga (les vidéos ne se liront pas)	Trotzdem in Sanaga öffnen (Videos werden nicht abgespielt)
+Commande copiée	Befehl kopiert
+Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome	Inaktive Tabs ruhen nach 6 Std. (moderat), 4 Std. (ausgewogen) oder 2 Std. (maximal), wie in Chrome
+{} a besoin des appels vidéo (WebRTC), que le moteur web installé sur ce système ne fournit pas. Sanaga ouvre donc la réunion dans un navigateur qui les gère, avec vos comptes habituels.	{} braucht Videoanrufe (WebRTC), die die auf diesem System installierte Web-Engine nicht bietet. Sanaga öffnet die Besprechung daher in einem Browser, der sie unterstützt, mit Ihren gewohnten Konten.
+Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Videoanrufe und geschützte Seiten immer so öffnen, ohne diese Seite
+Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Trotzdem in Sanaga öffnen (der Anruf kann keine Verbindung herstellen)
+Batterie à 20 % ou moins	Akku bei 20 % oder weniger
+Toujours afficher les URL en entier	Immer vollständige URLs anzeigen
+Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Sonst lässt die Adressleiste https:// und www. weg und zeigt die Adresse dekodiert, wie Chrome

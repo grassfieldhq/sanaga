@@ -78,6 +78,7 @@ impl Sanaga {
                 Internal::Passwords => self.page_passwords(ui, th),
                 Internal::Extensions => self.page_extensions(ui, th),
                 Internal::Profiles => self.page_profiles(ui, th),
+                Internal::Protected => self.page_protected(ui, th),
                 Internal::ClearData => self.page_clear_data(ui, th),
                 Internal::Sites => self.page_sites(ui, th),
                 Internal::Import => self.page_import(ui, th),

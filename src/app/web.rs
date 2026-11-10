@@ -11,6 +11,8 @@ use webkit6::prelude::*;
 pub(super) enum WebEvent {
     Load { tab: u64, finished: bool, url: String },
     Title { tab: u64, title: String },
+    /// The page's address changed (pushState, #anchor, or a load).
+    Uri { tab: u64, url: String },
     NewTab { tab: u64, url: String },
     Shortcut(String),
     /// A page closed itself (a sign-in window when done): its tab closes.
@@ -42,6 +44,8 @@ pub(super) enum WebEvent {
     LoadFailed { tab: u64, url: String, kind: crate::page::LoadError, detail: String },
     /// The page asks something (alert, confirm, prompt, login…).
     Dialog { tab: u64, key: u64 },
+    /// A link to a protected site (Netflix…), stopped before loading.
+    Protected { tab: u64, url: String },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -53,7 +57,9 @@ const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
     var m = t.tagName === 'SOURCE' ? t.parentNode : t;
     if (!m || !m.error || m.error.code === 4) window.ipc.postMessage('tool:media-unsupported:');
   }
-}, true);"#;
+}, true);
+// video calls need WebRTC; some systems' WebKitGTK is built without it
+if (typeof RTCPeerConnection === 'undefined' && window.ipc && /^https?:$/.test(location.protocol)) window.ipc.postMessage('tool:no-webrtc:');"#;
 
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
@@ -239,6 +245,7 @@ impl PageMaker {
                 PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
                 PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
                 PageSignal::Title(title) => WebEvent::Title { tab: id, title },
+                PageSignal::Uri(url) => WebEvent::Uri { tab: id, url },
                 PageSignal::NewWindow(url) => WebEvent::NewTab { tab: id, url },
                 PageSignal::Close => WebEvent::CloseTab { tab: id },
                 PageSignal::Crashed(memory) => WebEvent::Crashed { tab: id, memory },
@@ -252,6 +259,7 @@ impl PageMaker {
                 PageSignal::OpenLink(url, how) => WebEvent::OpenLink { tab: id, url, how },
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
+                PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         if !page_may_answer(what) {
@@ -387,6 +395,37 @@ impl Sanaga {
                     self.save_session();
                 }
             }
+            WebEvent::Uri { tab, url } => {
+                let active_id = self.tabs.get(self.active).map(|t| t.id);
+                let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
+                if !matches!(t.view, View::Web) || url.is_empty() || url == "about:blank" || t.entries.is_empty() {
+                    return;
+                }
+                let e = &mut t.entries[t.idx];
+                if e.url == url || e.url.starts_with("view-source:") {
+                    return;
+                }
+                let new_host = host_of(&url) != host_of(&e.url);
+                e.url = url.clone();
+                let title = e.title.clone();
+                if !(addr_focused && active_id == Some(tab)) {
+                    t.address = url.clone();
+                }
+                // a move inside a single-page site is a visit too (as in
+                // Chrome); a real load records its own when it finishes
+                let loading = t.loading || t.web.as_ref().is_some_and(|w| w.webview().is_loading());
+                let private = t.private;
+                if !loading && !private && !url.starts_with("about:") {
+                    self.store.add_visit(&url, &title);
+                }
+                // another site: its own zoom
+                if new_host {
+                    if let Some(ti) = self.tabs.iter().position(|x| x.id == tab) {
+                        self.apply_site_zoom(ti);
+                    }
+                }
+                self.save_session();
+            }
             WebEvent::Title { tab, title } => {
                 let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) else { return };
                 if title.trim().is_empty() {
@@ -411,6 +450,11 @@ impl Sanaga {
             WebEvent::OpenLink { tab, url, how } => self.open_link_from(tab, &url, how),
             WebEvent::LoadFailed { tab, url, kind, detail } => self.show_load_error(tab, &url, kind, &detail),
             WebEvent::Dialog { tab, key } => self.page_dialog(tab, key),
+            WebEvent::Protected { tab, url } => {
+                if let Some(i) = self.tabs.iter().position(|t| t.id == tab) {
+                    self.protected_site(i, &url);
+                }
+            }
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
             WebEvent::Crashed { tab, memory } => {
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {

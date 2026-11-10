@@ -1010,14 +1010,14 @@ impl Sanaga {
         if show.shows(Section::Performance, tr("Économiseur de mémoire"), &[tr("Mode économie d'énergie"), tr("Moteur d'affichage des pages"), tr("Charger les images")]) {
             any = true;
             group(ui, th, "", |ui, rows| {
-                rows.row(ui, tr("Économiseur de mémoire"), "", false, |ui| {
+                rows.row(ui, tr("Économiseur de mémoire"), tr("Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (maximal), comme dans Chrome"), false, |ui| {
                     if let Some(v) = popup(ui, "memory", st.memory_saver, &[(0u8, tr("Désactivé")), (1, tr("Modéré")), (2, tr("Équilibré")), (3, tr("Maximal"))]) {
                         st.memory_saver = v;
                         changed = true;
                     }
                 });
                 rows.row(ui, tr("Mode économie d'énergie"), tr("Onglets inactifs mis en veille plus tôt, moins de réveils"), false, |ui| {
-                    if let Some(v) = popup(ui, "low-power", st.low_power, &[(0u8, tr("Désactivé")), (1, tr("Sur batterie")), (2, tr("Toujours"))]) {
+                    if let Some(v) = popup(ui, "low-power", st.low_power, &[(0u8, tr("Désactivé")), (3, tr("Batterie à 20 % ou moins")), (1, tr("Sur batterie")), (2, tr("Toujours"))]) {
                         st.low_power = v;
                         changed = true;
                     }
@@ -1168,6 +1168,7 @@ impl Sanaga {
                         changed_more = true;
                     }
                 });
+                changed_more |= rows.switch(ui, tr("Toujours afficher les URL en entier"), tr("Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome"), &mut st.full_urls);
                 changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));

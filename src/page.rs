@@ -38,6 +38,11 @@ pub enum PageSignal {
     /// The page asks something (alert, confirm, prompt, leave the page, a
     /// login): Sanaga shows it in its own design (see `dialog`).
     Dialog(u64),
+    /// The address shown changed (also without a load: pushState, #anchor).
+    Uri(String),
+    /// A link to a site whose videos need a DRM WebKit doesn't have
+    /// (Netflix…): not loaded here; Sanaga opens it where it plays.
+    Protected(String),
 }
 
 /// Why a page did not load.
@@ -163,13 +168,14 @@ fn classify(e: &gtk::glib::Error) -> Option<LoadError> {
     if e.matches(webkit6::PolicyError::CannotUseRestrictedPort) {
         return Some(LoadError::BlockedPort);
     }
+    // "Offline" only when the error itself says the network can't be
+    // reached (or a name can't be resolved with no network at all): the
+    // system's network monitor alone is sometimes wrong while the connection
+    // works, and every failure then looked like "no Internet"
     let offline = !gio::NetworkMonitor::default().is_network_available();
     let msg = e.message().to_lowercase();
-    if offline {
-        return Some(LoadError::Offline);
-    }
     if e.matches(gio::ResolverError::NotFound) || e.matches(gio::ResolverError::TemporaryFailure) || msg.contains("resolv") || msg.contains("name or service not known") {
-        return Some(LoadError::NotFound);
+        return Some(if offline { LoadError::Offline } else { LoadError::NotFound });
     }
     if e.matches(gio::IOErrorEnum::ConnectionRefused) || msg.contains("refused") {
         return Some(LoadError::Refused);
@@ -859,6 +865,11 @@ impl PageView {
                 o(PageSignal::Favicon(uri.to_string(), tex.save_to_png_bytes().to_vec()));
             }
         });
+        // the page's address changed without a new page being loaded:
+        // single-page sites (YouTube, Google, Facebook, X…) move with
+        // history.pushState, and #anchors — the address bar follows
+        let o = on.clone();
+        view.connect_uri_notify(move |v| o(PageSignal::Uri(v.uri().map(|u| u.to_string()).unwrap_or_default())));
         let o = on.clone();
         view.connect_create(move |v, action| {
             // window.open(): a real page linked to this one (sign-in windows
@@ -889,6 +900,16 @@ impl PageView {
             // window (WebKit leaves this to the browser)
             if kind == webkit6::PolicyDecisionType::NavigationAction || kind == webkit6::PolicyDecisionType::NewWindowAction {
                 if let Some(a) = decision.downcast_ref::<webkit6::NavigationPolicyDecision>().and_then(|n| n.navigation_action()) {
+                    // a link to Netflix, Disney+, Spotify… (clicked, or opened
+                    // in a new window): nothing is loaded here, where it can't
+                    // play; Sanaga opens it where it does
+                    if a.navigation_type() == webkit6::NavigationType::LinkClicked || kind == webkit6::PolicyDecisionType::NewWindowAction {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::identity::protected_url(u).is_some()) {
+                            decision.ignore();
+                            o(PageSignal::Protected(u));
+                            return true;
+                        }
+                    }
                     let m = a.modifiers();
                     let ctrl = m & gtk::gdk::ModifierType::CONTROL_MASK.bits() != 0;
                     let shift = m & gtk::gdk::ModifierType::SHIFT_MASK.bits() != 0;

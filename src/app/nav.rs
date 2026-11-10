@@ -40,6 +40,7 @@ impl Sanaga {
             web_by_person: false,
             web_shown: false,
             web_zoom: 1.0,
+            revisits: 0,
             reader: false,
             reader_skip: Vec::new(),
             pinned: false,
@@ -132,6 +133,11 @@ impl Sanaga {
     /// Go to `url` in tab `ti`. `push` adds a history step (false = reload / back / forward).
     pub(super) fn navigate(&mut self, ti: usize, url: String, post: Option<String>, push: bool) {
         let url = super::english_address(&url);
+        // Netflix, Disney+, Spotify…: not loaded here, where they can't play
+        if push && post.is_none() && crate::identity::protected_url(&url).is_some() {
+            self.protected_site(ti, &url);
+            return;
+        }
         self.suggest_open = false;
         self.menu_open = false;
         let is_web_url = url.starts_with("http://") || url.starts_with("https://") || url.starts_with("file://");

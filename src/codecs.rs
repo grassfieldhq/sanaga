@@ -176,11 +176,11 @@ pub fn install() -> Option<Install> {
 fn install_for(id: &str, like: &str) -> Option<Install> {
     let is = |name: &str| id == name || like.split_whitespace().any(|l| l == name);
     let (manager, args, packages): (&str, &[&str], &[&str]) = if is("arch") {
-        ("pacman", &["-S", "--needed"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va"])
+        ("pacman", &["-S", "--needed"], &["gst-libav", "gst-plugins-bad", "gst-plugin-va", "libnice"])
     } else if is("debian") || is("ubuntu") {
-        ("apt-get", &["install"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi"])
+        ("apt-get", &["install"], &["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-vaapi", "gstreamer1.0-nice"])
     } else if is("fedora") {
-        ("dnf", &["install"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264"])
+        ("dnf", &["install"], &["gstreamer1-plugin-libav", "gstreamer1-plugins-bad-free", "gstreamer1-plugin-openh264", "libnice-gstreamer1"])
     } else if is("suse") || is("opensuse") {
         ("zypper", &["install"], &["gstreamer-plugins-libav", "gstreamer-plugins-bad"])
     } else {
