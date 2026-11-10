@@ -1379,6 +1379,10 @@ impl Sanaga {
                             let list: Vec<String> = self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
                             eprintln!("live tabs {}", list.join(" | "));
                         }
+                        "address" => {
+                            let focused = self.ctx.memory(|m| m.has_focus(egui::Id::new("address-bar")));
+                            eprintln!("live address {:?} focused={focused}", self.tabs[self.active].address);
+                        }
                         a if a.starts_with("key:") => {
                             if let Some(key) = egui::Key::from_name(&a[4..]) {
                                 let m = Default::default();

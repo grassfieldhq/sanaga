@@ -35,6 +35,8 @@ pub enum PageSignal {
     /// The page asks something (alert, confirm, prompt, leave the page, a
     /// login): Sanaga shows it in its own design (see `dialog`).
     Dialog(u64),
+    /// The address shown changed (also without a load: pushState, #anchor).
+    Uri(String),
     /// A link to a site whose videos need a DRM WebKit doesn't have
     /// (Netflix…): not loaded here; Sanaga opens it where it plays.
     Protected(String),
@@ -587,6 +589,11 @@ impl PageView {
         });
         let o = on.clone();
         view.connect_title_notify(move |v| o(PageSignal::Title(v.title().map(|t| t.to_string()).unwrap_or_default())));
+        // the page's address changed without a new page being loaded:
+        // single-page sites (YouTube, Google, Facebook, X…) move with
+        // history.pushState, and #anchors — the address bar follows
+        let o = on.clone();
+        view.connect_uri_notify(move |v| o(PageSignal::Uri(v.uri().map(|u| u.to_string()).unwrap_or_default())));
         let o = on.clone();
         view.connect_create(move |v, action| {
             // window.open(): a real page linked to this one (sign-in windows

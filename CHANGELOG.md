@@ -7,6 +7,10 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- The address bar now follows every move of the page: sites that change
+  page without loading a new one (YouTube, Google, Facebook, X… with
+  history.pushState), #anchors and going back inside them. These moves are
+  also kept in the history and the restored session.
 - Sites behaving as if there were no Internet while connected (Google and
   others): Sanaga and its engine now know whether there is a network from
   the system's routes, not from NetworkManager's Internet check (on Ubuntu
