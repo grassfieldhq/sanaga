@@ -186,6 +186,12 @@
       "value": 20,
       "unit": "%",
       "source": "Chrome 0xbfb613a (NumberToString16(0x14) for message 0x19a1, MECHANICS.md); Sanaga src/app/tools.rs LOW_BATTERY_PERCENT"
+    },
+    {
+      "name": "address bar shows full URLs by default",
+      "group": "interface",
+      "value": false,
+      "source": "Chrome fr.pak 10536 'Toujours afficher les URL en entier' (option, off), menu item 0x1cc305a; Sanaga src/store.rs full_urls"
     }
   ]
 }

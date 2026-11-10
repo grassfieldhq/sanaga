@@ -1164,6 +1164,7 @@ impl Sanaga {
                         changed_more = true;
                     }
                 });
+                changed_more |= rows.switch(ui, tr("Toujours afficher les URL en entier"), tr("Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome"), &mut st.full_urls);
                 changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));

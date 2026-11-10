@@ -1046,3 +1046,5 @@ Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (
 Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Videoanrufe und geschützte Seiten immer so öffnen, ohne diese Seite
 Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Trotzdem in Sanaga öffnen (der Anruf kann keine Verbindung herstellen)
 Batterie à 20 % ou moins	Akku bei 20 % oder weniger
+Toujours afficher les URL en entier	Immer vollständige URLs anzeigen
+Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Sonst lässt die Adressleiste https:// und www. weg und zeigt die Adresse dekodiert, wie Chrome

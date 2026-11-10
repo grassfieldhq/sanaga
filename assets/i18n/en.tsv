@@ -1046,3 +1046,5 @@ Onglets inactifs mis en veille après 6 h (modéré), 4 h (équilibré) ou 2 h (
 Toujours ouvrir ainsi les appels vidéo et les sites protégés, sans passer par cette page	Always open video calls and protected sites this way, without this page
 Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Open in Sanaga anyway (the call won't be able to connect)
 Batterie à 20 % ou moins	Battery at 20 % or less
+Toujours afficher les URL en entier	Always show full URLs
+Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Otherwise the address bar leaves out https:// and www. and shows the address decoded, as Chrome does

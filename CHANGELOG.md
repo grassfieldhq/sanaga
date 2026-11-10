@@ -6,6 +6,13 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The address bar shows the page's address as Chrome does
+  (`fr.wikipedia.org/wiki/Yaoundé`: the site, then the path dimmed and
+  decoded; https:// and www. left out) instead of the site's name only, so
+  it changes from page to page. Settings › Apparence › "Toujours afficher
+  les URL en entier" shows the whole address.
+
 ### Fixed
 - The address bar now follows every move of the page: sites that change
   page without loading a new one (YouTube, Google, Facebook, X… with

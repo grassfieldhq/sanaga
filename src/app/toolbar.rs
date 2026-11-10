@@ -495,16 +495,23 @@ impl Sanaga {
             text_right = zr.left() - 4.0;
         }
 
-        // when not editing: just the site's name, centred, with a padlock
+        // when not editing: the address as Chrome shows it (the site in full
+        // colour, the rest dimmed, https:// and www. left out unless the
+        // person wants it whole), centred, with a padlock
         if !focused {
-            let (label, col, lock) = if is_ntp || url.is_empty() {
-                (tr("Rechercher ou saisir le nom d'un site").to_string(), th.sub, false)
+            let font = FontId::proportional(14.0);
+            let (job, col, lock) = if is_ntp || url.is_empty() {
+                (egui::text::LayoutJob::simple_singleline(tr("Rechercher ou saisir le nom d'un site").to_string(), font, th.sub), th.sub, false)
             } else if url.starts_with("sanaga://") {
-                (self.tabs[a].title(), th.text, false)
+                (egui::text::LayoutJob::simple_singleline(self.tabs[a].title(), font, th.text), th.text, false)
             } else {
-                (host_of(&url), th.text, url.starts_with("https://"))
+                let (site, rest) = display_url(&url, self.store.settings.full_urls);
+                let mut job = egui::text::LayoutJob::default();
+                job.append(&site, 0.0, egui::TextFormat::simple(font.clone(), th.text));
+                job.append(&rest, 0.0, egui::TextFormat::simple(font, th.sub));
+                (job, th.text, url.starts_with("https://"))
             };
-            let g = ui.painter().layout_no_wrap(label, FontId::proportional(14.0), col);
+            let g = ui.painter().layout_job(job);
             let gw = g.size().x.min(text_right - star_r.right() - 30.0).max(0.0);
             let lock_w = if lock { 17.0 } else { 0.0 };
             let x0 = rect.center().x - (gw + lock_w) / 2.0;
@@ -604,5 +611,47 @@ impl Sanaga {
         if toolbar_checkboxes(ui, &mut self.store.settings.toolbar) {
             self.store.save_settings();
         }
+    }
+}
+
+/// The address as the address bar shows it when not editing: the site part
+/// and the rest. Like Chrome (MECHANICS.md): unless `full`, `https://`,
+/// `www.` and a lone `/` are left out; the path is shown decoded
+/// (`/wiki/Yaoundé`, not `/wiki/Yaound%C3%A9`). `http://` stays, as there
+/// is no padlock to tell it.
+pub(super) fn display_url(url: &str, full: bool) -> (String, String) {
+    let Ok(u) = url::Url::parse(url) else { return (url.to_string(), String::new()) };
+    let Some(host) = u.host_str() else { return (url.to_string(), String::new()) };
+    let host = if full { host } else { host.strip_prefix("www.").unwrap_or(host) };
+    let prefix = if full || u.scheme() != "https" { format!("{}://", u.scheme()) } else { String::new() };
+    let port = u.port().map(|p| format!(":{p}")).unwrap_or_default();
+    let mut rest = u.path().to_string();
+    if let Some(q) = u.query() {
+        rest.push('?');
+        rest.push_str(q);
+    }
+    if let Some(f) = u.fragment() {
+        rest.push('#');
+        rest.push_str(f);
+    }
+    if !full && rest == "/" {
+        rest.clear();
+    }
+    // decoded, unless that gives invisible characters (kept encoded then)
+    let decoded = percent_encoding::percent_decode_str(&rest).decode_utf8().ok().filter(|d| !d.chars().any(|c| c.is_control())).map(|d| d.to_string());
+    (format!("{prefix}{host}{port}"), decoded.unwrap_or(rest))
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::display_url;
+
+    #[test]
+    fn addresses_as_chrome_shows_them() {
+        assert_eq!(display_url("https://www.example.com/", false), ("example.com".into(), "".into()));
+        assert_eq!(display_url("https://fr.wikipedia.org/wiki/Yaound%C3%A9", false), ("fr.wikipedia.org".into(), "/wiki/Yaoundé".into()));
+        assert_eq!(display_url("http://site.test:8080/a?b=1#c", false), ("http://site.test:8080".into(), "/a?b=1#c".into()));
+        assert_eq!(display_url("https://www.example.com/", true), ("https://www.example.com".into(), "/".into()));
+        assert_eq!(display_url("https://x.test/a%0Ab", false), ("x.test".into(), "/a%0Ab".into()));
     }
 }

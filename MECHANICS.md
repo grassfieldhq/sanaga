@@ -109,6 +109,29 @@ always. What the energy saver does in Sanaga (inactive tabs asleep after 5
 minutes, slower interface refresh) is Sanaga's own: Chrome's lowers frame
 rates and background work instead (not read here).
 
+## Address bar — URL shown when not editing
+
+Observed in Chrome:
+- the address bar shortens addresses by default, and its right-click menu
+  offers **"Toujours afficher les URL en entier"** (`fr.pak` 10536; menu
+  item `OmniboxContextMenuMixinBase::kShowFullUrlsMenuItem`, text at
+  `0x1cc305a`, used from the table at `0x14c11c8`);
+- the path stays visible: the address follows every page, not only the
+  site.
+
+Inferred (not read in the code: Chrome's URL formatter has no symbols and
+its flags are plain numbers): what the shortening leaves out — the
+`https://` scheme, a leading `www.`, a lone `/` — and that the path is shown
+decoded.
+
+Sanaga (`src/app/toolbar.rs` `display_url`, used by `address_field`): the
+site in full colour, the rest dimmed (`fr.wikipedia.org/wiki/Yaoundé`);
+`https://`, `www.` and a lone `/` left out; `http://` kept (Sanaga shows a
+padlock for https and nothing else for http). Settings › Apparence ›
+"Toujours afficher les URL en entier" (`full_urls`, off by default) shows the
+whole address. Before, Sanaga showed the site's name only, which didn't
+change from page to page within a site.
+
 ## Also observed, not used yet
 - Chrome keeps a list "Toujours laisser ces sites actifs" (sites never put to
   sleep), `fr.pak` 6548–6557.
