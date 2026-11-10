@@ -232,7 +232,7 @@ mod tests {
     fn the_command_shown_is_the_command_run() {
         let i = super::install_for("arch", "").unwrap();
         assert_eq!(i.command, i.argv.join(" "));
-        assert!(i.command.ends_with("pacman -S --needed gst-libav gst-plugins-bad gst-plugin-va"));
+        assert!(i.command.ends_with("pacman -S --needed gst-libav gst-plugins-bad gst-plugin-va libnice"));
         for (id, like) in [("arch", ""), ("ubuntu", "debian"), ("fedora", ""), ("opensuse-tumbleweed", "suse opensuse")] {
             let i = super::install_for(id, like).unwrap();
             assert!(!i.argv.iter().any(|a| a == "--noconfirm" || a == "-y" || a == "--non-interactive"), "{id}");
