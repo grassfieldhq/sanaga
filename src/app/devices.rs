@@ -166,13 +166,13 @@ pub(super) const DEVICES: &[Device] = &[
     d("Ordinateurs", "Écran 4K", 3840.0, 2160.0, Computer, Desktop, Style::Monitor),
 ];
 
-const IOS_PHONE_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+pub(super) const IOS_PHONE_UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 const IOS_TABLET_UA: &str = "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 const ANDROID_PHONE_UA: &str = "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
 const ANDROID_TABLET_UA: &str = "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 /// Makes pages see a touch screen (many sites switch their menus on this).
-const TOUCH_JS: &str = "try{Object.defineProperty(Navigator.prototype,'maxTouchPoints',{get:function(){return 5;},configurable:true});if(!('ontouchstart' in window))window.ontouchstart=null;}catch(e){}";
+pub(super) const TOUCH_JS: &str = "try{Object.defineProperty(Navigator.prototype,'maxTouchPoints',{get:function(){return 5;},configurable:true});if(!('ontouchstart' in window))window.ontouchstart=null;}catch(e){}";
 
 /// Device categories shown in the panel.
 const CATEGORIES: [&str; 5] = ["Tous", "iPhone", "Android", "Tablettes", "Ordinateurs"];

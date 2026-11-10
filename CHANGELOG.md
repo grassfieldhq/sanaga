@@ -6,6 +6,55 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Menus and panels open over the living page: the page keeps moving
+  under them (a video goes on playing) instead of being replaced by a
+  picture of itself, and opening a menu no longer makes the window stutter.
+  The mobile simulator keeps the old way.
+- Split view (Ctrl+Shift+E): the tab in use and the web tab used before
+  it side by side; a click in a page makes it the tab in use.
+- Mobile preview next to the page (command palette › "Aperçu mobile à côté
+  de la page"): the same page as a phone gets it, a phone wide, following
+  the page's address and scrolling.
+- Activity page (`sanaga://activity`, command palette › "Activité"):
+  memory and processor of Sanaga's interface, network and page processes,
+  and every tab with its state; a running tab can be put to sleep.
+- Emoji in colour (the system's Noto Color Emoji, else a built-in black and
+  white set) and Chinese, Japanese and Korean text in the interface's own
+  texts (tab titles, menus, history).
+- A new tab grows into the tab bar, the other tabs take their new width
+  smoothly, and the overview's cards rise into place.
+- Command palette (Ctrl+K, also Ctrl+Shift+A): one field for the open
+  tabs, Sanaga's commands, favourites, history and the web; arrows and
+  Enter.
+- The address bar completes a site's name as you type ("wiki" →
+  "wikipedia.org", the added part selected) and looks its address up at
+  once, so the page starts sooner. Not in private tabs.
+- Full block lists: EasyList and EasyPrivacy (some 100 000 rules), fetched
+  once a week from easylist.to, converted on this computer and compiled
+  by WebKit. Settings › Privacy › "Listes de blocage complètes" (on by
+  default; the small built-in list stays). The first compilation takes
+  about two minutes in the background; the lists add about 40 MB to each
+  page's process.
+- Sync: favourites and reading list are merged entry by entry (an entry
+  added, renamed, moved or removed on one computer reaches the others; two
+  computers changing different things lose nothing), and the folder can be
+  encrypted with a secret phrase (Settings › Sync; XChaCha20-Poly1305, key
+  from the phrase with Argon2id, the phrase kept in the keyring).
+
+### Changed
+- Starts faster: the web engine is made after the window's first picture,
+  and GTK is told light or dark before it reads its theme (measured: the
+  interface drawn after about 1.0 s instead of 1.2–1.3 s).
+- The sidebar slides in and out; the loading bar moves with the screen's
+  refresh.
+- Address suggestions: the same page is listed once, addresses are shown
+  decoded, without https:// and www.
+- Extensions: manifests are read as real JSON (comments, commas inside
+  patterns, translations), archives are checked (sizes, checksums, a total
+  limit) and refused when damaged; AI answers are read from their place in
+  the JSON.
+
 ### Security (audit of 8 November 2026)
 - Sanaga's page scripts and its message channel run in an isolated
   JavaScript world, top frame only; page messages are checked against the

@@ -47,7 +47,14 @@ impl Sanaga {
         let focused = ui.memory(|m| m.has_focus(egui::Id::new("address-bar")));
         // while moving through the list with the arrows, the list stays the one
         // for what was typed
-        let q = if self.suggest_sel.is_some() { self.suggest_typed.trim().to_string() } else { self.tabs[a].address.trim().to_string() };
+        // (the field may hold more than what was typed: the completed site's name)
+        let q = if self.suggest_sel.is_some() {
+            self.suggest_typed.trim().to_string()
+        } else if self.inline_done && self.tabs[a].address.starts_with(&self.inline_typed) {
+            self.inline_typed.trim().to_string()
+        } else {
+            self.tabs[a].address.trim().to_string()
+        };
         if !self.suggest_open || q.is_empty() || addr == Rect::NOTHING {
             self.suggest_items.clear();
             self.suggest_sel = None;
@@ -87,19 +94,23 @@ impl Sanaga {
                 items.push((format!("tab:{i}"), tf("Passer à l'onglet : {}", &[&title]), false));
             }
         }
-        let direct = input_to_url(&q, engine, "");
+        // (the address the field holds: what was typed, completed with a site's name)
+        let held = if self.inline_done { self.tabs[a].address.trim().to_string() } else { q.clone() };
+        let direct = input_to_url(&held, engine, "");
         if direct != engine.search_url(&q) && super::plus::keyword_search(&q).is_none() {
             items.push((direct.clone(), direct, false));
         }
         items.push((engine.search_url(&q), tf("{} — Rechercher avec {}", &[&q, &short_engine(engine)]), true));
-        let mut seen: HashSet<String> = HashSet::new();
+        // one line per page: the same page written two ways (é or %C3%A9, with
+        // or without a last "/") is not listed twice, nor the address typed
+        let mut seen: HashSet<String> = items.iter().map(|i| same_page_key(&i.0)).collect();
         let bm = self.store.bookmarks.iter().map(|b| (&b.url, &b.title));
         let hist = self.store.history.iter().rev().map(|v| (&v.url, &v.title));
         for (u, t) in bm.chain(hist) {
             if items.len() >= 8 {
                 break;
             }
-            if (u.to_lowercase().contains(&ql) || t.to_lowercase().contains(&ql)) && seen.insert(u.clone()) {
+            if (u.to_lowercase().contains(&ql) || t.to_lowercase().contains(&ql)) && seen.insert(same_page_key(u)) {
                 items.push((u.clone(), if t.is_empty() { u.clone() } else { t.clone() }, false));
             }
         }
@@ -144,7 +155,9 @@ impl Sanaga {
                             let p = ui.painter().with_clip_rect(clip);
                             let g = p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
                             if !*search && label != url && !url.starts_with("tab:") {
-                                p.text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {url}"), FontId::proportional(13.0), th.link);
+                                // (as in the address bar: decoded, no https:// nor www.)
+                                let (site, rest) = super::toolbar::display_url(url, false);
+                                p.text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {site}{rest}"), FontId::proportional(13.0), th.link);
                             }
                             if resp.clicked() {
                                 go = Some(url.clone());
@@ -171,6 +184,26 @@ impl Sanaga {
     }
 
     /// Open a suggestion (click, or Enter on the one picked with the arrows).
+    /// The site to complete what is being typed with ("wiki" → "wikipedia.org"):
+    /// the one visited most among favourites and recent history whose name
+    /// starts that way.
+    pub(super) fn site_completion(&self, typed: &str) -> Option<String> {
+        let t = typed.to_lowercase();
+        if t.chars().count() < 2 || t.contains(|c: char| c.is_whitespace() || c == '/' || c == ':') {
+            return None;
+        }
+        let mut count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let urls = self.store.bookmarks.iter().map(|b| &b.url).chain(self.store.history.iter().rev().take(4000).map(|v| &v.url));
+        for u in urls {
+            let host = host_of(u);
+            let host = host.strip_prefix("www.").unwrap_or(&host);
+            if host.len() > t.len() && host.starts_with(&t) {
+                *count.entry(host.to_string()).or_default() += 1;
+            }
+        }
+        count.into_iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.len().cmp(&a.0.len()))).map(|(h, _)| h)
+    }
+
     pub(super) fn activate_suggestion(&mut self, u: &str) {
         let a = self.active;
         let u = u.to_string();
@@ -191,4 +224,12 @@ impl Sanaga {
             }
         }
     }
+}
+
+/// What tells two addresses of the same page apart from two pages: the
+/// address decoded, without its #part and last "/".
+pub(super) fn same_page_key(url: &str) -> String {
+    let u = url.split('#').next().unwrap_or(url);
+    let u = percent_encoding::percent_decode_str(u).decode_utf8().map(|d| d.to_string()).unwrap_or_else(|_| u.to_string());
+    u.trim_end_matches('/').replace("://www.", "://")
 }

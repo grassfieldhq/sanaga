@@ -534,6 +534,7 @@ impl Sanaga {
                 if self.suggest_sel.is_none() {
                     self.suggest_typed = self.tabs[a].address.clone();
                 }
+                self.inline_done = false;
                 self.suggest_sel = if esc {
                     None
                 } else {
@@ -578,12 +579,43 @@ impl Sanaga {
         if tab.address != before {
             self.suggest_open = true;
             self.suggest_sel = None;
+            // Typing forward at the end of the field completes the site's
+            // name ("wiki" → "wikipedia.org", the added part selected: the
+            // next letter replaces it, Enter goes there). Erasing never does.
+            let typed = tab.address.clone();
+            let forward = typed.len() > self.inline_typed.len() && typed.starts_with(&self.inline_typed);
+            let at_end = TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).is_some_and(|r| r.primary.index == egui::text::CharIndex(typed.chars().count()) && r.secondary.index == r.primary.index);
+            self.inline_typed = typed.clone();
+            self.inline_done = false;
+            if forward && at_end {
+                if let Some(site) = self.site_completion(&typed) {
+                    let full = format!("{typed}{}", &site[typed.len()..]);
+                    if let Some(mut state) = TextEdit::load_state(ui.ctx(), id) {
+                        let (from, to) = (egui::text::CCursor::new(typed.chars().count()), egui::text::CCursor::new(full.chars().count()));
+                        state.cursor.set_char_range(Some(egui::text::CCursorRange::two(from, to)));
+                        state.store(ui.ctx(), id);
+                        self.tabs[a].address = full;
+                        self.inline_done = true;
+                        // the site's address is looked up now (DNS), so the
+                        // page starts sooner on Enter; never for a private tab
+                        if !self.tabs[a].private {
+                            if let Some(e) = &self.web_context {
+                                e.session.prefetch_dns(&site);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !focused {
+            self.inline_done = false;
+            self.inline_typed.clear();
         }
         if resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
             match picked {
                 Some(u) => self.activate_suggestion(&u),
                 None => {
-                    let u = input_to_url(&tab.address, engine, &home);
+                    let u = input_to_url(&self.tabs[a].address, engine, &home);
                     self.navigate(a, u, None, true);
                 }
             }

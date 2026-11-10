@@ -1070,3 +1070,40 @@ Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Abrir igualm
 Batterie à 20 % ou moins	Batería al 20 % o menos
 Toujours afficher les URL en entier	Mostrar siempre las URL completas
 Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Si no, la barra de direcciones omite https:// y www. y muestra la dirección decodificada, como Chrome
+en veille	en reposo
+Commande	Comando
+Favori	Favorito
+Ouvrir cette adresse	Abrir esta dirección
+Onglets, commandes, favoris, historique, Web…	Pestañas, comandos, favoritos, historial, web…
+Listes de blocage complètes	Listas de bloqueo completas
+EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList y EasyPrivacy, descargadas una vez por semana de sus autores (easylist.to)
+Chiffrement activé	Cifrado activado
+Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	La carpeta solo contiene archivos sellados. Haga clic para quitar la frase de este ordenador.
+Phrase secrète	Frase secreta
+Chiffre le dossier : la même phrase sur chaque ordinateur	Cifra la carpeta: la misma frase en cada ordenador
+Chiffrer	Cifrar
+8 caractères ou plus	8 caracteres o más
+Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré.	Frase guardada en el llavero. La carpeta ahora está cifrada.
+Phrase retirée de cet ordinateur.	Frase quitada de este ordenador.
+Ce dossier est chiffré : saisissez sa phrase secrète.	Esta carpeta está cifrada: introduzca su frase secreta.
+Phrase secrète incorrecte pour ce dossier.	Frase secreta incorrecta para esta carpeta.
+manifest.json illisible ({})	manifest.json ilegible ({})
+Activité : mémoire et processeur	Actividad: memoria y procesador
+Vue partagée : deux onglets côte à côte	Vista dividida: dos pestañas lado a lado
+Aperçu mobile à côté de la page	Vista previa móvil junto a la página
+Activité	Actividad
+L'aperçu mobile côte à côte montre une page web : ouvrez-en une d'abord.	La vista previa móvil lado a lado muestra una página web: abra una primero.
+La vue partagée montre deux pages web : ouvrez-en une d'abord.	La vista dividida muestra dos páginas web: abra una primero.
+Ouvrez une deuxième page web pour la vue partagée.	Abra una segunda página web para la vista dividida.
+{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)	{} de memoria · {} % de un núcleo · {} página(s) en curso de {} pestaña(s)
+Processus	Procesos
+Interface de Sanaga	Interfaz de Sanaga
+Réseau	Red
+Page {}	Página {}
+Autres (bac à sable, auxiliaires)	Otros (entorno aislado, auxiliares)
+Mesure en cours…	Midiendo…
+Chaque page a son propre processus ; le moteur ne dit pas à quel onglet chacun appartient.	Cada página tiene su propio proceso; el motor no dice a qué pestaña pertenece cada uno.
+affiché	mostrada
+en cours · son	en curso · sonido
+en cours	en curso
+Mettre en veille	Poner en reposo

@@ -15,6 +15,7 @@
 compile_error!("Sanaga currently runs on Linux (and BSD) only: it is built on GTK 4 and WebKitGTK. See docs/PORTING.md for the Windows and macOS plan.");
 
 mod ai;
+mod blocklist;
 mod ai_cli;
 mod app;
 mod desktop;
@@ -44,6 +45,16 @@ use eframe::egui;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+/// A font file of the system, mapped into memory for as long as Sanaga runs.
+fn system_font(path: &str) -> Option<&'static [u8]> {
+    let file = std::fs::File::open(path).ok()?;
+    // (the file is only read; a font package updated meanwhile replaces the
+    // file, it does not change this one's content)
+    let map = unsafe { memmap2::Mmap::map(&file) }.ok()?;
+    let kept: &'static memmap2::Mmap = Box::leak(Box::new(map));
+    Some(&kept[..])
+}
+
 pub fn setup_fonts(ctx: &egui::Context) {
     let mut f = egui::FontDefinitions::default();
     let fallback = f.families.get(&egui::FontFamily::Proportional).cloned().unwrap_or_default();
@@ -59,19 +70,31 @@ pub fn setup_fonts(ctx: &egui::Context) {
         f.font_data.insert(name.to_string(), Arc::new(egui::FontData::from_static(bytes)));
     }
     // Other alphabets: use the system's Noto fonts when they are installed.
+    // They are mapped, not read: a font takes memory only for the parts
+    // really used (the Chinese / Japanese / Korean one weighs 19 MB).
+    let dirs = ["/usr/share/fonts/noto", "/usr/share/fonts/truetype/noto", "/usr/share/fonts/google-noto", "/usr/share/fonts/noto-cjk", "/usr/share/fonts/opentype/noto", "/usr/share/fonts/google-noto-sans-cjk-fonts", "/usr/share/fonts/google-noto-cjk", "/usr/share/fonts/google-noto-color-emoji-fonts", "/usr/share/fonts/google-noto-emoji"];
+    let find = |file: &str| dirs.iter().find_map(|d| system_font(&format!("{d}/{file}")));
     let mut extra = Vec::new();
     for name in [
         "NotoSansArabic-Regular", "NotoSansHebrew-Regular", "NotoSansDevanagari-Regular", "NotoSansBengali-Regular",
         "NotoSansThai-Regular", "NotoSansArmenian-Regular", "NotoSansGeorgian-Regular", "NotoSansEthiopic-Regular",
         "NotoSansTamil-Regular", "NotoSansMath-Regular", "NotoSansSymbols-Regular", "NotoSansSymbols2-Regular",
     ] {
-        for dir in ["/usr/share/fonts/noto", "/usr/share/fonts/truetype/noto", "/usr/share/fonts/google-noto"] {
-            if let Ok(bytes) = std::fs::read(format!("{dir}/{name}.ttf")) {
-                f.font_data.insert(name.to_string(), Arc::new(egui::FontData::from_owned(bytes)));
-                extra.push(name.to_string());
-                break;
-            }
+        if let Some(bytes) = find(&format!("{name}.ttf")) {
+            f.font_data.insert(name.to_string(), Arc::new(egui::FontData::from_static(bytes)));
+            extra.push(name.to_string());
         }
+    }
+    // Chinese, Japanese, Korean (one file holds them all)
+    if let Some(bytes) = find("NotoSansCJK-Regular.ttc") {
+        f.font_data.insert("cjk".to_string(), Arc::new(egui::FontData::from_static(bytes)));
+        extra.push("cjk".to_string());
+    }
+    // Emoji in colour, before the built-in black-and-white ones
+    let mut fallback = fallback;
+    if let Some(bytes) = find("NotoColorEmoji.ttf") {
+        f.font_data.insert("emoji".to_string(), Arc::new(egui::FontData::from_static(bytes)));
+        fallback.insert(0, "emoji".to_string());
     }
     let fallback: Vec<String> = std::iter::once("noto".to_string()).chain(fallback).chain(extra).collect();
     let with = |first: &str| {
@@ -107,7 +130,17 @@ fn log_crashes() {
     }));
 }
 
+/// Test aid (`SANAGA_DEBUG_START=1`): how long each step of the start took.
+pub fn stage(name: &str) {
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    let t = START.get_or_init(std::time::Instant::now).elapsed();
+    if std::env::var_os("SANAGA_DEBUG_START").is_some() {
+        eprintln!("start {:>7.1} ms  {name}", t.as_secs_f64() * 1000.0);
+    }
+}
+
 fn main() -> eframe::Result {
+    stage("main");
     log_crashes();
     // "Is there a network?": from the system's routes (netlink), not from
     // NetworkManager's Internet check. On Ubuntu that check (a request to

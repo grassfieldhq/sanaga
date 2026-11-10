@@ -11,7 +11,7 @@ Legend: ✅ Sanaga does not have the problem · 🟡 partly · ❌ not yet
 
 | Complaint | Usual culprit | Sanaga |
 |---|---|---|
-| The browser reports to its maker (telemetry, usage data) | Chrome, Edge, Firefox (opt-out) | ✅ No telemetry, no account, no update check. The only requests are the sites you open, their icons (loaded by WebKit with the page, through the page's own session) and the search engine you chose. |
+| The browser reports to its maker (telemetry, usage data) | Chrome, Edge, Firefox (opt-out) | ✅ No telemetry, no account, no update check. The only requests are the sites you open, their icons (loaded by WebKit with the page, through the page's own session), the search engine you chose and, once a week, the block lists from easylist.to (Settings › Privacy can switch them off). |
 | Search goes to an ad company by default | Chrome, Safari (Google) | ✅ DuckDuckGo (light version) by default; Google only with the `g` shortcut. |
 | Address bar sends every keystroke to a server for suggestions | Chrome, Firefox, Safari | ✅ Suggestions come from your history, favourites and tabs only — nothing leaves the computer while you type. |
 | Cross-site trackers, third-party cookies | Chrome (Privacy Sandbox, Topics) | ✅ WebKit's tracking prevention (ITP) on by default, with a privacy report. No Topics / ad measurement APIs. |

@@ -247,7 +247,9 @@ sanaga --screenshot out.png   # draw the window once, save a picture, quit
 | Add to reading list | Ctrl+Shift+D |
 | History / downloads | Ctrl+H / Ctrl+J |
 | Reader | Ctrl+Shift+R |
-| Tab overview / tab search | Ctrl+Shift+O / Ctrl+Shift+A |
+| Tab overview | Ctrl+Shift+O |
+| Command palette (tabs, commands, favourites, history) | Ctrl+K, Ctrl+Shift+A |
+| Split view (two tabs side by side) | Ctrl+Shift+E |
 | Sidebar | Ctrl+Shift+L |
 | Zoom in / out / reset | Ctrl++ / Ctrl+− / Ctrl+0 |
 | Page source / print / save | Ctrl+U / Ctrl+P / Ctrl+S |
@@ -318,8 +320,8 @@ engine bridge and a few system services.
   if you choose so.
 - Keeping a window on top and placing the floating video are done with
   Hyprland; on other desktops the desktop decides.
-- Emoji typed in Sanaga's own interface show as initials (its fonts have no
-  colour emoji); pages show them normally.
+- Emoji in Sanaga's own interface are in colour when Noto Color Emoji is
+  installed (black and white otherwise).
 - Video recording has no sound; its size is the device's size on screen (use
   100 % zoom for sharper videos).
 - Window moving, maximising and the title bar integration have extra support for

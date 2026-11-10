@@ -17,7 +17,10 @@ impl Sanaga {
         self.tab_search_open = false;
         let id = self.next_id;
         self.next_id += 1;
+        // (the tabs Sanaga starts with are simply there: only tabs opened later make an entrance)
+        let born = if self.frame == 0 { f64::NEG_INFINITY } else { self.ctx.input(|i| i.time) };
         self.tabs.push(Tab {
+            born,
             id,
             private,
             entries: Vec::new(),
@@ -57,6 +60,7 @@ impl Sanaga {
             container: String::new(),
             parent: None,
             tree_folded: false,
+            companion: false,
         });
         let i = self.tabs.len() - 1;
         self.active = i;
@@ -564,6 +568,8 @@ impl Sanaga {
                 (sc(cs, Key::O), "overview"),
                 (sc(cs, Key::F), "contacts"),
                 (sc(cs, Key::A), "tabsearch"),
+                (sc(c, Key::K), "tabsearch"),
+                (sc(cs, Key::E), "split"),
                 (sc(cs, Key::Delete), "cleardata"),
                 (sc(c, Key::S), "savepage"),
                 (sc(cs, Key::L), "sidebar"),
@@ -660,10 +666,16 @@ impl Sanaga {
                 "tabsearch" => {
                     self.tab_search_open = !self.tab_search_open;
                     self.tab_search_q.clear();
+                    self.palette_sel = 0;
                 }
                 "savepage" => self.save_page(),
                 "cleardata" => {
                     self.open_tab("sanaga://clear", false);
+                }
+                "split" => self.toggle_split(),
+                "mobileside" => self.toggle_mobile_side(),
+                "activity" => {
+                    self.open_tab("sanaga://activity", false);
                 }
                 "sidebar" => self.sidebar_open = !self.sidebar_open,
                 "focus" => self.toggle_focus_mode(),

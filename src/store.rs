@@ -120,6 +120,8 @@ pub struct Settings {
     pub compact: bool,
     /// Network blocker of ads and trackers (requests never leave).
     pub blocker: bool,
+    /// The big block lists (EasyList, EasyPrivacy), fetched once a week.
+    pub block_lists: bool,
     /// Low power mode: 0 off, 1 automatic on battery, 2 always.
     pub low_power: u8,
     /// Vertical tabs as a tree (tabs opened from a page under it).
@@ -233,6 +235,7 @@ impl Default for Settings {
             border_alpha: 90,
             compact: false,
             blocker: true,
+            block_lists: true,
             low_power: 1,
             tree_tabs: true,
             app_icon: 0,
@@ -342,6 +345,19 @@ impl Store {
             .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
             .unwrap_or_else(|| PathBuf::from("."))
             .join("sanaga")
+    }
+
+    /// Light or dark, read straight from a profile's settings before
+    /// anything else is loaded: GTK must know it before it reads its theme
+    /// (told later, it reads the whole theme a second time).
+    pub fn peek_dark(profile: &str) -> bool {
+        let text = std::fs::read_to_string(Self::profile_dir(profile).join("settings.txt")).unwrap_or_default();
+        let value = |key: &str| text.lines().find_map(|l| l.strip_prefix(key).and_then(|r| r.strip_prefix('=')));
+        match value("theme") {
+            Some("1") => false,
+            Some("2") => true,
+            _ => crate::system_look::current().map(|l| l.dark).unwrap_or(value("dark") == Some("1")),
+        }
     }
 
     /// The folder of a profile ("": the main one).
@@ -507,6 +523,7 @@ impl Store {
                         "border_alpha" => st.border_alpha = v.parse().unwrap_or(90),
                         "compact" => st.compact = v == "1",
                         "blocker" => st.blocker = v == "1",
+                        "block_lists" => st.block_lists = v == "1",
                         "low_power" => st.low_power = v.parse().unwrap_or(1),
                         "tree_tabs" => st.tree_tabs = v == "1",
                         "app_icon" => st.app_icon = v.parse().unwrap_or(0),
@@ -582,7 +599,8 @@ impl Store {
             "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\ntranslate_to={}\nclose_right={}\nprofile_name={}\nprofile_color={}\nfull_urls={}\n",
             st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right), clean(&st.profile_name), st.profile_color, b(st.full_urls)
         );
-        let _ = write_atomic(&dir.join("settings.txt"), t + &more);
+        let extra = format!("block_lists={}\n", b(st.block_lists));
+        let _ = write_atomic(&dir.join("settings.txt"), t + &more + &extra);
     }
 
     pub fn save_containers(&self) {
@@ -843,6 +861,9 @@ pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> 
     let _ = std::fs::remove_file(&tmp);
     let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
     f.write_all(data.as_ref())?;
+    // (really on the disk before it takes the old file's place: after a
+    // power cut the file is the old one or the new one, never an empty one)
+    f.sync_all()?;
     drop(f);
     std::fs::rename(&tmp, path)?;
     // (each window has its own session file: no need to tell the others)

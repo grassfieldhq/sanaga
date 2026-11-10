@@ -19,6 +19,15 @@ use std::time::{Duration, Instant};
 struct Host {
     overlay: gtk::Overlay,
     area: gtk::GLArea,
+    /// A see-through layer above the pages, shown only while a menu or a
+    /// panel of the interface is open over a page: the interface is drawn
+    /// in it too, and the page stays alive underneath (instead of being
+    /// replaced by a picture of itself).
+    top: gtk::GLArea,
+    /// The layer above the pages is in use.
+    live: Cell<bool>,
+    /// The layer can't be used on this system (the old way is used: a picture of the page).
+    top_lost: Cell<bool>,
     window: gtk::Window,
     insets: Cell<[i32; 4]>,
     /// Arrow shown while swiping back / forward over a page.
@@ -218,13 +227,15 @@ pub fn attach(view: &webkit6::WebView) {
     watch_gestures(view, Rc::downgrade(&h));
 }
 
-/// The simulator's frame and the swipe arrow stay above the pages (GTK draws
-/// the overlays in the order they were added).
+/// A page takes its place under the simulator's frame, the swipe arrow,
+/// the layer of the menus and the messages (GTK draws the window's parts in
+/// their order). It is moved there, and those parts are never taken out and
+/// put back: that would take the menus' layer's OpenGL context away.
 fn raise_overlays(h: &Host) {
-    for w in [h.device_frame.upcast_ref::<gtk::Widget>(), h.swipe_hint.upcast_ref::<gtk::Widget>(), h.toast.upcast_ref::<gtk::Widget>()] {
-        if w.next_sibling().is_some() {
-            h.overlay.remove_overlay(w);
-            h.overlay.add_overlay(w);
+    let first_above = h.device_frame.upcast_ref::<gtk::Widget>();
+    for c in children(&h.overlay) {
+        if c.is::<webkit6::WebView>() && c.prev_sibling().is_some_and(|p| !p.is::<webkit6::WebView>() && p != *h.area.upcast_ref::<gtk::Widget>()) {
+            c.insert_before(&h.overlay, Some(first_above));
         }
     }
 }
@@ -415,6 +426,14 @@ fn show_swipe(h: &Host, dir: i32, progress: f64) {
     l.set_visible(true);
 }
 
+/// One page's own place (split view: two pages side by side), as
+/// distances from the window's edges.
+pub fn place_view(view: &webkit6::WebView, insets: [i32; 4]) {
+    if [view.margin_start(), view.margin_top(), view.margin_end(), view.margin_bottom()] != insets {
+        apply_insets(view, insets);
+    }
+}
+
 /// The page area, as distances from the window's left, top, right and bottom
 /// edges. Pages keep these distances by themselves when the window changes size.
 pub fn set_page_area(insets: [i32; 4]) {
@@ -424,7 +443,7 @@ pub fn set_page_area(insets: [i32; 4]) {
     }
     h.insets.set(insets);
     for c in children(&h.overlay) {
-        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() && c != *h.toast.upcast_ref::<gtk::Widget>() {
+        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.top.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() && c != *h.toast.upcast_ref::<gtk::Widget>() {
             apply_insets(&c, insets);
         }
     }
@@ -503,6 +522,29 @@ pub fn ctrl_held() -> Option<bool> {
         .and_then(|d| d.default_seat())
         .and_then(|s| s.keyboard())
         .map(|k| k.modifier_state().contains(gdk::ModifierType::CONTROL_MASK))
+}
+
+/// Can menus be drawn over the living page (the layer above the pages works)?
+pub fn live_overlay_available() -> bool {
+    host().is_some_and(|h| !h.top_lost.get())
+}
+
+/// Show or hide the layer above the pages. While it shows, it takes the
+/// mouse (a click outside a menu closes it, as before) and the interface
+/// is drawn in it over the living page.
+pub fn set_live_overlay(on: bool) {
+    let Some(h) = host() else { return };
+    let on = on && !h.top_lost.get();
+    if h.live.replace(on) == on {
+        return;
+    }
+    // the whole window while a menu is open, a point in the corner otherwise
+    let (align, size) = if on { (gtk::Align::Fill, -1) } else { (gtk::Align::Start, 1) };
+    h.top.set_halign(align);
+    h.top.set_valign(align);
+    h.top.set_size_request(size, size);
+    h.top.set_can_target(on);
+    h.top.queue_render();
 }
 
 /// Give the keyboard to Sanaga's interface (away from the page).
@@ -690,6 +732,12 @@ struct Gui {
     /// not sent to the graphics card yet.
     frame: Option<Frame>,
     delta: egui::TexturesDelta,
+    /// The layer above the pages has its own painter (its own OpenGL
+    /// context): it is sent every picture the interface uses, as they come.
+    painter_top: Option<egui_glow::Painter>,
+    delta_top: egui::TexturesDelta,
+    /// Pictures the interface let go of last frame (freed once drawn).
+    free_top: Vec<egui::TextureId>,
 }
 
 fn modifiers_of(state: gdk::ModifierType) -> Modifiers {
@@ -936,6 +984,14 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     glib::set_prgname(Some("sanaga"));
     glib::set_application_name("Sanaga");
     gtk::init().map_err(|e| e.to_string())?;
+    // light or dark, before GTK reads its theme
+    if let Some(s) = gtk::Settings::default() {
+        let dark = crate::store::Store::peek_dark(urls.iter().find_map(|u| u.strip_prefix("profil:")).unwrap_or(""));
+        if s.is_gtk_application_prefer_dark_theme() != dark {
+            s.set_gtk_application_prefer_dark_theme(dark);
+        }
+    }
+    crate::stage("gtk ready");
     gtk::Window::set_default_icon_name("sanaga");
     crate::desktop::set_native();
     if let Some(display) = gdk::Display::default() {
@@ -1115,6 +1171,19 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     area.set_vexpand(true);
     overlay.set_child(Some(&area));
     window.set_child(Some(&overlay));
+    // the layer above the pages (see Host::top)
+    let top = gtk::GLArea::new();
+    top.set_has_depth_buffer(false);
+    top.set_auto_render(false);
+    top.set_focusable(false);
+    top.set_can_target(false);
+    // (GTK takes a hidden part's OpenGL context away, and the pictures sent
+    // to it with it: the layer always exists, one point wide in the
+    // window's corner — over the toolbar, never over a page — until a menu opens)
+    top.set_halign(gtk::Align::Start);
+    top.set_valign(gtk::Align::Start);
+    top.set_size_request(1, 1);
+    top.connect_resize(|top, _, _| top.queue_render());
 
     // the swipe arrow (Chrome-like round button at the page's edge)
     let swipe_hint = gtk::Label::new(Some("←"));
@@ -1151,10 +1220,14 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     toast.set_max_width_chars(70);
     overlay.add_overlay(&device_frame);
     overlay.add_overlay(&swipe_hint);
+    overlay.add_overlay(&top);
     overlay.add_overlay(&toast);
     let host_rc = Rc::new(Host {
         overlay: overlay.clone(),
         area: area.clone(),
+        top: top.clone(),
+        live: Cell::new(false),
+        top_lost: Cell::new(false),
         window: window.clone(),
         insets: Cell::new([0, 88, 0, 0]),
         swipe_hint,
@@ -1178,8 +1251,10 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         let delay = info.delay;
         glib::MainContext::default().invoke(move || frame_for(slot, delay));
     });
+    crate::stage("window built");
     let app = Sanaga::new(&ctx, urls, SHOT_JOB.with(|s| s.borrow_mut().take()));
-    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, frame: None, delta: Default::default() }));
+    crate::stage("app ready");
+    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, frame: None, delta: Default::default(), painter_top: None, delta_top: Default::default(), free_top: Vec::new() }));
     crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
 
@@ -1203,7 +1278,9 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
                 eprintln!("GL area realize");
             }
+            crate::stage("gl: realize begins");
             area.make_current();
+            crate::stage("gl: context current");
             if let Some(e) = area.error() {
                 eprintln!("OpenGL indisponible : {e}");
                 return;
@@ -1224,6 +1301,7 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             }
             match egui_glow::Painter::new(gl.clone(), "", None, true) {
                 Ok(p) => {
+                    crate::stage("gl: painter made");
                     let mut g = gui.borrow_mut();
                     g.gl = Some(gl);
                     g.painter = Some(p);
@@ -1258,69 +1336,136 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         });
     }
 
-    // ---- input ----
-    let input0 = input.clone();
+    // ---- the layer above the pages ----
     {
-        let motion = gtk::EventControllerMotion::new();
-        let (input, a) = (input0.clone(), waker.clone());
-        motion.connect_motion(move |c, x, y| {
-            let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(c.current_event_state());
-            i.events.push(Event::PointerMoved(pos2(x as f32, y as f32)));
-            a.queue_render();
+        let (gui, host) = (gui.clone(), Rc::downgrade(&host_rc));
+        top.connect_realize(move |top| {
+            crate::stage("gl: top layer begins");
+            top.make_current();
+            let made = top.error().is_none().then(gl_loader).and_then(|l| l.ok()).and_then(|loader| {
+                let gl = Arc::new(unsafe { glow::Context::from_loader_function(loader) });
+                egui_glow::Painter::new(gl, "", None, true).ok()
+            });
+            let err = top.error().map(|e| e.to_string());
+            let (Some(p), Ok(mut g)) = (made, gui.try_borrow_mut()) else {
+                if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
+                    eprintln!("top layer: no painter ({err:?})");
+                }
+                if let Some(h) = host.upgrade() {
+                    h.top_lost.set(true);
+                }
+                return;
+            };
+            if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
+                eprintln!("top layer: ready");
+            }
+            crate::stage("gl: top layer made");
+            g.painter_top = Some(p);
         });
-        let (input, a) = (input0.clone(), waker.clone());
-        motion.connect_leave(move |_| {
-            input.borrow_mut().events.push(Event::PointerGone);
-            a.queue_render();
-        });
-        area.add_controller(motion);
     }
     {
-        let click = gtk::GestureClick::new();
-        click.set_button(0);
-        let (input, a) = (input0.clone(), waker.clone());
-        click.connect_pressed(move |g, _, x, y| {
-            if !a.has_focus() {
-                a.grab_focus();
+        let (gui, host) = (gui.clone(), Rc::downgrade(&host_rc));
+        top.connect_unrealize(move |top| {
+            // its painter and pictures go with it: they could not be made
+            // again (the interface only sends each picture once), so the
+            // old way takes over for this window
+            top.make_current();
+            if let Ok(mut g) = gui.try_borrow_mut() {
+                if let Some(mut p) = g.painter_top.take() {
+                    p.destroy();
+                }
             }
-            let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(g.current_event_state());
-            let b = g.current_button();
-            i.press = (b, x, y, g.current_event_time());
-            i.device = g.current_event_device();
-            if let Some(button) = button_of(b) {
-                let modifiers = i.modifiers;
-                i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button, pressed: true, modifiers });
+            if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
+                eprintln!("top layer: unrealized");
             }
-            a.queue_render();
+            if let Some(h) = host.upgrade() {
+                h.top_lost.set(true);
+                h.live.set(false);
+            }
         });
-        let (input, a) = (input0.clone(), waker.clone());
-        click.connect_released(move |g, _, x, y| {
-            let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(g.current_event_state());
-            if let Some(button) = button_of(g.current_button()) {
-                let modifiers = i.modifiers;
-                i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button, pressed: false, modifiers });
-            }
-            a.queue_render();
-        });
-        area.add_controller(click);
     }
     {
-        let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
-        let (input, a) = (input0.clone(), waker.clone());
-        scroll.connect_scroll(move |c, dx, dy| {
-            // a mouse wheel moves by lines, a touchpad by points
-            let (unit, delta) = if c.unit() == gdk::ScrollUnit::Wheel { (egui::MouseWheelUnit::Line, vec2(-dx as f32, -dy as f32)) } else { (egui::MouseWheelUnit::Point, vec2(-dx as f32, -dy as f32) * 1.0) };
-            let mut i = input.borrow_mut();
-            i.modifiers = modifiers_of(c.current_event_state());
-            let modifiers = i.modifiers;
-            i.events.push(Event::MouseWheel { unit, delta, phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers });
-            a.queue_render();
+        let (gui, host) = (gui.clone(), Rc::downgrade(&host_rc));
+        top.connect_render(move |top, _| {
+            let Ok(mut g) = gui.try_borrow_mut() else { return glib::Propagation::Stop };
+            let live = host.upgrade().is_some_and(|h| h.live.get());
+            draw_top(&mut g, top, live);
             glib::Propagation::Stop
         });
-        area.add_controller(scroll);
+    }
+
+    // ---- input ----
+    let input0 = input.clone();
+    // (the pointer: on the interface, and on the layer above the pages while it shows)
+    for (k, target) in [area.clone(), top.clone()].into_iter().enumerate() {
+        {
+            let motion = gtk::EventControllerMotion::new();
+            let (input, a) = (input0.clone(), waker.clone());
+            motion.connect_motion(move |c, x, y| {
+                let mut i = input.borrow_mut();
+                i.modifiers = modifiers_of(c.current_event_state());
+                i.events.push(Event::PointerMoved(pos2(x as f32, y as f32)));
+                a.queue_render();
+            });
+            let (input, a) = (input0.clone(), waker.clone());
+            let (host, is_top) = (Rc::downgrade(&host_rc), k == 1);
+            motion.connect_leave(move |_| {
+                // (one layer taking the other's place under the pointer is not
+                // the pointer leaving the window)
+                if host.upgrade().is_some_and(|h| h.live.get() != is_top) {
+                    return;
+                }
+                input.borrow_mut().events.push(Event::PointerGone);
+                a.queue_render();
+            });
+            target.add_controller(motion);
+        }
+        {
+            let click = gtk::GestureClick::new();
+            click.set_button(0);
+            let (input, a) = (input0.clone(), waker.clone());
+            click.connect_pressed(move |g, _, x, y| {
+                if !a.has_focus() {
+                    a.grab_focus();
+                }
+                let mut i = input.borrow_mut();
+                i.modifiers = modifiers_of(g.current_event_state());
+                let b = g.current_button();
+                i.press = (b, x, y, g.current_event_time());
+                i.device = g.current_event_device();
+                if let Some(button) = button_of(b) {
+                    let modifiers = i.modifiers;
+                    i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button, pressed: true, modifiers });
+                }
+                a.queue_render();
+            });
+            let (input, a) = (input0.clone(), waker.clone());
+            click.connect_released(move |g, _, x, y| {
+                let mut i = input.borrow_mut();
+                i.modifiers = modifiers_of(g.current_event_state());
+                if let Some(button) = button_of(g.current_button()) {
+                    let modifiers = i.modifiers;
+                    i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button, pressed: false, modifiers });
+                }
+                a.queue_render();
+            });
+            target.add_controller(click);
+        }
+        {
+            let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
+            let (input, a) = (input0.clone(), waker.clone());
+            scroll.connect_scroll(move |c, dx, dy| {
+                // a mouse wheel moves by lines, a touchpad by points
+                let (unit, delta) = if c.unit() == gdk::ScrollUnit::Wheel { (egui::MouseWheelUnit::Line, vec2(-dx as f32, -dy as f32)) } else { (egui::MouseWheelUnit::Point, vec2(-dx as f32, -dy as f32) * 1.0) };
+                let mut i = input.borrow_mut();
+                i.modifiers = modifiers_of(c.current_event_state());
+                let modifiers = i.modifiers;
+                i.events.push(Event::MouseWheel { unit, delta, phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers });
+                a.queue_render();
+                glib::Propagation::Stop
+            });
+            target.add_controller(scroll);
+        }
     }
     {
         let keys = gtk::EventControllerKey::new();
@@ -1413,9 +1558,12 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         });
     }
 
+    crate::stage("before present");
     window.present();
+    crate::stage("presented");
     area.grab_focus();
     waker.queue_render();
+    crate::stage("window shown");
     Some(gui)
 }
 
@@ -1526,6 +1674,7 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
     if out.cursor_icon != g.cursor {
         g.cursor = out.cursor_icon;
         area.set_cursor_from_name(Some(cursor_name(out.cursor_icon)));
+        host.top.set_cursor_from_name(Some(cursor_name(out.cursor_icon)));
     }
     for c in &out.commands {
         match c {
@@ -1588,9 +1737,17 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
     // keep the picture for GTK, which draws it next
     let mut full = full;
     let prims = ctx.tessellate(std::mem::take(&mut full.shapes), full.pixels_per_point);
+    // (the layer above the pages gets the same pictures)
+    if !host.top_lost.get() {
+        g.delta_top.append(full.textures_delta.clone());
+        send_top_textures(g, host);
+    }
     g.delta.append(std::mem::take(&mut full.textures_delta));
     g.frame = Some(Frame { prims, ppp: full.pixels_per_point, size: [w, h] });
     area.queue_render();
+    if host.live.get() {
+        host.top.queue_render();
+    }
     if close {
         if g.app.take_quit_all() {
             glib::idle_add_local_once(quit_all);
@@ -1608,6 +1765,39 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
     if let Some(path) = host.shot.borrow_mut().take() {
         let win = host.window.clone();
         glib::idle_add_local_once(move || save_shot(&win, &path));
+    }
+}
+
+/// The layer above the pages gets the pictures the interface made or let
+/// go of (its painter has its own OpenGL context). Pictures let go of are
+/// freed one frame later: the frame being drawn may still show them.
+fn send_top_textures(g: &mut Gui, host: &Host) {
+    let Some(p) = g.painter_top.as_mut() else { return };
+    if g.delta_top.set.is_empty() && g.delta_top.free.is_empty() && g.free_top.is_empty() {
+        return;
+    }
+    host.top.make_current();
+    for id in g.free_top.drain(..) {
+        p.free_texture(id);
+    }
+    for (id, images) in g.delta_top.set.drain() {
+        for image in &images {
+            p.set_texture(id, image);
+        }
+    }
+    g.free_top = g.delta_top.free.drain().collect();
+}
+
+/// GTK draws the layer above the pages: the interface again, see-through
+/// where it draws nothing (the page area), or nothing at all when no menu
+/// is open.
+fn draw_top(g: &mut Gui, top: &gtk::GLArea, live: bool) {
+    let scale = top.scale_factor().max(1) as f32;
+    let size_px = [(top.width().max(1) as f32 * scale) as u32, (top.height().max(1) as f32 * scale) as u32];
+    let Some(p) = g.painter_top.as_mut() else { return };
+    p.clear(size_px, [0.0, 0.0, 0.0, 0.0]);
+    if let (true, Some(frame)) = (live, g.frame.as_ref()) {
+        p.paint_primitives(size_px, frame.ppp, &frame.prims);
     }
 }
 

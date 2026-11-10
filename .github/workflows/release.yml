@@ -187,6 +187,9 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      # signed statements of where the packages were built (see "Sign the packages")
+      id-token: write
+      attestations: write
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.version.outputs.tag }}
@@ -202,6 +205,13 @@ jobs:
           find artifacts -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*.flatpak' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
           (cd dist && sha256sum * > SHA256SUMS)
           ls -l dist
+      # Each package gets a signed statement that it was built by this
+      # workflow from this commit (Sigstore, no key to keep). Anyone checks
+      # one with: gh attestation verify <file> --repo grassfieldhq/sanaga
+      - name: Sign the packages
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: "dist/*"
       - name: Release notes
         run: |
           # this version's part of the changelog, else the unreleased part

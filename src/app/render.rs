@@ -50,6 +50,8 @@ struct RenderCtx<'a> {
 impl Sanaga {
     pub(super) fn page_area(&mut self, ui: &mut Ui, th: &Theme) {
         let a = self.active;
+        // (followed every frame, so that it starts from nothing each time the overview opens)
+        self.overview_rise = ui.ctx().animate_bool_with_time(egui::Id::new("overview-rise"), self.overview_open, 0.18);
         if self.overview_open {
             self.hover_url = None;
             self.tab_overview(ui, th);
@@ -75,6 +77,7 @@ impl Sanaga {
                 Internal::Downloads => self.page_downloads(ui, th),
                 Internal::Settings => self.page_settings(ui, th),
                 Internal::About => self.page_about(ui, th),
+                Internal::Activity => self.page_activity(ui, th),
                 Internal::Passwords => self.page_passwords(ui, th),
                 Internal::Extensions => self.page_extensions(ui, th),
                 Internal::Profiles => self.page_profiles(ui, th),
@@ -111,6 +114,15 @@ impl Sanaga {
                 let device = self.device_viewport(area);
                 if device.is_some() {
                     self.paint_scene_background(ui.painter(), area);
+                }
+                // split view: the bar over the two pages (the one in use in
+                // the accent colour) and the line between them
+                if let Some((left, right, left_active)) = self.split_shown {
+                    let p = ui.painter();
+                    for (half, on) in [(left, left_active), (right, !left_active)] {
+                        p.rect_filled(Rect::from_min_max(pos2(half.left(), area.top()), pos2(half.right(), half.top() + 1.0)), 0.0, if on { th.accent } else { th.border });
+                    }
+                    p.rect_filled(Rect::from_min_max(pos2(left.right(), area.top()), pos2(right.left(), area.bottom())), 0.0, th.border);
                 }
                 if let Some((id, tex)) = &self.freeze {
                     if *id == self.tabs[a].id {

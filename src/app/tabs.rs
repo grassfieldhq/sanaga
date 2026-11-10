@@ -571,6 +571,10 @@ impl Sanaga {
     /// All tabs of the group as cards, like Safari's tab overview.
     pub(super) fn tab_overview(&mut self, ui: &mut Ui, th: &Theme) {
         ui.painter().rect_filled(ui.max_rect(), 0.0, th.ntp_bg);
+        // the cards rise into place as the overview opens
+        let rise = self.overview_rise * self.overview_rise * (3.0 - 2.0 * self.overview_rise);
+        ui.set_opacity(rise);
+        let lift = (1.0 - rise) * 18.0;
         let order = self.visible_tabs();
         let mut select: Option<usize> = None;
         let mut close: Option<usize> = None;
@@ -592,7 +596,7 @@ impl Sanaga {
             for row in items.chunks(cols) {
                 let (rr, _) = ui.allocate_exact_size(vec2(full_w, card.y + gap), Sense::hover());
                 for (k, item) in row.iter().enumerate() {
-                    let r = Rect::from_min_size(pos2(rr.left() + left + k as f32 * (card.x + gap), rr.top()), card);
+                    let r = Rect::from_min_size(pos2(rr.left() + left + k as f32 * (card.x + gap), rr.top() + lift), card);
                     let thumb = Rect::from_min_size(r.min, vec2(card.x, card.y - 34.0));
                     let Some(i) = *item else {
                         // "+" card: new tab

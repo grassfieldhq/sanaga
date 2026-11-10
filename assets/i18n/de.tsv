@@ -1070,3 +1070,40 @@ Ouvrir quand même dans Sanaga (l'appel ne pourra pas se connecter)	Trotzdem in 
 Batterie à 20 % ou moins	Akku bei 20 % oder weniger
 Toujours afficher les URL en entier	Immer vollständige URLs anzeigen
 Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome	Sonst lässt die Adressleiste https:// und www. weg und zeigt die Adresse dekodiert, wie Chrome
+en veille	im Ruhezustand
+Commande	Befehl
+Favori	Favorit
+Ouvrir cette adresse	Diese Adresse öffnen
+Onglets, commandes, favoris, historique, Web…	Tabs, Befehle, Favoriten, Verlauf, Web…
+Listes de blocage complètes	Vollständige Sperrlisten
+EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList und EasyPrivacy, einmal pro Woche von ihren Autoren abgerufen (easylist.to)
+Chiffrement activé	Verschlüsselung aktiv
+Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	Der Ordner enthält nur versiegelte Dateien. Klicken, um den Satz von diesem Computer zu entfernen.
+Phrase secrète	Geheimer Satz
+Chiffre le dossier : la même phrase sur chaque ordinateur	Verschlüsselt den Ordner: derselbe Satz auf jedem Computer
+Chiffrer	Verschlüsseln
+8 caractères ou plus	8 Zeichen oder mehr
+Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré.	Satz im Schlüsselbund gespeichert. Der Ordner ist jetzt verschlüsselt.
+Phrase retirée de cet ordinateur.	Satz von diesem Computer entfernt.
+Ce dossier est chiffré : saisissez sa phrase secrète.	Dieser Ordner ist verschlüsselt: Geben Sie seinen geheimen Satz ein.
+Phrase secrète incorrecte pour ce dossier.	Falscher geheimer Satz für diesen Ordner.
+manifest.json illisible ({})	manifest.json nicht lesbar ({})
+Activité : mémoire et processeur	Aktivität: Speicher und Prozessor
+Vue partagée : deux onglets côte à côte	Geteilte Ansicht: zwei Tabs nebeneinander
+Aperçu mobile à côté de la page	Mobile Vorschau neben der Seite
+Activité	Aktivität
+L'aperçu mobile côte à côte montre une page web : ouvrez-en une d'abord.	Die mobile Vorschau nebeneinander zeigt eine Webseite: Öffnen Sie zuerst eine.
+La vue partagée montre deux pages web : ouvrez-en une d'abord.	Die geteilte Ansicht zeigt zwei Webseiten: Öffnen Sie zuerst eine.
+Ouvrez une deuxième page web pour la vue partagée.	Öffnen Sie eine zweite Webseite für die geteilte Ansicht.
+{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)	{} Speicher · {} % eines Kerns · {} laufende Seite(n) bei {} Tab(s)
+Processus	Prozesse
+Interface de Sanaga	Sanagas Oberfläche
+Réseau	Netzwerk
+Page {}	Seite {}
+Autres (bac à sable, auxiliaires)	Andere (Sandbox, Hilfsprozesse)
+Mesure en cours…	Messung läuft…
+Chaque page a son propre processus ; le moteur ne dit pas à quel onglet chacun appartient.	Jede Seite hat ihren eigenen Prozess; die Engine sagt nicht, zu welchem Tab jeder gehört.
+affiché	angezeigt
+en cours · son	läuft · Ton
+en cours	läuft
+Mettre en veille	In den Ruhezustand

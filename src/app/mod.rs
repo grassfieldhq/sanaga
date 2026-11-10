@@ -73,6 +73,8 @@ enum Internal {
     Downloads,
     Settings,
     About,
+    /// Sanaga's processes and tabs: memory, processor, sleep (`sanaga://activity`).
+    Activity,
     Passwords,
     Extensions,
     Profiles,
@@ -121,6 +123,7 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://downloads" => Internal::Downloads,
         "sanaga://settings" => Internal::Settings,
         "sanaga://about" => Internal::About,
+        "sanaga://activity" => Internal::Activity,
         "sanaga://passwords" => Internal::Passwords,
         "sanaga://extensions" => Internal::Extensions,
         "sanaga://profiles" => Internal::Profiles,
@@ -142,6 +145,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Downloads => tr("Téléchargements"),
         Internal::Settings => tr("Paramètres"),
         Internal::About => tr("À propos de Sanaga"),
+        Internal::Activity => tr("Activité"),
         Internal::Passwords => tr("Mots de passe"),
         Internal::Extensions => tr("Extensions"),
         Internal::Profiles => tr("Profils"),
@@ -171,6 +175,9 @@ enum View {
 }
 
 struct Tab {
+    /// When the tab was opened (the interface's clock), for its entrance
+    /// in the tab bar; before any time for the tabs Sanaga starts with.
+    born: f64,
     id: u64,
     private: bool,
     entries: Vec<Entry>,
@@ -224,6 +231,10 @@ struct Tab {
     parent: Option<u64>,
     /// Its tabs underneath are folded away (tree tabs).
     tree_folded: bool,
+    /// This tab is the phone-sized companion of another one (mobile preview
+    /// side by side): a phone's identity and width, and it follows the
+    /// other page's address and scrolling.
+    companion: bool,
 }
 
 impl Tab {
@@ -396,6 +407,23 @@ pub struct Sanaga {
     suggest_items: Vec<(String, String, bool)>,
     suggest_sel: Option<usize>,
     suggest_typed: String,
+    /// What was really typed in the address field, and whether the field
+    /// now holds it completed with a site's name (the added part selected).
+    inline_typed: String,
+    inline_done: bool,
+    /// The line picked with the arrows in the command palette.
+    palette_sel: usize,
+    /// A menu is open over a web page, drawn in the layer above it (the
+    /// page area is left clear), and that layer is showing.
+    live_overlay: bool,
+    live_shown: bool,
+    /// How far the tab overview's cards have risen into place (0 to 1).
+    overview_rise: f32,
+    /// Split view: two tabs shown side by side (the left one, the right
+    /// one), whenever one of them is the tab in use.
+    split: Option<(u64, u64)>,
+    /// The two halves as drawn this frame, and whether the left one is in use.
+    split_shown: Option<(Rect, Rect, bool)>,
     /// Per group: colour (index in GROUP_COLORS) and folded state.
     group_colors: Vec<u8>,
     group_collapsed: Vec<bool>,
@@ -498,6 +526,8 @@ pub struct Sanaga {
     ext_form: intelligence::ExtForm,
     ai_models: Option<Vec<String>>,
     ai_key_input: String,
+    /// The sync folder's secret phrase being typed (Settings › Sync).
+    sync_phrase_input: String,
     ai_key_known: Option<bool>,
     /// When the system's look was last checked.
     look_checked: f64,
@@ -646,6 +676,7 @@ impl Tip for egui::Response {
 impl Sanaga {
     pub fn new(egui_ctx: &egui::Context, urls: Vec<String>, screenshot: Option<ScreenshotJob>) -> Self {
         crate::setup_fonts(egui_ctx);
+        crate::stage("fonts read");
         egui_ctx.options_mut(|o| o.zoom_with_keyboard = false);
         // `--profil NOM`: this window uses that profile's own data
         let profile = urls.iter().find_map(|u| u.strip_prefix("profil:").map(|s| s.to_string())).unwrap_or_default();
@@ -655,6 +686,7 @@ impl Sanaga {
         let guest = urls.iter().any(|u| u == "invite:");
         let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:" && u != "invite:").collect();
         let store = if screenshot.is_some() || guest { Store::ephemeral() } else { Store::load_profile(&profile) };
+        crate::stage("data read");
         // WebKit keeps cookies and site data per profile
         let web_dir = store.data_dir().map(|d| d.join("webkit"));
         let web_dir_kept = web_dir.clone();
@@ -677,34 +709,12 @@ impl Sanaga {
         // (a guest window writes none: it keeps nothing)
         crate::favicon::setup(Store::root_dir().join("favicons"), screenshot.is_none() && !guest);
         let web_ok = screenshot.is_none() && web_engine_available();
-        // (created after GTK is started)
-        let web_context = if web_ok {
-            let c = match web_dir {
-                Some(d) => crate::page::profile_context(&d),
-                None => crate::page::ephemeral_engine(),
-            };
-            let (t, r) = (web_tx.clone(), egui_ctx.clone());
-            crate::page::follow_downloads(&c);
-            crate::page::add_download_sink(slot, move |url, path, ok| {
-                let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
-                r.request_repaint();
-            });
-            let (t, r) = (web_tx.clone(), egui_ctx.clone());
-            crate::page::add_download_ask_sink(slot, move |site| {
-                let _ = t.send(web::WebEvent::DownloadAsk { site });
-                r.request_repaint();
-            });
-            // which video formats the system can play (for YouTube & co.)
-            crate::codecs::check_in_background();
-            // the network blocker of ads and trackers, compiled once
-            crate::page::BLOCKER_ON.store(store.settings.blocker, Ordering::Relaxed);
-            if let Some(d) = &web_dir_kept {
-                crate::page::prepare_filters(&d.join("filters"));
-            }
-            Some(c)
-        } else {
-            None
-        };
+        crate::stage("before engine");
+        // The web engine itself is made after the first picture of the
+        // window (see `ensure_engine`): starting it takes a moment, and the
+        // window must not wait for it to show.
+        let web_context: Option<crate::page::Engine> = None;
+        crate::stage("before app state");
         let mut app = Sanaga {
             store,
             tabs: Vec::new(),
@@ -760,6 +770,14 @@ impl Sanaga {
             suggest_items: Vec::new(),
             suggest_sel: None,
             suggest_typed: String::new(),
+            inline_typed: String::new(),
+            inline_done: false,
+            palette_sel: 0,
+            live_overlay: false,
+            live_shown: false,
+            overview_rise: 0.0,
+            split: None,
+            split_shown: None,
             group_colors: Vec::new(),
             group_collapsed: Vec::new(),
             group_editing: None,
@@ -827,6 +845,7 @@ impl Sanaga {
             ext_form: Default::default(),
             ai_models: None,
             ai_key_input: String::new(),
+            sync_phrase_input: String::new(),
             ai_key_known: None,
             look_checked: 0.0,
             sync_status: Default::default(),
@@ -888,6 +907,7 @@ impl Sanaga {
             group_editor: None,
             group_label_rects: Vec::new(),
         };
+        crate::stage("app state made");
         app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
         if app.screenshot.is_some() {
@@ -1056,8 +1076,43 @@ impl Sanaga {
         };
     }
 
+    /// The web engine of this window's profile, made at the first need
+    /// (after the window's first picture): its processes, cookies and site
+    /// data, the downloads, the codecs check and the blocker.
+    pub(super) fn ensure_engine(&mut self) {
+        if !self.web_ok || self.web_context.is_some() {
+            return;
+        }
+        let c = match &self.web_dir {
+            Some(d) => crate::page::profile_context(d),
+            None => crate::page::ephemeral_engine(),
+        };
+        crate::stage("engine made");
+        let (t, r) = (self.web_tx.clone(), self.ctx.clone());
+        crate::page::follow_downloads(&c);
+        crate::page::add_download_sink(self.slot, move |url, path, ok| {
+            let _ = t.send(web::WebEvent::DownloadDone { url, path, ok });
+            r.request_repaint();
+        });
+        let (t, r) = (self.web_tx.clone(), self.ctx.clone());
+        crate::page::add_download_ask_sink(self.slot, move |site| {
+            let _ = t.send(web::WebEvent::DownloadAsk { site });
+            r.request_repaint();
+        });
+        // which video formats the system can play (for YouTube & co.)
+        crate::codecs::check_in_background();
+        // the network blocker of ads and trackers, compiled once
+        crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
+        crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
+        if let Some(d) = &self.web_dir {
+            crate::page::prepare_filters(&d.join("filters"));
+        }
+        self.web_context = Some(c);
+    }
+
     fn apply_style(&mut self) {
         self.follow_system_look();
+        crate::stage("s: system look");
         let dark = self.store.settings.dark;
         crate::theme::set_accent(self.store.settings.accent as usize);
         let accent = crate::theme::accent_in_use() as u8;
@@ -1069,9 +1124,13 @@ impl Sanaga {
             // GTK follows: the web inspector, file and print dialogs, and the
             // pages that offer a dark look (`prefers-color-scheme`)
             if let Some(s) = gtk::Settings::default() {
-                s.set_gtk_application_prefer_dark_theme(dark);
+                // (only when it changes: GTK reads its whole theme again, some 150 ms)
+                if s.is_gtk_application_prefer_dark_theme() != dark {
+                    s.set_gtk_application_prefer_dark_theme(dark);
+                }
             }
         }
+        crate::stage("s: gtk theme");
         let th = theme(dark, false);
         let mut v = if dark { egui::Visuals::dark() } else { egui::Visuals::light() };
         v.panel_fill = th.page;
@@ -1182,6 +1241,92 @@ impl Sanaga {
     }
 
     /// The web page shown now, if any (it gets the keyboard back).
+    /// Split view: the tab shown next to the tab in use (None: no split, or
+    /// the tab in use is not one of the pair, or one of them is not a web page).
+    pub(super) fn split_partner(&self) -> Option<usize> {
+        let (a, b) = self.split?;
+        if self.device.is_some() || self.overview_open || self.focus_mode {
+            return None;
+        }
+        let me = self.tabs.get(self.active)?;
+        let other = if me.id == a { b } else if me.id == b { a } else { return None };
+        let i = self.tabs.iter().position(|t| t.id == other)?;
+        (matches!(me.view, View::Web) && matches!(self.tabs[i].view, View::Web)).then_some(i)
+    }
+
+    /// Mobile preview side by side: the page in use on the left, the same
+    /// page as a phone gets it on the right (a phone's identity and width),
+    /// following the left one's address and scrolling. Again: ends it.
+    pub(super) fn toggle_mobile_side(&mut self) {
+        let now = self.ctx.input(|i| i.time);
+        if let Some((_, right)) = self.split {
+            if let Some(i) = self.tabs.iter().position(|t| t.id == right && t.companion) {
+                self.split = None;
+                self.close_tab(i);
+                return;
+            }
+        }
+        let a = self.active;
+        if !matches!(self.tabs[a].view, View::Web) || !self.tabs[a].url().starts_with("http") {
+            self.notice = Some((tr("L'aperçu mobile côte à côte montre une page web : ouvrez-en une d'abord.").into(), now));
+            return;
+        }
+        let (id, url, private, group, container) = (self.tabs[a].id, self.tabs[a].url().to_string(), self.tabs[a].private, self.tabs[a].group, self.tabs[a].container.clone());
+        let i = self.open_tab(&url, private);
+        self.focus_address = false;
+        let t = &mut self.tabs[i];
+        t.companion = true;
+        t.parent = Some(id);
+        t.group = group;
+        t.container = container;
+        let companion = t.id;
+        // right after its page in the tab row; the page stays the tab in use
+        if let Some(from) = self.tabs.iter().position(|t| t.id == id) {
+            let to = (from + 1).min(self.tabs.len() - 1);
+            if to != i {
+                self.move_tab(i, to);
+            }
+        }
+        if let Some(back) = self.tabs.iter().position(|t| t.id == id) {
+            self.active = back;
+        }
+        self.split = Some((id, companion));
+        self.sync_companion_scroll(id);
+    }
+
+    /// The left page of a mobile preview tells Sanaga how far it is
+    /// scrolled (a share of its height), so that the phone follows.
+    pub(super) fn sync_companion_scroll(&self, left: u64) {
+        const JS: &str = "(function(){if(window.__sanagaScroll)return;window.__sanagaScroll=1;var last=0;function say(){var d=document.documentElement;var m=Math.max(1,d.scrollHeight-window.innerHeight);window.ipc.postMessage('scr:'+(window.scrollY/m).toFixed(4));}window.addEventListener('scroll',function(){var n=Date.now();if(n-last>40){last=n;say();}else{clearTimeout(window.__sanagaScrollT);window.__sanagaScrollT=setTimeout(say,60);}},{passive:true});})();";
+        if let Some(w) = self.tabs.iter().find(|t| t.id == left).and_then(|t| t.web.as_ref()) {
+            let _ = w.evaluate_own(JS);
+        }
+    }
+
+    /// The companion of `tab` in a mobile preview, if it is its left page.
+    fn companion_of(&self, tab: u64) -> Option<usize> {
+        let (left, right) = self.split?;
+        (left == tab).then(|| self.tabs.iter().position(|t| t.id == right && t.companion)).flatten()
+    }
+
+    /// Start or end the split view: the tab in use on the left, the web tab
+    /// used just before it on the right.
+    pub(super) fn toggle_split(&mut self) {
+        if self.split.take().is_some() {
+            return;
+        }
+        let now = self.ctx.input(|i| i.time);
+        let Some(me) = self.tabs.get(self.active).filter(|t| matches!(t.view, View::Web)) else {
+            self.notice = Some((tr("La vue partagée montre deux pages web : ouvrez-en une d'abord.").into(), now));
+            return;
+        };
+        let other = self.tabs.iter().enumerate().filter(|(i, t)| *i != self.active && matches!(t.view, View::Web) && t.private == me.private && t.group == me.group).max_by(|a, b| a.1.last_active.partial_cmp(&b.1.last_active).unwrap_or(std::cmp::Ordering::Equal));
+        match other {
+            Some((_, t)) => self.split = Some((me.id, t.id)),
+            None => self.notice = Some((tr("Ouvrez une deuxième page web pour la vue partagée.").into(), now)),
+        }
+    }
+
     pub fn shown_page(&self) -> Option<webkit6::WebView> {
         let t = self.tabs.get(self.active)?;
         t.web.as_ref().filter(|_| t.web_shown).map(|w| w.webview())
@@ -1271,8 +1416,18 @@ impl Sanaga {
     /// One frame of Sanaga's interface (drawn by eframe for screenshots, by
     /// the GTK window otherwise).
     pub fn frame_ui(&mut self, ui: &mut Ui) {
+        let first = self.frame == 0;
+        if first {
+            crate::stage("first frame begins");
+        }
         self.follow_other_windows();
+        if first {
+            crate::stage("s: other windows");
+        }
         self.frame_body(ui);
+        if first {
+            crate::stage("first frame laid out");
+        }
         // what this window saved itself is already in its memory
         self.store_seen = crate::store::CHANGES.load(Ordering::Relaxed);
     }
@@ -1493,6 +1648,9 @@ impl Sanaga {
         // test aids (debug builds only: not in a release build)
         self.test_hooks(ui, &ctx0, now);
         self.memory_saver_step(now);
+        if self.frame == 1 {
+            crate::stage("f: before steps");
+        }
         // simulator video: stop with the simulator, feed the encoder
         if self.device.is_none() && self.recording.as_ref().is_some_and(|r| !r.stopping) {
             self.toggle_recording();
@@ -1512,6 +1670,9 @@ impl Sanaga {
             self.current_group = g;
         }
         self.shortcuts(ui);
+        if self.frame == 1 {
+            crate::stage("f: shortcuts");
+        }
         // back / forward: touchpad swipe or mouse side buttons over a page...
         match crate::shell::take_nav() {
             -1 => self.go_history(self.active, -1),
@@ -1544,6 +1705,9 @@ impl Sanaga {
         }
 
         self.power_step(now);
+        if self.frame == 1 {
+            crate::stage("f: power");
+        }
         // a border around the window (Settings › Appearance): the rest inside it
         let border = self.draw_border(ui, now);
         let mut inner_ui;
@@ -1569,6 +1733,9 @@ impl Sanaga {
             });
         }
         self.media_step();
+        if self.frame == 1 {
+            crate::stage("f: bars");
+        }
         if self.codec_bar_visible() {
             egui::Panel::top("codecbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.codec_bar(ui, &th);
@@ -1594,13 +1761,21 @@ impl Sanaga {
                 self.downloads_panel(ui, &th);
             });
         }
-        if self.sidebar_open && !self.focus_mode {
+        // the sidebar slides in and out (its content keeps its width and
+        // is uncovered, instead of being squeezed)
+        let slide = ctx.animate_bool_with_time(egui::Id::new("sidebar-slide"), self.sidebar_open && !self.focus_mode, 0.16);
+        if slide > 0.0 {
+            let eased = slide * slide * (3.0 - 2.0 * slide);
             egui::Panel::left("sidebar")
-                .exact_size(264.0)
+                .exact_size((264.0 * eased).max(1.0))
                 .show_separator_line(false)
                 .frame(Frame::NONE.fill(th.page))
                 .show(ui, |ui| {
-                    self.sidebar(ui, &th);
+                    let shown = ui.max_rect();
+                    let whole = Rect::from_min_max(pos2(shown.right() - 264.0, shown.top()), shown.right_bottom());
+                    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(whole));
+                    inner.set_clip_rect(shown);
+                    self.sidebar(&mut inner, &th);
                 });
         }
         if self.summary.is_some() && !self.focus_mode {
@@ -1608,7 +1783,9 @@ impl Sanaga {
                 self.summary_panel(ui, &th);
             });
         }
-        let central = egui::CentralPanel::no_frame().frame(Frame::NONE.fill(th.page)).show(ui, |ui| {
+        // (a menu over a living page: the page area is left clear, see sync_web)
+        let page_fill = if self.live_overlay { egui::Color32::TRANSPARENT } else { th.page };
+        let central = egui::CentralPanel::no_frame().frame(Frame::NONE.fill(page_fill)).show(ui, |ui| {
             let r = ui.max_rect();
             if !self.focus_mode {
                 ui.painter().line_segment([r.left_top(), r.right_top()], Stroke::new(1.0, th.border));
@@ -1617,6 +1794,9 @@ impl Sanaga {
             r
         });
         let content = central.inner;
+        if self.frame == 1 {
+            crate::stage("f: panels and page area");
+        }
         self.main_menu(&ctx, &th);
         self.share_popover(&ctx, &th);
         self.tab_search(&ctx, &th);
@@ -1634,9 +1814,15 @@ impl Sanaga {
         self.container_chooser(&ctx, &th);
         self.overflow_menu(&ctx, &th);
         self.profile_menu(&ctx, &th);
+        if self.frame == 1 {
+            crate::stage("f: popups");
+        }
         let t_sync = std::time::Instant::now();
         self.sync_web(content);
         let sync_ms = t_sync.elapsed().as_secs_f64() * 1000.0;
+        if self.frame == 1 {
+            crate::stage("f: pages placed");
+        }
 
         // link preview bubble, bottom-left
         if let Some(u) = &self.hover_url {
@@ -1651,7 +1837,8 @@ impl Sanaga {
         }
 
         if self.tabs.iter().any(|t| t.loading) {
-            ctx.request_repaint_after(std::time::Duration::from_millis(33));
+            // (with the screen's own refresh: the loading bar moves smoothly)
+            ctx.request_repaint();
         }
         if !ctx.input(|i| i.pointer.primary_down()) {
             crate::desktop::end_move();

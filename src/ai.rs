@@ -60,7 +60,8 @@ fn agent(read_secs: u64) -> ureq::Agent {
 pub fn ollama_models() -> Vec<String> {
     let Ok(r) = agent(3).get(&format!("{OLLAMA}/api/tags")).call() else { return Vec::new() };
     let body = r.into_string().unwrap_or_default();
-    json_strings(&body, "name")
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else { return Vec::new() };
+    v["models"].as_array().map(|m| m.iter().filter_map(|x| x["name"].as_str()).map(|n| n.to_string()).collect()).unwrap_or_default()
 }
 
 /// Ask the model; returns its answer as text.
@@ -72,7 +73,7 @@ pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> 
             let body = format!("{{\"model\":{},\"system\":{},\"prompt\":{},\"stream\":false}}", json_str(model), json_str(system), json_str(prompt));
             let r = agent(240).post(&format!("{OLLAMA}/api/generate")).set("content-type", "application/json").send_string(&body).map_err(err_text)?;
             let text = r.into_string().map_err(|e| e.to_string())?;
-            json_string(&text, "response").ok_or_else(|| crate::i18n::tr("Réponse du modèle illisible.").into())
+            ollama_answer(&text).ok_or_else(|| crate::i18n::tr("Réponse du modèle illisible.").into())
         }
         Provider::Claude { model, key } => {
             let body = format!(
@@ -89,16 +90,38 @@ pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> 
                 .send_string(&body)
                 .map_err(err_text)?;
             let text = r.into_string().map_err(|e| e.to_string())?;
-            json_string(&text, "text").ok_or_else(|| crate::i18n::tr("Réponse du modèle illisible.").into())
+            claude_answer(&text).ok_or_else(|| crate::i18n::tr("Réponse du modèle illisible.").into())
         }
     }
+}
+
+/// Ollama's answer: the "response" text of its JSON.
+fn ollama_answer(body: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(body).ok()?;
+    v["response"].as_str().map(|s| s.to_string())
+}
+
+/// Claude's answer: the text blocks of its message, in order (other kinds
+/// of blocks, and a "text" met elsewhere in the JSON, are not the answer).
+fn claude_answer(body: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(body).ok()?;
+    let text: String = v["content"].as_array()?.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("");
+    (!text.is_empty()).then_some(text)
+}
+
+/// What went wrong, as the service says it: {"error": {"message": …}},
+/// {"error": "…"} or {"message": …}.
+fn error_message(body: &str) -> String {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(body) else { return String::new() };
+    let said = v["error"]["message"].as_str().or_else(|| v["error"].as_str()).or_else(|| v["message"].as_str());
+    said.unwrap_or_default().to_string()
 }
 
 fn err_text(e: ureq::Error) -> String {
     match e {
         ureq::Error::Status(code, r) => {
             let body = r.into_string().unwrap_or_default();
-            let msg = json_string(&body, "message").or_else(|| json_string(&body, "error")).unwrap_or_default();
+            let msg = error_message(&body);
             if code == 401 {
                 crate::i18n::tr("Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.").into()
             } else {
@@ -416,5 +439,23 @@ mod tests {
     fn extension_files_get_a_header() {
         assert_eq!(slug("Masquer les Shorts !"), "masquer-les-shorts");
         assert_eq!(strip_fences("```js\nalert(1)\n```"), "alert(1)");
+    }
+}
+
+#[cfg(test)]
+mod answer_tests {
+    use super::*;
+
+    #[test]
+    fn answers_are_read_from_their_place_in_the_json() {
+        // a "text" met before the answer (a thinking block, a key's value) is not the answer
+        let body = r#"{"id":"m","type":"message","content":[{"type":"thinking","thinking":"text"},{"type":"text","text":"Bonjour \"vous\""},{"type":"text","text":" !"}],"stop_reason":"end_turn"}"#;
+        assert_eq!(claude_answer(body).as_deref(), Some("Bonjour \"vous\" !"));
+        assert_eq!(claude_answer(r#"{"content":[]}"#), None);
+        assert_eq!(claude_answer("not json"), None);
+        assert_eq!(ollama_answer(r#"{"model":"response","response":"ok\n","done":true}"#).as_deref(), Some("ok\n"));
+        assert_eq!(error_message(r#"{"type":"error","error":{"type":"invalid_request_error","message":"bad key"}}"#), "bad key");
+        assert_eq!(error_message(r#"{"error":"model not found"}"#), "model not found");
+        assert_eq!(error_message("<html>"), "");
     }
 }
