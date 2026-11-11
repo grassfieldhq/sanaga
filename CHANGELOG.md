@@ -21,6 +21,7 @@ All notable changes to Sanaga are listed here. The format follows
 - Find in page uses the engine's own search on web pages: every match is
   marked, their number is shown ("No results" in red), the words are kept
   for next time.
+- A favourite's right-click menu: **Edit…** and **Copy address**.
 - About shows the WebKitGTK version and links to the Activity page; the
   Extensions page links to the extension writer.
 - Each Settings category has an address (`sanaga://settings/privacy`): the
@@ -191,6 +192,10 @@ All notable changes to Sanaga are listed here. The format follows
 - Site badges: the letter of the site's own name ("W" for
   fr.wikipedia.org, not "F").
 - A band of the wrong colour across the last row of scrolling lists.
+- An empty box in place of "⋮" in the welcome page, and in place of
+  language names written in their own script on a computer without those
+  fonts. A test now fails if a text uses a character the carried fonts
+  cannot draw.
 - The address bar no longer keeps the caret on Sanaga's own pages; a menu
   label no longer runs into its shortcut; the names under the new tab's
   tiles no longer run into one another.

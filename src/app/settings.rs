@@ -1173,14 +1173,15 @@ impl Sanaga {
                 }
                 changed |= rows.switch(ui, tr("Proposer de traduire les pages dans une autre langue"), tr("Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord"), &mut st.translate_offer);
                 rows.row(ui, tr("Traduire vers"), "", false, |ui| {
-                    let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&super::translate::target("").2]) } else { super::translate::target(code).2.to_string() };
+                    let ctx = ui.ctx().clone();
+                    let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&super::translate::shown_name(&ctx, super::translate::target("").2)]) } else { super::translate::shown_name(&ctx, super::translate::target(code).2) };
                     egui::ComboBox::from_id_salt("translate-to").selected_text(label(&st.translate_to)).width(220.0).show_ui(ui, |ui| {
                         if ui.selectable_label(st.translate_to.is_empty(), label("")).clicked() && !st.translate_to.is_empty() {
                             st.translate_to.clear();
                             changed = true;
                         }
                         for (code, _, name) in super::translate::LANGUAGES {
-                            if ui.selectable_label(st.translate_to == code, name).clicked() && st.translate_to != code {
+                            if ui.selectable_label(st.translate_to == code, super::translate::shown_name(&ctx, name)).clicked() && st.translate_to != code {
                                 st.translate_to = code.to_string();
                                 changed = true;
                             }

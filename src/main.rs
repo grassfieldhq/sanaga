@@ -35,6 +35,8 @@ mod frames;
 mod guard;
 #[cfg(test)]
 mod mutate;
+#[cfg(test)]
+mod glyphs;
 mod page;
 mod shell;
 mod site_prefs;
