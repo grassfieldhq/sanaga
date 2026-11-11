@@ -1,0 +1,17 @@
+# A very small library WebKit loads inside each page process (a "web process
+# extension"): it tells Sanaga which process a page runs in, so the Activity
+# page can show memory and processor use tab by tab. It does nothing else,
+# and nothing in the page can reach it.
+#
+# Built with Sanaga (`cargo build`), installed as lib/sanaga/libsanaga_page_helper.so.
+
+[package]
+name = "sanaga-page-helper"
+version = "0.4.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[lib]
+path = "lib.rs"
+crate-type = ["cdylib"]

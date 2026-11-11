@@ -97,23 +97,8 @@ pub fn delete(profile: &str, site: &str, user: &str) {
     let _ = Command::new("secret-tool").arg("clear").args(attrs(profile, site, user)).stderr(Stdio::null()).status();
 }
 
-/// A JavaScript string literal (for handing values to a page safely).
-pub fn js_str(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '<' => out.push_str("\\u003c"),
-            c if (c as u32) < 0x20 || c == '\u{2028}' || c == '\u{2029}' => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
-}
+// (how a text is written into a script: guard.rs, with the other security rules)
+pub use crate::guard::js_str;
 
 #[cfg(test)]
 mod tests {

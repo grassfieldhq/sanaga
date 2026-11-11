@@ -253,6 +253,9 @@ struct ViewState {
     typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
+    /// The engine process the page runs in, as it told Sanaga (see
+    /// page-helper/): when it started, and its number as it sees it.
+    process: Cell<Option<(u64, u32)>>,
 }
 
 /// The person acted in this page (a click or key that navigates): it may
@@ -661,9 +664,57 @@ fn pressure_settings() -> webkit6::MemoryPressureSettings {
     s
 }
 
+/// The web engine's version ("2.52.6"), for crash reports.
+pub fn engine_version() -> String {
+    format!("{}.{}.{}", webkit6::functions::major_version(), webkit6::functions::minor_version(), webkit6::functions::micro_version())
+}
+
+/// The folder of the small library the page processes load (page-helper/:
+/// it tells Sanaga which process a page runs in, for the Activity page).
+/// Installed in `lib/sanaga` next to `bin`; when Sanaga runs from its build
+/// folder, the library sits next to the program and is copied to a folder
+/// of its own (WebKit loads every library of the folder it is given, and
+/// the build folder is not Sanaga's alone). None: Activity shows the
+/// processes without saying which tab each one serves.
+fn helper_dir() -> Option<PathBuf> {
+    static DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| {
+        const NAME: &str = "libsanaga_page_helper.so";
+        let exe = std::env::current_exe().ok()?;
+        let bin = exe.parent()?;
+        for lib in ["lib", "lib64"] {
+            let dir = bin.parent()?.join(lib).join("sanaga");
+            if dir.join(NAME).is_file() {
+                return Some(dir);
+            }
+        }
+        let built = bin.join(NAME);
+        if !built.is_file() {
+            return None;
+        }
+        // (kept as long as Sanaga runs; removed by the system with the
+        // runtime folder otherwise)
+        let dir = Box::leak(Box::new(crate::guard::PrivateDir::new("sanaga-helper").ok()?));
+        std::fs::copy(&built, dir.path().join(NAME)).ok()?;
+        Some(dir.path().to_path_buf())
+    })
+    .clone()
+}
+
 /// The processes of a profile's pages, with Sanaga's memory limits.
 fn new_context() -> WebContext {
-    WebContext::builder().memory_pressure_settings(&pressure_settings()).build()
+    let ctx = WebContext::builder().memory_pressure_settings(&pressure_settings()).build();
+    // (before the first page process starts)
+    if let Some(dir) = helper_dir() {
+        ctx.set_web_process_extensions_directory(&dir.to_string_lossy());
+    }
+    ctx
+}
+
+/// "start time:process number", as page-helper/ sends it.
+fn parse_process(text: &str) -> Option<(u64, u32)> {
+    let (start, pid) = text.split_once(':')?;
+    Some((start.parse().ok()?, pid.parse().ok()?))
 }
 
 /// The network process's memory limits (once, before the first session).
@@ -862,7 +913,8 @@ impl PageView {
     /// A new page. `scripts` run at the start of every page (top frame).
     /// `opener`: the page that opened this one (its windows share the engine).
     /// `popups`: makes the pages this one opens; without it they open as new tabs.
-    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
+    /// `automation`: the page belongs to a window driven by test software.
+    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, automation: bool, on: impl Fn(PageSignal) + 'static) -> PageView {
         let ucm = UserContentManager::new();
         add_scripts(&ucm, own, page);
         let on = Rc::new(on);
@@ -888,6 +940,10 @@ impl PageView {
         // (no page shouting at you when it opens)
         let policies = webkit6::WebsitePolicies::builder().autoplay(webkit6::AutoplayPolicy::AllowWithoutSound).build();
         let mut b = WebView::builder().user_content_manager(&ucm).website_policies(&policies);
+        // (said when the page is made: the engine then lets the test software drive it)
+        if automation {
+            b = b.is_controlled_by_automation(true);
+        }
         match opener {
             // same engine process and data as the opener
             Some(o) => b = b.related_view(o),
@@ -1164,6 +1220,18 @@ impl PageView {
             o(PageSignal::Dialog(key));
             true
         });
+        // the page's process says who it is (page-helper/; again after the
+        // engine moves the page to another process)
+        let st = state.clone();
+        view.connect_user_message_received(move |_, message| {
+            if message.name().as_deref() != Some("sanaga-process") {
+                return false;
+            }
+            if let Some(who) = message.parameters().and_then(|p| p.str().and_then(parse_process)) {
+                st.process.set(Some(who));
+            }
+            true
+        });
         // a page that closes itself (window.close(), allowed by WebKit only
         // for windows a script opened): its tab closes
         let o = on.clone();
@@ -1171,16 +1239,29 @@ impl PageView {
         // the page's process stopped: say so, instead of a blank page (the
         // other tabs are not touched); ending it on purpose is not a crash
         let o = on.clone();
-        view.connect_web_process_terminated(move |_, reason| match reason {
-            webkit6::WebProcessTerminationReason::ExceededMemoryLimit => o(PageSignal::Crashed(true)),
-            webkit6::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
-            _ => {}
+        let st = state.clone();
+        view.connect_web_process_terminated(move |_, reason| {
+            st.process.set(None);
+            match reason {
+                webkit6::WebProcessTerminationReason::ExceededMemoryLimit => o(PageSignal::Crashed(true)),
+                webkit6::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
+                _ => {}
+            }
         });
         PageView { view, default_ua: default_ua_kept }
     }
 
     pub fn webview(&self) -> WebView {
         self.view.clone()
+    }
+    /// The engine process this page runs in (when it started, its number as
+    /// it sees it), once it has said so: see `net::processes_cached`.
+    pub fn process(&self) -> Option<(u64, u32)> {
+        view_state(&self.view).and_then(|s| s.process.get())
+    }
+    /// Does the page's process still answer? (false: stuck in a script…)
+    pub fn responsive(&self) -> bool {
+        self.view.is_web_process_responsive()
     }
     /// The address the page really shows (not what a page script claims).
     pub fn uri(&self) -> Option<String> {

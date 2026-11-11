@@ -1,6 +1,7 @@
 #!/bin/sh
 # Install Sanaga for the current user, without admin rights:
 #   program      ~/.local/bin/sanaga
+#   its helper   ~/.local/lib/sanaga/libsanaga_page_helper.so (loaded by the page processes)
 #   launcher     ~/.local/share/applications/sanaga.desktop
 #   icons        ~/.local/share/icons/hicolor/<size>/apps/sanaga.png (+ scalable/apps/sanaga.svg)
 #
@@ -11,6 +12,7 @@ set -eu
 cd "$(dirname "$0")/.."
 PREFIX="${PREFIX:-$HOME/.local}"
 BIN="$PREFIX/bin/sanaga"
+HELPER="$PREFIX/lib/sanaga/libsanaga_page_helper.so"
 APPS="$PREFIX/share/applications"
 ICONS="$PREFIX/share/icons/hicolor"
 SIZES="48 64 128 256 512"
@@ -21,7 +23,8 @@ refresh() {
 }
 
 if [ "${1:-}" = "--uninstall" ]; then
-    rm -f "$BIN" "$APPS/sanaga.desktop"
+    rm -f "$BIN" "$HELPER" "$APPS/sanaga.desktop"
+    rmdir "$PREFIX/lib/sanaga" 2>/dev/null || true
     for s in $SIZES; do rm -f "$ICONS/${s}x${s}/apps/sanaga.png"; done
     rm -f "$ICONS/scalable/apps/sanaga.svg"
     refresh
@@ -39,6 +42,11 @@ fi
 # (from a downloaded archive the program is already built)
 
 install -Dm755 target/release/sanaga "$BIN"
+# (tells Sanaga which process each tab runs in: the Activity page; Sanaga
+# works without it)
+if [ -f target/release/libsanaga_page_helper.so ]; then
+    install -Dm644 target/release/libsanaga_page_helper.so "$HELPER"
+fi
 for s in $SIZES; do
     mkdir -p "$ICONS/${s}x${s}/apps"
     "$BIN" --export-icon "$ICONS/${s}x${s}/apps/sanaga.png" "$s"

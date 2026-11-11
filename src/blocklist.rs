@@ -297,9 +297,36 @@ pub fn update(dir: &Path) -> Result<(Vec<PathBuf>, usize), String> {
     Ok((written, rules.blocks.len() + rules.exceptions.len()))
 }
 
+/// One input for the fuzzers (see docs/FUZZING.md): any bytes read as a
+/// filter list. Whatever the list says, what Sanaga hands to WebKit must be
+/// rule lists it can read: valid JSON, one object per rule.
+#[cfg(any(test, fuzzing))]
+pub fn fuzz_one(data: &[u8]) {
+    let text = String::from_utf8_lossy(data);
+    let mut rules = Rules::default();
+    convert(&text, &mut rules);
+    for part in lists(&rules) {
+        let v: serde_json::Value = serde_json::from_str(&part).unwrap_or_else(|e| panic!("rule list is not JSON ({e}): {part}"));
+        for r in v.as_array().expect("a rule list is an array") {
+            assert!(r["trigger"]["url-filter"].is_string() && r["action"]["type"].is_string(), "{r}");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Thousands of damaged filter lists (see mutate.rs): none may panic, and
+    /// every rule that comes out is still JSON.
+    #[test]
+    fn damaged_lists_stay_readable() {
+        let seeds: [&[u8]; 2] = [
+            b"[Adblock Plus 2.0]\n! a comment\n||ads.example.com^$third-party\n/banner/*/img^$script,image,domain=a.com|b.org\n|https://x.example/a.js|$~image,match-case\n@@||cdn.example.com/lib.js$script,domain=~bad.example\n||tracker.example^$subdocument\nexample.com##.ad\n",
+            "||a.example^$domain=a.com|~b.com\n||b\u{fc}cher.example^\n$script,third-party\n/ads[0-9]+\\.js/\n||a.example^$redirect=noop.js\n-ad-banner.\n&ad_type=\n".as_bytes(),
+        ];
+        crate::mutate::run(&seeds, 30_000, fuzz_one);
+    }
 
     fn one(line: &str) -> Option<String> {
         rule(line).map(|r| r.1)

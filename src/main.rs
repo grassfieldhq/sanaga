@@ -33,10 +33,13 @@ mod identity;
 mod net;
 mod frames;
 mod guard;
+#[cfg(test)]
+mod mutate;
 mod page;
 mod shell;
 mod site_prefs;
 mod codecs;
+mod crash;
 mod webext;
 mod store;
 mod theme;
@@ -126,6 +129,12 @@ fn log_crashes() {
             let what = info.payload().downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| info.payload().downcast_ref::<String>().cloned()).unwrap_or_default();
             let _ = writeln!(f, "[{}] Sanaga {} crashed at {place}: {what}", store::now(), env!("CARGO_PKG_VERSION"));
         }
+        // the report the person can read and send (sanaga://crashes): where
+        // it happened and the message, private details taken out
+        let place = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_default();
+        let what = info.payload().downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| info.payload().downcast_ref::<String>().cloned()).unwrap_or_default();
+        let thread = std::thread::current().name().unwrap_or("?").to_string();
+        crash::write(&dir, crash::Kind::Interface, &page::engine_version(), &format!("Where: {place}\nThread: {thread}\nMessage: {what}"));
         default(info);
     }));
 }
@@ -197,6 +206,13 @@ fn main() -> eframe::Result {
             }
             // a window that keeps nothing (Chrome's guest)
             "--guest" | "--invite" => urls.push("invite:".into()),
+            // driven by test software (WebDriver, see docs/AUTOMATION.md): a
+            // window of its own that keeps nothing and never touches the
+            // person's profile
+            "--automation" => {
+                urls.push("invite:".into());
+                urls.push("automation:".into());
+            }
             "--app" => {
                 if let Some(u) = args.next() {
                     urls.push(format!("webapp:{u}"));
@@ -215,6 +231,7 @@ fn main() -> eframe::Result {
                      \x20 --reader             open the addresses in Reader mode\n\
                      \x20 --apercu             start on the tab overview\n\
                      \x20 --screenshot FILE    draw the window once, save it as a PNG picture, quit\n\
+                     \x20 --automation         let test software drive Sanaga (WebDriver); keeps nothing\n\
                      \x20 -h, --help           show this help\n\n\
                      Data: ~/.local/share/sanaga (or $XDG_DATA_HOME/sanaga)",
                     env!("CARGO_PKG_VERSION")
@@ -257,5 +274,7 @@ fn main() -> eframe::Result {
             .with_icon(Arc::new(icons::window_icon(64))),
         ..Default::default()
     };
-    eframe::run_native("Sanaga", options, Box::new(move |cc| Ok(Box::new(app::Sanaga::new(&cc.egui_ctx, urls, screenshot)))))
+    let done = eframe::run_native("Sanaga", options, Box::new(move |cc| Ok(Box::new(app::Sanaga::new(&cc.egui_ctx, urls, screenshot)))));
+    crash::mark_stopped();
+    done
 }

@@ -64,6 +64,8 @@ check() {
 package() {
   cd "$srcdir/sanaga"
   install -Dm755 target/release/sanaga "$pkgdir/usr/bin/sanaga"
+  # loaded by the page processes: which process serves which tab (Activity)
+  install -Dm644 target/release/libsanaga_page_helper.so "$pkgdir/usr/lib/sanaga/libsanaga_page_helper.so"
   install -Dm644 packaging/sanaga.desktop "$pkgdir/usr/share/applications/sanaga.desktop"
   install -Dm644 packaging/sanaga.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/sanaga.svg"
   for s in 48 64 128 256 512; do

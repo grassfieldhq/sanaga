@@ -10,3 +10,6 @@
 .DS_Store
 .idea/
 .vscode/
+
+# test crates built on their own
+/tools/guard-tests/target/

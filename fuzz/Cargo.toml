@@ -1,0 +1,63 @@
+# Coverage-guided fuzzing (libFuzzer) of the readers of files and pages that
+# come from anywhere: the Light engine's HTML, extensions from other
+# browsers, imported bookmarks, the ad-block lists. See docs/FUZZING.md.
+#
+#     cargo +nightly fuzz run html -- -max_total_time=60
+#
+# Like tools/guard-tests, the modules are built on their own (without GTK
+# and WebKitGTK): the very files of src/, not copies.
+
+[package]
+name = "sanaga-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+libfuzzer-sys = "0.4"
+url = "2.5"
+percent-encoding = "2"
+libc = "0.2"
+flate2 = "1"
+serde_json = "1"
+ureq = { version = "2.12", default-features = false, features = ["tls"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
+
+[[bin]]
+name = "html"
+path = "fuzz_targets/html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "webext"
+path = "fuzz_targets/webext.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "import"
+path = "fuzz_targets/import.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "blocklist"
+path = "fuzz_targets/blocklist.rs"
+test = false
+doc = false
+bench = false
+
+# (not part of Sanaga's own build)
+[workspace]

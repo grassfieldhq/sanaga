@@ -414,6 +414,26 @@ pub struct Process {
     pub bytes: u64,
     /// Share of one processor core used over the last moments, in percent.
     pub cpu: f32,
+    /// When it started (clock ticks since the computer did) and its number
+    /// as the process itself sees it (inside the engine's sandbox, not the
+    /// real one): what a page's process tells Sanaga about itself, to find
+    /// which tab it serves (see page-helper/).
+    pub start: u64,
+    pub inner_pid: u32,
+}
+
+/// (start time, number as seen from inside its sandbox) of a process.
+fn process_identity(pid: u32) -> (u64, u32) {
+    let start = std::fs::read_to_string(format!("/proc/{pid}/stat"))
+        .ok()
+        .and_then(|s| s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(19).and_then(|v| v.parse::<u64>().ok())))
+        .unwrap_or(0);
+    // "NSpid: 15700 2": its number in each nested set of processes, innermost last
+    let inner = std::fs::read_to_string(format!("/proc/{pid}/status"))
+        .ok()
+        .and_then(|s| s.lines().find_map(|l| l.strip_prefix("NSpid:").and_then(|v| v.split_whitespace().last().and_then(|n| n.parse::<u32>().ok()))))
+        .unwrap_or(pid);
+    (start, inner)
 }
 
 /// Sanaga's processes with their memory and processor use, measured on a
@@ -454,7 +474,8 @@ pub fn processes_cached() -> Vec<Process> {
                         let t = ticks(pid);
                         let cpu = before.get(&pid).map(|b| t.saturating_sub(*b) as f32 / secs).unwrap_or(0.0);
                         now.insert(pid, t);
-                        list.push(Process { kind, bytes: process_memory(pid), cpu });
+                        let (start, inner_pid) = if kind == 2 { process_identity(pid) } else { (0, pid) };
+                        list.push(Process { kind, bytes: process_memory(pid), cpu, start, inner_pid });
                     }
                     before = now;
                     list.sort_by(|a, b| a.kind.cmp(&b.kind).then(b.bytes.cmp(&a.bytes)));

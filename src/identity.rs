@@ -121,7 +121,7 @@ pub fn protected_url(url: &str) -> Option<&'static str> {
     }
     let host = u.host_str()?;
     let service = drm_service(host).or_else(|| if webrtc_missing() { call_service(host) } else { None })?;
-    let staying = STAY.lock().is_ok_and(|s| s.iter().any(|x| *x == service));
+    let staying = STAY.lock().is_ok_and(|s| s.contains(&service));
     (!staying).then_some(service)
 }
 

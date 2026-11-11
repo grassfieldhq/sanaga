@@ -91,7 +91,7 @@ jobs:
         run: |
           name="sanaga-${{ needs.version.outputs.version }}-x86_64-linux"
           mkdir -p "$name/target/release" "$name/packaging"
-          cp target/release/sanaga "$name/target/release/"
+          cp target/release/sanaga target/release/libsanaga_page_helper.so "$name/target/release/"
           cp packaging/install.sh packaging/sanaga.desktop packaging/sanaga.svg "$name/packaging/"
           cp README.md LICENSE CHANGELOG.md "$name/"
           printf '#!/bin/sh\nexec "$(dirname "$0")/packaging/install.sh" "$@"\n' > "$name/install.sh"

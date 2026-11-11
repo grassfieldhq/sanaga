@@ -1107,3 +1107,22 @@ affiché	mostrada
 en cours · son	en curso · sonido
 en cours	en curso
 Mettre en veille	Poner en reposo
+Sanaga s'est arrêté de façon inattendue. {} onglet(s) peuvent être rouverts.	Sanaga se detuvo de forma inesperada. Se pueden reabrir {} pestaña(s).
+Sanaga s'est arrêté de façon inattendue. Vos onglets sont revenus.	Sanaga se detuvo de forma inesperada. Sus pestañas han vuelto.
+Voir le rapport	Ver el informe
+Rouvrir les onglets	Reabrir las pestañas
+Rapports de plantage	Informes de fallos
+Tout supprimer	Eliminar todo
+Quand Sanaga ou une page s'arrête sans prévenir, un court rapport est gardé ici, sur cet ordinateur. Rien n'est envoyé tout seul : vous le lisez, puis vous choisissez de l'envoyer ou non. Il ne contient ni l'adresse des pages, ni votre nom.	Cuando Sanaga o una página se detiene sin avisar, se guarda aquí un breve informe, en este ordenador. Nada se envía solo: usted lo lee y luego decide si lo envía. No contiene la dirección de las páginas ni su nombre.
+Aucun rapport : rien ne s'est arrêté.	Ningún informe: nada se ha detenido.
+Sanaga s'est arrêté	Sanaga se detuvo
+Une page a cessé de fonctionner	Una página dejó de funcionar
+Une page utilisait trop de mémoire	Una página usaba demasiada memoria
+Sanaga a été arrêté sans se fermer	Sanaga fue detenido sin cerrarse
+Envoyer sur GitHub…	Enviar en GitHub…
+Copié	Copiado
+« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez.	«Enviar en GitHub» abre una nueva incidencia ya rellenada con este texto: aún puede modificarlo, y es usted quien lo envía.
+Sanaga est piloté par un logiciel de test automatisé.	Sanaga está controlado por un software de pruebas automatizadas.
+Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le moteur pour la prochaine page, ou finissent de se fermer.	Cada página tiene su propio proceso. Los que no tienen nombre los mantiene listos el motor para la próxima página, o están terminando de cerrarse.
+* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Proceso compartido por varias pestañas (páginas abiertas una por otra): su memoria y su procesador cuentan para cada una.
+ne répond plus	no responde

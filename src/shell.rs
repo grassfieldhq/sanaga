@@ -1077,7 +1077,10 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
         open_window(w);
     }
     drop(first);
+    quit_on_signals();
     main.run();
+    // closed as it should
+    crate::crash::mark_stopped();
     if let Some(sock) = sock.as_ref().filter(|_| single) {
         let _ = std::fs::remove_file(sock);
     }
@@ -1085,6 +1088,57 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     HOST.with(|h| *h.borrow_mut() = None);
     MAIN.with(|m| *m.borrow_mut() = None);
     Ok(())
+}
+
+/// The write end of the pipe the signal handler pokes (see `quit_on_signals`).
+static STOP_PIPE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+
+/// Runs inside the signal: only tells the waiting thread, through the pipe.
+extern "C" fn stop_asked(signal: libc::c_int) {
+    let fd = STOP_PIPE.load(std::sync::atomic::Ordering::Relaxed);
+    // SAFETY: `write` and `signal` may be called inside a signal handler;
+    // the pipe's write end stays open as long as Sanaga runs.
+    unsafe {
+        if fd >= 0 {
+            libc::write(fd, [1u8].as_ptr().cast(), 1);
+        }
+        // asked a second time (Sanaga is stuck): the system's own way
+        libc::signal(signal, libc::SIG_DFL);
+    }
+}
+
+/// Asked to stop by the system (logging out, `kill`, Ctrl+C in a terminal):
+/// close as the Quit command does — tabs saved, and nothing taken for a
+/// crash at the next start. A thread waits on a pipe (it costs nothing
+/// until then) and hands the request to the window's loop.
+fn quit_on_signals() {
+    let mut fds = [0 as libc::c_int; 2];
+    // SAFETY: `fds` has room for the two ends; closed on exec, so the
+    // engine's processes don't inherit them.
+    if unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) } != 0 {
+        return;
+    }
+    let (read_end, write_end) = (fds[0], fds[1]);
+    STOP_PIPE.store(write_end, std::sync::atomic::Ordering::Relaxed);
+    let waiting = std::thread::Builder::new().name("sanaga-signals".into()).spawn(move || {
+        let mut byte = [0u8; 1];
+        loop {
+            // SAFETY: a valid descriptor and a buffer of one byte.
+            let n = unsafe { libc::read(read_end, byte.as_mut_ptr().cast(), 1) };
+            if n == 1 {
+                glib::MainContext::default().invoke(quit_all);
+            } else if n == 0 || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+                break;
+            }
+        }
+    });
+    if waiting.is_ok() {
+        let handler = stop_asked as extern "C" fn(libc::c_int) as libc::sighandler_t;
+        for signal in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP] {
+            // SAFETY: a handler that only calls async-signal-safe functions.
+            unsafe { libc::signal(signal, handler) };
+        }
+    }
 }
 
 /// The window used last (it gets the links opened from other applications).

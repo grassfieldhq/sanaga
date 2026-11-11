@@ -60,6 +60,7 @@ modules:
       - cargo --offline fetch --manifest-path Cargo.toml
       - cargo --offline build --release
       - install -Dm755 target/release/sanaga /app/bin/sanaga
+      - install -Dm644 target/release/libsanaga_page_helper.so /app/lib/sanaga/libsanaga_page_helper.so
       - install -Dm644 packaging/sanaga.svg /app/share/icons/hicolor/scalable/apps/site.grassfield.Sanaga.svg
       - sed -e 's/^Icon=sanaga$/Icon=site.grassfield.Sanaga/' packaging/sanaga.desktop > site.grassfield.Sanaga.desktop
       - install -Dm644 site.grassfield.Sanaga.desktop /app/share/applications/site.grassfield.Sanaga.desktop

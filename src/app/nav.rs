@@ -677,6 +677,9 @@ impl Sanaga {
                 "activity" => {
                     self.open_tab("sanaga://activity", false);
                 }
+                "crashes" => {
+                    self.open_tab("sanaga://crashes", false);
+                }
                 "sidebar" => self.sidebar_open = !self.sidebar_open,
                 "focus" => self.toggle_focus_mode(),
                 "container" => self.container_ask = Some(String::new()),
