@@ -61,6 +61,42 @@ const TRANSLATE_JS: &str = r#"(function () {
   next();
 })();"#;
 
+/// A language's name in the interface's language, as it reads inside a
+/// sentence ("traduite en anglais", "translated into English"): the names
+/// of the list above are each in its own language, for choosing.
+pub(super) fn lang_in_sentence(code: &str) -> &'static str {
+    match code {
+        "fr" => tr("français"),
+        "en" => tr("anglais"),
+        "es" => tr("espagnol"),
+        "pt" => tr("portugais"),
+        "de" => tr("allemand"),
+        "it" => tr("italien"),
+        "nl" => tr("néerlandais"),
+        "pl" => tr("polonais"),
+        "tr" => tr("turc"),
+        "sw" => tr("swahili"),
+        "ha" => tr("haoussa"),
+        "yo" => tr("yoruba"),
+        "ln" => tr("lingala"),
+        "wo" => tr("wolof"),
+        "ar" => tr("arabe"),
+        "ru" => tr("russe"),
+        "zh-CN" => tr("chinois simplifié"),
+        "ja" => tr("japonais"),
+        "ko" => tr("coréen"),
+        "hi" => tr("hindi"),
+        _ => "",
+    }
+}
+
+/// The main part of a language code, to compare two: "pt-BR" and "pt_pt"
+/// are both "pt". Empty when it is not a language code.
+pub(super) fn main_language(code: &str) -> String {
+    let main = code.trim().split(['-', '_']).next().unwrap_or("").to_ascii_lowercase();
+    if (2..=3).contains(&main.len()) && main.chars().all(|c| c.is_ascii_lowercase()) { main } else { String::new() }
+}
+
 /// At most this many batches of a page are translated (80 texts or 5000
 /// characters each): a very long page stops there.
 const MAX_BATCHES: usize = 40;
@@ -165,6 +201,71 @@ impl Sanaga {
                 // (the question is about this tab's page)
                 self.translate_ask_tab = self.tabs.get(self.active).map(|t| t.id).unwrap_or(0);
             }
+        }
+    }
+
+    /// A page said which language it is written in. When it is not the one
+    /// pages are translated into, translating it is offered in a bar (once
+    /// per page; never on a site where the person said no; nothing is sent
+    /// anywhere before they say yes).
+    pub(super) fn page_language(&mut self, tab: u64, lang: &str) {
+        let st = &self.store.settings;
+        let (page, wanted) = (main_language(lang), main_language(target(&st.translate_to).0));
+        if !st.translate_offer || page.is_empty() || wanted.is_empty() || page == wanted {
+            return;
+        }
+        let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };
+        let host = host_of(t.url());
+        // (a page already being translated, or a translation service's own page)
+        if st.translate_skip.contains(&host) || self.translation.as_ref().is_some_and(|x| x.tab == tab) || host.starts_with("translate.google.") {
+            return;
+        }
+        self.translate_offered = Some((tab, host));
+    }
+
+    pub(super) fn translate_offer_visible(&self) -> bool {
+        !self.focus_mode && !self.translation_bar_visible() && self.translate_offered.as_ref().is_some_and(|(tab, _)| self.tabs.get(self.active).is_some_and(|a| a.id == *tab && matches!(a.view, View::Web)))
+    }
+
+    /// "This page is not in French." — translate it, not now, or never on this site.
+    pub(super) fn translate_offer_bar(&mut self, ui: &mut Ui, th: &Theme) {
+        let Some((_, host)) = self.translate_offered.clone() else { return };
+        let lang = lang_in_sentence(target(&self.store.settings.translate_to).0);
+        let mut act: Option<&str> = None;
+        ui.horizontal_centered(|ui| {
+            ui.add_space(14.0);
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+            crate::icons::paint(ui.painter(), r, crate::icons::Icon::Translate, th.accent);
+            ui.add_space(6.0);
+            ui.add(egui::Label::new(egui::RichText::new(tf("Cette page n'est pas en {}.", &[&lang])).size(13.0).color(th.text)).truncate());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(12.0);
+                if super::chrome::icon_button_small(ui, crate::icons::Icon::Close, th).tip(tr("Pas maintenant")).clicked() {
+                    act = Some("later");
+                }
+                // (a site's name; a file on this computer has none)
+                if !host.contains('/') && ui.button(tf("Jamais sur {}", &[&host])).clicked() {
+                    act = Some("never");
+                }
+                if ui.add(egui::Button::new(egui::RichText::new(tr("Traduire")).color(egui::Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(8))).clicked() {
+                    act = Some("translate");
+                }
+            });
+        });
+        match act {
+            Some("translate") => {
+                self.translate_offered = None;
+                self.translate_page();
+            }
+            Some("never") => {
+                self.translate_offered = None;
+                if !self.store.settings.translate_skip.contains(&host) {
+                    self.store.settings.translate_skip.push(host);
+                    self.store.save_settings();
+                }
+            }
+            Some("later") => self.translate_offered = None,
+            _ => {}
         }
     }
 
@@ -285,7 +386,7 @@ impl Sanaga {
         self.translate_batches = 0;
         self.translate_gen += 1;
         // (what is being done stays in view, with a way to stop it)
-        self.translation = Some(Translation { tab: id, lang: target(&self.store.settings.translate_to).2.to_string(), by: provider.label(), state: TrState::Running, parts: 0 });
+        self.translation = Some(Translation { tab: id, lang: lang_in_sentence(target(&self.store.settings.translate_to).0).to_string(), by: provider.label(), state: TrState::Running, parts: 0 });
     }
 
     /// The tab left its page (or closed): its translation stops, and the
@@ -402,6 +503,7 @@ impl Sanaga {
                     ui.set_width(w - 12.0);
                     let mut row = |ui: &mut Ui, icon: crate::icons::Icon, title: &str, sub: &str, keys: &str, key: &'static str| {
                         let (r, resp) = ui.allocate_exact_size(vec2(w - 12.0, 48.0), Sense::click());
+                        super::chrome::focus_ring(ui, &resp, r, 9.0, th);
                         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{title}. {sub}")));
                         if resp.hovered() {
                             ui.painter().rect_filled(r, CornerRadius::same(9), th.accent.gamma_multiply(0.14));
@@ -418,7 +520,8 @@ impl Sanaga {
                         }
                     };
                     row(ui, crate::icons::Icon::Sparkle, tr("Résumer la page"), tr("Les points essentiels, à côté de la page"), tr("Ctrl+Maj+Y"), "summary");
-                    let sub = if engine.is_empty() { tf("En {}", &[&lang.2]) } else { tf("En {} · avec {}", &[&lang.2, &engine]) };
+                    let name = lang_in_sentence(lang.0);
+                    let sub = if engine.is_empty() { tf("En {}", &[&name]) } else { tf("En {} · avec {}", &[&name, &engine]) };
                     row(ui, crate::icons::Icon::Translate, tr("Traduire la page"), &sub, "", "translate");
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
@@ -495,6 +598,8 @@ impl Sanaga {
                     ui.add_space(12.0);
                     let mut option = |ui: &mut Ui, key: &'static str, title: &str, sub: &str| {
                         let (r, resp) = ui.allocate_exact_size(vec2(420.0, 52.0), Sense::click());
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{title}. {sub}")));
+                        super::chrome::focus_ring(ui, &resp, r, 10.0, th);
                         ui.painter().rect_filled(r, CornerRadius::same(10), if resp.hovered() { th.accent.gamma_multiply(0.12) } else { th.card });
                         ui.painter().text(pos2(r.left() + 14.0, r.top() + 17.0), egui::Align2::LEFT_CENTER, title, FontId::proportional(14.0), th.text);
                         ui.painter().text(pos2(r.left() + 14.0, r.top() + 36.0), egui::Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
@@ -541,6 +646,23 @@ mod tests {
         assert_eq!(super::read_batch(&many), None);
         let long = format!("0\n[\"{}\"]", "a".repeat(6001));
         assert_eq!(super::read_batch(&long), None);
+    }
+
+    #[test]
+    fn languages_are_compared_by_their_main_part() {
+        use super::main_language;
+        assert_eq!(main_language("pt-BR"), "pt");
+        assert_eq!(main_language("EN_us"), "en");
+        assert_eq!(main_language(" fr "), "fr");
+        assert_eq!(main_language("zh-CN"), main_language("zh-hant"));
+        // not language codes
+        for odd in ["", "x", "français", "e n", "12", "<script>"] {
+            assert_eq!(main_language(odd), "", "{odd}");
+        }
+        // every language offered has its name for a sentence
+        for (code, _, _) in super::LANGUAGES {
+            assert!(!super::lang_in_sentence(code).is_empty(), "{code}");
+        }
     }
 
     #[test]

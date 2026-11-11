@@ -499,7 +499,14 @@ pub struct Sanaga {
     translate_ask: bool,
     /// The tab that question is about; the translation whose bar is shown.
     translate_ask_tab: u64,
+    /// The number of the last request made to a model (answers to earlier
+    /// ones are dropped).
+    ai_run: u64,
     translation: Option<translate::Translation>,
+    /// A page in another language: translating it is offered (tab, site).
+    translate_offered: Option<(u64, String)>,
+    /// An extension tried in one tab before it is switched on: (tab, its id, its name).
+    ext_trial: Option<(u64, String, String)>,
     /// Sites whose DRM bar was dismissed; the identity chooser is open.
     drm_dismissed: HashSet<String>,
     /// The protected-site page's "always open this way" box.
@@ -859,7 +866,10 @@ impl Sanaga {
             translate_gen: 0,
             translate_ask: false,
             translate_ask_tab: 0,
+            ai_run: 0,
             translation: None,
+            translate_offered: None,
+            ext_trial: None,
             drm_dismissed: HashSet::new(),
             drm_always_pick: true,
             saver_last_tab: 0,
@@ -1806,6 +1816,12 @@ impl Sanaga {
             eprintln!("frame t={:.2}", ui.input(|i| i.time));
         }
         self.apply_style();
+        // The keyboard alone: in one of Sanaga's own pages (settings,
+        // history…), the first Tab goes to the page's first control, not
+        // to the window's toolbar (which comes after the page's last one).
+        if self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Internal(_))) && ui.ctx().memory(|m| m.focused().is_none()) && ui.input(|i| i.key_pressed(Key::Tab) && !i.modifiers.any()) {
+            ui.ctx().memory_mut(|m| m.request_focus(egui::Id::new("page-start")));
+        }
         self.finish_jobs();
         self.poll_network();
         let ctx0 = ui.ctx().clone();
@@ -1907,6 +1923,16 @@ impl Sanaga {
                 });
             });
         }
+        if self.extension_trial_visible() {
+            egui::Panel::top("exttrial").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.extension_trial_bar(ui, &th);
+            });
+        }
+        if self.translate_offer_visible() {
+            egui::Panel::top("translateoffer").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.translate_offer_bar(ui, &th);
+            });
+        }
         if self.translation_bar_visible() {
             egui::Panel::top("translationbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.translation_bar(ui, &th);
@@ -1969,7 +1995,8 @@ impl Sanaga {
                 });
         }
         if self.summary.is_some() && !self.focus_mode {
-            egui::Panel::right("summary").exact_size(380.0).frame(Frame::NONE.fill(th.sidebar)).show(ui, |ui| {
+            // (its left edge can be dragged: wider to read, narrower for the page)
+            egui::Panel::right("summary").resizable(true).default_size(380.0).size_range(300.0..=640.0).frame(Frame::NONE.fill(th.sidebar)).show(ui, |ui| {
                 self.summary_panel(ui, &th);
             });
         }

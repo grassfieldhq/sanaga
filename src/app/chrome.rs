@@ -5,8 +5,19 @@ use crate::icons::{self, Icon};
 use crate::theme::badge_color;
 use eframe::egui::{Align2, Color32, Margin, Response, Sense, TextEdit};
 
+/// The keyboard is on this control (reached with Tab): a ring in the accent
+/// colour around it. Sanaga draws most of its controls itself: without
+/// this, nothing shows where Tab is, and the interface can't be used
+/// without a mouse.
+pub(super) fn focus_ring(ui: &Ui, resp: &Response, rect: egui::Rect, radius: f32, th: &Theme) {
+    if resp.has_focus() {
+        ui.painter().rect_stroke(rect, egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8), egui::Stroke::new(2.0, th.accent), egui::StrokeKind::Outside);
+    }
+}
+
 pub(super) fn icon_button_small(ui: &mut Ui, icon: Icon, th: &Theme) -> Response {
     let (r, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    focus_ring(ui, &resp, r, 13.0, th);
     if resp.hovered() {
         ui.painter().circle_filled(r.center(), 12.0, th.omnibox_hover);
     }

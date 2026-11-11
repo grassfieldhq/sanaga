@@ -24,7 +24,7 @@ def answer(system, prompt):
             texts = []
         return json.dumps(["«" + t.upper() + "»" for t in texts], ensure_ascii=False)
     if system.startswith("You summarise"):
-        return "Cette page présente son sujet en quelques paragraphes.\n• Premier point essentiel de la page.\n• Deuxième point, avec un chiffre : 600 km.\n• Troisième point pour finir."
+        return "## En bref\nCette page présente **son sujet** en quelques paragraphes.\n• Premier point essentiel de la page.\n• Deuxième point, avec un chiffre : **600 km**.\n• Troisième point pour finir, un peu plus long pour passer à la ligne dans le panneau."
     if system.startswith("You write small"):
         return "document.addEventListener('DOMContentLoaded', function () {\n  var s = document.createElement('style');\n  s.textContent = '.ad, .banner { display: none !important; }';\n  document.head.appendChild(s);\n});"
     return "ok"
@@ -44,8 +44,25 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         asked = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-        time.sleep(DELAY)
-        self.reply({"model": asked.get("model", ""), "response": answer(asked.get("system", ""), asked.get("prompt", "")), "done": True})
+        text = answer(asked.get("system", ""), asked.get("prompt", ""))
+        if not asked.get("stream"):
+            time.sleep(DELAY)
+            self.reply({"model": asked.get("model", ""), "response": text, "done": True})
+            return
+        # as Ollama does: one JSON object per line, a few words at a time
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson")
+        self.end_headers()
+        words = text.split(" ")
+        try:
+            for k, word in enumerate(words):
+                time.sleep(DELAY / max(len(words), 1))
+                piece = word + ("" if k == len(words) - 1 else " ")
+                self.wfile.write((json.dumps({"response": piece, "done": False}) + "\n").encode())
+                self.wfile.flush()
+            self.wfile.write((json.dumps({"response": "", "done": True}) + "\n").encode())
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # the request was stopped in Sanaga
 
     def log_message(self, *args):
         pass

@@ -1149,3 +1149,41 @@ Nom (facultatif)	Name (optional)
 Choisissez d'abord un modèle d'IA, ci-dessus.	First choose an AI model, above.
 Décrivez d'abord ce qu'elle doit faire.	First describe what it should do.
 Jeter	Discard
+français	French
+anglais	English
+espagnol	Spanish
+portugais	Portuguese
+allemand	German
+italien	Italian
+néerlandais	Dutch
+polonais	Polish
+turc	Turkish
+swahili	Swahili
+haoussa	Hausa
+yoruba	Yoruba
+lingala	Lingala
+wolof	Wolof
+arabe	Arabic
+russe	Russian
+chinois simplifié	Simplified Chinese
+japonais	Japanese
+coréen	Korean
+hindi	Hindi
+Cette page n'est pas en {}.	This page is not in {}.
+Jamais sur {}	Never on {}
+Traduire	Translate
+Proposer de traduire les pages dans une autre langue	Offer to translate pages in another language
+Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord	A bar under the toolbar, when the page says its language; nothing is sent before you agree
+Rétablir les réglages d'origine : {}	Restore the original settings: {}
+Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.	Click again to confirm: this category's settings go back to the original ones.
+Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.	Your data (favourites, passwords, contact details, language) is not touched.
+Confirmer	Confirm
+Réglages d'origine rétablis : {}.	Original settings restored: {}.
+Écriture du résumé…	Writing the summary…
+Résumé arrêté.	Summary stopped.
+Résumé arrêté avant la fin.	Summary stopped before the end.
+Écriture annulée.	Writing cancelled.
+Essai de « {} » sur cette page seulement : elle n'est pas encore activée.	Trying “{}” on this page only: it is not switched on yet.
+Arrêter l'essai	End the trial
+Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.	To try it before switching it on: open a page it acts on in another tab, then come back here.
+L'essayer d'abord sur :	Try it first on:

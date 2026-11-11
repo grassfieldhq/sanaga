@@ -57,6 +57,11 @@ impl Sanaga {
             self.tab_overview(ui, th);
             return;
         }
+        // Where Tab starts in one of Sanaga's own pages (see `frame_body`):
+        // an unseen stop just before the page's first control.
+        if matches!(self.tabs[a].view, View::Internal(_)) {
+            ui.interact(Rect::from_min_size(ui.max_rect().min, vec2(1.0, 1.0)), egui::Id::new("page-start"), Sense::focusable_noninteractive());
+        }
         if let View::Internal(Internal::Onboarding) = self.tabs[a].view {
             self.page_onboarding(ui, th);
             self.hover_url = None;
