@@ -39,6 +39,8 @@ mod start;
 mod tabs;
 mod toolbar;
 mod web;
+#[cfg(test)]
+mod robust;
 
 pub use web::web_engine_available;
 
@@ -266,10 +268,25 @@ fn host_of(url: &str) -> String {
     if url.starts_with("sanaga://") {
         return "Sanaga".into(); // Sanaga's own pages
     }
-    url::Url::parse(url)
-        .ok()
-        .and_then(|u| u.host_str().map(|h| h.trim_start_matches("www.").to_string()))
-        .unwrap_or_else(|| url.to_string())
+    thread_local! {
+        /// Site names already worked out: tabs, lists and badges ask for the
+        /// same addresses at every frame, and reading an address is not free
+        /// (hundreds of rows, sixty times a second).
+        static KNOWN: std::cell::RefCell<HashMap<String, String>> = std::cell::RefCell::new(HashMap::new());
+    }
+    KNOWN.with(|known| {
+        let mut known = known.borrow_mut();
+        if let Some(h) = known.get(url) {
+            return h.clone();
+        }
+        let host = url::Url::parse(url).ok().and_then(|u| u.host_str().map(|h| h.trim_start_matches("www.").to_string())).unwrap_or_else(|| url.to_string());
+        // (kept small: started again when it has grown)
+        if known.len() >= 8192 {
+            known.clear();
+        }
+        known.insert(url.to_string(), host.clone());
+        host
+    })
 }
 
 fn badge_letter(url: &str, title: &str) -> String {
@@ -630,9 +647,23 @@ pub struct Sanaga {
     group_label_rects: Vec<(usize, Rect)>,
     /// The last run ended abruptly: the bar that says so. The report whose
     /// text was just copied (its button says so).
+    /// Work done on other threads, handed back here (see `off_thread`); what
+    /// was already asked once; the keyring is there (None: not known yet);
+    /// a sync round is running.
+    jobs_tx: Sender<Job>,
+    jobs_rx: Receiver<Job>,
+    asked_once: HashSet<&'static str>,
+    keyring_there: Option<bool>,
+    sync_running: bool,
+    /// The new tab page's "frequently visited", and what it was worked out
+    /// from (visits, favourites): worked out again only when those change.
+    frequent: (u64, Vec<(String, usize, String)>),
     crash_notice: Option<crashes::CrashNotice>,
     crash_copied: Option<(std::path::PathBuf, f64)>,
 }
+
+/// What a piece of work done on another thread hands back to the window.
+type Job = Box<dyn FnOnce(&mut Sanaga) + Send>;
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
 /// GTK apps): a touchpad click that moves the pointer a little, or a slow
@@ -710,6 +741,7 @@ impl Sanaga {
         let (thumb_tx, thumb_rx) = channel();
         let (freeze_tx, freeze_rx) = channel();
         let (ai_tx, ai_rx) = channel();
+        let (jobs_tx, jobs_rx) = channel();
         // interface language; WebKit reads it too (pages are asked in that language)
         crate::i18n::set_language(&store.settings.language);
         if screenshot.is_none() {
@@ -886,6 +918,12 @@ impl Sanaga {
             tab_scroll: 0.0,
             tab_scroll_seen: (usize::MAX, 0),
             restoring: false,
+            jobs_tx,
+            jobs_rx,
+            asked_once: HashSet::new(),
+            keyring_there: None,
+            sync_running: false,
+            frequent: (u64::MAX, Vec::new()),
             crash_notice: None,
             crash_copied: None,
             shot_private: false,
@@ -1074,6 +1112,9 @@ impl Sanaga {
         }
         // the saved accounts, from the system keyring
         app.refresh_logins();
+        if app.store.settings.ai == "claude" {
+            app.check_ai_key();
+        }
         app
     }
 
@@ -1421,6 +1462,72 @@ impl Sanaga {
         self.window_request = Some(urls);
     }
 
+    /// Anything that may wait — another program (the keyring, xdg-settings),
+    /// a slow disk or folder, a long calculation — is done on a thread of
+    /// its own, never in the window's: the window would stop answering
+    /// meanwhile. `then` gets the result back in the window's thread, at
+    /// one of the next frames (the tab or page it was for may be gone by
+    /// then: it must look again).
+    pub(super) fn off_thread<T: Send + 'static>(&self, work: impl FnOnce() -> T + Send + 'static, then: impl FnOnce(&mut Sanaga, T) + Send + 'static) {
+        let (tx, ctx) = (self.jobs_tx.clone(), self.ctx.clone());
+        let _ = std::thread::Builder::new().name("sanaga-work".into()).spawn(move || {
+            let result = work();
+            let job: Job = Box::new(move |app: &mut Sanaga| then(app, result));
+            let _ = tx.send(job);
+            ctx.request_repaint();
+        });
+    }
+
+    /// The results of work done on other threads.
+    fn finish_jobs(&mut self) {
+        while let Ok(job) = self.jobs_rx.try_recv() {
+            job(self);
+        }
+    }
+
+    /// True the first time it is asked with this name (for what is looked
+    /// up once per run).
+    pub(super) fn first_time(&mut self, what: &'static str) -> bool {
+        self.asked_once.insert(what)
+    }
+
+    /// Is the system's keyring there? Asked once, on a thread; taken as
+    /// there until it has answered (no warning shown for nothing).
+    pub(super) fn keyring_ok(&mut self) -> bool {
+        if self.first_time("keyring") {
+            self.off_thread(crate::keyring::available, |app, ok| app.keyring_there = Some(ok));
+        }
+        self.keyring_there.unwrap_or(true)
+    }
+
+    /// A short message at the bottom of the window.
+    pub(super) fn say(&mut self, text: &str) {
+        self.notice = Some((text.to_string(), self.ctx.input(|i| i.time)));
+    }
+
+    /// A frame ended in an error of Sanaga's own (see shell.rs): what was
+    /// open over the page is closed (it may be what failed), and the person
+    /// is told. The second time in a row, the tab shown is left for a new
+    /// one: its own page may be what fails.
+    pub fn after_error(&mut self, times: u8) {
+        self.menu_open = false;
+        self.suggest_open = false;
+        self.share_open = false;
+        self.overview_open = false;
+        self.tab_search_open = false;
+        self.site_panel = false;
+        self.profile_open = false;
+        self.overflow_open = false;
+        self.ai_menu_open = false;
+        self.bm_popover = false;
+        self.switcher = None;
+        self.find_open = false;
+        if times >= 2 {
+            self.open_tab("sanaga://newtab", false);
+        }
+        self.say(tr("Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes)."));
+    }
+
     /// Quit Sanaga: every window.
     pub(super) fn quit_app(&mut self) {
         self.quit_all = true;
@@ -1486,6 +1593,7 @@ impl Sanaga {
             if let Some((t, a)) = steps.get(self.live_step) {
                 if now >= *t {
                     self.live_step += 1;
+                    crate::shell::doing(a);
                     match a.as_str() {
                         "menu" => self.menu_open = !self.menu_open,
                         "max" => crate::desktop::toggle_maximize(ui.ctx()),
@@ -1584,6 +1692,22 @@ impl Sanaga {
                             let i = self.active;
                             self.navigate(i, "sanaga://settings".into(), None, true);
                         }
+                        // (for tools/lag-audit.sh: an address in this tab or a new
+                        // one, a Settings category by its place, a sync now)
+                        a if a.starts_with("go:") => {
+                            let i = self.active;
+                            self.navigate(i, a[3..].to_string(), None, true);
+                        }
+                        a if a.starts_with("opentab:") => {
+                            self.open_tab(&a[8..], false);
+                        }
+                        a if a.starts_with("section:") => {
+                            if let Some(s) = settings::Section::by_place(a[8..].parse().unwrap_or(0)) {
+                                self.settings_section = s;
+                            }
+                        }
+                        "syncnow" => self.sync_now(),
+                        "panic" => panic!("live test: a panic inside a frame"),
                         a if a.starts_with("probe:") => {
                             if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
                                 let _ = w.evaluate_own(&format!("try{{window.ipc.postMessage('tool:probe:'+String({}))}}catch(e){{window.ipc.postMessage('tool:probe:error '+e)}}", &a[6..]));
@@ -1667,6 +1791,7 @@ impl Sanaga {
             eprintln!("frame t={:.2}", ui.input(|i| i.time));
         }
         self.apply_style();
+        self.finish_jobs();
         self.poll_network();
         let ctx0 = ui.ctx().clone();
         let t_pump = std::time::Instant::now();

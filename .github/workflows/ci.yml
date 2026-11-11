@@ -70,6 +70,12 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1280x800x24" env LIBGL_ALWAYS_SOFTWARE=1 dbus-run-session -- tools/smoke.sh
       - name: Driven through WebDriver
         run: xvfb-run -a -s "-screen 0 1280x800x24" env LIBGL_ALWAYS_SOFTWARE=1 dbus-run-session -- python3 tools/webdriver-test.py
+      # A heavy profile, the system's helper programs made slow (2 s each),
+      # every feature in turn: nothing may hold the window's thread
+      # (docs/STABILITY-AUDIT-2026-11-11.md). A small screen: drawing is done
+      # by the processor here.
+      - name: No lag
+        run: xvfb-run -a -s "-screen 0 640x480x24" env LIBGL_ALWAYS_SOFTWARE=1 dbus-run-session -- tools/lag-audit.sh target/debug/sanaga 500 1900
 
   # Known vulnerabilities in the crates Sanaga is built from.
   audit:

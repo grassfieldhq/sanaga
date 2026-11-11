@@ -419,6 +419,8 @@ impl Store {
 
     pub fn load_profile(profile: &str) -> Store {
         let dir = if profile.is_empty() { Self::root_dir() } else { Self::root_dir().join("profils").join(profile) };
+        // (what this run is still writing is read back whole)
+        flush_saves();
         let first_run = !dir.join("settings.txt").exists();
         // the person's data: closed to other users (folders 0700, files 0600)
         ensure_private_dir(&Self::root_dir());
@@ -600,13 +602,13 @@ impl Store {
             st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right), clean(&st.profile_name), st.profile_color, b(st.full_urls)
         );
         let extra = format!("block_lists={}\n", b(st.block_lists));
-        let _ = write_atomic(&dir.join("settings.txt"), t + &more + &extra);
+        save_soon(&dir.join("settings.txt"), t + &more + &extra);
     }
 
     pub fn save_containers(&self) {
         let Some(dir) = &self.dir else { return };
         let t: String = self.containers.iter().map(|c| format!("{}\t{}\n", clean(&c.name).replace('\t', " "), c.color)).collect();
-        let _ = write_atomic(&dir.join("containers.tsv"), t);
+        save_soon(&dir.join("containers.tsv"), t);
         CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
@@ -617,7 +619,7 @@ impl Store {
             .iter()
             .map(|b| format!("{}\t{}\t{}\t{}\n", b.label.replace(['\t', '\n'], " "), b.symbol.replace(['\t', '\n'], " "), b.kind, b.value.replace('\t', "    ").replace('\n', "\\n")))
             .collect();
-        let _ = write_atomic(&dir.join("buttons.tsv"), t);
+        save_soon(&dir.join("buttons.tsv"), t);
         CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
@@ -626,7 +628,7 @@ impl Store {
         crate::site_prefs::set_all(list.to_vec());
         let Some(dir) = &self.dir else { return };
         let t: String = list.iter().filter(|(_, p)| !p.is_default()).map(|(h, p)| p.to_line(h) + "\n").collect();
-        let _ = write_atomic(&dir.join("sites.tsv"), t);
+        save_soon(&dir.join("sites.tsv"), t);
         CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
@@ -646,11 +648,7 @@ impl Store {
         }
         let v = Visit { time: now(), url: url.to_string(), title: title.to_string() };
         if let Some(dir) = &self.dir {
-            use std::os::unix::fs::OpenOptionsExt;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(dir.join("history.tsv")) {
-                let _ = writeln!(f, "{}\t{}\t{}", v.time, clean(&v.url), clean(&v.title));
-                changed();
-            }
+            append_soon(&dir.join("history.tsv"), format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
         }
         self.history.push(v);
     }
@@ -661,7 +659,7 @@ impl Store {
         for v in &self.history {
             t.push_str(&format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
         }
-        let _ = write_atomic(&dir.join("history.tsv"), t);
+        save_soon(&dir.join("history.tsv"), t);
     }
 
     pub fn clear_history(&mut self) {
@@ -704,7 +702,7 @@ impl Store {
         for b in &self.reading {
             t.push_str(&format!("{}\t{}\n", clean(&b.url), clean(&b.title)));
         }
-        let _ = write_atomic(&dir.join("reading.tsv"), t);
+        save_soon(&dir.join("reading.tsv"), t);
     }
 
     pub fn set_site_zoom(&mut self, host: &str, zoom: f32) {
@@ -718,7 +716,7 @@ impl Store {
         }
         let Some(dir) = &self.dir else { return };
         let t: String = self.site_zoom.iter().map(|(h, z)| format!("{}\t{}\n", clean(h), z)).collect();
-        let _ = write_atomic(&dir.join("zoom.tsv"), t);
+        save_soon(&dir.join("zoom.tsv"), t);
     }
 
     pub fn save_bookmarks(&self) {
@@ -727,24 +725,10 @@ impl Store {
         for b in &self.bookmarks {
             t.push_str(&format!("{}\t{}\n", clean(&b.url), clean(&b.title)));
         }
-        let _ = write_atomic(&dir.join("bookmarks.tsv"), t);
+        save_soon(&dir.join("bookmarks.tsv"), t);
     }
 
     /// Read favourites and reading list again (after a sync brought newer ones).
-    pub fn reload_lists(&mut self) {
-        let Some(dir) = self.dir.clone() else { return };
-        let read = |f: &str| -> Vec<Bookmark> {
-            std::fs::read_to_string(dir.join(f))
-                .unwrap_or_default()
-                .lines()
-                .filter_map(|l| l.split_once('\t'))
-                .map(|(u, t)| Bookmark { url: u.into(), title: t.into() })
-                .collect()
-        };
-        self.bookmarks = read("bookmarks.tsv");
-        self.reading = read("reading.tsv");
-    }
-
     pub fn permission(&self, site: &str, kind: &str) -> Option<bool> {
         self.permissions.iter().find(|(s, k, _)| s == site && k == kind).map(|p| p.2)
     }
@@ -756,7 +740,7 @@ impl Store {
         }
         let Some(dir) = &self.dir else { return };
         let t: String = self.permissions.iter().map(|(s, k, a)| format!("{}\t{}\t{}\n", clean(s), k, if *a { "1" } else { "0" })).collect();
-        let _ = write_atomic(&dir.join("permissions.tsv"), t);
+        save_soon(&dir.join("permissions.tsv"), t);
     }
 
     /// Forget visits made since `since` (seconds since 1970; 0 = everything).
@@ -768,20 +752,20 @@ impl Store {
     pub fn save_logins(&self) {
         let Some(dir) = &self.dir else { return };
         let t: String = self.logins.iter().map(|(a, b)| format!("{}\t{}\n", clean(a), clean(b))).collect();
-        let _ = write_atomic(&dir.join("logins.tsv"), t);
+        save_soon(&dir.join("logins.tsv"), t);
     }
 
     /// How Sanaga introduces itself to sites the person chose for.
     pub fn save_identities(&self) {
         let Some(dir) = &self.dir else { return };
         let t: String = self.identities.iter().map(|(h, i)| format!("{}\t{}\n", clean(h), i.key())).collect();
-        let _ = write_atomic(&dir.join("identity.tsv"), t);
+        save_soon(&dir.join("identity.tsv"), t);
         crate::identity::set_choices(self.identities.clone());
     }
 
     pub fn save_extensions(&self) {
         let Some(dir) = &self.dir else { return };
-        let _ = write_atomic(&dir.join("extensions.txt"), self.extensions_on.join("\n"));
+        save_soon(&dir.join("extensions.txt"), self.extensions_on.join("\n"));
     }
 
     /// The tabs of window `slot` (0 = the first window: `session.txt`; the
@@ -792,24 +776,27 @@ impl Store {
 
     pub fn save_session(&self, slot: usize, urls: &[String]) {
         let Some(dir) = &self.dir else { return };
-        let _ = write_atomic(&Self::session_file(dir, slot), urls.join("\n"));
+        save_soon(&Self::session_file(dir, slot), urls.join("\n"));
     }
 
     pub fn load_session(&self, slot: usize) -> Vec<String> {
         let Some(dir) = &self.dir else { return Vec::new() };
+        flush_saves();
         read_lines(&Self::session_file(dir, slot))
     }
 
     /// A window was closed while others stay open: its tabs are not reopened.
     pub fn forget_session(&self, slot: usize) {
         let Some(dir) = &self.dir else { return };
-        let _ = std::fs::remove_file(Self::session_file(dir, slot));
+        // (after the saves of that file still on their way)
+        late(Late::Remove(Self::session_file(dir, slot)));
     }
 
     /// The tabs of the other windows of the last session (their files are
     /// removed: the windows write them again under their new numbers).
     pub fn take_extra_sessions(&self) -> Vec<Vec<String>> {
         let Some(dir) = &self.dir else { return Vec::new() };
+        flush_saves();
         let mut found: Vec<(usize, PathBuf)> = std::fs::read_dir(dir)
             .map(|d| {
                 d.flatten()
@@ -852,25 +839,167 @@ pub use crate::guard::{close_files, ensure_private_dir, runtime_dir, PrivateDir}
 /// Write a data file safely: into a copy first, then put in place in one go,
 /// so a crash or power cut while writing never leaves a half-written file.
 /// The copy is a new file only this user can read (0600, never a file or
-/// link that was already there).
+/// link that was already there). It waits for the disk: call it from a
+/// thread of its own, never from the window's (see `save_soon`).
 pub fn write_atomic(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    write_file(path, data.as_ref())?;
+    // (each window has its own session file: no need to tell the others)
+    if !is_session(path) {
+        changed();
+    }
+    Ok(())
+}
+
+fn is_session(path: &Path) -> bool {
+    path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("session"))
+}
+
+fn write_file(path: &Path, data: &[u8]) -> std::io::Result<()> {
     use std::os::unix::fs::OpenOptionsExt;
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);
     let _ = std::fs::remove_file(&tmp);
     let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
-    f.write_all(data.as_ref())?;
+    f.write_all(data)?;
     // (really on the disk before it takes the old file's place: after a
     // power cut the file is the old one or the new one, never an empty one)
     f.sync_all()?;
     drop(f);
-    std::fs::rename(&tmp, path)?;
-    // (each window has its own session file: no need to tell the others)
-    if !path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("session")) {
+    std::fs::rename(&tmp, path)
+}
+
+// ------------------------------------------------- saving without waiting
+//
+// Putting a file safely on the disk takes a few milliseconds on a fast disk
+// and half a second on a slow or busy one. Sanaga saves at every tab shown,
+// page visited, setting changed: done in the window's thread, each of these
+// would freeze the window for that long. So the window only hands the file
+// to a thread that writes, in the order asked; what is read back in the
+// same run waits for it first (`flush_saves`), and so does quitting.
+
+enum Late {
+    Write(PathBuf, Vec<u8>),
+    /// A write whose result is waited for (see `write_in_order`).
+    WriteTold(PathBuf, Vec<u8>, std::sync::mpsc::Sender<std::io::Result<()>>),
+    Append(PathBuf, Vec<u8>),
+    Remove(PathBuf),
+    /// Answer once everything asked before is on the disk.
+    Flush(std::sync::mpsc::Sender<()>),
+}
+
+fn do_late(op: Late) {
+    match op {
+        Late::Write(path, data) => {
+            let _ = write_file(&path, &data);
+        }
+        Late::WriteTold(path, data, done) => {
+            let _ = done.send(write_file(&path, &data));
+        }
+        Late::Append(path, data) => {
+            use std::os::unix::fs::OpenOptionsExt;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&path) {
+                let _ = f.write_all(&data);
+            }
+        }
+        Late::Remove(path) => {
+            let _ = std::fs::remove_file(path);
+        }
+        Late::Flush(done) => {
+            let _ = done.send(());
+        }
+    }
+}
+
+/// What a batch of requests comes down to: a file written or removed again
+/// later in the batch need not be written now (only its last state counts).
+fn settle(batch: Vec<Late>) -> Vec<Late> {
+    let path_of = |op: &Late| match op {
+        Late::Write(p, _) | Late::Append(p, _) | Late::Remove(p) => Some(p.clone()),
+        // (someone waits for its answer: always done)
+        Late::WriteTold(..) | Late::Flush(_) => None,
+    };
+    let replaced: Vec<bool> = batch
+        .iter()
+        .enumerate()
+        .map(|(k, op)| match path_of(op) {
+            Some(p) => batch[k + 1..].iter().any(|later| matches!(later, Late::Write(q, _) | Late::WriteTold(q, _, _) | Late::Remove(q) if *q == p)),
+            None => false,
+        })
+        .collect();
+    batch.into_iter().zip(replaced).filter(|(_, r)| !r).map(|(op, _)| op).collect()
+}
+
+fn late(op: Late) {
+    static SAVER: std::sync::OnceLock<Option<std::sync::Mutex<std::sync::mpsc::Sender<Late>>>> = std::sync::OnceLock::new();
+    let saver = SAVER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<Late>();
+        std::thread::Builder::new()
+            .name("sanaga-saver".into())
+            .spawn(move || {
+                // (asleep until something is asked: it costs nothing meanwhile)
+                while let Ok(first) = rx.recv() {
+                    let mut batch = vec![first];
+                    while let Ok(more) = rx.try_recv() {
+                        batch.push(more);
+                    }
+                    for op in settle(batch) {
+                        do_late(op);
+                    }
+                }
+            })
+            .ok()
+            .map(|_| std::sync::Mutex::new(tx))
+    });
+    let sent = match saver.as_ref().and_then(|s| s.lock().ok()) {
+        Some(tx) => tx.send(op).map_err(|e| e.0),
+        None => Err(op),
+    };
+    // (no thread to hand it to: done here, as before)
+    if let Err(op) = sent {
+        do_late(op);
+    }
+}
+
+/// Save a data file a moment later, without waiting for the disk (safely:
+/// see `write_atomic`). The other windows are told at once; they wait for
+/// the file when they read it.
+fn save_soon(path: &Path, data: impl AsRef<[u8]>) {
+    if !is_session(path) {
+        changed();
+    }
+    late(Late::Write(path.to_path_buf(), data.as_ref().to_vec()));
+}
+
+/// Add a line to a data file a moment later (in order with its saves).
+fn append_soon(path: &Path, line: String) {
+    changed();
+    late(Late::Append(path.to_path_buf(), line.into_bytes()));
+}
+
+/// Write one of the window's data files from another thread (the sync):
+/// after the saves already asked for it, never at the same time as one, and
+/// waited for. The windows are told, as with `write_atomic`.
+pub fn write_in_order(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    late(Late::WriteTold(path.to_path_buf(), data.as_ref().to_vec(), tx));
+    rx.recv().unwrap_or_else(|_| Err(std::io::Error::other("the saving thread is gone")))?;
+    if !is_session(path) {
         changed();
     }
     Ok(())
+}
+
+/// Wait until every save asked so far is on the disk: before reading the
+/// files back, and before Sanaga ends.
+pub fn flush_saves() {
+    // (the saving thread itself has nothing to wait for)
+    if std::thread::current().name() == Some("sanaga-saver") {
+        return;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    late(Late::Flush(tx));
+    let _ = rx.recv();
 }
 
 /// First bookmarks, in the interface language (Wikipedia in that language too).
@@ -965,6 +1094,52 @@ mod write_tests {
     }
 
     #[test]
+    fn saves_asked_in_a_row_come_down_to_the_last_state() {
+        use super::{settle, Late};
+        use std::path::PathBuf;
+        let (a, b) = (PathBuf::from("a"), PathBuf::from("b"));
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let batch = vec![
+            Late::Write(a.clone(), b"1".to_vec()),
+            Late::Append(a.clone(), b"x".to_vec()),
+            Late::Write(b.clone(), b"1".to_vec()),
+            Late::Write(a.clone(), b"2".to_vec()),
+            Late::Flush(tx),
+            Late::Append(a.clone(), b"y".to_vec()),
+            Late::Remove(b.clone()),
+        ];
+        let kept: Vec<String> = settle(batch)
+            .iter()
+            .map(|op| match op {
+                Late::Write(p, d) => format!("write {} {}", p.display(), String::from_utf8_lossy(d)),
+                Late::WriteTold(p, ..) => format!("told {}", p.display()),
+                Late::Append(p, d) => format!("append {} {}", p.display(), String::from_utf8_lossy(d)),
+                Late::Remove(p) => format!("remove {}", p.display()),
+                Late::Flush(_) => "flush".to_string(),
+            })
+            .collect();
+        assert_eq!(kept, ["write a 2", "flush", "append a y", "remove b"]);
+    }
+
+    #[test]
+    fn saves_are_on_the_disk_once_waited_for() {
+        let dir = std::env::temp_dir().join(format!("sanaga-soon-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let f = dir.join("history.tsv");
+        for k in 0..50 {
+            super::save_soon(&f, format!("{k}\n"));
+        }
+        super::append_soon(&f, "last\n".to_string());
+        super::flush_saves();
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "49\nlast\n");
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
+        assert!(!dir.join("history.tsv.tmp").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn each_window_keeps_its_own_tabs() {
         let dir = std::env::temp_dir().join(format!("sanaga-windows-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -977,6 +1152,7 @@ mod write_tests {
         // a window closed while others stayed open is not reopened
         s.forget_session(5);
         assert_eq!(s.load_session(0), vec!["https://a.example/".to_string()]);
+        assert!(!dir.join("session-5.txt").exists());
         assert_eq!(s.take_extra_sessions(), vec![vec!["https://b.example/".to_string(), "https://c.example/".to_string()]]);
         assert!(s.take_extra_sessions().is_empty());
         let _ = std::fs::remove_dir_all(&dir);

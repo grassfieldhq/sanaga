@@ -26,6 +26,12 @@ pub(super) enum Section {
 impl Section {
     const ALL: [Section; 8] = [Section::General, Section::Appearance, Section::Intelligence, Section::Privacy, Section::Passwords, Section::Performance, Section::Sync, Section::Extensions];
 
+    /// The category at this place in the list (test aid).
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
+    pub(super) fn by_place(n: usize) -> Option<Section> {
+        Section::ALL.get(n).copied()
+    }
+
     fn label(self) -> &'static str {
         match self {
             Section::General => tr("Général"),
@@ -566,14 +572,15 @@ impl Sanaga {
         let web_ok = self.web_ok;
         let sync = self.sync_status.clone();
         let profile = if self.store.profile.is_empty() { tr("Personnel").to_string() } else { self.store.profile.clone() };
-        if self.is_default_browser.is_none() {
-            self.is_default_browser = Some(default_browser_is_sanaga());
+        // (asked of the desktop's tools once, on a thread)
+        if self.is_default_browser.is_none() && self.first_time("default-browser") {
+            self.off_thread(default_browser_is_sanaga, |app, yes| app.is_default_browser = Some(yes));
         }
         let is_default = self.is_default_browser.unwrap_or(false);
         let section = self.settings_section;
         let query = self.settings_filter.trim().to_lowercase();
         if section == Section::Intelligence && self.store.settings.ai == "claude" && self.ai_key_known.is_none() {
-            self.ai_key_known = Some(crate::keyring::lookup(&self.store.profile, crate::ai::KEY_SITE, "claude").is_some_and(|k| !k.is_empty()));
+            self.check_ai_key();
         }
         if section == Section::Intelligence && self.store.settings.ai == "ollama" && self.ai_models.is_none() {
             self.refresh_ollama_models();
@@ -589,7 +596,7 @@ impl Sanaga {
         let mobile_on = self.tb("mobile");
         let confirm_key = egui::Id::new("settings-confirm-delete");
         let confirm_del: Option<(String, f64)> = ui.ctx().data(|d| d.get_temp(confirm_key));
-        let keyring_ok = crate::keyring::available();
+        let keyring_ok = self.keyring_ok();
         let now = ui.input(|i| i.time);
         let confirm_clear = self.settings_confirm.is_some_and(|t| now - t < 4.0);
         let key_input = &mut self.ai_key_input;
@@ -1332,28 +1339,37 @@ impl Sanaga {
                 Act::SyncNow => self.sync_now(),
                 Act::SyncSecret(set) => {
                     let phrase = self.sync_phrase_input.trim().to_string();
-                    let ok = crate::sync::set_secret(&self.store.profile, set.then_some(phrase.as_str()));
                     self.sync_phrase_input.clear();
-                    let msg = match (ok, set) {
-                        (false, _) => tr("Le trousseau du système n'est pas disponible."),
-                        (true, true) => tr("Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré."),
-                        (true, false) => tr("Phrase retirée de cet ordinateur."),
-                    };
-                    self.notice = Some((msg.into(), self.ctx.input(|i| i.time)));
-                    if ok {
-                        self.sync_now();
-                    }
+                    let profile = self.store.profile.clone();
+                    self.off_thread(
+                        move || crate::sync::set_secret(&profile, set.then_some(phrase.as_str())),
+                        move |app, ok| {
+                            app.say(match (ok, set) {
+                                (false, _) => tr("Le trousseau du système n'est pas disponible."),
+                                (true, true) => tr("Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré."),
+                                (true, false) => tr("Phrase retirée de cet ordinateur."),
+                            });
+                            if ok {
+                                app.sync_now();
+                            }
+                        },
+                    );
                 }
                 Act::SaveKey => {
                     let key = self.ai_key_input.trim().to_string();
-                    let ok = crate::keyring::store(&self.store.profile, crate::ai::KEY_SITE, "claude", &key);
                     self.ai_key_input.clear();
-                    self.ai_key_known = Some(ok);
-                    let msg = if ok { tr("Clé enregistrée dans le trousseau du système.") } else { tr("Le trousseau du système n'est pas disponible.") };
-                    self.notice = Some((msg.into(), self.ctx.input(|i| i.time)));
+                    let profile = self.store.profile.clone();
+                    self.off_thread(
+                        move || crate::keyring::store(&profile, crate::ai::KEY_SITE, "claude", &key),
+                        |app, ok| {
+                            app.ai_key_known = Some(ok);
+                            app.say(if ok { tr("Clé enregistrée dans le trousseau du système.") } else { tr("Le trousseau du système n'est pas disponible.") });
+                        },
+                    );
                 }
                 Act::ForgetKey => {
-                    crate::keyring::delete(&self.store.profile, crate::ai::KEY_SITE, "claude");
+                    let profile = self.store.profile.clone();
+                    self.off_thread(move || crate::keyring::delete(&profile, crate::ai::KEY_SITE, "claude"), |_, ()| {});
                     self.ai_key_known = Some(false);
                 }
                 Act::FindModels => self.refresh_ollama_models(),
@@ -1375,16 +1391,14 @@ impl Sanaga {
                 }
                 Act::CopyPassword(i) => {
                     if let Some((s, u)) = self.store.logins.get(i).cloned() {
-                        if let Some(p) = crate::keyring::lookup(&self.store.profile, &s, &u) {
-                            self.ctx.copy_text(p);
-                            self.notice = Some((tr("Mot de passe copié.").into(), self.ctx.input(|i| i.time)));
-                        }
+                        self.copy_password(s, u);
                     }
                 }
                 Act::DeletePassword(i) => {
                     if i < self.store.logins.len() {
                         let (s, u) = self.store.logins.remove(i);
-                        crate::keyring::delete(&self.store.profile, &s, &u);
+                        let profile = self.store.profile.clone();
+                        self.off_thread(move || crate::keyring::delete(&profile, &s, &u), |_, ()| {});
                         self.store.save_logins();
                     }
                 }
@@ -1430,21 +1444,29 @@ impl Sanaga {
             self.notice = Some((tr("Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.").into(), now));
             return;
         }
-        // 1. the general list (~/.config/mimeapps.list): what every desktop
-        //    reads, and where Omarchy's routing entry looks for the browser
-        let general = |program: &str, args: &[&str]| {
-            std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
-        };
-        general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
-        // web links and HTML files
-        general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);
-        // 2. the desktop's own setting (GNOME, KDE…), unless it routes links
-        //    to the general choice by itself (Omarchy)
-        if !ROUTERS.contains(&xdg_default_browser(false).as_str()) {
-            let _ = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status();
-        }
-        let ok = default_browser_is_sanaga();
-        self.is_default_browser = Some(ok);
-        self.notice = Some((if ok { tr("Sanaga est maintenant votre navigateur par défaut.") } else { tr("Impossible de changer le navigateur par défaut.") }.into(), now));
+        let _ = now;
+        // (the desktop's tools are slow, and are waited for: on a thread)
+        self.off_thread(
+            || {
+                // 1. the general list (~/.config/mimeapps.list): what every desktop
+                //    reads, and where Omarchy's routing entry looks for the browser
+                let general = |program: &str, args: &[&str]| {
+                    std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
+                };
+                general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
+                // web links and HTML files
+                general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);
+                // 2. the desktop's own setting (GNOME, KDE…), unless it routes links
+                //    to the general choice by itself (Omarchy)
+                if !ROUTERS.contains(&xdg_default_browser(false).as_str()) {
+                    let _ = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status();
+                }
+                default_browser_is_sanaga()
+            },
+            |app, ok| {
+                app.is_default_browser = Some(ok);
+                app.say(if ok { tr("Sanaga est maintenant votre navigateur par défaut.") } else { tr("Impossible de changer le navigateur par défaut.") });
+            },
+        );
     }
 }

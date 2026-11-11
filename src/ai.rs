@@ -20,7 +20,8 @@ pub enum Provider {
     /// No model: Sanaga's own summary.
     Local,
     Ollama { model: String },
-    Claude { model: String, key: String },
+    /// (its key is read from the keyring of this profile when a request is made)
+    Claude { model: String, profile: String },
     /// An assistant installed on the computer (Claude Code, Codex…).
     Cli { tool: crate::ai_cli::CliTool, model: String },
 }
@@ -75,7 +76,8 @@ pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> 
             let text = r.into_string().map_err(|e| e.to_string())?;
             ollama_answer(&text).ok_or_else(|| crate::i18n::tr("Réponse du modèle illisible.").into())
         }
-        Provider::Claude { model, key } => {
+        Provider::Claude { model, profile } => {
+            let key = crate::keyring::lookup(profile, KEY_SITE, "claude").filter(|k| !k.is_empty()).ok_or_else(|| crate::i18n::tr("Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.").to_string())?;
             let body = format!(
                 "{{\"model\":{},\"max_tokens\":{max_tokens},\"system\":{},\"messages\":[{{\"role\":\"user\",\"content\":{}}}]}}",
                 json_str(model),
@@ -85,7 +87,7 @@ pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> 
             let r = agent(180)
                 .post("https://api.anthropic.com/v1/messages")
                 .set("content-type", "application/json")
-                .set("x-api-key", key)
+                .set("x-api-key", &key)
                 .set("anthropic-version", "2023-06-01")
                 .send_string(&body)
                 .map_err(err_text)?;
@@ -445,6 +447,33 @@ mod tests {
 #[cfg(test)]
 mod answer_tests {
     use super::*;
+
+    /// A model's or a service's answer is read whatever it holds (see mutate.rs).
+    #[test]
+    fn damaged_answers_do_not_panic() {
+        let seeds: [&[u8]; 4] = [
+            br#"{"id":"m","content":[{"type":"text","text":"Bonjour \"Douala\"\n ok \u00e9 \ud83d\ude00"}],"stop_reason":"end_turn"}"#,
+            br#"{"model":"x","response":"R\u00e9sum\u00e9","done":true,"error":{"message":"m"},"models":[{"name":"a"}]}"#,
+            "```js\n// @name x\nalert(1)\n```\nPremière phrase. Deuxième phrase ! Une troisième ? Et « une autre »… fin".as_bytes(),
+            "中文句子。第二句！Third sentence. Ça c'est M. Dupont, p. ex. 3.14 etc.".as_bytes(),
+        ];
+        crate::mutate::run(&seeds, 20_000, |d| {
+            let t = String::from_utf8_lossy(d);
+            let _ = claude_answer(&t);
+            let _ = ollama_answer(&t);
+            let _ = error_message(&t);
+            let _ = json_string(&t, "text");
+            let _ = json_strings(&t, "name");
+            let _ = read_json_string_end(&t);
+            let _ = strip_fences(&t);
+            let _ = slug(&t);
+            let _ = one_line(&t);
+            for n in [0, 1, 6] {
+                let _ = local_summary(&t, n);
+            }
+            let _ = summary_prompt(&t, &t);
+        });
+    }
 
     #[test]
     fn answers_are_read_from_their_place_in_the_json() {

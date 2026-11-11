@@ -450,27 +450,42 @@ fn heading_size(level: u8, base: f32) -> f32 {
     }
 }
 
-fn split_find<'t>(text: &'t str, q: &str) -> Vec<(&'t str, bool)> {
+pub(super) fn split_find<'t>(text: &'t str, q: &str) -> Vec<(&'t str, bool)> {
     if q.is_empty() {
         return vec![(text, false)];
     }
-    let lower = text.to_lowercase();
-    if lower.len() != text.len() {
-        // lowercasing changed byte offsets: highlight the whole span instead
-        return vec![(text, lower.contains(q))];
-    }
-    let mut out = Vec::new();
-    let mut pos = 0;
-    while let Some(i) = lower[pos..].find(q) {
-        let s = pos + i;
-        if s > pos {
-            out.push((&text[pos..s], false));
+    // The text in small letters, and for each of its bytes where the letter
+    // it comes from starts in `text`: a small letter does not always take
+    // as many bytes as its capital (İ, ẞ, the Kelvin sign), so a place
+    // found in one is not the same place in the other.
+    let mut lower = String::with_capacity(text.len());
+    let mut from: Vec<usize> = Vec::with_capacity(text.len());
+    for (i, c) in text.char_indices() {
+        for small in c.to_lowercase() {
+            lower.push(small);
+            from.extend(std::iter::repeat_n(i, small.len_utf8()));
         }
-        out.push((&text[s..s + q.len()], true));
-        pos = s + q.len();
     }
-    if pos < text.len() {
-        out.push((&text[pos..], false));
+    let letter_end = |start: usize| start + text[start..].chars().next().map_or(0, |c| c.len_utf8());
+    let mut out = Vec::new();
+    let (mut pos, mut done) = (0, 0); // where the search is in `lower`, what is already given of `text`
+    while let Some(i) = lower[pos..].find(q) {
+        let (s, e) = (pos + i, pos + i + q.len());
+        pos = e;
+        // whole letters of `text`: from the one the find starts in to the
+        // end of the one it ends in
+        let (start, end) = (from[s], letter_end(from[e - 1]));
+        if start < done {
+            continue; // (inside the letter just shown)
+        }
+        if start > done {
+            out.push((&text[done..start], false));
+        }
+        out.push((&text[start..end], true));
+        done = end;
+    }
+    if done < text.len() {
+        out.push((&text[done..], false));
     }
     out
 }

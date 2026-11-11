@@ -622,6 +622,7 @@ impl Sanaga {
     }
 
     pub(super) fn run_shortcut(&mut self, t: &str) {
+        crate::shell::doing(t);
         {
             let a = self.active.min(self.tabs.len() - 1);
             match t {

@@ -589,7 +589,11 @@ impl Sanaga {
             self.inline_done = false;
             if forward && at_end {
                 if let Some(site) = self.site_completion(&typed) {
-                    let full = format!("{typed}{}", &site[typed.len()..]);
+                    // (the rest of the name: what follows as many letters as
+                    // were typed — a typed letter may take more bytes than the
+                    // name's, e.g. the Kelvin sign for "k")
+                    let rest: String = site.chars().skip(typed.chars().count()).collect();
+                    let full = format!("{typed}{rest}");
                     if let Some(mut state) = TextEdit::load_state(ui.ctx(), id) {
                         let (from, to) = (egui::text::CCursor::new(typed.chars().count()), egui::text::CCursor::new(full.chars().count()));
                         state.cursor.set_char_range(Some(egui::text::CCursorRange::two(from, to)));

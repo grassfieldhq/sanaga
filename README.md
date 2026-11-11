@@ -346,6 +346,12 @@ engine bridge and a few system services.
 A strict, feature-by-feature check of Sanaga, with what was fixed:
 [docs/REVIEW.md](docs/REVIEW.md).
 
+## Stability
+
+Can a site crash Sanaga, can a feature make it lag? What was looked for,
+measured and fixed, and what stays out of reach:
+[docs/STABILITY-AUDIT-2026-11-11.md](docs/STABILITY-AUDIT-2026-11-11.md).
+
 ## Audit
 
 What people dislike in Chrome, Firefox and Safari, checked against Sanaga:
