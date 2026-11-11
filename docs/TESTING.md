@@ -85,6 +85,16 @@ XDG_DATA_HOME=/tmp/sanaga-test ./target/debug/sanaga  # the bar, and sanaga://cr
 `kill -TERM` (or logging out) is not a crash: Sanaga saves its tabs and
 closes as with Quit.
 
+## The intelligence features without a model
+
+```sh
+tools/fake-model.py &     # answers at Ollama's address, always the same
+```
+
+Then Settings › Intelligence › Ollama: the summary, the translation (its
+bar, Stop, Show original) and the writing of an extension can be tried and
+captured. See [UX-AUDIT-2026-11-11.md](UX-AUDIT-2026-11-11.md).
+
 ## Looking for lag
 
 ```sh

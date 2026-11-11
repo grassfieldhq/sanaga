@@ -49,7 +49,7 @@ Code QR de la page	QR code for this page
 Scannez-le avec votre téléphone	Scan it with your phone
 « {} » a été ajoutée au menu des applications.	“{}” was added to the applications menu.
 Masquer la barre des favoris (Ctrl+Maj+B)	Hide favourites bar (Ctrl+Shift+B)
-Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B	Hide favourites bar (Ctrl+Shift+B)\nTo show it again: menu ⋮ or Ctrl+Shift+B
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu principal ou Ctrl+Maj+B	Hide favourites bar (Ctrl+Shift+B)\nTo show it again: main menu or Ctrl+Shift+B
 Ajoutez des favoris avec l'étoile de la barre d'adresse.	Add favourites with the star in the address bar.
 Ouvrir dans un nouvel onglet	Open in new tab
 Masquer la barre des favoris	Hide favourites bar
@@ -150,7 +150,7 @@ Maximal — veille après 5 minutes, 3 pages actives au plus	Maximum — sleep a
 Mots de passe et remplissage automatique	Passwords and AutoFill
 Proposer d'enregistrer et de remplir les mots de passe	Offer to save and fill in passwords
 Gérer les mots de passe enregistrés	Manage saved passwords
-Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Your details, to fill in forms (menu ⋮ › Fill in my details, or Ctrl+Shift+F):
+Vos coordonnées, pour remplir les formulaires (menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Your details, to fill in forms (main menu › Fill in my details, or Ctrl+Shift+F):
 Téléphone	Phone
 Adresse	Address
 Synchronisation	Sync
@@ -281,7 +281,7 @@ Réinitialiser le zoom	Reset zoom
 Rechercher ou saisir le nom d'un site	Search or enter website name
 Rechercher avec {} ou saisir une adresse	Search with {} or enter an address
 LISTE DE LECTURE	READING LIST
-Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).	Keep a page for later: menu ⋮ › Add to Reading List (Ctrl+Shift+D).
+Gardez une page pour plus tard : menu principal › Ajouter à la liste de lecture (Ctrl+Maj+D).	Keep a page for later: main menu › Add to Reading List (Ctrl+Shift+D).
 GROUPES D'ONGLETS	TAB GROUPS
 Renommer avec le nom saisi ci-dessous	Rename with the name typed below
 Fermer le groupe et ses onglets	Close the group and its tabs
@@ -596,7 +596,7 @@ Où mettre la barre d'adresse :	Where the address bar goes:
 Flottante	Floating
 Couleur d'accent	Accent colour
 Résumés et extensions sur mesure	Summaries and made-to-measure extensions
-Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga summarises pages (✦ button or Ctrl+Shift+Y) and writes extensions from what you describe.
+Sanaga résume les pages (bouton Intelligence de la barre d'outils, ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga summarises pages (Intelligence button of the toolbar, or Ctrl+Shift+Y) and writes extensions from what you describe.
 Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur	Sanaga alone — simple summary, no AI, nothing leaves the computer
 Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)	Ollama — an AI model installed on this computer (free, private)
 Claude (Anthropic) — le meilleur résultat, avec votre clé d'API	Claude (Anthropic) — the best results, with your API key
@@ -647,11 +647,11 @@ Dans le trousseau du système	In the system keyring
 1 compte	1 account
 {} comptes	{} accounts
 Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.	Passwords are saved in the system keyring (Secret Service), never in Sanaga's files. One account for a site: Sanaga fills it in by itself.
-Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	To fill in forms: menu ⋮ › Fill in my details, or Ctrl+Shift+F.
+Pour remplir les formulaires : menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	To fill in forms: main menu › Fill in my details, or Ctrl+Shift+F.
 Modéré	Moderate
 Équilibré	Balanced
 Maximal	Maximum
-Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.	Tabs you have not looked at for a while go to sleep and reload when you come back (Balanced: after 20 minutes). Tabs playing sound never sleep.
+Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais.	Tabs you haven't looked at for a long time are put to sleep and reload when you come back to them. Tabs playing sound never sleep.
 Sites complets avec JavaScript, vidéos et applications (recommandé)	Full sites with JavaScript, videos and apps (recommended)
 Pages simplifiées, très rapide et très économe en mémoire	Simplified pages, very fast and very light on memory
 Dossier partagé	Shared folder
@@ -762,7 +762,7 @@ Extension supprimée.	Extension removed.
 Se présenter à ce site comme…	Introduce Sanaga to this site as…
 Identité du navigateur par site	Browser identity per site
 Aucun choix pour l'instant	No choice yet
-Menu ⋮ › Plus d'outils › Se présenter à ce site comme…	Menu ⋮ › More tools › Introduce Sanaga to this site as…
+Menu principal › Plus d'outils › Se présenter à ce site comme…	Main menu › More tools › Introduce Sanaga to this site as…
 Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site.	Sanaga introduces itself as Chrome to the few web apps that refuse WebKit (WhatsApp Web, Teams, Zoom…). You can choose for any site.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire. Installez Chromium ou Firefox pour les regarder.	{} protects its content with a DRM (Widevine) that Sanaga's engine cannot play. Install Chromium or Firefox to watch it.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire.	{} protects its content with a DRM (Widevine) that Sanaga's engine cannot play.
@@ -855,7 +855,7 @@ Réglages par site	Website settings
 Polices	Fonts
 Mode sombre	Dark mode
 Aucun réglage pour l'instant	No settings yet
-Menu ⋮ › Plus d'outils › Réglages de ce site…	Menu ⋮ › More tools › Settings for this website…
+Menu principal › Plus d'outils › Réglages de ce site…	Main menu › More tools › Settings for this website…
 sans JavaScript	no JavaScript
 bloqueur coupé	blocker off
 sans ses polices	without its fonts
@@ -1006,7 +1006,7 @@ Détails techniques	Technical details
 Traduire vers	Translate into
 Langue de Sanaga ({})	Sanaga's language ({})
 Résumer ou traduire la page	Summarise or translate the page
-Les points essentiels, à côté de la page — Ctrl+Maj+Y	The key points, next to the page — Ctrl+Shift+Y
+Les points essentiels, à côté de la page	The key points, next to the page
 En {}	Into {}
 En {} · avec {}	Into {} · with {}
 Cette adresse utilise un port bloqué	This address uses a blocked port
@@ -1078,7 +1078,7 @@ Onglets, commandes, favoris, historique, Web…	Tabs, commands, favourites, hist
 Listes de blocage complètes	Full block lists
 EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList and EasyPrivacy, fetched once a week from their authors (easylist.to)
 Chiffrement activé	Encryption on
-Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	The folder only holds sealed files. Click to remove the phrase from this computer.
+Le dossier ne contient que des fichiers scellés.	The folder holds sealed files only.
 Phrase secrète	Secret phrase
 Chiffre le dossier : la même phrase sur chaque ordinateur	Encrypts the folder: the same phrase on every computer
 Chiffrer	Encrypt
@@ -1127,3 +1127,25 @@ Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le mot
 * Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Process shared by several tabs (pages opened by one another): its memory and processor count for each of them.
 ne répond plus	not responding
 Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes).	Something went wrong in Sanaga, which carries on. A report was kept (sanaga://crashes).
+Rétablir	Restore
+Chercher	Look
+Synchroniser	Sync
+Retirer la phrase	Remove the phrase
+Choisir un fichier…	Choose a file…
+Traduction en {} avec {}…	Translating into {} with {}…
+Traduction en {} avec {}… ({} parties faites)	Translating into {} with {}… ({} parts done)
+Page traduite en {} par {}.	Page translated into {} by {}.
+Traduction arrêtée.	Translation stopped.
+La page est de nouveau dans sa langue.	The page is in its own language again.
+Arrêter	Stop
+Traduire à nouveau	Translate again
+Afficher l'original	Show original
+Choisir une IA…	Choose an AI…
+Claude, Ollama ou un assistant installé : dans Paramètres › Intelligence	Claude, Ollama or an installed assistant: in Settings › Intelligence
+Choisir une IA pour des résumés plus fins…	Choose an AI for finer summaries…
+Nom (facultatif)	Name (optional)
+Écrire à nouveau	Write it again
+Écriture de l'extension… {} s	Writing the extension… {} s
+Choisissez d'abord un modèle d'IA, ci-dessus.	First choose an AI model, above.
+Décrivez d'abord ce qu'elle doit faire.	First describe what it should do.
+Jeter	Discard

@@ -7,6 +7,16 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Each Settings category has an address (`sanaga://settings/privacy`): the
+  toolbar's arrows, Alt+← / → and the mouse's side buttons go back and
+  forth between categories, a category can be opened directly, and the
+  session restores it.
+- Translating a page with an AI shows a bar while it works (what, with
+  which model, how far, **Stop**) and afterwards **Show original**, which
+  puts the page's own words back at once.
+- Writing an extension: the seconds while the model works, **Discard**,
+  and **Write it again** (in place of the draft, not next to it).
+- `tools/fake-model.py`: a stand-in model to try the intelligence features.
 - `SANAGA_DEBUG_STALLS=30`: every time the window did not answer, with what
   held it; `tools/lag-audit.sh`: the real window on a heavy profile with
   slow helper programs, every feature in turn, in CI.
@@ -68,6 +78,13 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- Settings (interface audit, docs/UX-AUDIT-2026-11-11.md): a row's text is
+  never cut any more (it wraps, the row grows); the search finds every
+  setting shown — also by a menu's choices, without accents — says which
+  category each result is in and tints the rows that match; things done on
+  the spot have a button, not a chevron; Ctrl+F searches the settings.
+- The ✦ menu shows its keys on the right; "Translate" and "Copy" have
+  their own icons (they were envelopes).
 - Nothing is waited for in the window's thread any more (stability audit,
   docs/STABILITY-AUDIT-2026-11-11.md): the keyring, `xdg-settings`, the
   icon cache and the sync round run on threads; data files are saved by a
@@ -141,6 +158,12 @@ All notable changes to Sanaga are listed here. The format follows
   les URL en entier" shows the whole address.
 
 ### Fixed
+- Settings: missing characters (▯) in help texts; a switch that is off was
+  invisible in the dark look; the memory saver's note contradicted its
+  row; the codecs card's buttons ran into its text; the sidebar cut its
+  longest name in German; rows and switches said nothing to screen readers.
+- Translation: choosing "an AI" with none set up was kept and failed at
+  every later try; the question stayed over other pages and tabs.
 - Find in page (Light engine, Reader) made Sanaga crash on a page holding
   letters such as İ or ẞ; the address bar's completion could crash on a
   pasted Kelvin sign.

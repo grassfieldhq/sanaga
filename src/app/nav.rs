@@ -643,7 +643,7 @@ impl Sanaga {
                 }
                 "window" => self.new_window(Vec::new()),
                 "settings" => {
-                    self.open_tab("sanaga://settings", false);
+                    self.open_settings("sanaga://settings");
                 }
                 "translate" => self.translate_page(),
                 "close" => self.close_tab(a),
@@ -703,6 +703,10 @@ impl Sanaga {
                 }
                 "downloads" => {
                     self.open_tab("sanaga://downloads", false);
+                }
+                // (in Settings, Ctrl+F is the settings' own search)
+                "find" if matches!(self.tabs[a].view, View::Internal(Internal::Settings)) => {
+                    self.ctx.memory_mut(|m| m.request_focus(egui::Id::new("settings-search")));
                 }
                 "find" => {
                     self.find_open = true;

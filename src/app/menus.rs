@@ -25,7 +25,7 @@ impl Sanaga {
             ui.painter().rect_filled(hr, CornerRadius::same(5), th.omnibox_hover);
         }
         icons::paint(ui.painter(), hr.shrink(6.0), Icon::Close, th.sub);
-        if hresp.tip(tr("Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B")).clicked() {
+        if hresp.tip(tr("Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu principal ou Ctrl+Maj+B")).clicked() {
             hide = true;
         }
         ui.horizontal_centered(|ui| {

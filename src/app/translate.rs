@@ -24,9 +24,10 @@ const TRANSLATE_JS: &str = r#"(function () {
     }
   });
   while (w.nextNode()) nodes.push(w.currentNode);
-  window.__sanagaTr = { nodes: nodes, pos: 0 };
+  window.__sanagaTr = { nodes: nodes, pos: 0, orig: {}, stopped: false };
   function next() {
     var s = window.__sanagaTr, out = [], size = 0, from = s.pos;
+    if (s.stopped) return;
     while (s.pos < s.nodes.length && out.length < 80 && size < 5000) {
       var t = s.nodes[s.pos].nodeValue.trim();
       out.push(t); size += t.length; s.pos++;
@@ -42,9 +43,20 @@ const TRANSLATE_JS: &str = r#"(function () {
       var n = s.nodes[from + i];
       if (!n || n.nodeType !== 3 || typeof list[i] !== 'string' || !list[i]) continue;
       var v = n.data, lead = v.match(/^\s*/)[0], trail = v.match(/\s*$/)[0];
+      // (the page's own words are kept, to show them again)
+      if (!(from + i in s.orig)) s.orig[from + i] = v;
       n.data = lead + list[i] + trail;
     }
     next();
+  };
+  // Stop asking for more; and put the page's own words back.
+  window.__sanagaTrStop = function () { if (window.__sanagaTr) window.__sanagaTr.stopped = true; };
+  window.__sanagaTrOriginal = function () {
+    var s = window.__sanagaTr;
+    if (!s) return;
+    s.stopped = true;
+    for (var k in s.orig) { var n = s.nodes[k]; if (n && n.nodeType === 3) n.data = s.orig[k]; }
+    s.orig = {};
   };
   next();
 })();"#;
@@ -120,13 +132,126 @@ pub(super) fn parse_string_array(text: &str) -> Vec<String> {
     out
 }
 
+/// Where a page's translation is, for the bar under the toolbar.
+#[derive(Clone, PartialEq)]
+pub(super) enum TrState {
+    Running,
+    Done,
+    /// Stopped before the end (by the person, a very long page, an error): why.
+    Stopped(String),
+    /// The page shows its own words again.
+    Original,
+}
+
+/// The translation of one tab's page: what the bar says and offers.
+pub(super) struct Translation {
+    pub(super) tab: u64,
+    /// The language's name as shown, and the model's.
+    lang: String,
+    by: String,
+    state: TrState,
+    /// Parts of the page already translated.
+    parts: usize,
+}
+
 impl Sanaga {
     /// Menu ⋮ › Translate page: Google or the AI, as chosen (asked once).
     pub(super) fn translate_page(&mut self) {
         match self.store.settings.translate_with.as_str() {
             "google" => self.translate_with_google(),
             "ai" => self.translate_with_ai(),
-            _ => self.translate_ask = true,
+            _ => {
+                self.translate_ask = true;
+                // (the question is about this tab's page)
+                self.translate_ask_tab = self.tabs.get(self.active).map(|t| t.id).unwrap_or(0);
+            }
+        }
+    }
+
+    /// The bar of the page's translation: shown on its tab until closed.
+    pub(super) fn translation_bar_visible(&self) -> bool {
+        !self.focus_mode && self.translation.as_ref().is_some_and(|t| self.tabs.get(self.active).is_some_and(|a| a.id == t.tab))
+    }
+
+    /// While it runs: what is being done, and "Stop". Afterwards: what was
+    /// done and by which model, and "Show original" (the page's own words
+    /// come back at once, without loading it again).
+    pub(super) fn translation_bar(&mut self, ui: &mut Ui, th: &Theme) {
+        let Some(t) = self.translation.as_ref() else { return };
+        let (state, lang, by, parts) = (t.state.clone(), t.lang.clone(), t.by.clone(), t.parts);
+        let mut act: Option<&str> = None;
+        ui.horizontal_centered(|ui| {
+            ui.add_space(14.0);
+            if state == TrState::Running {
+                ui.add(egui::Spinner::new().size(14.0).color(th.accent));
+            } else {
+                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                crate::icons::paint(ui.painter(), r, crate::icons::Icon::Translate, th.accent);
+            }
+            ui.add_space(6.0);
+            let text = match &state {
+                TrState::Running if parts == 0 => tf("Traduction en {} avec {}…", &[&lang, &by]),
+                TrState::Running => tf("Traduction en {} avec {}… ({} parties faites)", &[&lang, &by, &parts]),
+                TrState::Done => tf("Page traduite en {} par {}.", &[&lang, &by]),
+                TrState::Stopped(why) if why.is_empty() => tr("Traduction arrêtée.").to_string(),
+                TrState::Stopped(why) => why.clone(),
+                TrState::Original => tr("La page est de nouveau dans sa langue.").to_string(),
+            };
+            ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(th.text)).truncate());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(12.0);
+                if state != TrState::Running && super::chrome::icon_button_small(ui, crate::icons::Icon::Close, th).tip(tr("Fermer")).clicked() {
+                    act = Some("close");
+                }
+                match state {
+                    TrState::Running => {
+                        if ui.button(tr("Arrêter")).clicked() {
+                            act = Some("stop");
+                        }
+                    }
+                    TrState::Original => {
+                        if ui.button(tr("Traduire à nouveau")).clicked() {
+                            act = Some("again");
+                        }
+                    }
+                    _ => {
+                        if ui.button(tr("Afficher l'original")).clicked() {
+                            act = Some("original");
+                        }
+                    }
+                }
+            });
+        });
+        let tab = self.translation.as_ref().map(|t| t.tab).unwrap_or(0);
+        let run = |app: &Sanaga, js: &str| {
+            if let Some(w) = app.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+                let _ = w.evaluate_own(js);
+            }
+        };
+        match act {
+            Some("stop") => {
+                run(self, "window.__sanagaTrStop && window.__sanagaTrStop();");
+                self.stop_translation(tab);
+                self.translation_state(tab, TrState::Stopped(String::new()));
+            }
+            Some("original") => {
+                run(self, "window.__sanagaTrOriginal && window.__sanagaTrOriginal();");
+                self.stop_translation(tab);
+                self.translation_state(tab, TrState::Original);
+            }
+            Some("again") => {
+                self.translation = None;
+                self.translate_with_ai();
+            }
+            Some("close") => self.translation = None,
+            _ => {}
+        }
+    }
+
+    /// The translation of this tab's page is now in this state (its bar follows).
+    fn translation_state(&mut self, tab: u64, state: TrState) {
+        if let Some(t) = self.translation.as_mut().filter(|t| t.tab == tab) {
+            t.state = state;
         }
     }
 
@@ -159,7 +284,8 @@ impl Sanaga {
         self.translating = Some(id);
         self.translate_batches = 0;
         self.translate_gen += 1;
-        self.notice = Some((tr("Traduction de la page…").into(), self.ctx.input(|i| i.time)));
+        // (what is being done stays in view, with a way to stop it)
+        self.translation = Some(Translation { tab: id, lang: target(&self.store.settings.translate_to).2.to_string(), by: provider.label(), state: TrState::Running, parts: 0 });
     }
 
     /// The tab left its page (or closed): its translation stops, and the
@@ -179,20 +305,20 @@ impl Sanaga {
         }
         if msg == "done" {
             self.translating = None;
-            self.notice = Some((tr("Page traduite.").into(), self.ctx.input(|i| i.time)));
+            self.translation_state(tab, TrState::Done);
             return;
         }
         let Some((from, texts)) = read_batch(msg) else { return };
         if self.translate_batches >= MAX_BATCHES {
             self.stop_translation(tab);
-            self.notice = Some((tr("La traduction s'arrête ici : la page est très longue.").into(), self.ctx.input(|i| i.time)));
+            self.translation_state(tab, TrState::Stopped(tr("La traduction s'arrête ici : la page est très longue.").into()));
             return;
         }
         self.translate_batches += 1;
         let provider = self.ai_provider();
         if let Err(e) = ai::page_content_allowed(&provider) {
             self.stop_translation(tab);
-            self.notice = Some((e, self.ctx.input(|i| i.time)));
+            self.translation_state(tab, TrState::Stopped(e));
             return;
         }
         let tx = self.ai_tx.clone();
@@ -235,10 +361,14 @@ impl Sanaga {
                 if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
                     let _ = w.evaluate_own(&format!("window.__sanagaTrApply && window.__sanagaTrApply({from}, {});", ai::json_array(&list)));
                 }
+                if let Some(t) = self.translation.as_mut().filter(|t| t.tab == tab) {
+                    t.parts += 1;
+                }
             }
             Err(e) => {
+                // (what the model said stays readable, with the way back)
                 self.translating = None;
-                self.notice = Some((e, self.ctx.input(|i| i.time)));
+                self.translation_state(tab, TrState::Stopped(e));
             }
         }
     }
@@ -250,7 +380,7 @@ impl Sanaga {
         if !self.ai_menu_open {
             return;
         }
-        let w = 300.0;
+        let w = 320.0;
         let (pos, pivot, _) = super::layout::popover_place(ctx, self.ai_menu_rect, (self.ai_menu_rect.right() - w).max(8.0), 6.0);
         let mut act: Option<&str> = None;
         let dark = self.store.settings.dark;
@@ -270,21 +400,26 @@ impl Sanaga {
                 .inner_margin(egui::Margin::same(6))
                 .show(ui, |ui| {
                     ui.set_width(w - 12.0);
-                    let mut row = |ui: &mut Ui, icon: crate::icons::Icon, title: &str, sub: &str, key: &'static str| {
+                    let mut row = |ui: &mut Ui, icon: crate::icons::Icon, title: &str, sub: &str, keys: &str, key: &'static str| {
                         let (r, resp) = ui.allocate_exact_size(vec2(w - 12.0, 48.0), Sense::click());
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{title}. {sub}")));
                         if resp.hovered() {
                             ui.painter().rect_filled(r, CornerRadius::same(9), th.accent.gamma_multiply(0.14));
                         }
                         crate::icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 20.0, r.center().y), vec2(16.0, 16.0)), icon, th.accent);
                         ui.painter().text(pos2(r.left() + 40.0, r.top() + 16.0), egui::Align2::LEFT_CENTER, title, FontId::proportional(14.0), th.text);
-                        ui.painter().text(pos2(r.left() + 40.0, r.top() + 33.0), egui::Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
+                        // (the keys on the right, as in the main menu; the
+                        // explanation never runs past the menu's edge)
+                        ui.painter().text(pos2(r.right() - 10.0, r.top() + 16.0), egui::Align2::RIGHT_CENTER, keys, FontId::proportional(12.0), th.sub);
+                        let clip = Rect::from_min_max(pos2(r.left() + 40.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
+                        ui.painter().with_clip_rect(clip).text(pos2(r.left() + 40.0, r.top() + 33.0), egui::Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
                         if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                             act = Some(key);
                         }
                     };
-                    row(ui, crate::icons::Icon::Sparkle, tr("Résumer la page"), tr("Les points essentiels, à côté de la page — Ctrl+Maj+Y"), "summary");
+                    row(ui, crate::icons::Icon::Sparkle, tr("Résumer la page"), tr("Les points essentiels, à côté de la page"), tr("Ctrl+Maj+Y"), "summary");
                     let sub = if engine.is_empty() { tf("En {}", &[&lang.2]) } else { tf("En {} · avec {}", &[&lang.2, &engine]) };
-                    row(ui, crate::icons::Icon::Mail, tr("Traduire la page"), &sub, "translate");
+                    row(ui, crate::icons::Icon::Translate, tr("Traduire la page"), &sub, "", "translate");
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ui.add_space(12.0);
@@ -331,12 +466,21 @@ impl Sanaga {
         if !self.translate_ask {
             return;
         }
+        // (it is about one tab's page: it goes when that page is left)
+        let about_this_page = self.tabs.get(self.active).is_some_and(|t| t.id == self.translate_ask_tab && matches!(t.view, View::Web));
+        if !about_this_page {
+            self.translate_ask = false;
+            return;
+        }
         let mut pick: Option<&'static str> = None;
         let mut close = false;
         let screen = ctx.content_rect();
-        let ai_label = match self.ai_provider() {
-            Provider::Local => tr("Une IA (à choisir dans Paramètres › Intelligence)").to_string(),
-            p => tf("Avec {} — la page est traduite sur place", &[&p.label()]),
+        // no model chosen yet: the first choice leads to choosing one,
+        // instead of being kept and failing each time
+        let no_ai = self.ai_provider() == Provider::Local;
+        let (ai_label, ai_sub) = match self.ai_provider() {
+            Provider::Local => (tr("Choisir une IA…").to_string(), tr("Claude, Ollama ou un assistant installé : dans Paramètres › Intelligence")),
+            p => (tf("Avec {} — la page est traduite sur place", &[&p.label()]), tr("Seul le texte de la page est envoyé à cette IA")),
         };
         egui::Area::new(egui::Id::new("translate-ask")).order(egui::Order::Foreground).fixed_pos(pos2(screen.center().x - 210.0, screen.top() + 120.0)).show(ctx, |ui| {
             Frame::new()
@@ -359,7 +503,7 @@ impl Sanaga {
                         }
                         ui.add_space(8.0);
                     };
-                    option(ui, "ai", &ai_label, tr("Seul le texte de la page est envoyé à cette IA"));
+                    option(ui, if no_ai { "choose" } else { "ai" }, &ai_label, ai_sub);
                     option(ui, "google", "Google Traduction", tr("L'adresse de la page est envoyée à Google"));
                     ui.label(egui::RichText::new(tr("Votre choix est gardé ; il se change dans Paramètres › Intelligence.")).size(11.5).color(th.sub));
                     ui.add_space(6.0);
@@ -371,7 +515,10 @@ impl Sanaga {
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             close = true;
         }
-        if let Some(k) = pick {
+        if pick == Some("choose") {
+            self.translate_ask = false;
+            self.open_settings(&super::settings::Section::Intelligence.address());
+        } else if let Some(k) = pick {
             self.translate_ask = false;
             self.store.settings.translate_with = k.to_string();
             self.store.save_settings();

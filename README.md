@@ -352,6 +352,12 @@ Can a site crash Sanaga, can a feature make it lag? What was looked for,
 measured and fixed, and what stays out of reach:
 [docs/STABILITY-AUDIT-2026-11-11.md](docs/STABILITY-AUDIT-2026-11-11.md).
 
+## Interface
+
+Settings, their search and navigation, the ✦ features: what was found and
+fixed, and what still separates them from the very best:
+[docs/UX-AUDIT-2026-11-11.md](docs/UX-AUDIT-2026-11-11.md).
+
 ## Audit
 
 What people dislike in Chrome, Firefox and Safari, checked against Sanaga:

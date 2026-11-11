@@ -344,7 +344,7 @@ fn bookmark_menu(ui: &mut Ui, i: usize, url: &str, go: &mut Option<(String, bool
     if menu_item(ui, Icon::Share, tr("Ouvrir dans une nouvelle fenêtre")) {
         *window = Some(url.to_string());
     }
-    if menu_item(ui, Icon::Mail, tr("Copier l'adresse")) {
+    if menu_item(ui, Icon::Copy, tr("Copier l'adresse")) {
         *copy = Some(url.to_string());
     }
     ui.separator();

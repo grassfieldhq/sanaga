@@ -49,7 +49,7 @@ Code QR de la page	QR-Code der Seite
 Scannez-le avec votre téléphone	Mit dem Handy scannen
 « {} » a été ajoutée au menu des applications.	„{}“ wurde dem Anwendungsmenü hinzugefügt.
 Masquer la barre des favoris (Ctrl+Maj+B)	Favoritenleiste ausblenden (Strg+Umschalt+B)
-Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B	Favoritenleiste ausblenden (Strg+Umschalt+B)\nWieder anzeigen: Menü ⋮ oder Strg+Umschalt+B
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu principal ou Ctrl+Maj+B	Favoritenleiste ausblenden (Strg+Umschalt+B)\nWieder anzeigen: Hauptmenü oder Strg+Umschalt+B
 Ajoutez des favoris avec l'étoile de la barre d'adresse.	Fügen Sie Favoriten mit dem Stern in der Adressleiste hinzu.
 Ouvrir dans un nouvel onglet	In neuem Tab öffnen
 Masquer la barre des favoris	Favoritenleiste ausblenden
@@ -150,7 +150,7 @@ Maximal — veille après 5 minutes, 3 pages actives au plus	Maximal – Ruhezus
 Mots de passe et remplissage automatique	Passwörter und automatisches Ausfüllen
 Proposer d'enregistrer et de remplir les mots de passe	Anbieten, Passwörter zu speichern und auszufüllen
 Gérer les mots de passe enregistrés	Gespeicherte Passwörter verwalten
-Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Ihre Daten zum Ausfüllen von Formularen (Menü ⋮ › Mit meinen Daten ausfüllen oder Strg+Umschalt+F):
+Vos coordonnées, pour remplir les formulaires (menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Ihre Daten zum Ausfüllen von Formularen (Hauptmenü › Mit meinen Daten ausfüllen oder Strg+Umschalt+F):
 Téléphone	Telefon
 Adresse	Adresse
 Synchronisation	Synchronisierung
@@ -281,7 +281,7 @@ Réinitialiser le zoom	Zoom zurücksetzen
 Rechercher ou saisir le nom d'un site	Suchen oder Websitenamen eingeben
 Rechercher avec {} ou saisir une adresse	Mit {} suchen oder Adresse eingeben
 LISTE DE LECTURE	LESELISTE
-Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).	Seite für später merken: Menü ⋮ › Zur Leseliste hinzufügen (Strg+Umschalt+D).
+Gardez une page pour plus tard : menu principal › Ajouter à la liste de lecture (Ctrl+Maj+D).	Seite für später merken: Hauptmenü › Zur Leseliste hinzufügen (Strg+Umschalt+D).
 GROUPES D'ONGLETS	TABGRUPPEN
 Renommer avec le nom saisi ci-dessous	Mit dem unten eingegebenen Namen umbenennen
 Fermer le groupe et ses onglets	Gruppe und ihre Tabs schließen
@@ -596,7 +596,7 @@ Où mettre la barre d'adresse :	Wo die Adressleiste ist:
 Flottante	Schwebend
 Couleur d'accent	Akzentfarbe
 Résumés et extensions sur mesure	Zusammenfassungen und maßgeschneiderte Erweiterungen
-Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga fasst Seiten zusammen (✦-Taste oder Strg+Umschalt+Y) und schreibt Erweiterungen nach Ihrer Beschreibung.
+Sanaga résume les pages (bouton Intelligence de la barre d'outils, ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga fasst Seiten zusammen (Schaltfläche „Intelligenz“ der Symbolleiste oder Strg+Umschalt+Y) und schreibt Erweiterungen nach Ihrer Beschreibung.
 Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur	Nur Sanaga — einfache Zusammenfassung, ohne KI, nichts verlässt den Computer
 Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)	Ollama — ein KI-Modell auf diesem Computer (kostenlos, privat)
 Claude (Anthropic) — le meilleur résultat, avec votre clé d'API	Claude (Anthropic) — die besten Ergebnisse, mit Ihrem API-Schlüssel
@@ -647,11 +647,11 @@ Dans le trousseau du système	Im Systemschlüsselbund
 1 compte	1 Konto
 {} comptes	{} Konten
 Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.	Passwörter werden im Systemschlüsselbund (Secret Service) gespeichert, nie in Sanagas Dateien. Ein Konto für eine Website: Sanaga füllt es selbst aus.
-Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Zum Ausfüllen von Formularen: Menü ⋮ › Mit meinen Daten ausfüllen, oder Strg+Umschalt+F.
+Pour remplir les formulaires : menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Zum Ausfüllen von Formularen: Hauptmenü › Mit meinen Daten ausfüllen, oder Strg+Umschalt+F.
 Modéré	Mäßig
 Équilibré	Ausgewogen
 Maximal	Maximal
-Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.	Tabs, die Sie eine Weile nicht angesehen haben, schlafen ein und laden neu, wenn Sie zurückkehren (Ausgewogen: nach 20 Minuten). Tabs mit Ton schlafen nie.
+Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais.	Tabs, die Sie lange nicht angesehen haben, werden in den Ruhezustand versetzt und laden neu, wenn Sie zurückkehren. Tabs, die Ton abspielen, schlafen nie.
 Sites complets avec JavaScript, vidéos et applications (recommandé)	Vollständige Websites mit JavaScript, Videos und Apps (empfohlen)
 Pages simplifiées, très rapide et très économe en mémoire	Vereinfachte Seiten, sehr schnell und sehr speichersparend
 Dossier partagé	Gemeinsamer Ordner
@@ -762,7 +762,7 @@ Extension supprimée.	Erweiterung entfernt.
 Se présenter à ce site comme…	Sich dieser Website vorstellen als…
 Identité du navigateur par site	Browser-Identität pro Website
 Aucun choix pour l'instant	Noch keine Auswahl
-Menu ⋮ › Plus d'outils › Se présenter à ce site comme…	Menü ⋮ › Weitere Tools › Sich dieser Website vorstellen als…
+Menu principal › Plus d'outils › Se présenter à ce site comme…	Hauptmenü › Weitere Tools › Sich dieser Website vorstellen als…
 Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site.	Sanaga stellt sich den wenigen Web-Apps, die WebKit ablehnen, als Chrome vor (WhatsApp Web, Teams, Zoom…). Sie können für jede Website wählen.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire. Installez Chromium ou Firefox pour les regarder.	{} schützt seine Inhalte mit einem DRM (Widevine), das Sanagas Engine nicht abspielen kann. Installieren Sie Chromium oder Firefox, um sie anzusehen.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire.	{} schützt seine Inhalte mit einem DRM (Widevine), das Sanagas Engine nicht abspielen kann.
@@ -855,7 +855,7 @@ Réglages par site	Website-Einstellungen
 Polices	Schriften
 Mode sombre	Dunkelmodus
 Aucun réglage pour l'instant	Noch keine Einstellungen
-Menu ⋮ › Plus d'outils › Réglages de ce site…	Menü ⋮ › Weitere Tools › Einstellungen für diese Website…
+Menu principal › Plus d'outils › Réglages de ce site…	Hauptmenü › Weitere Tools › Einstellungen für diese Website…
 sans JavaScript	ohne JavaScript
 bloqueur coupé	Blocker aus
 sans ses polices	ohne eigene Schriften
@@ -1006,7 +1006,7 @@ Détails techniques	Technische Details
 Traduire vers	Übersetzen in
 Langue de Sanaga ({})	Sprache von Sanaga ({})
 Résumer ou traduire la page	Seite zusammenfassen oder übersetzen
-Les points essentiels, à côté de la page — Ctrl+Maj+Y	Die wichtigsten Punkte neben der Seite — Strg+Umschalt+Y
+Les points essentiels, à côté de la page	Die wichtigsten Punkte neben der Seite
 En {}	Auf {}
 En {} · avec {}	Auf {} · mit {}
 Cette adresse utilise un port bloqué	Diese Adresse nutzt einen gesperrten Port
@@ -1078,7 +1078,7 @@ Onglets, commandes, favoris, historique, Web…	Tabs, Befehle, Favoriten, Verlau
 Listes de blocage complètes	Vollständige Sperrlisten
 EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList und EasyPrivacy, einmal pro Woche von ihren Autoren abgerufen (easylist.to)
 Chiffrement activé	Verschlüsselung aktiv
-Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	Der Ordner enthält nur versiegelte Dateien. Klicken, um den Satz von diesem Computer zu entfernen.
+Le dossier ne contient que des fichiers scellés.	Der Ordner enthält nur versiegelte Dateien.
 Phrase secrète	Geheimer Satz
 Chiffre le dossier : la même phrase sur chaque ordinateur	Verschlüsselt den Ordner: derselbe Satz auf jedem Computer
 Chiffrer	Verschlüsseln
@@ -1127,3 +1127,25 @@ Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le mot
 * Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Von mehreren Tabs geteilter Prozess (Seiten, die einander geöffnet haben): Speicher und Prozessor zählen für jeden von ihnen.
 ne répond plus	reagiert nicht
 Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes).	In Sanaga ist ein Fehler aufgetreten; es läuft weiter. Ein Bericht wurde aufbewahrt (sanaga://crashes).
+Rétablir	Zurücksetzen
+Chercher	Suchen
+Synchroniser	Synchronisieren
+Retirer la phrase	Phrase entfernen
+Choisir un fichier…	Datei auswählen…
+Traduction en {} avec {}…	Übersetzung ins {} mit {}…
+Traduction en {} avec {}… ({} parties faites)	Übersetzung ins {} mit {}… ({} Teile fertig)
+Page traduite en {} par {}.	Seite ins {} übersetzt von {}.
+Traduction arrêtée.	Übersetzung angehalten.
+La page est de nouveau dans sa langue.	Die Seite ist wieder in ihrer Sprache.
+Arrêter	Anhalten
+Traduire à nouveau	Erneut übersetzen
+Afficher l'original	Original anzeigen
+Choisir une IA…	Eine KI auswählen…
+Claude, Ollama ou un assistant installé : dans Paramètres › Intelligence	Claude, Ollama oder ein installierter Assistent: in Einstellungen › Intelligenz
+Choisir une IA pour des résumés plus fins…	Eine KI für feinere Zusammenfassungen auswählen…
+Nom (facultatif)	Name (optional)
+Écrire à nouveau	Neu schreiben
+Écriture de l'extension… {} s	Erweiterung wird geschrieben… {} s
+Choisissez d'abord un modèle d'IA, ci-dessus.	Wählen Sie zuerst oben ein KI-Modell.
+Décrivez d'abord ce qu'elle doit faire.	Beschreiben Sie zuerst, was sie tun soll.
+Jeter	Verwerfen

@@ -55,7 +55,11 @@ pub(super) struct ExtForm {
     description: String,
     sites: String,
     status: String,
+    /// `status` says what went wrong (shown as such).
+    failed: bool,
     busy: bool,
+    /// When the writing began (the interface's clock).
+    started: f64,
     code: String,
     /// The extension just written: installed switched off, until the person
     /// has read it and clicks "Turn on" (its id, and where it would act).
@@ -190,10 +194,16 @@ impl Sanaga {
                                     self.ext_form.pending = Some(id);
                                     self.ext_form.code = text;
                                 }
-                                Err(e) => self.ext_form.status = e.to_string(),
+                                Err(e) => {
+                                    self.ext_form.status = e.to_string();
+                                    self.ext_form.failed = true;
+                                }
                             }
                         }
-                        Err(e) => self.ext_form.status = e,
+                        Err(e) => {
+                            self.ext_form.status = e;
+                            self.ext_form.failed = true;
+                        }
                     }
                 }
                 AiDone::Models(m) => self.ai_models = Some(m),
@@ -256,6 +266,8 @@ impl Sanaga {
         let mut close = false;
         let mut again = false;
         let mut copy = false;
+        let mut choose = false;
+        let no_model = self.ai_provider() == Provider::Local;
         let active_id = self.tabs[self.active].id;
         let Some(s) = self.summary.as_ref() else { return };
         Frame::new().inner_margin(Margin::symmetric(18, 14)).show(ui, |ui| {
@@ -287,6 +299,10 @@ impl Sanaga {
                     ui.label(RichText::new(&s.note).size(11.5).color(Color32::from_rgb(0xD0, 0x60, 0x30)));
                 }
                 ui.label(RichText::new(tf("Par : {}", &[&s.by])).size(11.5).color(th.sub));
+                // no model chosen: say that one would do better, and where
+                if no_model && ui.link(RichText::new(tr("Choisir une IA pour des résumés plus fins…")).size(12.0)).clicked() {
+                    choose = true;
+                }
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if ui.button(tr("Copier")).clicked() {
@@ -304,6 +320,9 @@ impl Sanaga {
                 self.ctx.copy_text(format!("{}\n\n{}", s.title, s.text));
             }
         }
+        if choose {
+            self.open_settings(&super::settings::Section::Intelligence.address());
+        }
         if close {
             self.summary = None;
         } else if again {
@@ -319,6 +338,8 @@ impl Sanaga {
         let mut go_settings = false;
         let mut create = false;
         let mut enable = false;
+        let mut discard = false;
+        let now = ui.input(|i| i.time);
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Créer une extension"));
             ui.label(RichText::new(tr("Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.")).size(14.0).color(th.sub));
@@ -346,7 +367,7 @@ impl Sanaga {
                 ui.add_space(12.0);
             }
             let f = &mut self.ext_form;
-            ui.label(RichText::new(tr("Nom")).family(bold()).color(th.text));
+            ui.label(RichText::new(tr("Nom (facultatif)")).family(bold()).color(th.text));
             ui.add(TextEdit::singleline(&mut f.name).hint_text(tr("Ex. : YouTube sans distractions")).desired_width(f32::INFINITY));
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Ce qu'elle doit faire")).family(bold()).color(th.text));
@@ -370,20 +391,34 @@ impl Sanaga {
                 }
             });
             ui.add_space(14.0);
+            let ready = !f.description.trim().is_empty() && !f.busy && provider_label.is_some();
             ui.horizontal(|ui| {
-                let ready = !f.description.trim().is_empty() && !f.busy && provider_label.is_some();
-                let b = egui::Button::new(RichText::new(tr("Créer l'extension")).color(Color32::WHITE)).fill(if ready { th.accent } else { th.sub }).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
+                // (once one is written: the same button writes it again, in its place)
+                let label = if f.pending.is_some() { tr("Écrire à nouveau") } else { tr("Créer l'extension") };
+                let b = egui::Button::new(RichText::new(label).color(Color32::WHITE)).fill(if ready { th.accent } else { th.sub }).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
                 if ui.add_enabled(ready, b).clicked() {
                     create = true;
                 }
                 if f.busy {
                     ui.spinner();
-                    ui.label(RichText::new(tr("Écriture de l'extension…")).color(th.sub));
+                    // (a model takes from a few seconds to a minute or two:
+                    // the time shows that it is still at work)
+                    let secs = (now - f.started).max(0.0) as u64;
+                    ui.label(RichText::new(tf("Écriture de l'extension… {} s", &[&secs])).color(th.sub));
+                    ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+                } else if !ready {
+                    // why the button can't be pressed
+                    let why = if provider_label.is_none() { tr("Choisissez d'abord un modèle d'IA, ci-dessus.") } else { tr("Décrivez d'abord ce qu'elle doit faire.") };
+                    ui.label(RichText::new(why).size(12.5).color(th.sub));
                 }
             });
             if !f.status.is_empty() {
                 ui.add_space(10.0);
-                ui.label(RichText::new(&f.status).color(th.text));
+                let (fill, text) = if f.failed { (Color32::from_rgb(0xD0, 0x40, 0x30).gamma_multiply(0.12), Color32::from_rgb(0xC0, 0x38, 0x2B)) } else { (th.accent.gamma_multiply(0.12), th.text) };
+                Frame::new().fill(fill).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 9)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.add(egui::Label::new(RichText::new(&f.status).color(text)).wrap());
+                });
             }
             if !f.code.is_empty() {
                 ui.add_space(8.0);
@@ -400,15 +435,29 @@ impl Sanaga {
                 });
                 if f.pending.is_some() {
                     ui.add_space(8.0);
-                    let b = egui::Button::new(RichText::new(tr("Activer l'extension")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
-                    if ui.add(b).clicked() {
-                        enable = true;
-                    }
+                    ui.horizontal(|ui| {
+                        let b = egui::Button::new(RichText::new(tr("Activer l'extension")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
+                        if ui.add(b).clicked() {
+                            enable = true;
+                        }
+                        // not what was wanted: its file goes
+                        if ui.add(egui::Button::new(tr("Jeter")).min_size(vec2(80.0, 34.0)).corner_radius(CornerRadius::same(10))).clicked() {
+                            discard = true;
+                        }
+                    });
                 }
             }
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.")).size(12.0).color(th.sub));
         });
+        if discard {
+            if let Some(id) = self.ext_form.pending.take() {
+                self.delete_extension(&id);
+            }
+            self.ext_form.code.clear();
+            self.ext_form.status.clear();
+            self.ext_form.matches.clear();
+        }
         // the person read it and turned it on
         if enable {
             if let Some(id) = self.ext_form.pending.take() {
@@ -416,6 +465,7 @@ impl Sanaga {
                     self.toggle_extension(&id);
                 }
                 self.ext_form.status = tf("« {} » est activée : elle s'applique aux pages ouvertes.", &[&self.ext_form.name]);
+                self.ext_form.failed = false;
             }
         }
         if let Some(t) = use_tool {
@@ -424,17 +474,24 @@ impl Sanaga {
             self.store.save_settings();
         }
         if go_settings {
-            self.settings_section = super::settings::Section::Intelligence;
-            self.navigate(self.active, "sanaga://settings".into(), None, true);
+            self.navigate(self.active, super::settings::Section::Intelligence.address(), None, true);
         }
         if create {
             let provider = self.ai_provider();
             if provider == Provider::Local {
                 self.ext_form.status = tr("Ajoutez votre clé Claude ou lancez Ollama (Paramètres › Intelligence).").into();
+                self.ext_form.failed = true;
                 return;
+            }
+            // written again: the draft not turned on gives way to the new one
+            if let Some(id) = self.ext_form.pending.take() {
+                self.delete_extension(&id);
+                self.notice = None;
             }
             let f = &mut self.ext_form;
             f.busy = true;
+            f.failed = false;
+            f.started = now;
             f.status.clear();
             f.code.clear();
             f.pending = None;

@@ -221,7 +221,7 @@ impl Sanaga {
             let reading: Vec<(String, String)> = self.store.reading.iter().filter(|b| matches(&b.url, &b.title)).map(|b| (b.url.clone(), b.title.clone())).collect();
             if self.section_header(ui, th, "sb-reading", tr("Liste de lecture"), None) {
                 if reading.is_empty() {
-                    hint(ui, th, if q.is_empty() { tr("Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).") } else { tr("Aucun résultat") });
+                    hint(ui, th, if q.is_empty() { tr("Gardez une page pour plus tard : menu principal › Ajouter à la liste de lecture (Ctrl+Maj+D).") } else { tr("Aucun résultat") });
                 }
                 for (url, title) in reading {
                     let resp = page_row(ui, th, dark, &url, &title, &host_of(&url));
@@ -509,7 +509,7 @@ fn link_menu(ui: &mut Ui, url: &str, acts: &mut Vec<Do>) {
     if menu_item(ui, Icon::Share, tr("Ouvrir dans une nouvelle fenêtre")) {
         acts.push(Do::OpenWindow(url.to_string()));
     }
-    if menu_item(ui, Icon::Mail, tr("Copier l'adresse")) {
+    if menu_item(ui, Icon::Copy, tr("Copier l'adresse")) {
         acts.push(Do::Copy(url.to_string()));
     }
 }
