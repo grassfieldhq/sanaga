@@ -47,6 +47,133 @@ pub enum PageSignal {
     Found(u32),
 }
 
+/// The address of the page with the selected words as a text fragment
+/// (`#:~:text=`): opened, the page scrolls to them and marks them.
+const LINK_TO_SELECTION_JS: &str = r#"(function () {
+  var s = String(window.getSelection()).replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  var enc = function (t) { return encodeURIComponent(t).replace(/-/g, '%2D'); };
+  var w = s.split(' ');
+  var frag = w.length > 12 ? enc(w.slice(0, 5).join(' ')) + ',' + enc(w.slice(-5).join(' ')) : enc(s);
+  return location.href.split('#')[0] + '#:~:text=' + frag;
+})()"#;
+
+/// The engine's own menu lines, in Sanaga's language. WebKit names them in
+/// the system's language — in English when it has no translation — and
+/// Sanaga has its own: the menu spoke two languages at once.
+fn stock_label(action: webkit6::ContextMenuAction) -> Option<&'static str> {
+    use crate::i18n::tr;
+    use webkit6::ContextMenuAction as A;
+    Some(match action {
+        A::OpenLink => tr("Ouvrir le lien"),
+        // (a "new window" of the engine is a tab in Sanaga)
+        A::OpenLinkInNewWindow => tr("Ouvrir le lien dans un nouvel onglet"),
+        A::DownloadLinkToDisk => tr("Télécharger le fichier lié"),
+        A::CopyLinkToClipboard => tr("Copier l'adresse du lien"),
+        A::OpenImageInNewWindow => tr("Ouvrir l'image dans un nouvel onglet"),
+        A::DownloadImageToDisk => tr("Enregistrer l'image sous…"),
+        A::CopyImageToClipboard => tr("Copier l'image"),
+        A::CopyImageUrlToClipboard => tr("Copier l'adresse de l'image"),
+        A::OpenFrameInNewWindow => tr("Ouvrir le cadre dans un nouvel onglet"),
+        A::GoBack => tr("Précédent"),
+        A::GoForward => tr("Suivant"),
+        A::Stop => tr("Arrêter"),
+        A::Reload => tr("Actualiser"),
+        A::Copy => tr("Copier"),
+        A::Cut => tr("Couper"),
+        A::Paste => tr("Coller"),
+        A::PasteAsPlainText => tr("Coller sans mise en forme"),
+        A::Delete => tr("Supprimer"),
+        A::SelectAll => tr("Tout sélectionner"),
+        A::InsertEmoji => tr("Insérer un émoji"),
+        A::InputMethods => tr("Méthodes de saisie"),
+        A::Unicode => tr("Insérer un caractère de contrôle Unicode"),
+        A::NoGuessesFound => tr("Aucune suggestion"),
+        A::IgnoreSpelling => tr("Ignorer ce mot"),
+        A::LearnSpelling => tr("Ajouter au dictionnaire"),
+        A::IgnoreGrammar => tr("Ignorer la grammaire"),
+        A::FontMenu => tr("Police"),
+        A::Bold => tr("Gras"),
+        A::Italic => tr("Italique"),
+        A::Underline => tr("Souligné"),
+        A::Outline => tr("Contour"),
+        A::InspectElement => tr("Inspecter l'élément"),
+        A::OpenVideoInNewWindow => tr("Ouvrir la vidéo dans un nouvel onglet"),
+        A::OpenAudioInNewWindow => tr("Ouvrir l'audio dans un nouvel onglet"),
+        A::CopyVideoLinkToClipboard => tr("Copier l'adresse de la vidéo"),
+        A::CopyAudioLinkToClipboard => tr("Copier l'adresse de l'audio"),
+        A::ToggleMediaControls => tr("Afficher ou masquer les commandes"),
+        A::ToggleMediaLoop => tr("Lire en boucle"),
+        A::EnterVideoFullscreen => tr("Plein écran"),
+        A::MediaPlay => tr("Lecture"),
+        A::MediaPause => tr("Pause"),
+        A::MediaMute => tr("Couper ou rétablir le son"),
+        A::DownloadVideoToDisk => tr("Enregistrer la vidéo sous…"),
+        A::DownloadAudioToDisk => tr("Enregistrer l'audio sous…"),
+        // (a spelling suggestion is the word itself; the rest is not the engine's)
+        _ => return None,
+    })
+}
+
+/// The engine's menu, put in order before Sanaga adds its lines: each line
+/// renamed (greyed or ticked as the engine had it), "Stop" left out when
+/// nothing loads, no rule at the top, the bottom or twice in a row. The
+/// inspector's line is taken out and handed back: it goes last.
+fn tidy_menu(menu: &webkit6::ContextMenu, loading: bool, no_unnamed: bool) -> Option<webkit6::ContextMenuItem> {
+    use gtk::glib::translate::IntoGlib;
+    use webkit6::{ContextMenuAction as A, ContextMenuItem};
+    let mut inspect = None;
+    let lines = menu.items();
+    menu.remove_all();
+    for line in lines {
+        if line.is_separator() {
+            if !menu.last().is_none_or(|l| l.is_separator()) {
+                menu.append(&line);
+            }
+            continue;
+        }
+        let action = line.stock_action();
+        if (action == A::Stop && !loading) || (action == A::Custom && no_unnamed) {
+            continue;
+        }
+        let renamed = match (stock_label(action), line.submenu()) {
+            (None, _) => line,
+            (Some(label), Some(inner)) => {
+                tidy_menu(&inner, loading, false);
+                // (a menu belongs to one line at a time)
+                line.set_submenu(None::<&webkit6::ContextMenu>);
+                ContextMenuItem::with_submenu(label, &inner)
+            }
+            (Some(label), None) => {
+                let was = line.gaction();
+                let ticked = was.as_ref().and_then(|a| a.state()).and_then(|s| s.get::<bool>()) == Some(true);
+                if ticked {
+                    // (a renamed line can't carry a tick: this one keeps the engine's words)
+                    line
+                } else if was.is_some_and(|a| !a.is_enabled()) {
+                    // greyed, as the engine had it: a renamed line of the
+                    // engine comes back usable, so this is a line of
+                    // Sanaga's that does nothing and says so
+                    let grey = gtk::gio::SimpleAction::new(&format!("sanaga-unavailable-{}", action.into_glib()), None);
+                    grey.set_enabled(false);
+                    ContextMenuItem::from_gaction(&grey, label, None)
+                } else {
+                    ContextMenuItem::from_stock_action_with_label(action, label)
+                }
+            }
+        };
+        if action == A::InspectElement {
+            inspect = Some(renamed);
+        } else {
+            menu.append(&renamed);
+        }
+    }
+    if let Some(last) = menu.last().filter(|l| l.is_separator()) {
+        menu.remove(&last);
+    }
+    inspect
+}
+
 /// Why a page did not load.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -1164,16 +1291,59 @@ impl PageView {
             }
             false
         });
-        // the page's right-click menu: Sanaga's page tools at the end
+        // the page's right-click menu: the engine's own lines said in
+        // Sanaga's language, then Sanaga's page tools, the inspector last
         let o = on.clone();
-        view.connect_context_menu(move |_, menu, hit| {
+        view.connect_context_menu(move |v, menu, hit| {
+            // (lines of the engine that have no name Sanaga can change come
+            // with a selection: "copy link with highlight", which Sanaga
+            // offers itself below, in its own language)
+            let inspect = tidy_menu(menu, v.is_loading(), hit.context_is_selection() && !hit.context_is_media() && !hit.context_is_image());
             let add = |label: &str, what: &'static str, arg: String| {
                 let action = gtk::gio::SimpleAction::new(&format!("sanaga-{what}"), None);
                 let o = o.clone();
                 action.connect_activate(move |_, _| o(PageSignal::Tool(what, arg.clone())));
                 menu.append(&webkit6::ContextMenuItem::from_gaction(&action, label, None));
             };
-            menu.append(&webkit6::ContextMenuItem::new_separator());
+            // words selected in the page: look them up on the web (the page
+            // is asked for them when the line is chosen, in Sanaga's own
+            // world: it cannot answer anything else in their place)
+            if hit.context_is_selection() && !hit.context_is_editable() {
+                let action = gtk::gio::SimpleAction::new("sanaga-search-selection", None);
+                let (tell, page) = (o.clone(), v.downgrade());
+                action.connect_activate(move |_, _| {
+                    let Some(page) = page.upgrade() else { return };
+                    let o = tell.clone();
+                    page.evaluate_javascript("String(window.getSelection())", Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| {
+                        let words: String = found.map(|w| w.to_str().to_string()).unwrap_or_default().split_whitespace().collect::<Vec<_>>().join(" ");
+                        if !words.is_empty() {
+                            o(PageSignal::Tool("search-selection", words.chars().take(300).collect()));
+                        }
+                    });
+                });
+                menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Rechercher la sélection sur le Web"), None));
+                // a link that opens the page at these very words (a "text
+                // fragment": the first and last words when there are many)
+                if v.uri().is_some_and(|u| u.starts_with("http")) {
+                    let action = gtk::gio::SimpleAction::new("sanaga-link-to-selection", None);
+                    let (tell, page) = (o.clone(), v.downgrade());
+                    action.connect_activate(move |_, _| {
+                        let Some(page) = page.upgrade() else { return };
+                        let (o, to) = (tell.clone(), page.clone());
+                        page.evaluate_javascript(LINK_TO_SELECTION_JS, Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| {
+                            let link = found.map(|w| w.to_str().to_string()).unwrap_or_default();
+                            if link.starts_with("http") {
+                                to.clipboard().set_text(&link);
+                                o(PageSignal::Tool("link-copied", String::new()));
+                            }
+                        });
+                    });
+                    menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Copier le lien vers ce passage"), None));
+                }
+            }
+            if !menu.last().is_none_or(|l| l.is_separator()) {
+                menu.append(&webkit6::ContextMenuItem::new_separator());
+            }
             if hit.context_is_link() {
                 if let Some(link) = hit.link_uri() {
                     add(crate::i18n::tr("Aperçu du lien"), "preview", link.to_string());
@@ -1187,6 +1357,10 @@ impl PageView {
             add(crate::i18n::tr("Supprimer un élément de la page…"), "zap", String::new());
             add(crate::i18n::tr("Modifier le texte de la page"), "edit-text", String::new());
             add(crate::i18n::tr("Réglages de ce site…"), "site-settings", String::new());
+            if let Some(inspect) = inspect {
+                menu.append(&webkit6::ContextMenuItem::new_separator());
+                menu.append(&inspect);
+            }
             if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                 eprintln!("page menu: {} items", menu.n_items());
             }

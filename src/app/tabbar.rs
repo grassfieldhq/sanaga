@@ -29,17 +29,15 @@ impl Sanaga {
         let bg = ui.interact(full, egui::Id::new("tabbar-bg"), Sense::click_and_drag());
         window_drag(ui, &bg);
         bg.menu_on_press(|ui| {
-            if ui.button(tr("Nouvel onglet")).clicked() {
+            use super::chrome::menu_item_keys;
+            if menu_item_keys(ui, Icon::Plus, tr("Nouvel onglet"), tr("Ctrl+T")) {
                 self.open_tab("sanaga://newtab", false);
-                ui.close();
             }
-            if ui.button(tr("Nouveau groupe d'onglets")).clicked() {
+            if menu_item_keys(ui, Icon::Grid, tr("Nouveau groupe d'onglets"), "") {
                 self.group_shown_tab();
-                ui.close();
             }
-            if !self.closed.is_empty() && ui.button(tr("Rouvrir l'onglet fermé (Ctrl+Maj+T)")).clicked() {
+            if !self.closed.is_empty() && menu_item_keys(ui, Icon::Rotate, tr("Rouvrir l'onglet fermé"), tr("Ctrl+Maj+T")) {
                 self.run_shortcut("reopen");
-                ui.close();
             }
         });
 

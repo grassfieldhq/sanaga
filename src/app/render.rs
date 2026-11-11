@@ -550,17 +550,15 @@ fn link_behaviour(ui: &Ui, resp: &Response, url: &str, rc: &mut RenderCtx) {
     let private = rc.private;
     let mut act: Option<Action> = None;
     resp.menu_on_press(|ui| {
-        if ui.button(tr("Ouvrir dans un nouvel onglet")).clicked() {
+        use super::chrome::menu_item;
+        if menu_item(ui, Icon::Plus, tr("Ouvrir dans un nouvel onglet")) {
             act = Some(Action::OpenTab { url: url.to_string(), private, focus: false });
-            ui.close();
         }
-        if ui.button(tr("Ouvrir dans un onglet privé")).clicked() {
+        if menu_item(ui, Icon::Private, tr("Ouvrir dans un onglet privé")) {
             act = Some(Action::OpenTab { url: url.to_string(), private: true, focus: true });
-            ui.close();
         }
-        if ui.button(tr("Copier l'adresse du lien")).clicked() {
+        if menu_item(ui, Icon::Copy, tr("Copier l'adresse du lien")) {
             ui.ctx().copy_text(url.to_string());
-            ui.close();
         }
     });
     if let Some(a) = act {

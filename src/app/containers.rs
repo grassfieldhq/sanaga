@@ -68,7 +68,7 @@ impl Sanaga {
         let list = self.store.containers.clone();
         for c in &list {
             let col = GROUP_COLORS.get(c.color as usize).map(|g| g.1).unwrap_or(Color32::GRAY);
-            if ui.button(RichText::new(format!("● {}", c.name)).color(col)).clicked() {
+            if super::chrome::menu_item_dot(ui, col, &c.name) {
                 self.open_in_container(url, &c.name);
                 return true;
             }
@@ -76,7 +76,7 @@ impl Sanaga {
         if !list.is_empty() {
             ui.separator();
         }
-        if ui.button(tr("Nouveau conteneur…")).clicked() {
+        if super::chrome::menu_item(ui, crate::icons::Icon::Plus, tr("Nouveau conteneur…")) {
             self.container_ask = Some(url.to_string());
             return true;
         }
