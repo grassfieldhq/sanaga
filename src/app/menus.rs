@@ -9,6 +9,8 @@ impl Sanaga {
     pub(super) fn bookmarks_bar(&mut self, ui: &mut Ui, th: &Theme) {
         let mut go: Option<(String, bool)> = None;
         let mut remove: Option<String> = None;
+        let mut edit: Option<usize> = None;
+        let mut copy: Option<String> = None;
         let mut hide = false;
         let full = ui.max_rect();
         // right-click on the empty bar, or the small button at its right end, hides it
@@ -34,7 +36,7 @@ impl Sanaga {
             if self.store.bookmarks.is_empty() {
                 ui.label(RichText::new(tr("Ajoutez des favoris avec l'étoile de la barre d'adresse.")).size(12.0).color(th.sub));
             }
-            for b in &self.store.bookmarks {
+            for (k, b) in self.store.bookmarks.iter().enumerate() {
                 let title: String = if b.title.chars().count() > 22 { format!("{}…", b.title.chars().take(21).collect::<String>()) } else { b.title.clone() };
                 let galley = ui.painter().layout_no_wrap(title, FontId::proportional(12.5), th.text);
                 let w = galley.size().x + 34.0;
@@ -58,10 +60,21 @@ impl Sanaga {
                         go = Some((b.url.clone(), true));
                         ui.close();
                     }
+                    // (a favourite could be opened or deleted from here, not
+                    // renamed nor its address taken)
+                    if ui.button(tr("Modifier…")).clicked() {
+                        edit = Some(k);
+                        ui.close();
+                    }
+                    if ui.button(tr("Copier l'adresse")).clicked() {
+                        copy = Some(b.url.clone());
+                        ui.close();
+                    }
                     if ui.button(tr("Supprimer")).clicked() {
                         remove = Some(b.url.clone());
                         ui.close();
                     }
+                    ui.separator();
                     if ui.button(tr("Masquer la barre des favoris")).clicked() {
                         hide = true;
                         ui.close();
@@ -74,6 +87,18 @@ impl Sanaga {
             self.store.save_settings();
         }
         self.apply_go(go);
+        if let Some(u) = copy {
+            ui.ctx().copy_text(u);
+            self.say(tr("Adresse copiée."));
+        }
+        if let Some(k) = edit {
+            // on the favourites page, its line open for editing
+            if let Some(b) = self.store.bookmarks.get(k) {
+                self.bm_edit = (b.title.clone(), b.url.clone());
+                self.bm_editing = Some(k);
+                self.open_tab("sanaga://bookmarks", false);
+            }
+        }
         if let Some(u) = remove {
             self.store.bookmarks.retain(|b| b.url != u);
             self.store.save_bookmarks();

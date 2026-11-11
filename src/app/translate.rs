@@ -137,6 +137,16 @@ pub(super) const LANGUAGES: [(&str, &str, &str); 20] = [
     ("hi", "Hindi", "Hindi (हिन्दी)"),
 ];
 
+/// A language's name as a list shows it. Some carry the name in their own
+/// script ("Chinese (中文)"); the fonts for these come from the system, and
+/// a computer without them drew empty boxes: there, only the first part.
+pub(super) fn shown_name(ctx: &egui::Context, name: &str) -> String {
+    if ctx.fonts_mut(|f| f.has_glyphs(&FontId::proportional(14.0), name)) {
+        return name.to_string();
+    }
+    name.split(" — ").next().and_then(|n| n.split(" (").next()).unwrap_or(name).to_string()
+}
+
 /// The language chosen (Settings › Intelligence), else the interface's.
 pub(super) fn target(chosen: &str) -> (&'static str, &'static str, &'static str) {
     let code = if chosen.is_empty() { crate::i18n::language() } else { chosen };
@@ -528,13 +538,14 @@ impl Sanaga {
                     ui.horizontal(|ui| {
                         ui.add_space(12.0);
                         ui.label(egui::RichText::new(tr("Traduire vers")).size(12.5).color(th.sub));
-                        let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&target("").2]) } else { target(code).2.to_string() };
+                        let ctx = ui.ctx().clone();
+                        let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&shown_name(&ctx, target("").2)]) } else { shown_name(&ctx, target(code).2) };
                         egui::ComboBox::from_id_salt("ai-menu-lang").selected_text(label(&chosen)).width(160.0).show_ui(ui, |ui| {
                             if ui.selectable_label(chosen.is_empty(), label("")).clicked() {
                                 chosen.clear();
                             }
                             for (code, _, name) in LANGUAGES {
-                                if ui.selectable_label(chosen == code, name).clicked() {
+                                if ui.selectable_label(chosen == code, shown_name(&ctx, name)).clicked() {
                                     chosen = code.to_string();
                                 }
                             }
