@@ -15,6 +15,7 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Crash information kept | ✅ | A report per crash in `~/.local/share/sanaga/crashes/` (Sanaga itself, a page's process, an abrupt end), read on `sanaga://crashes`, sent only by the person (a GitHub issue, pre-filled). After an abrupt end the tabs come back and a bar says so. A crash inside a system library leaves no detail, only the note that the run ended abruptly. |
 | One Sanaga per profile | ✅ | Links opened from other apps go to the running Sanaga as new tabs. |
 | Passwords | ✅ | In the system keyring (libsecret); AutoFill only for the site really shown. |
+| Never frozen, never taken down by a page | 🟡 | Audit of 11 November 2026 (docs/STABILITY-AUDIT-2026-11-11.md): nothing waited for in the window's thread any more, a panic in a frame no longer ends Sanaga, checked in CI. Left: the engine itself, and measuring drawing on real hardware. |
 | Security review | 🟡 | Audit of 8 November 2026 (docs/SECURITY-AUDIT-2026-11-08.md). The readers of outside files and pages are fuzzed at every push and weekly (docs/FUZZING.md). |
 
 ## 2. The web must work (must have)

@@ -388,16 +388,32 @@ fn list_ready(f: webkit6::UserContentFilter) {
 }
 
 /// WebKit compiles one converted list (on its own thread; it takes a while).
-fn compile_list(store: &webkit6::UserContentFilterStore, k: usize, path: &Path) {
+/// `then` runs once it is compiled (or failed).
+fn compile_list(store: &webkit6::UserContentFilterStore, k: usize, path: &Path, then: impl FnOnce() + 'static) {
     let started = std::time::Instant::now();
-    store.save_from_file(&crate::blocklist::list_id(k), &gtk::gio::File::for_path(path), None::<&gtk::gio::Cancellable>, move |res| match res {
-        Ok(f) => {
-            debug_lists(&format!("list {k} compiled in {:.1} s", started.elapsed().as_secs_f64()));
-            list_ready(f);
+    store.save_from_file(&crate::blocklist::list_id(k), &gtk::gio::File::for_path(path), None::<&gtk::gio::Cancellable>, move |res| {
+        match res {
+            Ok(f) => {
+                debug_lists(&format!("list {k} compiled in {:.1} s", started.elapsed().as_secs_f64()));
+                list_ready(f);
+            }
+            // (the list kept from last time, if any, stays in use)
+            Err(e) => eprintln!("listes de blocage : {e}"),
         }
-        // (the list kept from last time, if any, stays in use)
-        Err(e) => eprintln!("listes de blocage : {e}"),
+        then();
     });
+    debug_lists(&format!("list {k} handed to WebKit in {} ms", started.elapsed().as_millis()));
+}
+
+/// Compile the converted lists one after the other. Taking a list from
+/// Sanaga holds WebKit — and so the window — for about a tenth of a second
+/// (some 40 000 rules): one at a time, each once the one before is
+/// compiled, it is three short holds seconds apart, once a week, instead of
+/// one long one; and the compilations don't fight for the processor.
+fn compile_lists(store: webkit6::UserContentFilterStore, mut files: std::collections::VecDeque<(usize, PathBuf)>) {
+    let Some((k, path)) = files.pop_front() else { return };
+    let next = store.clone();
+    compile_list(&store, k, &path, move || compile_lists(next, files));
 }
 
 /// The big block lists: those compiled earlier are loaded at once (nothing
@@ -418,7 +434,7 @@ pub fn prepare_lists() {
             store.load(&list_id(k), None::<&gtk::gio::Cancellable>, move |res| match res {
                 Ok(f) => list_ready(f),
                 // converted but not compiled (Sanaga was closed meanwhile): compiled now
-                Err(_) => compile_list(&store2, k, &path),
+                Err(_) => compile_list(&store2, k, &path, || {}),
             });
         }
     }
@@ -436,9 +452,7 @@ pub fn prepare_lists() {
             };
             debug_lists(&format!("{n} rules in {} lists", files.len()));
             let store = webkit6::UserContentFilterStore::new(&dir.to_string_lossy());
-            for (k, path) in files.iter().enumerate() {
-                compile_list(&store, k, path);
-            }
+            compile_lists(store.clone(), files.iter().cloned().enumerate().collect());
             for k in files.len()..MAX_LISTS {
                 let id = list_id(k);
                 LISTS.with(|l| l.borrow_mut().retain(|x| x.identifier().as_deref() != Some(id.as_str())));

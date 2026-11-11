@@ -60,7 +60,15 @@ week, and for one minute when a pull request touches a reader.
    `cargo +nightly fuzz tmin <reader> <file>`) to the reader's unit tests, so
    it never comes back — see `broken_files_end` in `src/import.rs`.
 
+The interface's own text handling (Find in page, the source view, the
+address bar, model answers, settings files) cannot be built without GTK, so
+it has the repeatable fuzzer only: `src/app/robust.rs`.
+
 ## Found so far
+
+- Find in page: a page holding İ, ẞ or the Kelvin sign made Sanaga panic
+  when searched (the lowercased text was cut at the original's places).
+  Fixed; `find_in_page_cuts_text_on_characters`.
 
 - `import`: a Chrome bookmarks file holding `[}` made the reader run for
   ever (importing never ended, one processor core busy); a broken surrogate

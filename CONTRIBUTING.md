@@ -38,6 +38,12 @@ cargo clippy --all-targets   # must stay free of warnings (CI refuses them)
   what the person using Sanaga sees, not only what the code does.
 - **Keep it light.** Every feature should cost nothing while it is not used:
   no timers or threads running for nothing, no page started before it is shown.
+- **Never make the window wait.** Anything that may take time — another
+  program (the keyring, `xdg-…`), the network, a slow folder, a long
+  calculation — runs on a thread: `self.off_thread(work, then)` in
+  `src/app/`. Data files are saved with the store's `save_soon`. What is
+  drawn at every frame must not grow with the person's data (count once,
+  remember). `tools/lag-audit.sh` checks it.
 - **Interface texts** are written in French in the code with `tr("…")` /
   `tf("…{}…", &[&value])`, and translated in `assets/i18n/translations.txt`
   (see below). A pull request that adds a text must add its translations.

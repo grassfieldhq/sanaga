@@ -85,11 +85,27 @@ XDG_DATA_HOME=/tmp/sanaga-test ./target/debug/sanaga  # the bar, and sanaga://cr
 `kill -TERM` (or logging out) is not a crash: Sanaga saves its tabs and
 closes as with Quit.
 
+## Looking for lag
+
+```sh
+tools/lag-audit.sh        # a heavy profile, slow helper programs, every feature
+```
+
+See [STABILITY-AUDIT-2026-11-11.md](STABILITY-AUDIT-2026-11-11.md). It reads
+the lines of `SANAGA_DEBUG_STALLS` (below), which also works in a release
+build, on your own profile: `SANAGA_DEBUG_STALLS=30 sanaga`.
+
+More scripted actions for it: `go:ADDRESS` (in this tab), `opentab:ADDRESS`,
+`section:N` (the Nth Settings category), `syncnow`, and `panic` (a panic
+inside a frame: Sanaga must go on).
+
 ## Other switches
 
 | Variable | Effect |
 |---|---|
 | `SANAGA_DEBUG_FRAMES=1` | print each frame's duration |
+| `SANAGA_DEBUG_STALLS=30` | print every time the window did not answer for 30 ms or more (`stall … ms after <last command> (layout … ms, painting … ms)`), and each frame whose own work took 4 ms or more (`frame … ms after …`); all builds |
+| `SANAGA_DEBUG_STALL_STACKS=200` | with it: where the window's thread is during a stall of 200 ms or more |
 | `SANAGA_DEBUG_TICK=1` | print the web engine ticks |
 | `SANAGA_DEBUG_GL=1` | print the OpenGL version and errors |
 | `SANAGA_DEBUG_START=1` | print how long each step of the start took |

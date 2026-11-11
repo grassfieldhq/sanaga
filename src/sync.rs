@@ -10,7 +10,6 @@
 //! Argon2id): the service that carries the folder only sees sealed files.
 //! The phrase stays in the system keyring.
 
-use crate::store::Store;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -207,7 +206,7 @@ fn write_shared(plain: &Path, key: Option<&[u8; 32]>, text: &str) -> std::io::Re
 // --------------------------------------------------------------------- merge
 
 /// One favourite or reading-list entry: address, title.
-type Item = (String, String);
+pub type Item = (String, String);
 
 fn parse(text: &str) -> Vec<Item> {
     let mut out: Vec<Item> = Vec::new();
@@ -282,8 +281,9 @@ fn merge(base: Option<&[Item]>, local: &[Item], remote: &[Item]) -> Vec<Item> {
     out
 }
 
-/// Merge one list file with the folder's. True when this computer's list changed.
-fn exchange(local: &Path, base: &Path, remote: &Path, key: Option<&[u8; 32]>) -> Result<bool, String> {
+/// Merge one list file with the folder's. Gives this computer's new list
+/// when it changed.
+fn exchange(local: &Path, base: &Path, remote: &Path, key: Option<&[u8; 32]>) -> Result<Option<Vec<Item>>, String> {
     let local_text = std::fs::read_to_string(local).ok();
     let remote_text = read_shared(remote, key)?;
     // the base only counts when both sides are there: a list file that is
@@ -302,65 +302,97 @@ fn exchange(local: &Path, base: &Path, remote: &Path, key: Option<&[u8; 32]>) ->
         write_shared(remote, key, &text).map_err(|e| e.to_string())?;
     }
     let changed = merged != l;
+    // (this computer's own files: in order with the window's saves of them)
     if changed {
-        crate::store::write_atomic(local, &text).map_err(|e| e.to_string())?;
+        crate::store::write_in_order(local, &text).map_err(|e| e.to_string())?;
     }
     if let Some(dir) = base.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let _ = crate::store::write_atomic(base, &text);
-    Ok(changed)
+    let _ = crate::store::write_in_order(base, &text);
+    Ok(changed.then_some(merged))
 }
 
-/// One sync round. Returns true when local lists were replaced (reload them).
-pub fn sync(store: &Store, open_tabs: &[(String, String)], status: &mut SyncStatus) -> bool {
-    let folder = store.settings.sync_dir.trim();
+/// What a sync round needs to know of this computer (it runs on its own
+/// thread: the folder may be slow — a network drive, a USB key waking up —
+/// and making the key from the secret phrase takes a moment).
+pub struct SyncJob {
+    /// The sync folder chosen in Settings.
+    pub folder: String,
+    /// The profile's data folder, and its name ("" = the main one).
+    pub local_dir: PathBuf,
+    pub profile: String,
+    pub open_tabs: Vec<(String, String)>,
+}
+
+/// This computer's lists after a round, for those that changed
+/// (favourites, reading list): address and title.
+#[derive(Default)]
+pub struct Synced {
+    pub bookmarks: Option<Vec<Item>>,
+    pub reading: Option<Vec<Item>>,
+}
+
+/// What this computer's list becomes when the person changed it while a
+/// sync round was running: `before` is the list when the round began,
+/// `now` the list as the person left it, `synced` what the round made of
+/// `before` and the folder's. Nothing of either side is lost.
+pub fn rejoin(before: &[Item], now: &[Item], synced: &[Item]) -> Vec<Item> {
+    merge(Some(before), now, synced)
+}
+
+/// One sync round (call it on a thread). Gives this computer's lists that changed.
+pub fn sync(job: &SyncJob, status: &mut SyncStatus) -> Synced {
+    let mut synced = Synced::default();
+    let folder = job.folder.trim();
     if folder.is_empty() {
         status.error.clear();
-        return false;
+        return synced;
     }
     let root = PathBuf::from(folder);
     if !root.is_dir() {
         status.error = crate::i18n::tr("Dossier de synchronisation introuvable.").into();
-        return false;
+        return synced;
     }
-    let Some(local_dir) = store.data_dir() else { return false };
+    let local_dir = &job.local_dir;
     // (the keyring is still being asked for the phrase: next round)
-    if !secret_ready(&store.profile) {
-        return false;
+    if !secret_ready(&job.profile) {
+        return synced;
     }
-    let profile = if store.profile.is_empty() { "Personnel" } else { store.profile.as_str() };
+    // what the window is still saving is on the disk before it is read
+    crate::store::flush_saves();
+    let profile = if job.profile.is_empty() { "Personnel" } else { job.profile.as_str() };
     let dir = root.join("Sanaga").join(profile);
     let devices_dir = dir.join("appareils");
     if std::fs::create_dir_all(&devices_dir).is_err() {
         status.error = crate::i18n::tr("Impossible d'écrire dans le dossier de synchronisation.").into();
-        return false;
+        return synced;
     }
     let key = match phrase() {
         Some(p) => match folder_key(&dir, &p) {
             Ok(k) => Some(k),
             Err(e) => {
                 status.error = e;
-                return false;
+                return synced;
             }
         },
         None => None,
     };
     status.encrypted = key.is_some();
-    let mut changed = false;
     for f in ["bookmarks.tsv", "reading.tsv"] {
         match exchange(&local_dir.join(f), &local_dir.join("sync-base").join(f), &dir.join(f), key.as_ref()) {
-            Ok(c) => changed |= c,
+            Ok(list) if f == "bookmarks.tsv" => synced.bookmarks = list,
+            Ok(list) => synced.reading = list,
             Err(e) => {
                 // (a wrong or missing phrase: nothing was written anywhere)
                 status.error = e;
-                return changed;
+                return synced;
             }
         }
     }
     // publish this computer's tabs, read the others'
     let me = device_name();
-    let tabs: String = open_tabs.iter().map(|(u, t)| format!("{}\t{}\n", u, t.replace(['\t', '\n'], " "))).collect();
+    let tabs: String = job.open_tabs.iter().map(|(u, t)| format!("{}\t{}\n", u, t.replace(['\t', '\n'], " "))).collect();
     let _ = write_shared(&devices_dir.join(format!("{me}.tsv")), key.as_ref(), &tabs);
     let mut devices: Vec<(String, Vec<(String, String)>)> = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&devices_dir) {
@@ -381,7 +413,7 @@ pub fn sync(store: &Store, open_tabs: &[(String, String)], status: &mut SyncStat
     status.devices = devices;
     status.error.clear();
     status.last = Some(crate::store::now());
-    changed
+    synced
 }
 
 #[cfg(test)]
@@ -409,6 +441,20 @@ mod tests {
     }
 
     #[test]
+    fn a_change_made_during_a_round_is_joined_with_its_result() {
+        // when the round began; the round brought "r" from the folder and
+        // removed "b" (removed on another computer)
+        let before = items(&[("a", "A"), ("b", "B"), ("c", "C")]);
+        let synced = items(&[("a", "A"), ("c", "C"), ("r", "R")]);
+        // meanwhile the person added "n", renamed "a" and removed "c"
+        let now = items(&[("a", "A2"), ("b", "B"), ("n", "N")]);
+        let joined = rejoin(&before, &now, &synced);
+        assert_eq!(joined, items(&[("a", "A2"), ("n", "N"), ("r", "R")]));
+        // nothing changed meanwhile: the round's result as it is
+        assert_eq!(rejoin(&before, &before, &synced), synced);
+    }
+
+    #[test]
     fn lists_merge_through_the_folder_and_removals_travel() {
         let root = std::env::temp_dir().join(format!("sanaga-sync-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
@@ -417,7 +463,7 @@ mod tests {
             std::fs::create_dir_all(d).unwrap();
         }
         let f = "bookmarks.tsv";
-        let round = |pc: &Path, key: Option<&[u8; 32]>| exchange(&pc.join(f), &pc.join("base").join(f), &shared.join(f), key).unwrap();
+        let round = |pc: &Path, key: Option<&[u8; 32]>| exchange(&pc.join(f), &pc.join("base").join(f), &shared.join(f), key).unwrap().is_some();
         std::fs::write(pc1.join(f), "a\tA\nb\tB\n").unwrap();
         std::fs::write(pc2.join(f), "c\tC\n").unwrap();
         assert!(!round(&pc1, None)); // the folder was empty: pc1 publishes

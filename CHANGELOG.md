@@ -7,6 +7,9 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- `SANAGA_DEBUG_STALLS=30`: every time the window did not answer, with what
+  held it; `tools/lag-audit.sh`: the real window on a heavy profile with
+  slow helper programs, every feature in turn, in CI.
 - Crash reports (`sanaga://crashes`, also from About and the command
   palette): when Sanaga or a page's process stops, a short report is kept
   on the computer — what stopped, Sanaga's and the system's versions, no
@@ -65,6 +68,15 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- Nothing is waited for in the window's thread any more (stability audit,
+  docs/STABILITY-AUDIT-2026-11-11.md): the keyring, `xdg-settings`, the
+  icon cache and the sync round run on threads; data files are saved by a
+  thread, in order, still safely. Opening Settings with a slow keyring took
+  24 s; it takes a frame.
+- The new tab page and the lists no longer work the history and the site
+  names out again at every frame.
+- Block lists are handed to WebKit one at a time after their weekly
+  refresh (three short holds instead of one long one).
 - CI: Clippy and the test of the real window (it starts, a page answers,
   WebDriver drives it) now stop a merge; they were advice only. A weekly
   job fuzzes the readers with libFuzzer.
@@ -129,6 +141,12 @@ All notable changes to Sanaga are listed here. The format follows
   les URL en entier" shows the whole address.
 
 ### Fixed
+- Find in page (Light engine, Reader) made Sanaga crash on a page holding
+  letters such as İ or ẞ; the address bar's completion could crash on a
+  pasted Kelvin sign.
+- A panic while making a frame no longer ends Sanaga with all its tabs:
+  the frame is dropped, a report kept, and Sanaga goes on (three in a row
+  still stop it, and the tabs come back at the next start).
 - Importing bookmarks from a damaged Chrome `Bookmarks` file could run for
   ever (a file holding `[}`), found by fuzzing; a broken surrogate pair in
   a bookmark's name is now read as an unknown character.

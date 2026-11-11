@@ -1126,3 +1126,4 @@ Sanaga est piloté par un logiciel de test automatisé.	O Sanaga está a ser con
 Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le moteur pour la prochaine page, ou finissent de se fermer.	Cada página tem o seu próprio processo. Os que não têm nome são mantidos prontos pelo motor para a próxima página, ou estão a terminar de fechar.
 * Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Processo partilhado por vários separadores (páginas abertas umas pelas outras): a sua memória e o seu processador contam para cada um.
 ne répond plus	não responde
+Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes).	Ocorreu um erro no Sanaga, que continua. Foi guardado um relatório (sanaga://crashes).

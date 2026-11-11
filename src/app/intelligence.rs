@@ -82,10 +82,10 @@ impl Sanaga {
             // (a window without a profile folder, such as a guest window,
             // never reads a profile's key)
             "claude" if self.store.data_dir().is_none() => Provider::Local,
-            "claude" => match crate::keyring::lookup(&self.store.profile, ai::KEY_SITE, "claude") {
-                Some(key) if !key.is_empty() => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, key },
-                _ => Provider::Local,
-            },
+            // (no key in the keyring: Sanaga's own summary; the key itself
+            // is read where the request is made, on its thread)
+            "claude" if self.ai_key_known == Some(false) => Provider::Local,
+            "claude" => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, profile: self.store.profile.clone() },
             _ => Provider::Local,
         }
     }
@@ -208,6 +208,20 @@ impl Sanaga {
                 }
             }
         }
+    }
+
+    /// Is there a Claude key in the keyring? (Asked on a thread.)
+    pub(super) fn check_ai_key(&mut self) {
+        if self.store.data_dir().is_none() || !self.first_time("ai-key") {
+            return;
+        }
+        let profile = self.store.profile.clone();
+        self.off_thread(move || crate::keyring::lookup(&profile, ai::KEY_SITE, "claude").is_some_and(|k| !k.is_empty()), |app, known| {
+            // (a key saved or forgotten meanwhile is what counts)
+            if app.ai_key_known.is_none() {
+                app.ai_key_known = Some(known);
+            }
+        });
     }
 
     /// Read the saved accounts from the system keyring (in the background).

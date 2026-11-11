@@ -135,6 +135,8 @@ fn log_crashes() {
         let what = info.payload().downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| info.payload().downcast_ref::<String>().cloned()).unwrap_or_default();
         let thread = std::thread::current().name().unwrap_or("?").to_string();
         crash::write(&dir, crash::Kind::Interface, &page::engine_version(), &format!("Where: {place}\nThread: {thread}\nMessage: {what}"));
+        // (what was being saved reaches the disk before Sanaga goes)
+        store::flush_saves();
         default(info);
     }));
 }
@@ -275,6 +277,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     let done = eframe::run_native("Sanaga", options, Box::new(move |cc| Ok(Box::new(app::Sanaga::new(&cc.egui_ctx, urls, screenshot)))));
+    store::flush_saves();
     crash::mark_stopped();
     done
 }

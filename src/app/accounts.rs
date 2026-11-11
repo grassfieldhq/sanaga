@@ -54,10 +54,21 @@ impl Sanaga {
                 let (site, user, pass) = (parts[1].clone(), parts[2].clone(), parts[3].clone());
                 let profile = self.store.profile.clone();
                 let known = self.store.logins.iter().any(|(s, u)| *s == site && *u == user);
-                if known && keyring::lookup(&profile, &site, &user).as_deref() == Some(pass.as_str()) {
+                if !known {
+                    self.pw_prompt = Some(PwPrompt::Save { tab, site, user, pass });
                     return;
                 }
-                self.pw_prompt = Some(PwPrompt::Save { tab, site, user, pass });
+                // already saved: offered again only if the password changed
+                // (the keyring is asked on a thread: it may wait to be unlocked)
+                let (s, u) = (site.clone(), user.clone());
+                self.off_thread(
+                    move || keyring::lookup(&profile, &s, &u),
+                    move |app, saved| {
+                        if saved.as_deref() != Some(pass.as_str()) && app.tabs.iter().any(|t| t.id == tab) {
+                            app.pw_prompt = Some(PwPrompt::Save { tab, site, user, pass });
+                        }
+                    },
+                );
             }
             Some("pw:get") if parts.len() >= 2 => {
                 // sign-in fields appeared: Sanaga offers its saved accounts in
@@ -80,16 +91,29 @@ impl Sanaga {
     /// it in Sanaga's bar, only if the tab still shows that site, and the
     /// page script checks the origin again when it fills (top frame only).
     fn fill_login(&mut self, tab: u64, site: &str, user: &str) {
-        let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };
-        let Some(w) = t.web.as_ref() else { return };
-        if w.uri().map(|u| origin_of(&u)).as_deref() != Some(site) {
+        let shows_site = |app: &Sanaga| app.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()).is_some_and(|w| w.uri().map(|u| origin_of(&u)).as_deref() == Some(site));
+        if !shows_site(self) {
             return;
         }
-        let Some(pass) = keyring::lookup(&self.store.profile, site, user) else {
-            self.notice = Some((tr("Mot de passe introuvable dans le trousseau.").into(), self.ctx.input(|i| i.time)));
-            return;
-        };
-        let _ = w.evaluate_own(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {});", keyring::js_str(user), keyring::js_str(&pass), keyring::js_str(site)));
+        // (the keyring is asked on a thread: it may wait to be unlocked)
+        let (profile, site, user) = (self.store.profile.clone(), site.to_string(), user.to_string());
+        let (s, u) = (site.clone(), user.clone());
+        self.off_thread(
+            move || keyring::lookup(&profile, &s, &u),
+            move |app, pass| {
+                let Some(pass) = pass else {
+                    app.say(tr("Mot de passe introuvable dans le trousseau."));
+                    return;
+                };
+                // the tab may have moved on while the keyring answered: the
+                // password only ever goes to the site it was saved for
+                let Some(w) = app.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) else { return };
+                if w.uri().map(|u| origin_of(&u)).as_deref() != Some(site.as_str()) {
+                    return;
+                }
+                let _ = w.evaluate_own(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {});", keyring::js_str(&user), keyring::js_str(&pass), keyring::js_str(&site)));
+            },
+        );
     }
 
     /// AutoFill the form of the page with the person's contact details.
@@ -140,15 +164,22 @@ impl Sanaga {
                         let save = egui::Button::new(RichText::new(tr("Enregistrer")).color(Color32::WHITE)).fill(th.accent);
                         if ui.add(save).clicked() {
                             keep = false;
-                            if keyring::store(&self.store.profile, site, user, pass) {
-                                if !self.store.logins.iter().any(|(s, u)| s == site && u == user) {
-                                    self.store.logins.push((site.clone(), user.clone()));
-                                    self.store.save_logins();
-                                }
-                                self.notice = Some((tr("Mot de passe enregistré dans le trousseau.").into(), ui.input(|i| i.time)));
-                            } else {
-                                self.notice = Some((tr("Le trousseau du système n'est pas disponible.").into(), ui.input(|i| i.time)));
-                            }
+                            let (profile, site, user, pass) = (self.store.profile.clone(), site.clone(), user.clone(), pass.clone());
+                            let (s, u) = (site.clone(), user.clone());
+                            self.off_thread(
+                                move || keyring::store(&profile, &s, &u, &pass),
+                                move |app, ok| {
+                                    if ok {
+                                        if !app.store.logins.iter().any(|(s, u)| *s == site && *u == user) {
+                                            app.store.logins.push((site, user));
+                                            app.store.save_logins();
+                                        }
+                                        app.say(tr("Mot de passe enregistré dans le trousseau."));
+                                    } else {
+                                        app.say(tr("Le trousseau du système n'est pas disponible."));
+                                    }
+                                },
+                            );
                         }
                     });
                 }
@@ -187,11 +218,55 @@ impl Sanaga {
             .filter(|t| !t.private && !t.entries.is_empty() && t.url().starts_with("http"))
             .map(|t| (t.url().to_string(), t.title()))
             .collect();
-        let mut status = std::mem::take(&mut self.sync_status);
-        if crate::sync::sync(&self.store, &tabs, &mut status) {
-            self.store.reload_lists();
+        // one round at a time, on its own thread (the folder may be slow)
+        let Some(local_dir) = self.store.data_dir().cloned() else { return };
+        if self.sync_running {
+            return;
         }
-        self.sync_status = status;
+        self.sync_running = true;
+        let job = crate::sync::SyncJob { folder: self.store.settings.sync_dir.clone(), local_dir, profile: self.store.profile.clone(), open_tabs: tabs };
+        let mut status = self.sync_status.clone();
+        // the lists as they are now: what the person changes during the
+        // round is joined with the round's result, not lost (see `rejoin`)
+        let pairs = |list: &[crate::store::Bookmark]| -> Vec<crate::sync::Item> { list.iter().map(|b| (b.url.clone(), b.title.clone())).collect() };
+        let (bookmarks_before, reading_before) = (pairs(&self.store.bookmarks), pairs(&self.store.reading));
+        self.off_thread(
+            move || {
+                let synced = crate::sync::sync(&job, &mut status);
+                (synced, status)
+            },
+            move |app, (synced, status)| {
+                app.sync_running = false;
+                app.sync_status = status;
+                let settle = |before: &[crate::sync::Item], now: &[crate::store::Bookmark], synced: Vec<crate::sync::Item>| -> Vec<crate::store::Bookmark> {
+                    let now = pairs(now);
+                    let list = if now == before { synced } else { crate::sync::rejoin(before, &now, &synced) };
+                    list.into_iter().map(|(url, title)| crate::store::Bookmark { url, title }).collect()
+                };
+                if let Some(list) = synced.bookmarks {
+                    app.store.bookmarks = settle(&bookmarks_before, &app.store.bookmarks, list);
+                    app.store.save_bookmarks();
+                }
+                if let Some(list) = synced.reading {
+                    app.store.reading = settle(&reading_before, &app.store.reading, list);
+                    app.store.save_reading();
+                }
+            },
+        );
+    }
+
+    /// Copy a saved password (read from the keyring on a thread).
+    pub(super) fn copy_password(&mut self, site: String, user: String) {
+        let profile = self.store.profile.clone();
+        self.off_thread(
+            move || keyring::lookup(&profile, &site, &user),
+            |app, pass| {
+                if let Some(p) = pass {
+                    app.ctx.copy_text(p);
+                    app.say(tr("Mot de passe copié."));
+                }
+            },
+        );
     }
 
     pub(super) fn page_passwords(&mut self, ui: &mut Ui, th: &Theme) {
@@ -204,10 +279,11 @@ impl Sanaga {
         let mut reveal: Option<usize> = None;
         let mut copy: Option<usize> = None;
         let filter = self.pw_filter.to_lowercase();
+        let keyring_ok = self.keyring_ok();
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Mots de passe"));
             ui.label(RichText::new(tr("Les mots de passe sont gardés dans le trousseau de votre système, pas dans les fichiers de Sanaga. Sanaga propose de les enregistrer quand vous vous connectez à un site, et de les remplir la fois suivante.")).size(13.0).color(th.sub));
-            if !keyring::available() {
+            if !keyring_ok {
                 ui.add_space(6.0);
                 ui.label(RichText::new(tr("Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.")).size(13.0).color(Color32::from_rgb(0xD0, 0x40, 0x30)));
             }
@@ -252,20 +328,22 @@ impl Sanaga {
             }
         });
         let profile = self.store.profile.clone();
-        if let Some(i) = reveal {
-            let (s, u) = self.store.logins[i].clone();
-            self.pw_shown = keyring::lookup(&profile, &s, &u).map(|p| (i, p));
+        // (the keyring is asked on a thread: it may wait to be unlocked)
+        if let Some((s, u)) = reveal.and_then(|i| self.store.logins.get(i).cloned()) {
+            let p = profile.clone();
+            let (s2, u2) = (s.clone(), u.clone());
+            self.off_thread(
+                move || keyring::lookup(&p, &s2, &u2),
+                // (shown on the account's line, wherever it is by now)
+                move |app, pass| app.pw_shown = app.store.logins.iter().position(|(a, b)| *a == s && *b == u).zip(pass),
+            );
         }
-        if let Some(i) = copy {
-            let (s, u) = self.store.logins[i].clone();
-            if let Some(p) = keyring::lookup(&profile, &s, &u) {
-                self.ctx.copy_text(p);
-                self.notice = Some((tr("Mot de passe copié.").into(), self.ctx.input(|i| i.time)));
-            }
+        if let Some((s, u)) = copy.and_then(|i| self.store.logins.get(i).cloned()) {
+            self.copy_password(s, u);
         }
-        if let Some(i) = remove {
+        if let Some(i) = remove.filter(|i| *i < self.store.logins.len()) {
             let (s, u) = self.store.logins.remove(i);
-            keyring::delete(&profile, &s, &u);
+            self.off_thread(move || keyring::delete(&profile, &s, &u), |_, ()| {});
             self.store.save_logins();
             self.pw_shown = None;
         }
