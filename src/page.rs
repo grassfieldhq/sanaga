@@ -43,6 +43,8 @@ pub enum PageSignal {
     /// A link to a site whose videos need a DRM WebKit doesn't have
     /// (Netflix…): not loaded here; Sanaga opens it where it plays.
     Protected(String),
+    /// Find in page: how many times the words are in the page (0: nowhere).
+    Found(u32),
 }
 
 /// Why a page did not load.
@@ -1031,6 +1033,13 @@ impl PageView {
         });
         let o = on.clone();
         view.connect_title_notify(move |v| o(PageSignal::Title(v.title().map(|t| t.to_string()).unwrap_or_default())));
+        // find in page: the engine says how many it found, or that it found none
+        if let Some(find) = view.find_controller() {
+            let o = on.clone();
+            find.connect_found_text(move |_, n| o(PageSignal::Found(n)));
+            let o = on.clone();
+            find.connect_failed_to_find_text(move |_| o(PageSignal::Found(0)));
+        }
         // the page's icon, as WebKit loaded it
         let o = on.clone();
         view.connect_favicon_notify(move |v| {
@@ -1314,6 +1323,31 @@ impl PageView {
     pub fn evaluate_own(&self, js: &str) -> R<()> {
         self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, |_| {});
         Ok(())
+    }
+    /// Find in page with the engine's own search: every match is marked,
+    /// the current one stands out, and the page tells how many there are
+    /// (`PageSignal::Found`). `fresh`: the words changed; else go to the
+    /// next match (the one before when `backwards`).
+    pub fn find(&self, text: &str, backwards: bool, fresh: bool) {
+        use webkit6::FindOptions;
+        let Some(find) = self.view.find_controller() else { return };
+        if fresh || find.search_text().as_deref() != Some(text) {
+            let mut how = FindOptions::CASE_INSENSITIVE | FindOptions::WRAP_AROUND;
+            if backwards {
+                how |= FindOptions::BACKWARDS;
+            }
+            find.search(text, how.bits(), 999);
+        } else if backwards {
+            find.search_previous();
+        } else {
+            find.search_next();
+        }
+    }
+    /// The search is over: the marks leave the page.
+    pub fn find_done(&self) {
+        if let Some(find) = self.view.find_controller() {
+            find.search_finish();
+        }
     }
     pub fn zoom(&self, z: f64) -> R<()> {
         self.view.set_zoom_level(z);

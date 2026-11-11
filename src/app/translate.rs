@@ -3,6 +3,7 @@
 //! then the page is translated in place, a batch of its texts at a time, and
 //! only those texts are sent to that AI.
 
+use super::chrome::Fit as _;
 use super::*;
 use crate::ai::{self, Provider};
 use eframe::egui::Sense;
@@ -514,7 +515,7 @@ impl Sanaga {
                         // explanation never runs past the menu's edge)
                         ui.painter().text(pos2(r.right() - 10.0, r.top() + 16.0), egui::Align2::RIGHT_CENTER, keys, FontId::proportional(12.0), th.sub);
                         let clip = Rect::from_min_max(pos2(r.left() + 40.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
-                        ui.painter().with_clip_rect(clip).text(pos2(r.left() + 40.0, r.top() + 33.0), egui::Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
+                        ui.painter().with_clip_rect(clip).fit(pos2(r.left() + 40.0, r.top() + 33.0), egui::Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
                         if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                             act = Some(key);
                         }

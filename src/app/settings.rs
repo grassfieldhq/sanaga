@@ -7,6 +7,7 @@
 //! search.
 
 use super::chrome::focus_ring;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use crate::store;
@@ -709,7 +710,7 @@ impl Sanaga {
                 icons::paint(s.painter(), tile.shrink(5.0), sec.icon(), Color32::WHITE);
                 let col = if sel { Color32::WHITE } else { th.text };
                 let clip = Rect::from_min_max(pos2(r.left() + 36.0, r.top()), pos2(r.right() - 6.0, r.bottom()));
-                s.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, sec.label(), FontId::proportional(13.0), col);
+                s.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, sec.label(), FontId::proportional(13.0), col);
                 if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                     picked = Some(sec);
                 }

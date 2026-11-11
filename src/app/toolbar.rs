@@ -11,6 +11,7 @@ use eframe::egui::{Align, Align2, Color32, Response, RichText, Sense, TextEdit};
 pub(super) fn tool_button(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: bool, th: &Theme) -> Response {
     let resp = ui.interact(r, egui::Id::new(("tool", r.min.x as i32, r.min.y as i32)), if enabled { Sense::click() } else { Sense::hover() });
     let spot = Rect::from_center_size(r.center(), vec2(r.width().min(32.0), 28.0));
+    super::chrome::focus_ring(ui, &resp, spot, 14.0, th);
     if on {
         ui.painter().rect_filled(spot, CornerRadius::same(14), th.accent.gamma_multiply(0.14));
     } else if enabled && resp.hovered() {
@@ -511,6 +512,10 @@ impl Sanaga {
                 job.append(&rest, 0.0, egui::TextFormat::simple(font, th.sub));
                 (job, th.text, url.starts_with("https://"))
             };
+            // (too long for the pill: it ends with "…" instead of being cut
+            // in the middle of a letter)
+            let mut job = job;
+            job.wrap = egui::text::TextWrapping { max_width: (text_right - star_r.right() - 30.0).max(0.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
             let g = ui.painter().layout_job(job);
             let gw = g.size().x.min(text_right - star_r.right() - 30.0).max(0.0);
             let lock_w = if lock { 17.0 } else { 0.0 };
@@ -657,6 +662,16 @@ impl Sanaga {
 /// is no padlock to tell it.
 pub(super) fn display_url(url: &str, full: bool) -> (String, String) {
     let Ok(u) = url::Url::parse(url) else { return (url.to_string(), String::new()) };
+    // A file of this computer: its name first, then the folder it is in —
+    // the whole path, read from the left, showed only folders and lost the
+    // name off the end of the bar.
+    if u.scheme() == "file" && !full {
+        let path = percent_encoding::percent_decode_str(u.path()).decode_utf8().ok().filter(|d| !d.chars().any(|c| c.is_control())).map(|d| d.to_string()).unwrap_or_else(|| u.path().to_string());
+        return match path.trim_end_matches('/').rsplit_once('/') {
+            Some((folder, name)) if !name.is_empty() && !path.ends_with('/') => (name.to_string(), format!(" — {}", if folder.is_empty() { "/" } else { folder })),
+            _ => (path, String::new()),
+        };
+    }
     let Some(host) = u.host_str() else { return (url.to_string(), String::new()) };
     let host = if full { host } else { host.strip_prefix("www.").unwrap_or(host) };
     let prefix = if full || u.scheme() != "https" { format!("{}://", u.scheme()) } else { String::new() };
@@ -689,5 +704,10 @@ mod display_tests {
         assert_eq!(display_url("http://site.test:8080/a?b=1#c", false), ("http://site.test:8080".into(), "/a?b=1#c".into()));
         assert_eq!(display_url("https://www.example.com/", true), ("https://www.example.com".into(), "/".into()));
         assert_eq!(display_url("https://x.test/a%0Ab", false), ("x.test".into(), "/a%0Ab".into()));
+        // a file: its name, then its folder
+        assert_eq!(display_url("file:///home/ada/Documents/Re%C3%A7u.pdf", false), ("Reçu.pdf".into(), " — /home/ada/Documents".into()));
+        assert_eq!(display_url("file:///notes.txt", false), ("notes.txt".into(), " — /".into()));
+        assert_eq!(display_url("file:///home/ada/", false), ("/home/ada/".into(), "".into()));
+        assert_eq!(display_url("file:///home/ada/a.txt", true), ("file:///home/ada/a.txt".into(), "".into()));
     }
 }

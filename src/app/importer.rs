@@ -176,7 +176,7 @@ impl Sanaga {
                     html = true;
                 }
             });
-            ui.label(RichText::new(tr("Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.")).size(12.0).color(th.sub));
+            ui.label(RichText::new(tr("Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › menu « … » › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.")).size(12.0).color(th.sub));
             if !self.import_status.is_empty() {
                 ui.add_space(14.0);
                 Frame::new().fill(th.accent.gamma_multiply(0.10)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {

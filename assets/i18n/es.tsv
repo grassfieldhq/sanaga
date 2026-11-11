@@ -345,7 +345,7 @@ Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis 
 Depuis un fichier	Desde un archivo
 Mots de passe (fichier CSV)…	Contraseñas (archivo CSV)…
 Favoris (fichier HTML)…	Favoritos (archivo HTML)…
-Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Configuración › Contraseñas › Exportar. Firefox: about:logins › ⋯ › Exportar. Recuerda borrar el archivo exportado después de importarlo: contiene tus contraseñas sin cifrar.
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › menu « … » › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Configuración › Contraseñas › Exportar. Firefox: about:logins › … › Exportar. Recuerda borrar el archivo exportado después de importarlo: contiene tus contraseñas sin cifrar.
 Importer des mots de passe (CSV)	Importar contraseñas (CSV)
 Mots de passe (CSV)	Contraseñas (CSV)
 Importer depuis un autre navigateur…	Importar desde otro navegador…
@@ -419,7 +419,7 @@ Violet	Morado
 Cyan	Cian
 Orange	Naranja
 Simulateur mobile	Simulador móvil
-Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Ver y probar un sitio como en un teléfono o una tableta: más de 35 dispositivos, marco, rotación, zoom, versión móvil de los sitios, pantalla táctil y capturas. Botón de teléfono de la barra o Ctrl+Mayús+M.
+Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Ver y probar un sitio como en un teléfono o una tableta: {} dispositivos, marco, rotación, zoom, versión móvil de los sitios, pantalla táctil y capturas. Botón de teléfono de la barra o Ctrl+Mayús+M.
 Intégrée à Sanaga	Integrada en Sanaga
 Téléphones iPhone	Teléfonos iPhone
 Téléphones Android	Teléfonos Android
@@ -1187,3 +1187,10 @@ Essai de « {} » sur cette page seulement : elle n'est pas encore activée.	Pro
 Arrêter l'essai	Terminar la prueba
 Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.	Para probarla antes de activarla: abra en otra pestaña una página donde actúe y vuelva aquí.
 L'essayer d'abord sur :	Probarla primero en:
+Confirmer ?	¿Confirmar?
+Moteur web	Motor web
+Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous	Crear una extensión: describa lo que quiere, Sanaga la escribe por usted
+1 résultat	1 resultado
+{} résultats	{} resultados
+Plus de 999 résultats	Más de 999 resultados
+Fichier	Archivo

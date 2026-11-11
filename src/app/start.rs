@@ -2,6 +2,7 @@
 //! frequently visited sites, and a sobriety report instead of a privacy report.
 
 use super::chrome::site_badge;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, RichText, Sense};
@@ -15,14 +16,6 @@ fn card_bg(p: &egui::Painter, r: Rect, radius: u8, th: &Theme, hovered: bool) {
     p.rect_filled(r.translate(vec2(0.0, 1.0)), CornerRadius::same(radius), Color32::from_black_alpha(14));
     p.rect_filled(r, CornerRadius::same(radius), if hovered { th.omnibox_hover } else if th.page == Color32::WHITE { th.page } else { th.card });
     p.rect_stroke(r, CornerRadius::same(radius), Stroke::new(0.6, th.border), egui::StrokeKind::Inside);
-}
-
-fn short(s: &str, n: usize) -> String {
-    if s.chars().count() > n {
-        format!("{}…", s.chars().take(n - 1).collect::<String>())
-    } else {
-        s.to_string()
-    }
 }
 
 impl Sanaga {
@@ -111,7 +104,8 @@ impl Sanaga {
                         let sq = Rect::from_center_size(pos2(r.center().x, r.top() + 38.0), vec2(68.0, 68.0));
                         card_bg(ui.painter(), sq, 16, th, resp.hovered());
                         site_badge(ui.painter(), sq.center(), 17.0, url, title);
-                        ui.painter().text(pos2(r.center().x, r.top() + 90.0), Align2::CENTER_CENTER, short(title, 14), FontId::proportional(12.5), th.text);
+                        // (the room of its tile, no more: names ran into one another)
+                        ui.painter().with_clip_rect(r.shrink2(vec2(5.0, 0.0))).fit(pos2(r.center().x, r.top() + 90.0), Align2::CENTER_CENTER, if title.is_empty() { host_of(url) } else { title.clone() }, FontId::proportional(12.5), th.text);
                         if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                             go = Some(url.clone());
                         }
@@ -133,8 +127,8 @@ impl Sanaga {
                         icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(18.0, 18.0)), Icon::Glasses, th.accent);
                         let clip = Rect::from_min_max(pos2(r.left() + 44.0, r.top()), pos2(r.right() - 12.0, r.bottom()));
                         let p = ui.painter().with_clip_rect(clip);
-                        p.text(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, title, FontId::new(13.0, bold()), th.text);
-                        p.text(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, host_of(url), FontId::proportional(12.0), th.sub);
+                        p.fit(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, title, FontId::new(13.0, bold()), th.text);
+                        p.fit(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
                         if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                             go = Some(url.clone());
                         }
@@ -160,8 +154,8 @@ impl Sanaga {
                             let clip = Rect::from_min_max(pos2(r.left() + 44.0, r.top()), pos2(r.right() - 10.0, r.bottom()));
                             let p = ui.painter().with_clip_rect(clip);
                             let t = if title.is_empty() { host_of(url) } else { title.clone() };
-                            p.text(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, t, FontId::new(13.0, bold()), th.text);
-                            p.text(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, host_of(url), FontId::proportional(12.0), th.sub);
+                            p.fit(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, t, FontId::new(13.0, bold()), th.text);
+                            p.fit(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
                             if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 go = Some(url.clone());
                             }
@@ -186,8 +180,8 @@ impl Sanaga {
                             site_badge(ui.painter(), pos2(r.left() + 16.0, r.center().y), 8.0, url, title);
                             let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
                             let t = if title.is_empty() { host_of(url) } else { title.clone() };
-                            let g = ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
-                            ui.painter().with_clip_rect(clip).text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, host_of(url), FontId::proportional(12.0), th.sub);
+                            let g = ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
+                            ui.painter().with_clip_rect(clip).fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
                             if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 go = Some(url.clone());
                             }
@@ -224,7 +218,7 @@ impl Sanaga {
                 let pclip = ui.painter().with_clip_rect(pr.shrink(4.0));
                 for (k, line) in lines.iter().enumerate() {
                     let (size, col, font) = if k == 0 { (14.0, th.text, bold()) } else { (12.5, th.sub, FontFamily::Proportional) };
-                    pclip.text(pos2(pr.left() + 72.0, pr.top() + 30.0 + k as f32 * 22.0), Align2::LEFT_CENTER, line, FontId::new(size, font), col);
+                    pclip.fit(pos2(pr.left() + 72.0, pr.top() + 30.0 + k as f32 * 22.0), Align2::LEFT_CENTER, line, FontId::new(size, font), col);
                 }
                 let r = if two {
                     Rect::from_min_size(pos2(pr.right() + 14.0, rr.top()), vec2(card_w, 132.0))
@@ -237,9 +231,9 @@ impl Sanaga {
                 ui.painter().circle_filled(ic.center(), 22.0, Color32::from_rgb(0x34, 0xC7, 0x59).gamma_multiply(0.16));
                 icons::paint(ui.painter(), ic.shrink(6.0), Icon::Leaf, Color32::from_rgb(0x34, 0xC7, 0x59));
                 let sclip = ui.painter().with_clip_rect(r.shrink(4.0));
-                sclip.text(pos2(r.left() + 72.0, r.top() + 30.0), Align2::LEFT_CENTER, tr("Rapport de sobriété"), FontId::new(14.0, bold()), th.text);
+                sclip.fit(pos2(r.left() + 72.0, r.top() + 30.0), Align2::LEFT_CENTER, tr("Rapport de sobriété"), FontId::new(14.0, bold()), th.text);
                 for (k, line) in report.iter().enumerate() {
-                    sclip.text(pos2(r.left() + 72.0, r.top() + 52.0 + k as f32 * 19.0), Align2::LEFT_CENTER, line, FontId::proportional(12.5), th.sub);
+                    sclip.fit(pos2(r.left() + 72.0, r.top() + 52.0 + k as f32 * 19.0), Align2::LEFT_CENTER, line, FontId::proportional(12.5), th.sub);
                 }
                 }
                 // choose what the start page shows

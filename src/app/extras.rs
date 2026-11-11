@@ -2,6 +2,7 @@
 //! inspector, full screen, web apps ("Add to Dock"), per-site zoom and the
 //! privacy report (cross-site tracking prevention).
 
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use super::chrome::site_badge;
@@ -174,8 +175,8 @@ impl Sanaga {
                     site_badge(ui.painter(), tile.center(), 11.0, &url, &title);
                     let clip = Rect::from_min_max(pos2(tile.right() + 12.0, head.top()), head.max);
                     let p = ui.painter().with_clip_rect(clip);
-                    p.text(pos2(clip.left(), head.top() + 13.0), Align2::LEFT_CENTER, if title.is_empty() { &host } else { &title }, FontId::new(14.5, bold()), th.text);
-                    p.text(pos2(clip.left(), head.top() + 33.0), Align2::LEFT_CENTER, &host, FontId::proportional(12.5), th.sub);
+                    p.fit(pos2(clip.left(), head.top() + 13.0), Align2::LEFT_CENTER, if title.is_empty() { &host } else { &title }, FontId::new(14.5, bold()), th.text);
+                    p.fit(pos2(clip.left(), head.top() + 33.0), Align2::LEFT_CENTER, &host, FontId::proportional(12.5), th.sub);
                     ui.add_space(12.0);
                     // the link and Copy
                     let (lr, _) = ui.allocate_exact_size(vec2(iw, 36.0), Sense::hover());
@@ -187,7 +188,7 @@ impl Sanaga {
                     ui.painter().rect_filled(br, CornerRadius::same(8), if bresp.hovered() { bcol.gamma_multiply(0.85) } else { bcol });
                     ui.painter().text(br.center(), Align2::CENTER_CENTER, if copied { tr("Copié ✓") } else { tr("Copier") }, FontId::new(13.0, bold()), Color32::WHITE);
                     let lclip = Rect::from_min_max(pos2(lr.left() + 12.0, lr.top()), pos2(br.left() - 8.0, lr.bottom()));
-                    ui.painter().with_clip_rect(lclip).text(pos2(lclip.left(), lr.center().y), Align2::LEFT_CENTER, &url, FontId::proportional(12.5), th.sub);
+                    ui.painter().with_clip_rect(lclip).fit(pos2(lclip.left(), lr.center().y), Align2::LEFT_CENTER, &url, FontId::proportional(12.5), th.sub);
                     if bresp.clicked() {
                         act = Some("copy");
                     }
@@ -220,7 +221,7 @@ impl Sanaga {
                                     ui.painter().text(c, Align2::CENTER_CENTER, ini, FontId::new(15.0, bold()), ink);
                                 }
                             }
-                            ui.painter().with_clip_rect(cell.shrink2(vec2(1.0, 0.0))).text(pos2(c.x, cell.bottom() - 8.0), Align2::CENTER_CENTER, *label, FontId::proportional(10.5), th.sub);
+                            ui.painter().with_clip_rect(cell.shrink2(vec2(1.0, 0.0))).fit(pos2(c.x, cell.bottom() - 8.0), Align2::CENTER_CENTER, *label, FontId::proportional(10.5), th.sub);
                             if resp.clicked() {
                                 act = Some(id);
                             }
@@ -234,7 +235,7 @@ impl Sanaga {
                         (Icon::Print, tr("Imprimer…"), "print", web, false),
                         (Icon::Plus, tr("Application web"), "webapp", true, false),
                         (Icon::Grid, if qr.is_some() { tr("Masquer le code QR") } else { tr("Code QR") }, "qr", shareable, qr.is_some()),
-                        (Icon::Share, tr("Copier titre et lien"), "copy-both", true, false),
+                        (Icon::Copy, tr("Copier titre et lien"), "copy-both", true, false),
                     ];
                     let tw = (iw - 8.0) / 2.0;
                     for pair in tiles.chunks(2) {
@@ -247,7 +248,7 @@ impl Sanaga {
                             let ink = if !*enabled { th.sub.gamma_multiply(0.6) } else if *on { th.accent } else { th.text };
                             icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 20.0, r.center().y), vec2(15.0, 15.0)), *icon, ink);
                             let clip = Rect::from_min_max(pos2(r.left() + 36.0, r.top()), pos2(r.right() - 6.0, r.bottom()));
-                            ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, *label, FontId::proportional(12.5), ink);
+                            ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, *label, FontId::proportional(12.5), ink);
                             if *enabled && resp.clicked() {
                                 act = Some(id);
                             }

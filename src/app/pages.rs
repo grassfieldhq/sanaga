@@ -1,6 +1,7 @@
 //! Built-in pages: new tab, history, bookmarks, downloads, settings, about, errors.
 
 use super::chrome::site_badge;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use crate::store;
@@ -38,8 +39,8 @@ fn list_row(ui: &mut Ui, th: &Theme, url: &str, title: &str, meta: &str, go: &mu
     let clip = Rect::from_min_max(pos2(c.x + 20.0, r.top()), pos2(right - meta_w, r.bottom()));
     let p = ui.painter().with_clip_rect(clip);
     let t = if title.is_empty() { url } else { title };
-    let g = p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(14.0), th.text);
-    p.text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, host_of(url), FontId::proportional(12.5), th.sub);
+    let g = p.fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(14.0), th.text);
+    p.fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.5), th.sub);
     if !meta.is_empty() {
         ui.painter().text(pos2(right - 4.0, r.center().y), Align2::RIGHT_CENTER, meta, FontId::proportional(12.0), th.sub);
     }
@@ -76,7 +77,7 @@ impl Sanaga {
             ui.horizontal(|ui| {
                 ui.add(TextEdit::singleline(hf).hint_text(tr("Rechercher dans l'historique")).desired_width(320.0));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !store.history.is_empty() && ui.button(tr("Effacer l'historique")).clicked() {
+                    if !store.history.is_empty() && super::chrome::confirm_button(ui, "clear-history", tr("Effacer l'historique")) {
                         clear = true;
                     }
                 });
@@ -318,6 +319,7 @@ impl Sanaga {
     pub(super) fn page_about(&mut self, ui: &mut Ui, th: &Theme) {
         let cached: usize = self.tabs.iter().flat_map(|t| t.entries.iter()).filter_map(|e| e.doc.as_ref()).map(|d| d.bytes).sum();
         let rows = [
+            (tr("Moteur web"), format!("WebKitGTK {}", crate::page::engine_version())),
             (tr("Mémoire utilisée"), net::human_bytes(self.mem.1)),
             (tr("Onglets ouverts"), self.tabs.len().to_string()),
             (tr("Pages gardées en mémoire"), net::human_bytes(cached as u64)),
@@ -327,6 +329,7 @@ impl Sanaga {
         ];
         let mut open_welcome = false;
         let mut open_crashes = false;
+        let mut open_activity = false;
         centered_column(ui, |ui| {
             ui.add_space(30.0);
             ui.horizontal(|ui| {
@@ -356,6 +359,10 @@ impl Sanaga {
                 open_welcome = true;
             }
             ui.add_space(4.0);
+            if ui.link(tr("Activité : mémoire et processeur")).clicked() {
+                open_activity = true;
+            }
+            ui.add_space(4.0);
             if ui.link(tr("Rapports de plantage")).clicked() {
                 open_crashes = true;
             }
@@ -365,6 +372,9 @@ impl Sanaga {
         }
         if open_crashes {
             self.open_tab("sanaga://crashes", false);
+        }
+        if open_activity {
+            self.open_tab("sanaga://activity", false);
         }
     }
 

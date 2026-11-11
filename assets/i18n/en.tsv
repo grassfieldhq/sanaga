@@ -345,7 +345,7 @@ Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis 
 Depuis un fichier	From a file
 Mots de passe (fichier CSV)…	Passwords (CSV file)…
 Favoris (fichier HTML)…	Favourites (HTML file)…
-Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Settings › Passwords › Export. Firefox: about:logins › ⋯ › Export. Remember to delete the exported file after importing: it contains your passwords in plain text.
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › menu « … » › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Settings › Passwords › Export. Firefox: about:logins › … › Export. Remember to delete the exported file after importing: it contains your passwords in plain text.
 Importer des mots de passe (CSV)	Import passwords (CSV)
 Mots de passe (CSV)	Passwords (CSV)
 Importer depuis un autre navigateur…	Import from another browser…
@@ -419,7 +419,7 @@ Violet	Purple
 Cyan	Cyan
 Orange	Orange
 Simulateur mobile	Mobile simulator
-Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	See and test a site as on a phone or tablet: 35+ devices, frame, rotation, zoom, mobile version of sites, touch screen and screenshots. Phone button in the toolbar or Ctrl+Shift+M.
+Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	See and test a site as on a phone or tablet: {} devices, frame, rotation, zoom, mobile version of sites, touch screen and screenshots. Phone button in the toolbar or Ctrl+Shift+M.
 Intégrée à Sanaga	Built into Sanaga
 Téléphones iPhone	iPhone phones
 Téléphones Android	Android phones
@@ -1187,3 +1187,10 @@ Essai de « {} » sur cette page seulement : elle n'est pas encore activée.	Try
 Arrêter l'essai	End the trial
 Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.	To try it before switching it on: open a page it acts on in another tab, then come back here.
 L'essayer d'abord sur :	Try it first on:
+Confirmer ?	Confirm?
+Moteur web	Web engine
+Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous	Create an extension: describe what you want, Sanaga writes it for you
+1 résultat	1 result
+{} résultats	{} results
+Plus de 999 résultats	More than 999 results
+Fichier	File

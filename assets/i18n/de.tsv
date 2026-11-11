@@ -345,7 +345,7 @@ Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis 
 Depuis un fichier	Aus einer Datei
 Mots de passe (fichier CSV)…	Passwörter (CSV-Datei)…
 Favoris (fichier HTML)…	Favoriten (HTML-Datei)…
-Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Einstellungen › Passwörter › Exportieren. Firefox: about:logins › ⋯ › Exportieren. Löschen Sie die exportierte Datei nach dem Import: Sie enthält Ihre Passwörter im Klartext.
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › menu « … » › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Einstellungen › Passwörter › Exportieren. Firefox: about:logins › … › Exportieren. Löschen Sie die exportierte Datei nach dem Import: Sie enthält Ihre Passwörter im Klartext.
 Importer des mots de passe (CSV)	Passwörter importieren (CSV)
 Mots de passe (CSV)	Passwörter (CSV)
 Importer depuis un autre navigateur…	Aus einem anderen Browser importieren…
@@ -419,7 +419,7 @@ Violet	Lila
 Cyan	Cyan
 Orange	Orange
 Simulateur mobile	Mobil-Simulator
-Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Eine Website wie auf einem Telefon oder Tablet ansehen und testen: über 35 Geräte, Rahmen, Drehung, Zoom, mobile Version der Websites, Touchscreen und Screenshots. Telefon-Schaltfläche in der Symbolleiste oder Strg+Umschalt+M.
+Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Eine Website wie auf einem Telefon oder Tablet ansehen und testen: {} Geräte, Rahmen, Drehung, Zoom, mobile Version der Websites, Touchscreen und Screenshots. Telefon-Schaltfläche in der Symbolleiste oder Strg+Umschalt+M.
 Intégrée à Sanaga	In Sanaga integriert
 Téléphones iPhone	iPhone-Telefone
 Téléphones Android	Android-Telefone
@@ -1187,3 +1187,10 @@ Essai de « {} » sur cette page seulement : elle n'est pas encore activée.	„
 Arrêter l'essai	Test beenden
 Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.	Zum Ausprobieren vor dem Aktivieren: Öffnen Sie in einem anderen Tab eine Seite, auf der sie wirkt, und kommen Sie hierher zurück.
 L'essayer d'abord sur :	Zuerst ausprobieren auf:
+Confirmer ?	Bestätigen?
+Moteur web	Web-Engine
+Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous	Erweiterung erstellen: Beschreiben Sie, was Sie möchten, Sanaga schreibt sie für Sie
+1 résultat	1 Treffer
+{} résultats	{} Treffer
+Plus de 999 résultats	Mehr als 999 Treffer
+Fichier	Datei

@@ -7,6 +7,22 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- The keyboard alone: Tab reaches every row, switch and choice of Sanaga's
+  own pages and the toolbar, with a focus ring; Space or Enter acts.
+- Summaries and extensions appear as the model writes them, with **Stop**.
+  The summary draws headings, lists and emphasis, in a panel resized by
+  its edge.
+- A page in another language offers its translation in a bar (a switch in
+  Settings; "never on this site").
+- Settings: **Restore the defaults** per category; the search also finds
+  what lives one page further.
+- An extension can be tried on the page in front of you before it is
+  switched on.
+- Find in page uses the engine's own search on web pages: every match is
+  marked, their number is shown ("No results" in red), the words are kept
+  for next time.
+- About shows the WebKitGTK version and links to the Activity page; the
+  Extensions page links to the extension writer.
 - Each Settings category has an address (`sanaga://settings/privacy`): the
   toolbar's arrows, Alt+← / → and the mouse's side buttons go back and
   forth between categories, a category can be opened directly, and the
@@ -78,6 +94,14 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- What can't be undone asks twice: clearing the history, deleting a
+  password or an extension, resetting a site's settings.
+- One panel at a time: opening a menu or a panel closes the others, and
+  Escape closes whichever is open.
+- A site's settings panel and the Extensions page use the Settings' cards,
+  rows and switches.
+- A file of this computer is shown by its name, then its folder, in the
+  address bar, the tabs and the lists.
 - Settings (interface audit, docs/UX-AUDIT-2026-11-11.md): a row's text is
   never cut any more (it wraps, the row grows); the search finds every
   setting shown — also by a menu's choices, without accents — says which
@@ -158,6 +182,18 @@ All notable changes to Sanaga are listed here. The format follows
   les URL en entier" shows the whole address.
 
 ### Fixed
+- History: a title that arrived after its page had loaded was never
+  written to the file (the visit showed its bare address after a
+  restart), and could add a second visit of the same page.
+- Text painted by Sanaga that doesn't fit ends with "…" instead of being
+  cut in the middle of a letter (tabs, favourites, lists, menus, the
+  address bar).
+- Site badges: the letter of the site's own name ("W" for
+  fr.wikipedia.org, not "F").
+- A band of the wrong colour across the last row of scrolling lists.
+- The address bar no longer keeps the caret on Sanaga's own pages; a menu
+  label no longer runs into its shortcut; the names under the new tab's
+  tiles no longer run into one another.
 - Settings: missing characters (▯) in help texts; a switch that is off was
   invisible in the dark look; the memory saver's note contradicted its
   row; the codecs card's buttons ran into its text; the sidebar cut its

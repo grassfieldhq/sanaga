@@ -312,7 +312,7 @@ impl Sanaga {
                             ui.label(RichText::new(format!("{}   {}", if user.is_empty() { "(sans identifiant)" } else { user }, shown)).size(12.5).color(th.sub));
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui.button(tr("Supprimer")).clicked() {
+                            if super::chrome::confirm_button(ui, ("password", site, user), tr("Supprimer")) {
                                 remove = Some(i);
                             }
                             if ui.button(tr("Copier")).clicked() {
@@ -356,6 +356,7 @@ impl Sanaga {
         let mut toggle_mobile = false;
         let mut open_folder = false;
         let mut install = false;
+        let mut create = false;
         let mut review_done = false;
         let on = self.store.extensions_on.clone();
         // an extension just installed (switched off): what it would do, first
@@ -394,51 +395,60 @@ impl Sanaga {
                 });
                 ui.add_space(12.0);
             }
-            // built-in, native: the mobile simulator
-            Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
-                    crate::icons::paint(ui.painter(), r, crate::icons::Icon::Phone, th.accent);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(tr("Simulateur mobile")).size(14.0).family(bold()).color(th.text));
-                        ui.label(RichText::new(tr("Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.")).size(12.5).color(th.sub));
-                        ui.label(RichText::new(tr("Intégrée à Sanaga")).size(11.5).color(th.sub));
-                    });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let mut enabled = self.tb("mobile");
-                        let label = if enabled { tr("Activée") } else { tr("Désactivée") };
-                        if ui.checkbox(&mut enabled, label).changed() {
-                            toggle_mobile = true;
-                        }
-                    });
-                });
-            });
-            ui.add_space(6.0);
-            for e in &list {
+            // One row: what it is on the left (as many lines as it takes),
+            // its switch on the right — the same switch as in Settings.
+            let row = |ui: &mut Ui, icon: bool, name: &str, lines: &[String], removable: Option<&str>, on: bool| -> (bool, bool) {
+                let (mut flipped, mut removed) = (false, false);
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
+                        if icon {
+                            let (r, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
+                            crate::icons::paint(ui.painter(), r, crate::icons::Icon::Phone, th.accent);
+                        }
+                        // (the text stops before the controls: it used to run under them)
+                        let controls = if removable.is_some() { 150.0 } else { 54.0 };
                         ui.vertical(|ui| {
-                            ui.label(RichText::new(&e.name).size(14.0).family(bold()).color(th.text));
-                            ui.label(RichText::new(&e.description).size(12.5).color(th.sub));
-                            if !e.builtin {
-                                ui.label(RichText::new(if e.matches.is_empty() { tr("Tous les sites").to_string() } else { e.matches.join(", ") }).size(11.5).color(th.sub));
+                            ui.set_width((ui.available_width() - controls).max(120.0));
+                            ui.label(RichText::new(name).size(14.0).family(bold()).color(th.text));
+                            for (k, line) in lines.iter().filter(|l| !l.is_empty()).enumerate() {
+                                ui.add(egui::Label::new(RichText::new(line).size(if k == 0 { 12.5 } else { 11.5 }).color(th.sub)).wrap());
                             }
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if !e.builtin && ui.button(tr("Supprimer")).clicked() {
-                                delete = Some(e.id.clone());
+                            let mut now = on;
+                            if super::settings::switch(ui, th, &mut now) {
+                                flipped = true;
                             }
-                            let mut enabled = on.contains(&e.id);
-                            let label = if enabled { tr("Activée") } else { tr("Désactivée") };
-                            if ui.checkbox(&mut enabled, label).changed() {
-                                toggle = Some(e.id.clone());
+                            if let Some(id) = removable {
+                                ui.add_space(8.0);
+                                if super::chrome::confirm_button(ui, ("extension", id), tr("Supprimer")) {
+                                    removed = true;
+                                }
                             }
                         });
                     });
                 });
                 ui.add_space(6.0);
+                (flipped, removed)
+            };
+            // built-in, native: the mobile simulator
+            let devices = crate::app::devices::DEVICES.len();
+            let (flip, _) = row(ui, true, tr("Simulateur mobile"), &[tf("Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.", &[&devices]), tr("Intégrée à Sanaga").to_string()], None, self.tb("mobile"));
+            toggle_mobile |= flip;
+            for e in &list {
+                let place = if e.builtin { String::new() } else if e.matches.is_empty() { tr("Tous les sites").to_string() } else { e.matches.join(", ") };
+                let (flip, gone) = row(ui, false, &e.name, &[e.description.clone(), place], (!e.builtin).then_some(e.id.as_str()), on.contains(&e.id));
+                if flip {
+                    toggle = Some(e.id.clone());
+                }
+                if gone {
+                    delete = Some(e.id.clone());
+                }
+            }
+            ui.add_space(4.0);
+            if ui.link(tr("Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous")).clicked() {
+                create = true;
             }
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Vos propres extensions : déposez des fichiers .js ou .css dans le dossier des extensions.")).size(12.5).color(th.sub));
@@ -457,6 +467,10 @@ impl Sanaga {
         }
         if install {
             self.install_extension_dialog();
+        }
+        if create {
+            let a = self.active;
+            self.navigate(a, "sanaga://create-extension".into(), None, true);
         }
         if toggle_mobile {
             let on = self.tb("mobile");

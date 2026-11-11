@@ -387,9 +387,41 @@ pub struct Store {
     pub containers: Vec<Container>,
     /// The person's own toolbar buttons.
     pub buttons: Vec<CustomButton>,
+    /// Pages whose title changed after their visit was written, and since
+    /// when: written to the file a little later (`settle_history`).
+    titles_late: Vec<String>,
+    titles_since: Option<std::time::Instant>,
 }
 
 const MAX_HISTORY: usize = 5000;
+
+/// The history file, read: one visit per line (`time⇥address⇥title`). A
+/// line `=address⇥title` is a title learnt after the visit was written (a
+/// page names itself when it likes, often after it has loaded): it renames
+/// the latest visit of that address. Added at the end like the visits, so
+/// several windows can write the file without undoing one another.
+fn read_history(text: &str) -> Vec<Visit> {
+    let mut all: Vec<Visit> = Vec::new();
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix('=') {
+            if let Some((url, title)) = rest.split_once('\t') {
+                if let Some(v) = all.iter_mut().rev().take(TITLE_REACH).find(|v| v.url == url) {
+                    v.title = title.to_string();
+                }
+            }
+            continue;
+        }
+        let mut p = line.splitn(3, '\t');
+        if let (Some(tm), Some(u), Some(ti)) = (p.next(), p.next(), p.next()) {
+            all.push(Visit { time: tm.parse().unwrap_or(0), url: u.into(), title: ti.into() });
+        }
+    }
+    all
+}
+
+/// How far back a late title looks for its visit (other tabs may have
+/// loaded pages in between).
+const TITLE_REACH: usize = 64;
 
 impl Store {
     /// In-memory only (used for screenshots so nothing on disk changes).
@@ -410,6 +442,8 @@ impl Store {
             identities: Vec::new(),
             containers: Vec::new(),
             buttons: Vec::new(),
+            titles_late: Vec::new(),
+            titles_since: None,
         }
     }
 
@@ -501,7 +535,7 @@ impl Store {
         ensure_private_dir(&Self::root_dir());
         ensure_private_dir(&dir);
         close_files(&dir);
-        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new(), containers: Vec::new(), buttons: Vec::new() };
+        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new(), containers: Vec::new(), buttons: Vec::new(), titles_late: Vec::new(), titles_since: None };
         if let Ok(t) = std::fs::read_to_string(dir.join("containers.tsv")) {
             s.containers = t.lines().filter_map(|l| l.split_once('\t')).map(|(n, c)| Container { name: n.to_string(), color: c.parse().unwrap_or(1) }).collect();
         }
@@ -629,12 +663,7 @@ impl Store {
             }
         }
         if let Ok(t) = std::fs::read_to_string(dir.join("history.tsv")) {
-            for line in t.lines() {
-                let mut p = line.splitn(3, '\t');
-                if let (Some(tm), Some(u), Some(ti)) = (p.next(), p.next(), p.next()) {
-                    s.history.push(Visit { time: tm.parse().unwrap_or(0), url: u.into(), title: ti.into() });
-                }
-            }
+            s.history = read_history(&t);
             if s.history.len() > MAX_HISTORY {
                 let cut = s.history.len() - MAX_HISTORY;
                 s.history.drain(..cut);
@@ -717,8 +746,9 @@ impl Store {
         if let Some(last) = self.history.last_mut() {
             if last.url == url {
                 last.time = now();
-                if !title.is_empty() {
+                if !title.is_empty() && last.title != title {
                     last.title = title.to_string();
+                    self.title_is_late(url);
                 }
                 return;
             }
@@ -728,6 +758,53 @@ impl Store {
             append_soon(&dir.join("history.tsv"), format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
         }
         self.history.push(v);
+    }
+
+    /// A page told its title after its visit was recorded (most do: the
+    /// title of a page that draws itself comes after its load). The visit
+    /// is renamed — it used to stay under its bare address in the file, and
+    /// showed that way after a restart; and when another tab had loaded a
+    /// page in between, the title made a second visit of the same page.
+    pub fn title_visit(&mut self, url: &str, title: &str) {
+        if title.is_empty() {
+            return;
+        }
+        if let Some(v) = self.history.iter_mut().rev().take(TITLE_REACH).find(|v| v.url == url) {
+            if v.title != title {
+                v.title = title.to_string();
+                self.title_is_late(url);
+            }
+        }
+        // (no visit yet: the page is still loading, and its visit will
+        // carry this title when it is recorded)
+    }
+
+    fn title_is_late(&mut self, url: &str) {
+        if !self.titles_late.iter().any(|u| u == url) {
+            self.titles_late.push(url.to_string());
+        }
+        self.titles_since.get_or_insert_with(std::time::Instant::now);
+    }
+
+    /// Write the titles learnt late. Not at each change: some pages change
+    /// their title every second (a counter, "(3) Messages"), and each would
+    /// add a line to the file. `now`: Sanaga is closing.
+    pub fn settle_history(&mut self, now: bool) {
+        if !self.titles_since.is_some_and(|t| now || t.elapsed() >= std::time::Duration::from_secs(20)) {
+            return;
+        }
+        self.titles_since = None;
+        let late = std::mem::take(&mut self.titles_late);
+        let Some(dir) = &self.dir else { return };
+        let mut lines = String::new();
+        for url in late {
+            if let Some(v) = self.history.iter().rev().take(TITLE_REACH).find(|v| v.url == url) {
+                lines.push_str(&format!("={}\t{}\n", clean(&v.url), clean(&v.title)));
+            }
+        }
+        if !lines.is_empty() {
+            append_soon(&dir.join("history.tsv"), lines);
+        }
     }
 
     pub fn rewrite_history(&self) {
@@ -1216,6 +1293,27 @@ mod write_tests {
             })
             .collect();
         assert_eq!(kept, ["write a 2", "flush", "append a y", "remove b"]);
+    }
+
+    #[test]
+    fn a_title_learnt_late_renames_its_visit() {
+        // as written by a session: two visits, then the first one's title
+        let read = super::read_history("10\thttps://a.test/\t\n20\thttps://b.test/\tB\n=https://a.test/\tThe A page\n=https://nowhere.test/\tx\nbroken line\n");
+        assert_eq!(read.len(), 2);
+        assert_eq!((read[0].time, read[0].title.as_str()), (10, "The A page"));
+        assert_eq!(read[1].title, "B");
+        // in memory: the late title renames, and never adds a visit
+        let mut s = super::Store::ephemeral();
+        s.add_visit("https://a.test/", "");
+        s.add_visit("https://b.test/", "B");
+        s.title_visit("https://a.test/", "The A page");
+        s.title_visit("https://not-visited.test/", "x");
+        assert_eq!(s.history.len(), 2);
+        assert_eq!(s.history[0].title, "The A page");
+        // the same page again, with a title this time
+        s.add_visit("https://b.test/", "B, renamed");
+        assert_eq!(s.history.len(), 2);
+        assert_eq!(s.history[1].title, "B, renamed");
     }
 
     #[test]

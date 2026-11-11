@@ -15,6 +15,57 @@ pub(super) fn focus_ring(ui: &Ui, resp: &Response, rect: egui::Rect, radius: f32
     }
 }
 
+/// A line of text that does not fit ends with "…" — never cut in the
+/// middle of a letter, which reads as a mistake. Used in place of
+/// `Painter::text` on a painter clipped to the room the text has: the room
+/// is what is left of the clip from where the text starts.
+pub(super) trait Fit {
+    fn fit(&self, pos: egui::Pos2, anchor: Align2, text: impl ToString, font: FontId, color: Color32) -> egui::Rect;
+}
+
+impl Fit for egui::Painter {
+    fn fit(&self, pos: egui::Pos2, anchor: Align2, text: impl ToString, font: FontId, color: Color32) -> egui::Rect {
+        let clip = self.clip_rect();
+        let room = match anchor.x() {
+            egui::Align::Min => clip.right() - pos.x,
+            egui::Align::Max => pos.x - clip.left(),
+            egui::Align::Center => 2.0 * (clip.right() - pos.x).min(pos.x - clip.left()),
+        };
+        let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), font, color);
+        job.wrap = egui::text::TextWrapping { max_width: room.max(0.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+        let galley = self.layout_job(job);
+        let rect = anchor.anchor_size(pos, galley.size());
+        self.galley(rect.min, galley, color);
+        rect
+    }
+}
+
+/// A button for what can't be undone (erase the history, delete a password,
+/// remove an extension): the first press only arms it — it turns red and
+/// asks "Confirm?" for a few seconds — the second does it. One slip of the
+/// mouse no longer destroys anything.
+pub(super) fn confirm_button(ui: &mut Ui, what: impl std::hash::Hash + std::fmt::Debug, label: &str) -> bool {
+    let id = egui::Id::new(("confirm-button", what));
+    let now = ui.input(|i| i.time);
+    let armed = ui.ctx().data(|d| d.get_temp::<f64>(id)).is_some_and(|t| now - t < 4.0);
+    let button = if armed {
+        egui::Button::new(egui::RichText::new(tr("Confirmer ?")).color(Color32::WHITE)).fill(Color32::from_rgb(0xC8, 0x3A, 0x2B))
+    } else {
+        egui::Button::new(label)
+    };
+    if !ui.add(button).clicked() {
+        return false;
+    }
+    if armed {
+        ui.ctx().data_mut(|d| d.remove::<f64>(id));
+        return true;
+    }
+    ui.ctx().data_mut(|d| d.insert_temp(id, now));
+    // (it goes back to its own words by itself)
+    ui.ctx().request_repaint_after(std::time::Duration::from_secs(4));
+    false
+}
+
 pub(super) fn icon_button_small(ui: &mut Ui, icon: Icon, th: &Theme) -> Response {
     let (r, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
     focus_ring(ui, &resp, r, 13.0, th);
@@ -164,11 +215,11 @@ impl Sanaga {
                             }
                             let clip = Rect::from_min_max(pos2(ic.right() + 12.0, r.top()), pos2(r.right() - 12.0, r.bottom()));
                             let p = ui.painter().with_clip_rect(clip);
-                            let g = p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
+                            let g = p.fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
                             if !*search && label != url && !url.starts_with("tab:") {
                                 // (as in the address bar: decoded, no https:// nor www.)
                                 let (site, rest) = super::toolbar::display_url(url, false);
-                                p.text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {site}{rest}"), FontId::proportional(13.0), th.link);
+                                p.fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {site}{rest}"), FontId::proportional(13.0), th.link);
                             }
                             if resp.clicked() {
                                 go = Some(url.clone());

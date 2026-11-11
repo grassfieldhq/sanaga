@@ -52,6 +52,8 @@ pub(super) enum WebEvent {
     Scrolled { tab: u64, share: f32 },
     /// The language a page says it is written in ("en", "pt-br"…).
     PageLanguage { tab: u64, lang: String },
+    /// Find in page: how many matches the engine found in this tab.
+    Found { tab: u64, count: u32 },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -285,6 +287,7 @@ impl PageMaker {
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
                 PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
+                PageSignal::Found(count) => WebEvent::Found { tab: id, count },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         if !page_may_answer(what) {
@@ -480,8 +483,9 @@ impl Sanaga {
                 t.entries[t.idx].title = title.clone();
                 let url = t.entries[t.idx].url.clone();
                 if !t.private && !url.is_empty() {
-                    // updates the title of the visit just recorded
-                    self.store.add_visit(&url, &title);
+                    // the visit of this page takes its title (and no visit
+                    // is added: a title is not a visit)
+                    self.store.title_visit(&url, &title);
                 }
             }
             WebEvent::NewTab { tab, url } => {
@@ -515,6 +519,14 @@ impl Sanaga {
                 }
             }
             WebEvent::PageLanguage { tab, lang } => self.page_language(tab, &lang),
+            WebEvent::Found { tab, count } => {
+                // (only a new search counts the matches: going to the next
+                // one, the engine answers "1" — the one it went to)
+                if count == 0 || self.find_fresh || self.find_web.is_none_or(|(t, _)| t != tab) {
+                    self.find_web = Some((tab, count));
+                }
+                self.find_fresh = false;
+            }
             WebEvent::Scrolled { tab, share } => {
                 // mobile preview side by side: the phone follows the page
                 if let Some(c) = self.companion_of(tab) {
@@ -1019,10 +1031,32 @@ impl Sanaga {
     }
 
     /// Find in a WebKit page (uses the page's own search).
-    pub(super) fn web_find(&self, backwards: bool) {
+    /// Find in a web page: the engine's own search (all matches marked,
+    /// and their number told — `window.find` gave neither). `fresh`: the
+    /// words changed.
+    pub(super) fn web_find(&mut self, backwards: bool, fresh: bool) {
+        if fresh {
+            self.find_web = None;
+            self.find_fresh = true;
+        }
         if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
-            let q = self.find_query.replace('\\', "\\\\").replace('\'', "\\'");
-            let _ = w.evaluate_own(&format!("window.find('{q}', false, {backwards}, true, false, false, false);"));
+            if self.find_query.is_empty() {
+                w.find_done();
+            } else {
+                w.find(&self.find_query, backwards, fresh);
+            }
+        }
+    }
+
+    /// The find bar closes: the marks leave the pages (the words are kept
+    /// for the next time, as in other browsers).
+    pub(super) fn close_find(&mut self) {
+        self.find_open = false;
+        self.find_web = None;
+        for t in &self.tabs {
+            if let Some(w) = &t.web {
+                w.find_done();
+            }
         }
     }
 }
