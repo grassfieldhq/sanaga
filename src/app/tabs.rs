@@ -1,7 +1,7 @@
 //! Safari-style tab features: pinned tabs, tab groups, sound control,
 //! duplicate / close others, and the tab overview with page thumbnails.
 
-use super::chrome::site_badge;
+use super::chrome::{menu_item, menu_item_dot, menu_item_keys, menu_sub, site_badge};
 use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
@@ -348,18 +348,18 @@ impl Sanaga {
         let mut done = false;
         let t = &self.tabs[i];
         let (pinned, muted, web, group) = (t.pinned, t.muted, t.web.is_some(), t.group);
-        if ui.button(tr("Nouvel onglet à droite")).clicked() {
+        if menu_item(ui, Icon::Plus, tr("Nouvel onglet à droite")) {
             self.new_tab_right(i);
             return true;
         }
         if self.groups.len() <= 1 {
-            if ui.button(tr("Ajouter l'onglet à un nouveau groupe")).clicked() {
+            if menu_item(ui, Icon::Grid, tr("Ajouter l'onglet à un nouveau groupe")) {
                 self.tab_to_new_group(i);
                 return true;
             }
         } else {
-            ui.menu_button(tr("Ajouter l'onglet au groupe"), |ui| {
-                if ui.button(tr("Nouveau groupe")).clicked() {
+            menu_sub(ui, Icon::Grid, tr("Ajouter l'onglet au groupe"), |ui| {
+                if menu_item(ui, Icon::Plus, tr("Nouveau groupe")) {
                     self.tab_to_new_group(i);
                     done = true;
                     ui.close();
@@ -371,71 +371,71 @@ impl Sanaga {
                     }
                     let name = if self.groups[g].is_empty() { tf("Groupe {}", &[&g]) } else { self.groups[g].clone() };
                     let col = self.group_color(g);
-                    if ui.button(RichText::new(format!("● {name}")).color(col)).clicked() {
+                    if menu_item_dot(ui, col, &name) {
                         self.move_to_group(i, g);
                         done = true;
                     }
                 }
             });
         }
-        if group > 0 && ui.button(tr("Retirer du groupe")).clicked() {
+        if group > 0 && menu_item(ui, Icon::Close, tr("Retirer du groupe")) {
             self.move_to_group(i, 0);
             done = true;
         }
         ui.separator();
-        if ui.button(tr("Actualiser")).clicked() {
+        if menu_item_keys(ui, Icon::Reload, tr("Actualiser"), tr("Ctrl+R")) {
             self.reload(i);
             done = true;
         }
-        if ui.button(tr("Dupliquer")).clicked() {
+        if menu_item(ui, Icon::Copy, tr("Dupliquer")) {
             self.duplicate_tab(i);
             done = true;
         }
-        if self.tabs.len() > 1 && !self.tabs[i].private && ui.button(tr("Déplacer vers une nouvelle fenêtre")).clicked() {
+        if self.tabs.len() > 1 && !self.tabs[i].private && menu_item(ui, Icon::Share, tr("Déplacer vers une nouvelle fenêtre")) {
             // the page opens again in the new window, and leaves this one
             let url = self.tabs[i].url().to_string();
             self.new_window(vec![url]);
             self.close_tab(i);
             return true;
         }
-        if ui.button(if pinned { tr("Désépingler") } else { tr("Épingler") }).clicked() {
+        if menu_item(ui, Icon::Touch, if pinned { tr("Désépingler") } else { tr("Épingler") }) {
             self.toggle_pin(i);
             done = true;
         }
         if !self.tabs[i].private {
             let url = self.tabs[i].url().to_string();
             let url = if url.starts_with("sanaga://") { String::new() } else { url };
-            ui.menu_button(tr("Ouvrir dans un conteneur"), |ui| {
+            menu_sub(ui, Icon::Folder, tr("Ouvrir dans un conteneur"), |ui| {
                 if self.container_items(ui, &url) {
                     done = true;
                 }
             });
         }
-        if web && ui.button(if muted { tr("Réactiver le son du site") } else { tr("Couper le son du site") }).clicked() {
+        if web && menu_item(ui, if muted { Icon::Speaker } else { Icon::SpeakerMuted }, if muted { tr("Réactiver le son du site") } else { tr("Couper le son du site") }) {
             self.toggle_mute(i);
             done = true;
         }
         ui.separator();
-        if ui.button(tr("Fermer")).clicked() {
+        if menu_item_keys(ui, Icon::Close, tr("Fermer"), tr("Ctrl+W")) {
             self.close_tab(i);
             return true;
         }
         let id = self.tabs[i].id;
-        if self.tabs.iter().any(|t| t.parent == Some(id)) && ui.button(tr("Fermer avec ses onglets enfants")).clicked() {
+        if self.tabs.iter().any(|t| t.parent == Some(id)) && menu_item(ui, Icon::Close, tr("Fermer avec ses onglets enfants")) {
             self.close_tree(i);
             return true;
         }
-        if ui.button(tr("Fermer les autres onglets")).clicked() {
+        if menu_item(ui, Icon::Close, tr("Fermer les autres onglets")) {
             self.close_others(i, false);
             done = true;
         }
-        if ui.button(tr("Fermer les onglets à droite")).clicked() {
+        if menu_item(ui, Icon::Close, tr("Fermer les onglets à droite")) {
             self.close_others(i, true);
             done = true;
         }
         if !self.closed.is_empty() {
             ui.separator();
-            if ui.button(tr("Rouvrir l'onglet fermé (Ctrl+Maj+T)")).clicked() {
+            if menu_item_keys(ui, Icon::Rotate, tr("Rouvrir l'onglet fermé"), tr("Ctrl+Maj+T")) {
                 self.run_shortcut("reopen");
                 done = true;
             }
@@ -471,14 +471,14 @@ impl Sanaga {
             }
         });
         ui.separator();
-        if ui.button(tr("Nouvel onglet dans le groupe")).clicked() {
+        if menu_item(ui, Icon::Plus, tr("Nouvel onglet dans le groupe")) {
             if let Some(last) = self.visible_tabs().into_iter().rfind(|&i| self.tabs[i].group == g) {
                 self.group_collapsed[g] = false;
                 self.new_tab_right(last);
             }
             done = true;
         }
-        if ui.button(tr("Déplacer le groupe dans une nouvelle fenêtre")).clicked() {
+        if menu_item(ui, Icon::Share, tr("Déplacer le groupe dans une nouvelle fenêtre")) {
             let urls: Vec<String> = self.tabs.iter().filter(|t| t.group == g && !t.private && !t.entries.is_empty()).map(|t| t.url().to_string()).collect();
             if !urls.is_empty() && urls.len() < self.tabs.len() {
                 self.new_window(urls);
@@ -486,11 +486,11 @@ impl Sanaga {
             }
             return true;
         }
-        if ui.button(tr("Dissocier")).clicked() {
+        if menu_item(ui, Icon::Grid, tr("Dissocier")) {
             self.ungroup(g);
             return true;
         }
-        if ui.button(tr("Fermer le groupe")).clicked() {
+        if menu_item(ui, Icon::Close, tr("Fermer le groupe")) {
             self.close_group(g);
             return true;
         }

@@ -1198,3 +1198,45 @@ Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous�
 {} résultats⟂{} results⟂{} resultados⟂{} resultados⟂{} Treffer
 Plus de 999 résultats⟂More than 999 results⟂Más de 999 resultados⟂Mais de 999 resultados⟂Mehr als 999 Treffer
 Fichier⟂File⟂Archivo⟂Ficheiro⟂Datei
+Ctrl+R⟂Ctrl+R⟂Ctrl+R⟂Ctrl+R⟂Strg+R
+Ctrl+W⟂Ctrl+W⟂Ctrl+W⟂Ctrl+W⟂Strg+W
+Ctrl+Maj+T⟂Ctrl+Shift+T⟂Ctrl+Mayús+T⟂Ctrl+Shift+T⟂Strg+Umschalt+T
+Ouvrir le lien⟂Open link⟂Abrir enlace⟂Abrir ligação⟂Link öffnen
+Ouvrir le lien dans un nouvel onglet⟂Open link in new tab⟂Abrir enlace en una pestaña nueva⟂Abrir ligação num novo separador⟂Link in neuem Tab öffnen
+Télécharger le fichier lié⟂Download linked file⟂Descargar el archivo enlazado⟂Transferir o ficheiro ligado⟂Verknüpfte Datei herunterladen
+Ouvrir l'image dans un nouvel onglet⟂Open image in new tab⟂Abrir imagen en una pestaña nueva⟂Abrir imagem num novo separador⟂Bild in neuem Tab öffnen
+Enregistrer l'image sous…⟂Save image as…⟂Guardar imagen como…⟂Guardar imagem como…⟂Bild speichern unter…
+Copier l'image⟂Copy image⟂Copiar imagen⟂Copiar imagem⟂Bild kopieren
+Copier l'adresse de l'image⟂Copy image address⟂Copiar dirección de la imagen⟂Copiar endereço da imagem⟂Bildadresse kopieren
+Ouvrir le cadre dans un nouvel onglet⟂Open frame in new tab⟂Abrir marco en una pestaña nueva⟂Abrir moldura num novo separador⟂Frame in neuem Tab öffnen
+Couper⟂Cut⟂Cortar⟂Cortar⟂Ausschneiden
+Coller⟂Paste⟂Pegar⟂Colar⟂Einfügen
+Coller sans mise en forme⟂Paste as plain text⟂Pegar sin formato⟂Colar sem formatação⟂Ohne Formatierung einfügen
+Tout sélectionner⟂Select all⟂Seleccionar todo⟂Selecionar tudo⟂Alles auswählen
+Insérer un émoji⟂Insert emoji⟂Insertar emoji⟂Inserir emoji⟂Emoji einfügen
+Méthodes de saisie⟂Input methods⟂Métodos de entrada⟂Métodos de introdução⟂Eingabemethoden
+Insérer un caractère de contrôle Unicode⟂Insert Unicode control character⟂Insertar carácter de control Unicode⟂Inserir carácter de controlo Unicode⟂Unicode-Steuerzeichen einfügen
+Aucune suggestion⟂No suggestions⟂Sin sugerencias⟂Sem sugestões⟂Keine Vorschläge
+Ignorer ce mot⟂Ignore this word⟂Ignorar esta palabra⟂Ignorar esta palavra⟂Dieses Wort ignorieren
+Ajouter au dictionnaire⟂Add to dictionary⟂Añadir al diccionario⟂Adicionar ao dicionário⟂Zum Wörterbuch hinzufügen
+Ignorer la grammaire⟂Ignore grammar⟂Ignorar la gramática⟂Ignorar a gramática⟂Grammatik ignorieren
+Police⟂Font⟂Fuente⟂Tipo de letra⟂Schrift
+Gras⟂Bold⟂Negrita⟂Negrito⟂Fett
+Italique⟂Italic⟂Cursiva⟂Itálico⟂Kursiv
+Souligné⟂Underline⟂Subrayado⟂Sublinhado⟂Unterstrichen
+Contour⟂Outline⟂Contorno⟂Contorno⟂Kontur
+Inspecter l'élément⟂Inspect element⟂Inspeccionar elemento⟂Inspecionar elemento⟂Element untersuchen
+Ouvrir la vidéo dans un nouvel onglet⟂Open video in new tab⟂Abrir vídeo en una pestaña nueva⟂Abrir vídeo num novo separador⟂Video in neuem Tab öffnen
+Ouvrir l'audio dans un nouvel onglet⟂Open audio in new tab⟂Abrir audio en una pestaña nueva⟂Abrir áudio num novo separador⟂Audio in neuem Tab öffnen
+Copier l'adresse de la vidéo⟂Copy video address⟂Copiar dirección del vídeo⟂Copiar endereço do vídeo⟂Videoadresse kopieren
+Copier l'adresse de l'audio⟂Copy audio address⟂Copiar dirección del audio⟂Copiar endereço do áudio⟂Audioadresse kopieren
+Afficher ou masquer les commandes⟂Show or hide controls⟂Mostrar u ocultar los controles⟂Mostrar ou ocultar os controlos⟂Steuerelemente ein- oder ausblenden
+Lire en boucle⟂Loop⟂Repetir⟂Repetir⟂Wiederholen
+Lecture⟂Play⟂Reproducir⟂Reproduzir⟂Wiedergabe
+Pause⟂Pause⟂Pausa⟂Pausa⟂Pause
+Couper ou rétablir le son⟂Mute or unmute⟂Silenciar o activar el sonido⟂Silenciar ou ativar o som⟂Ton aus- oder einschalten
+Enregistrer la vidéo sous…⟂Save video as…⟂Guardar vídeo como…⟂Guardar vídeo como…⟂Video speichern unter…
+Enregistrer l'audio sous…⟂Save audio as…⟂Guardar audio como…⟂Guardar áudio como…⟂Audio speichern unter…
+Rechercher la sélection sur le Web⟂Search the web for the selection⟂Buscar la selección en la Web⟂Pesquisar a seleção na Web⟂Auswahl im Web suchen
+Copier le lien vers ce passage⟂Copy link to this passage⟂Copiar enlace a este pasaje⟂Copiar ligação para este excerto⟂Link zu dieser Textstelle kopieren
+Lien copié⟂Link copied⟂Enlace copiado⟂Ligação copiada⟂Link kopiert

@@ -248,6 +248,14 @@ impl Sanaga {
             "zap" => self.start_zapper(),
             "zap-done" => self.zapped(tab, arg),
             "edit-text" => self.toggle_edit_text(),
+            "link-copied" => self.say(tr("Lien copié")),
+            // (the words selected in the page, read by Sanaga itself)
+            "search-selection" => {
+                let url = self.store.settings.engine.search_url(arg);
+                let private = self.tabs.iter().find(|t| t.id == tab).is_some_and(|t| t.private);
+                self.open_tab(&url, private);
+                self.focus_address = false;
+            }
             "site-settings" => self.site_panel = true,
             "media-unsupported" => self.codec_flag = Some(tab),
             // this system's engine can't make video calls: call sites open

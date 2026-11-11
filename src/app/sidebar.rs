@@ -6,6 +6,7 @@
 //! every row. Groups are renamed in place (double-click), favourites too.
 
 use super::chrome::site_badge;
+pub(super) use super::chrome::menu_item;
 use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
@@ -515,22 +516,3 @@ fn link_menu(ui: &mut Ui, url: &str, acts: &mut Vec<Do>) {
     }
 }
 
-/// A menu item with an icon (macOS menus show symbols beside the words).
-pub(super) fn menu_item(ui: &mut Ui, icon: Icon, label: &str) -> bool {
-    // a steady width: the menu keeps its size whatever its widest line
-    let w = ui.min_rect().width().max(228.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w, 26.0), Sense::click());
-    let accent = ui.visuals().selection.stroke.color;
-    let hovered = resp.hovered();
-    if hovered {
-        ui.painter().rect_filled(r, CornerRadius::same(6), accent);
-    }
-    let col = if hovered { Color32::WHITE } else { ui.visuals().text_color() };
-    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 14.0, r.center().y), vec2(13.0, 13.0)), icon, col);
-    ui.painter().text(pos2(r.left() + 30.0, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), col);
-    if resp.clicked() {
-        ui.close();
-        return true;
-    }
-    false
-}

@@ -1,6 +1,6 @@
 //! Bookmarks bar, the ⋮ menu, the find-in-page bar and the downloads bar.
 
-use super::chrome::{icon_button_small, site_badge};
+use super::chrome::{icon_button_small, menu_item, menu_item_keys, site_badge};
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Color32, Layout, Margin, RichText, Sense, TextEdit};
@@ -16,9 +16,8 @@ impl Sanaga {
         // right-click on the empty bar, or the small button at its right end, hides it
         let bg = ui.interact(full, egui::Id::new("bookmarks-bar-bg"), Sense::click());
         bg.menu_on_press(|ui| {
-            if ui.button(tr("Masquer la barre des favoris (Ctrl+Maj+B)")).clicked() {
+            if menu_item_keys(ui, Icon::StarFilled, tr("Masquer la barre des favoris"), tr("Ctrl+Maj+B")) {
                 hide = true;
-                ui.close();
             }
         });
         let hr = Rect::from_center_size(pos2(full.right() - 22.0, full.center().y), vec2(22.0, 22.0));
@@ -56,28 +55,23 @@ impl Sanaga {
                     go = Some((b.url.clone(), false));
                 }
                 resp.menu_on_press(|ui| {
-                    if ui.button(tr("Ouvrir dans un nouvel onglet")).clicked() {
+                    if menu_item(ui, Icon::Plus, tr("Ouvrir dans un nouvel onglet")) {
                         go = Some((b.url.clone(), true));
-                        ui.close();
                     }
                     // (a favourite could be opened or deleted from here, not
                     // renamed nor its address taken)
-                    if ui.button(tr("Modifier…")).clicked() {
+                    if menu_item(ui, Icon::Pencil, tr("Modifier…")) {
                         edit = Some(k);
-                        ui.close();
                     }
-                    if ui.button(tr("Copier l'adresse")).clicked() {
+                    if menu_item(ui, Icon::Copy, tr("Copier l'adresse")) {
                         copy = Some(b.url.clone());
-                        ui.close();
                     }
-                    if ui.button(tr("Supprimer")).clicked() {
+                    if menu_item(ui, Icon::Close, tr("Supprimer")) {
                         remove = Some(b.url.clone());
-                        ui.close();
                     }
                     ui.separator();
-                    if ui.button(tr("Masquer la barre des favoris")).clicked() {
+                    if menu_item_keys(ui, Icon::StarFilled, tr("Masquer la barre des favoris"), tr("Ctrl+Maj+B")) {
                         hide = true;
-                        ui.close();
                     }
                 });
             }
