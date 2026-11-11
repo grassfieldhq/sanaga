@@ -419,6 +419,24 @@ pub fn close_files(dir: &Path) {
 
 
 
+/// A JavaScript string literal (for handing values to a page safely).
+pub fn js_str(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '<' => out.push_str("\\u003c"),
+            c if (c as u32) < 0x20 || c == '\u{2028}' || c == '\u{2029}' => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

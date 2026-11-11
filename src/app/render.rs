@@ -78,6 +78,7 @@ impl Sanaga {
                 Internal::Settings => self.page_settings(ui, th),
                 Internal::About => self.page_about(ui, th),
                 Internal::Activity => self.page_activity(ui, th),
+                Internal::Crashes => self.page_crashes(ui, th),
                 Internal::Passwords => self.page_passwords(ui, th),
                 Internal::Extensions => self.page_extensions(ui, th),
                 Internal::Profiles => self.page_profiles(ui, th),

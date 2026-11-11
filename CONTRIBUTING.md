@@ -24,7 +24,7 @@ Install the requirements listed in the [README](README.md#install), then:
 cargo build          # debug build (optimised enough to be pleasant)
 cargo run -- https://example.com
 cargo test           # unit tests (no display needed)
-cargo clippy         # must stay free of warnings
+cargo clippy --all-targets   # must stay free of warnings (CI refuses them)
 ```
 
 `cargo fmt` uses the default Rust style with a long line width (see
@@ -45,7 +45,8 @@ cargo clippy         # must stay free of warnings
   products must not be added. The device frames and browser bars of the
   simulator are drawn with code (`src/frames.rs`).
 - **Tests** go next to the code (`#[cfg(test)] mod tests`). Pure logic (parsing,
-  layout, file formats) should have one.
+  layout, file formats) should have one. Code that reads files or pages from
+  outside gets a `fuzz_one` entry point too: see [docs/FUZZING.md](docs/FUZZING.md).
 
 ## Project layout
 

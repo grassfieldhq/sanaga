@@ -222,6 +222,8 @@ pub(super) struct PageMaker {
     ids: Rc<Cell<u64>>,
     /// The person's extensions: they act on the page itself (its world).
     page_scripts: Rc<Vec<String>>,
+    /// The window is driven by test software (`--automation`): its pages say so to the engine.
+    automation: bool,
 }
 
 impl PageMaker {
@@ -250,7 +252,7 @@ impl PageMaker {
         let scripts: Vec<&str> = self.scripts.iter().map(|s| s.as_str()).collect();
         let page_scripts: Vec<&str> = self.page_scripts.iter().map(|s| s.as_str()).collect();
         let engine = if container.is_empty() || private { self.ctx.clone() } else { self.container_engine(container).or_else(|| self.ctx.clone()) };
-        PageView::new(engine.as_ref(), private, &scripts, &page_scripts, opener, Some(popup), move |sig| {
+        PageView::new(engine.as_ref(), private, &scripts, &page_scripts, opener, Some(popup), self.automation, move |sig| {
             let ev = match sig {
                 PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
                 PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
@@ -480,6 +482,7 @@ impl Sanaga {
             }
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
             WebEvent::Crashed { tab, memory } => {
+                self.report_page_crash(memory);
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     t.loading = false;
                     let why = if memory {
@@ -808,12 +811,14 @@ impl Sanaga {
         let list: Vec<(u64, u64, PageView)> = self.popups.borrow_mut().drain(..).collect();
         for (opener, id, pv) in list {
             let (private, group, container) = self.tabs.iter().find(|t| t.id == opener).map(|t| (t.private, t.group, t.container.clone())).unwrap_or((false, 0, String::new()));
+            let has_opener = self.tabs.iter().any(|t| t.id == opener);
             let i = self.open_tab("sanaga://newtab", private);
             self.focus_address = false;
             let t = &mut self.tabs[i];
             t.id = id;
             t.group = group;
-            t.parent = Some(opener);
+            // (a page opened by test software has no opener)
+            t.parent = has_opener.then_some(opener);
             t.container = container;
             t.view = View::Web;
             t.loading = true;
@@ -873,6 +878,34 @@ impl Sanaga {
         self.notice = Some((tr("Extension supprimée.").into(), self.ctx.input(|i| i.time)));
     }
 
+    /// `sanaga --automation`: test software speaking WebDriver (through
+    /// WebKit's own driver, see docs/AUTOMATION.md) may start a session.
+    /// Each page it asks for is a new tab of this window, which keeps
+    /// nothing and shares nothing with the person's profile.
+    pub(super) fn allow_automation(&self) {
+        let Some(engine) = &self.web_context else { return };
+        let maker = self.page_maker();
+        engine.ctx.set_automation_allowed(true);
+        engine.ctx.connect_automation_started(move |_, session| {
+            let info = webkit6::ApplicationInfo::new();
+            info.set_name("Sanaga");
+            let mut v = env!("CARGO_PKG_VERSION").split('.').map(|n| n.parse::<u64>().unwrap_or(0));
+            info.set_version(v.next().unwrap_or(0), v.next().unwrap_or(0), v.next().unwrap_or(0));
+            session.set_application_info(&info);
+            let maker = maker.clone();
+            session.connect_create_web_view(None, move |_| {
+                let id = maker.ids.get();
+                maker.ids.set(id + 1);
+                let page = maker.make(id, false, None, "");
+                let view = page.webview();
+                // (it becomes a tab at the next frame: see adopt_popups)
+                maker.popups.borrow_mut().push((0, id, page));
+                maker.repaint.request_repaint();
+                view
+            });
+        });
+    }
+
     pub(super) fn page_maker(&self) -> PageMaker {
         let extensions = crate::extensions::init_script(&self.store.extensions_on);
         PageMaker {
@@ -884,6 +917,7 @@ impl Sanaga {
             popups: self.popups.clone(),
             ids: self.popup_ids.clone(),
             page_scripts: Rc::new(vec![extensions]),
+            automation: self.automation,
         }
     }
 

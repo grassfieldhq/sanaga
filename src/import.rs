@@ -62,7 +62,8 @@ impl J<'_> {
                             if (0xD800..0xDC00).contains(&cp) && self.b.get(self.i..self.i + 2) == Some(b"\\u") {
                                 let lo = u32::from_str_radix(std::str::from_utf8(self.b.get(self.i + 2..self.i + 6)?).ok()?, 16).ok()?;
                                 self.i += 6;
-                                cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+                                // (a first half followed by anything else is not a character)
+                                cp = if (0xDC00..0xE000).contains(&lo) { 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00) } else { 0xFFFD };
                             }
                             let ch = char::from_u32(cp).unwrap_or('\u{FFFD}');
                             let mut buf = [0u8; 4];
@@ -139,8 +140,15 @@ impl J<'_> {
                 self.string()?;
             }
             _ => {
+                // a number, true, false, null
+                let from = self.i;
                 while self.i < self.b.len() && !matches!(self.b[self.i], b',' | b'}' | b']') {
                     self.i += 1;
+                }
+                // (nothing there, e.g. "[}": a broken file, not a value —
+                // going on would read the same byte for ever)
+                if self.i == from {
+                    return None;
                 }
             }
         }
@@ -187,9 +195,39 @@ pub fn parse_html(text: &str) -> Vec<(String, String)> {
     out
 }
 
+/// One input for the fuzzers (see docs/FUZZING.md): any bytes read as a
+/// Chrome bookmarks file and as an exported bookmarks page.
+#[cfg(any(test, fuzzing))]
+pub fn fuzz_one(data: &[u8]) {
+    let text = String::from_utf8_lossy(data);
+    let _ = parse_chrome(&text);
+    for (address, _) in parse_html(&text) {
+        assert!(address.starts_with("http://") || address.starts_with("https://"), "only web addresses are imported");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Thousands of damaged bookmark files (see mutate.rs): none may panic.
+    #[test]
+    fn damaged_files_do_not_panic() {
+        let seeds: [&[u8]; 3] = [
+            r#"{"roots":{"bookmark_bar":{"children":[{"date_added":"1","meta_info":{"x":"y"},"name":"Wiki \u00e9","type":"url","url":"https://fr.wikipedia.org/"},{"children":[{"name":"HN","type":"url","url":"https://news.ycombinator.com/"}],"name":"Dossier","type":"folder"}],"name":"Barre","type":"folder"}},"version":1}"#.as_bytes(),
+            br#"<DL><p><DT><A HREF="https://a.org/" ADD_DATE="1">A &amp; B</A><DT><A HREF="place:x">no</A><DT><a href='http://b.org/'>b</a><a href=https://c.org/ x>c</DL>"#,
+            "<A HREF=\"https://é.example/\">é 👍</A><a >x</a><a href=".as_bytes(),
+        ];
+        crate::mutate::run(&seeds, 30_000, fuzz_one);
+    }
+
+    #[test]
+    fn broken_files_end() {
+        // found by fuzzing: these two made the reader run for ever / overflow
+        assert!(parse_chrome("[}").is_empty());
+        assert!(parse_chrome("{\"a\":[}]").is_empty());
+        assert_eq!(parse_chrome(r#"{"type":"url","url":"https://a.org/","name":"\ud83d\u0041"}"#), vec![("https://a.org/".into(), "\u{fffd}".into())]);
+    }
 
     #[test]
     fn chrome_file() {

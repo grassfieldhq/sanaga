@@ -7,6 +7,28 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Crash reports (`sanaga://crashes`, also from About and the command
+  palette): when Sanaga or a page's process stops, a short report is kept
+  on the computer — what stopped, Sanaga's and the system's versions, no
+  page address, the home folder's name taken out. Read it, copy it, send it
+  as a pre-filled GitHub issue, or delete it; nothing is sent by itself. The
+  newest 20 are kept.
+- After an abrupt end (a crash, a kill, a power cut) the next start says so
+  in a bar: the tabs are back, or one click reopens them when "restore
+  tabs" is off.
+- Asked to stop by the system (logging out, `kill`, Ctrl+C), Sanaga closes
+  as with Quit: tabs saved.
+- Activity page: memory and processor **tab by tab**. Each page's process
+  tells Sanaga which tab it serves (a small library loaded by the page
+  processes, `page-helper/`); processes are named after their tab, shared
+  ones are marked, and a tab whose page no longer answers says so.
+- `sanaga --automation`: test software drives Sanaga through WebDriver
+  (WebKit's own driver), in a window that keeps nothing
+  (docs/AUTOMATION.md).
+- Fuzzing of the readers of outside files and pages (Light engine's HTML,
+  extensions of other browsers, imported bookmarks, block lists): a
+  repeatable fuzzer with the unit tests, libFuzzer targets in `fuzz/`
+  (docs/FUZZING.md).
 - Menus and panels open over the living page: the page keeps moving
   under them (a video goes on playing) instead of being replaced by a
   picture of itself, and opening a menu no longer makes the window stutter.
@@ -43,6 +65,9 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- CI: Clippy and the test of the real window (it starts, a page answers,
+  WebDriver drives it) now stop a merge; they were advice only. A weekly
+  job fuzzes the readers with libFuzzer.
 - Starts faster: the web engine is made after the window's first picture,
   and GTK is told light or dark before it reads its theme (measured: the
   interface drawn after about 1.0 s instead of 1.2–1.3 s).
@@ -104,6 +129,9 @@ All notable changes to Sanaga are listed here. The format follows
   les URL en entier" shows the whole address.
 
 ### Fixed
+- Importing bookmarks from a damaged Chrome `Bookmarks` file could run for
+  ever (a file holding `[}`), found by fuzzing; a broken surrogate pair in
+  a bookmark's name is now read as an unknown character.
 - The address bar now follows every move of the page: sites that change
   page without loading a new one (YouTube, Google, Facebook, X… with
   history.pushState), #anchors and going back inside them. These moves are

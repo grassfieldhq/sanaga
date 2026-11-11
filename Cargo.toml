@@ -12,6 +12,13 @@ keywords = ["browser", "webkit", "gtk", "egui", "linux"]
 categories = ["gui", "web-programming"]
 exclude = ["shots/", "docs/screenshots/*.xcf"]
 
+# Sanaga and the small library its page processes load (page-helper/): both
+# are built by `cargo build`. The test and fuzzing crates build on their own.
+[workspace]
+members = ["page-helper"]
+default-members = [".", "page-helper"]
+exclude = ["tools/guard-tests", "fuzz"]
+
 [[bin]]
 name = "sanaga"
 path = "src/main.rs"
@@ -28,6 +35,8 @@ suggests = "ffmpeg, chromium"
 extended-description = "A fast, light web browser built on WebKitGTK: containers, a network blocker of ads and trackers, settings for each website, tab groups and tree tabs, a reader, and a mobile simulator for web developers."
 assets = [
     ["target/release/sanaga", "usr/bin/", "755"],
+    # loaded by the page processes (page-helper/): which process serves which tab
+    ["target/release/libsanaga_page_helper.so", "usr/lib/sanaga/", "644"],
     ["packaging/sanaga.desktop", "usr/share/applications/", "644"],
     ["packaging/sanaga.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
     ["packaging/site.grassfield.Sanaga.metainfo.xml", "usr/share/metainfo/", "644"],
@@ -40,6 +49,7 @@ assets = [
 summary = "A fast, light web browser built on WebKitGTK"
 assets = [
     { source = "target/release/sanaga", dest = "/usr/bin/sanaga", mode = "755" },
+    { source = "target/release/libsanaga_page_helper.so", dest = "/usr/lib/sanaga/libsanaga_page_helper.so", mode = "644" },
     { source = "packaging/sanaga.desktop", dest = "/usr/share/applications/sanaga.desktop", mode = "644" },
     { source = "packaging/sanaga.svg", dest = "/usr/share/icons/hicolor/scalable/apps/sanaga.svg", mode = "644" },
     { source = "packaging/site.grassfield.Sanaga.metainfo.xml", dest = "/usr/share/metainfo/site.grassfield.Sanaga.metainfo.xml", mode = "644" },
@@ -105,6 +115,10 @@ libloading = "0.8"
 # screen readers (Orca…): the interface described over AT-SPI
 accesskit = "0.25"
 accesskit_unix = "0.24"
+
+# (`fuzzing` is set by cargo-fuzz: see fuzz/ and docs/FUZZING.md)
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 
 [profile.release]
 opt-level = 3

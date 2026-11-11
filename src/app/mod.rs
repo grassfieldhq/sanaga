@@ -28,6 +28,7 @@ mod errors;
 mod switcher;
 mod media;
 mod containers;
+mod crashes;
 mod sitepanel;
 mod tools;
 mod intelligence;
@@ -75,6 +76,8 @@ enum Internal {
     About,
     /// Sanaga's processes and tabs: memory, processor, sleep (`sanaga://activity`).
     Activity,
+    /// The crash reports kept on this computer (`sanaga://crashes`).
+    Crashes,
     Passwords,
     Extensions,
     Profiles,
@@ -124,6 +127,7 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://settings" => Internal::Settings,
         "sanaga://about" => Internal::About,
         "sanaga://activity" => Internal::Activity,
+        "sanaga://crashes" => Internal::Crashes,
         "sanaga://passwords" => Internal::Passwords,
         "sanaga://extensions" => Internal::Extensions,
         "sanaga://profiles" => Internal::Profiles,
@@ -146,6 +150,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Settings => tr("Paramètres"),
         Internal::About => tr("À propos de Sanaga"),
         Internal::Activity => tr("Activité"),
+        Internal::Crashes => tr("Rapports de plantage"),
         Internal::Passwords => tr("Mots de passe"),
         Internal::Extensions => tr("Extensions"),
         Internal::Profiles => tr("Profils"),
@@ -500,6 +505,9 @@ pub struct Sanaga {
     new_profile_color: u8,
     /// A guest window (`--guest`): nothing is kept.
     guest: bool,
+    /// Started with `--automation`: test software (WebDriver) may open and
+    /// drive pages in this window.
+    automation: bool,
     /// The profile menu and the button it hangs from.
     profile_open: bool,
     profile_rect: Rect,
@@ -620,6 +628,10 @@ pub struct Sanaga {
     /// labels are in the tab bar.
     group_editor: Option<usize>,
     group_label_rects: Vec<(usize, Rect)>,
+    /// The last run ended abruptly: the bar that says so. The report whose
+    /// text was just copied (its button says so).
+    crash_notice: Option<crashes::CrashNotice>,
+    crash_copied: Option<(std::path::PathBuf, f64)>,
 }
 
 /// Right-click menus open as soon as the button is pressed (like Chrome and
@@ -684,7 +696,9 @@ impl Sanaga {
         let slot: usize = urls.iter().find_map(|u| u.strip_prefix("fenetre:").and_then(|n| n.parse().ok())).unwrap_or(0);
         // `--guest`: a window that keeps nothing (its own memory-only data)
         let guest = urls.iter().any(|u| u == "invite:");
-        let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:" && u != "invite:").collect();
+        // `--automation`: a guest window that test software may drive
+        let automation = guest && urls.iter().any(|u| u == "automation:");
+        let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:" && u != "invite:" && u != "automation:").collect();
         let store = if screenshot.is_some() || guest { Store::ephemeral() } else { Store::load_profile(&profile) };
         crate::stage("data read");
         // WebKit keeps cookies and site data per profile
@@ -828,6 +842,7 @@ impl Sanaga {
             new_profile_name: String::new(),
             new_profile_color: 0,
             guest,
+            automation,
             profile_open: false,
             profile_rect: Rect::NOTHING,
             avatar_tex: Default::default(),
@@ -871,6 +886,8 @@ impl Sanaga {
             tab_scroll: 0.0,
             tab_scroll_seen: (usize::MAX, 0),
             restoring: false,
+            crash_notice: None,
+            crash_copied: None,
             shot_private: false,
             web_dir: web_dir_kept,
             focus_mode: false,
@@ -954,9 +971,18 @@ impl Sanaga {
             app.app_mode = true;
             start = vec![u];
         }
+        // did the last run of this profile end without closing? (the first
+        // window of a normal Sanaga asks; this run leaves its own note)
+        let abrupt = if slot == 0 && !app.app_mode && app.screenshot.is_none() { app.store.data_dir().and_then(|d| crate::crash::mark_running(d)) } else { None };
+        let mut lost_tabs: Vec<String> = Vec::new();
         if slot == 0 && !app.app_mode && app.screenshot.is_none() {
             // the other windows of the last session open too (or are forgotten)
             let mut extra = app.store.take_extra_sessions();
+            // (after an abrupt end, tabs that don't come back by themselves
+            // are offered in the bar)
+            if abrupt.is_some() && !(start.is_empty() && app.store.settings.restore_tabs) {
+                lost_tabs = app.store.load_session(0);
+            }
             if start.is_empty() && app.store.settings.restore_tabs {
                 start = app.store.load_session(0);
                 if start.is_empty() && !extra.is_empty() {
@@ -1043,6 +1069,9 @@ impl Sanaga {
         if slot > 0 {
             app.save_session();
         }
+        if let Some(since) = abrupt {
+            app.note_abrupt_end(since, lost_tabs);
+        }
         // the saved accounts, from the system keyring
         app.refresh_logins();
         app
@@ -1108,6 +1137,9 @@ impl Sanaga {
             crate::page::prepare_filters(&d.join("filters"));
         }
         self.web_context = Some(c);
+        if self.automation {
+            self.allow_automation();
+        }
     }
 
     fn apply_style(&mut self) {
@@ -1725,6 +1757,19 @@ impl Sanaga {
         if self.permission_bar_visible() {
             egui::Panel::top("permbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
                 self.permission_bar(ui, &th);
+            });
+        }
+        if self.automation {
+            egui::Panel::top("automationbar").exact_size(30.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.add_space(14.0);
+                    ui.label(egui::RichText::new(tr("Sanaga est piloté par un logiciel de test automatisé.")).size(12.5).color(th.sub));
+                });
+            });
+        }
+        if self.crash_bar_visible() {
+            egui::Panel::top("crashbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.crash_bar(ui, &th);
             });
         }
         if !self.download_asks.is_empty() {

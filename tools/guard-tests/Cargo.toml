@@ -1,4 +1,5 @@
-# Sanaga's security rules (src/guard.rs) and its codec module (src/codecs.rs)
+# Sanaga's security rules (src/guard.rs), its crash reports (src/crash.rs)
+# and its codec module (src/codecs.rs)
 # built on their own, so their tests run where GTK 4 and WebKitGTK 6 are not
 # installed:
 #

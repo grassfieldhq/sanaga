@@ -1107,3 +1107,22 @@ affiché	angezeigt
 en cours · son	läuft · Ton
 en cours	läuft
 Mettre en veille	In den Ruhezustand
+Sanaga s'est arrêté de façon inattendue. {} onglet(s) peuvent être rouverts.	Sanaga wurde unerwartet beendet. {} Tab(s) können wieder geöffnet werden.
+Sanaga s'est arrêté de façon inattendue. Vos onglets sont revenus.	Sanaga wurde unerwartet beendet. Ihre Tabs sind wieder da.
+Voir le rapport	Bericht ansehen
+Rouvrir les onglets	Tabs wieder öffnen
+Rapports de plantage	Absturzberichte
+Tout supprimer	Alle löschen
+Quand Sanaga ou une page s'arrête sans prévenir, un court rapport est gardé ici, sur cet ordinateur. Rien n'est envoyé tout seul : vous le lisez, puis vous choisissez de l'envoyer ou non. Il ne contient ni l'adresse des pages, ni votre nom.	Wenn Sanaga oder eine Seite unerwartet stoppt, wird hier auf diesem Computer ein kurzer Bericht aufbewahrt. Nichts wird von selbst gesendet: Sie lesen ihn und entscheiden dann, ob Sie ihn senden. Er enthält weder die Adressen der Seiten noch Ihren Namen.
+Aucun rapport : rien ne s'est arrêté.	Kein Bericht: Nichts wurde unerwartet beendet.
+Sanaga s'est arrêté	Sanaga wurde beendet
+Une page a cessé de fonctionner	Eine Seite funktioniert nicht mehr
+Une page utilisait trop de mémoire	Eine Seite verbrauchte zu viel Speicher
+Sanaga a été arrêté sans se fermer	Sanaga wurde beendet, ohne sich zu schließen
+Envoyer sur GitHub…	Auf GitHub senden…
+Copié	Kopiert
+« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez.	„Auf GitHub senden“ öffnet eine neue Meldung, die bereits mit diesem Text ausgefüllt ist: Sie können ihn noch ändern, und Sie senden ihn selbst.
+Sanaga est piloté par un logiciel de test automatisé.	Sanaga wird von automatisierter Testsoftware gesteuert.
+Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le moteur pour la prochaine page, ou finissent de se fermer.	Jede Seite hat ihren eigenen Prozess. Die ohne Namen hält die Engine für die nächste Seite bereit, oder sie werden gerade beendet.
+* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Von mehreren Tabs geteilter Prozess (Seiten, die einander geöffnet haben): Speicher und Prozessor zählen für jeden von ihnen.
+ne répond plus	reagiert nicht

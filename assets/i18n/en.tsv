@@ -1107,3 +1107,22 @@ affiché	shown
 en cours · son	running · sound
 en cours	running
 Mettre en veille	Put to sleep
+Sanaga s'est arrêté de façon inattendue. {} onglet(s) peuvent être rouverts.	Sanaga stopped unexpectedly. {} tab(s) can be reopened.
+Sanaga s'est arrêté de façon inattendue. Vos onglets sont revenus.	Sanaga stopped unexpectedly. Your tabs are back.
+Voir le rapport	View the report
+Rouvrir les onglets	Reopen the tabs
+Rapports de plantage	Crash reports
+Tout supprimer	Delete all
+Quand Sanaga ou une page s'arrête sans prévenir, un court rapport est gardé ici, sur cet ordinateur. Rien n'est envoyé tout seul : vous le lisez, puis vous choisissez de l'envoyer ou non. Il ne contient ni l'adresse des pages, ni votre nom.	When Sanaga or a page stops without warning, a short report is kept here, on this computer. Nothing is sent by itself: you read it, then choose whether to send it. It holds neither the addresses of pages nor your name.
+Aucun rapport : rien ne s'est arrêté.	No report: nothing has stopped.
+Sanaga s'est arrêté	Sanaga stopped
+Une page a cessé de fonctionner	A page stopped working
+Une page utilisait trop de mémoire	A page was using too much memory
+Sanaga a été arrêté sans se fermer	Sanaga was stopped without closing
+Envoyer sur GitHub…	Send on GitHub…
+Copié	Copied
+« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez.	“Send on GitHub” opens a new issue already filled with this text: you can still edit it, and you are the one who sends it.
+Sanaga est piloté par un logiciel de test automatisé.	Sanaga is being controlled by automated test software.
+Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le moteur pour la prochaine page, ou finissent de se fermer.	Each page has its own process. Those without a name are kept ready by the engine for the next page, or are closing.
+* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Process shared by several tabs (pages opened by one another): its memory and processor count for each of them.
+ne répond plus	not responding
