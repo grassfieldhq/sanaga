@@ -6,6 +6,7 @@
 
 use super::chrome::site_badge;
 use super::toolbar::{spinner, window_buttons, window_drag};
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, Margin, ScrollArea, Sense};
@@ -91,7 +92,7 @@ impl Sanaga {
         window_buttons(ui, full.left() + 18.0, full.center().y);
         let title = self.tabs[self.active].title();
         let clip = full.shrink2(vec2(90.0, 0.0));
-        ui.painter().with_clip_rect(clip).text(full.center(), Align2::CENTER_CENTER, title, FontId::proportional(12.5), th.sub);
+        ui.painter().with_clip_rect(clip).fit(full.center(), Align2::CENTER_CENTER, title, FontId::proportional(12.5), th.sub);
     }
 
     /// The floating address bar: a rounded card over the bottom of the window.
@@ -271,7 +272,7 @@ impl Sanaga {
                 let show_close = self.store.settings.close_right && (active || ui.rect_contains_pointer(r));
                 let text_right = r.right() - if show_close { 30.0 } else { 10.0 };
                 let clip = Rect::from_min_max(pos2(ic.x + 14.0, r.top()), pos2(text_right, r.bottom()));
-                ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, &title, FontId::proportional(13.0), if active { th.text } else { th.text.gamma_multiply(0.85) });
+                ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, &title, FontId::proportional(13.0), if active { th.text } else { th.text.gamma_multiply(0.85) });
                 if tab.audio || tab.muted {
                     icons::paint(ui.painter(), Rect::from_center_size(pos2(text_right - 6.0, r.center().y), vec2(12.0, 12.0)), if tab.muted { Icon::SpeakerMuted } else { Icon::Speaker }, th.sub);
                 }

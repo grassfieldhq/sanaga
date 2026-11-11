@@ -80,3 +80,23 @@ fn saved_settings_are_read_whatever_the_file_holds() {
         }
     });
 }
+
+#[test]
+fn names_shown_for_pages_survive_any_address() {
+    // what lists and badges say of a page: a site's main name, a file's
+    // name and folder
+    assert_eq!(super::main_label("fr.wikipedia.org"), "wikipedia");
+    assert_eq!(super::main_label("127.0.0.1"), "127.0.0.1");
+    assert_eq!(super::page_name("file:///home/ada/Re%C3%A7u.pdf?x#y"), "Reçu.pdf");
+    assert!(super::site_label("file:///home/ada/Documents/a.html").ends_with("/home/ada/Documents"));
+    assert!(super::site_label("file:///a.html").ends_with(" · /"));
+    assert_eq!(super::site_label("https://www.example.org/x"), "example.org");
+    let seeds: [&[u8]; 4] = ["file:///home/ada/Docs%20é/Reçu%2F.pdf?x=1#y".as_bytes(), b"https://m.bbc.co.uk/news", b"http://[::1]:8080/a", b"file://"];
+    run(&seeds, 20_000, |d| {
+        let t = text(d);
+        let _ = super::site_label(&t);
+        let _ = super::page_name(&t);
+        let _ = super::main_label(&t);
+        let _ = super::toolbar::display_url(&t, false);
+    });
+}

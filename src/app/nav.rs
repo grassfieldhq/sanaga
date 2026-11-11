@@ -144,6 +144,16 @@ impl Sanaga {
         }
         self.suggest_open = false;
         self.menu_open = false;
+        // One of Sanaga's own pages (history, settings…): the keys are for
+        // the page — its search, Tab through its rows — not for the address
+        // bar, which would otherwise keep its caret and show the page's
+        // internal address.
+        if push && internal_from_url(&url).is_some_and(|i| i != Internal::NewTab) {
+            self.focus_address = false;
+            if self.ctx.memory(|m| m.focused()) == Some(egui::Id::new("address-bar")) {
+                self.ctx.memory_mut(|m| m.surrender_focus(egui::Id::new("address-bar")));
+            }
+        }
         let is_web_url = url.starts_with("http://") || url.starts_with("https://") || url.starts_with("file://");
         let use_web = self.web_ok && self.store.settings.webkit && is_web_url && post.is_none();
         let Some(tab) = self.tabs.get_mut(ti) else { return };
@@ -720,7 +730,7 @@ impl Sanaga {
                     self.remember_zoom();
                 }
                 "esc" => {
-                    if self.stop_page_tool() {
+                    if self.stop_page_tool() || self.close_panels() {
                     } else if self.focus_mode && !self.menu_open {
                         self.toggle_focus_mode();
                     } else if self.tab_search_open {
@@ -733,7 +743,7 @@ impl Sanaga {
                     } else if self.suggest_open {
                         self.suggest_open = false;
                     } else if self.find_open {
-                        self.find_open = false;
+                        self.close_find();
                     } else if self.tabs[a].loading {
                         self.stop(a);
                     }

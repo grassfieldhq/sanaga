@@ -85,13 +85,26 @@ impl Sanaga {
         let web = matches!(self.tabs[self.active].view, View::Web);
         let mut go: Option<isize> = None;
         let mut close = false;
-        let count = if web || self.find_query.is_empty() {
-            String::new()
+        let tab = self.tabs[self.active].id;
+        // what was found: "3/12" in Sanaga's own pages (it knows where it
+        // is), the number of matches in a web page (the engine tells only
+        // that), and in words when there is none
+        let (count, none) = if self.find_query.is_empty() {
+            (String::new(), false)
+        } else if web {
+            match self.find_web.filter(|(t, _)| *t == tab) {
+                None => (String::new(), false),
+                Some((_, 0)) => (tr("Aucun résultat").to_string(), true),
+                Some((_, 1)) => (tr("1 résultat").to_string(), false),
+                Some((_, n)) if n >= 999 => (tr("Plus de 999 résultats").to_string(), false),
+                Some((_, n)) => (tf("{} résultats", &[&n]), false),
+            }
         } else if self.find_hits.is_empty() {
-            "0/0".into()
+            (tr("Aucun résultat").to_string(), true)
         } else {
-            format!("{}/{}", self.find_pos + 1, self.find_hits.len())
+            (format!("{}/{}", self.find_pos + 1, self.find_hits.len()), false)
         };
+        let mut fresh = false;
         ui.horizontal_centered(|ui| {
             ui.add_space(12.0);
             let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
@@ -108,15 +121,27 @@ impl Sanaga {
             if self.focus_find {
                 resp.request_focus();
                 self.focus_find = false;
+                // the words of last time are selected: typing replaces them,
+                // Enter looks for them again
+                if let Some(mut state) = TextEdit::load_state(ui.ctx(), id) {
+                    let all = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(self.find_query.chars().count()));
+                    state.cursor.set_char_range(Some(all));
+                    state.store(ui.ctx(), id);
+                }
+                if web && !self.find_query.is_empty() {
+                    go = Some(1);
+                    fresh = true;
+                }
             }
             if resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                 go = Some(if ui.input(|i| i.modifiers.shift) { -1 } else { 1 });
                 resp.request_focus();
             }
-            if web && resp.changed() && !self.find_query.is_empty() {
+            if web && resp.changed() {
                 go = Some(1);
+                fresh = true;
             }
-            ui.label(RichText::new(&count).size(12.0).color(th.sub));
+            ui.label(RichText::new(&count).size(12.0).color(if none { Color32::from_rgb(0xC8, 0x3A, 0x2B) } else { th.sub }));
             if icon_button_small(ui, Icon::Up, th).tip(tr("Précédent (Maj+Entrée)")).clicked() {
                 go = Some(-1);
             }
@@ -131,12 +156,12 @@ impl Sanaga {
             });
         });
         if close {
-            self.find_open = false;
-            self.find_query.clear();
+            self.close_find();
+            return;
         }
         let Some(d) = go else { return };
         if web {
-            self.web_find(d < 0);
+            self.web_find(d < 0, fresh);
         } else if !self.find_hits.is_empty() {
             let n = self.find_hits.len() as isize;
             self.find_pos = (self.find_pos as isize + d).rem_euclid(n) as usize;

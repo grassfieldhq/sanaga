@@ -2,6 +2,7 @@
 //! duplicate / close others, and the tab overview with page thumbnails.
 
 use super::chrome::site_badge;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, RichText, ScrollArea, Sense};
@@ -635,7 +636,7 @@ impl Sanaga {
                     let title = tab.title();
                     site_badge(ui.painter(), pos2(r.left() + 9.0, thumb.bottom() + 17.0), 7.0, tab.url(), &title);
                     let clip = Rect::from_min_max(pos2(r.left() + 22.0, thumb.bottom()), pos2(r.right(), r.bottom()));
-                    ui.painter().with_clip_rect(clip).text(pos2(clip.left(), thumb.bottom() + 17.0), Align2::LEFT_CENTER, title, FontId::proportional(13.0), th.text);
+                    ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), thumb.bottom() + 17.0), Align2::LEFT_CENTER, title, FontId::proportional(13.0), th.text);
                     if resp.hovered() {
                         let cr = Rect::from_center_size(pos2(thumb.left() + 16.0, thumb.top() + 16.0), vec2(22.0, 22.0));
                         let cresp = ui.interact(cr, egui::Id::new(("ov-close", tab.id)), Sense::click());

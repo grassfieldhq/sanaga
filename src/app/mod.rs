@@ -256,7 +256,7 @@ impl Tab {
                 if !e.title.is_empty() {
                     e.title.clone()
                 } else {
-                    host_of(&e.url)
+                    page_name(&e.url)
                 }
             }
         }
@@ -291,8 +291,54 @@ fn host_of(url: &str) -> String {
     })
 }
 
+/// What a page is called before its title is known: its site, or for a
+/// file of this computer the file's own name (not its whole path).
+fn page_name(url: &str) -> String {
+    match url.strip_prefix("file://") {
+        Some(path) => {
+            let name = path.split(['?', '#']).next().unwrap_or("").trim_end_matches('/').rsplit('/').next().unwrap_or("");
+            let name = percent_encoding::percent_decode_str(name).decode_utf8_lossy().to_string();
+            if name.is_empty() { "/".to_string() } else { name }
+        }
+        None => host_of(url),
+    }
+}
+
+/// Where a page comes from, as lists say it under its title: its site —
+/// or, for a file of this computer, the folder it is in (it has no site,
+/// and its whole address was shown instead).
+fn site_label(url: &str) -> String {
+    match url.strip_prefix("file://") {
+        Some(path) => {
+            let path = path.split(['?', '#']).next().unwrap_or("").trim_end_matches('/');
+            let folder = path.rsplit_once('/').map(|(f, _)| f).filter(|f| !f.is_empty()).unwrap_or("/");
+            format!("{} · {}", tr("Fichier"), percent_encoding::percent_decode_str(folder).decode_utf8_lossy())
+        }
+        None => host_of(url),
+    }
+}
+
+/// The part of a site's name that names it: "wikipedia" in
+/// "fr.wikipedia.org", "bbc" in "m.bbc.co.uk" (short first parts are a
+/// language or a version of the site, not its name).
+fn main_label(host: &str) -> &str {
+    // (a numeric address has no name: 127.0.0.1 is not "0")
+    if host.parse::<std::net::IpAddr>().is_ok() {
+        return host;
+    }
+    let parts: Vec<&str> = host.split('.').collect();
+    // (two-part endings: co.uk, com.cm, org.za…)
+    let ending = if parts.len() >= 3 && parts[parts.len() - 1].len() == 2 && parts[parts.len() - 2].len() <= 3 { 2 } else { 1 };
+    let mut first = 0;
+    while parts.len() - first > ending + 1 && parts[first].len() <= 3 {
+        first += 1;
+    }
+    parts.get(first).copied().unwrap_or(host)
+}
+
 fn badge_letter(url: &str, title: &str) -> String {
     let h = host_of(url);
+    let h = main_label(&h).to_string();
     let src = if url.starts_with("sanaga://") || h.is_empty() { title } else { &h };
     src.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "•".into())
 }
@@ -386,6 +432,10 @@ pub struct Sanaga {
     find_query: String,
     find_hits: Vec<usize>,
     find_pos: usize,
+    /// Find in a web page: the tab that answered and how many matches it has.
+    find_web: Option<(u64, u32)>,
+    /// The search just sent to the page is a new one (its answer is the count).
+    find_fresh: bool,
     find_key: (String, u64, usize),
     focus_address: bool,
     focus_find: bool,
@@ -668,6 +718,9 @@ pub struct Sanaga {
     /// The new tab page's "frequently visited", and what it was worked out
     /// from (visits, favourites): worked out again only when those change.
     frequent: (u64, Vec<(String, usize, String)>),
+    /// The menus and panels that were open at the last frame (one at a time:
+    /// see `one_panel_at_a_time`).
+    panels_open: u32,
     crash_notice: Option<crashes::CrashNotice>,
     crash_copied: Option<(std::path::PathBuf, f64)>,
 }
@@ -790,6 +843,8 @@ impl Sanaga {
             find_query: String::new(),
             find_hits: Vec::new(),
             find_pos: 0,
+            find_web: None,
+            find_fresh: false,
             find_key: (String::new(), 0, 0),
             focus_address: false,
             focus_find: false,
@@ -937,6 +992,7 @@ impl Sanaga {
             keyring_there: None,
             sync_running: false,
             frequent: (u64::MAX, Vec::new()),
+            panels_open: 0,
             crash_notice: None,
             crash_copied: None,
             shot_private: false,
@@ -1242,6 +1298,11 @@ impl Sanaga {
             s.text_styles.insert(Monospace, FontId::monospace(13.0));
             s.spacing.button_padding = vec2(10.0, 5.0);
             s.spacing.interact_size.y = 26.0;
+            // No fade at the ends of scrolling lists: the toolkit takes its
+            // colour from the page, and Sanaga paints most of its panels
+            // itself (side panel, device list, new tab, reader) — the fade
+            // was a band of the wrong colour across the last row.
+            s.spacing.scroll.fade.strength = 0.0;
         });
     }
 
@@ -1424,6 +1485,7 @@ impl Sanaga {
 
     /// Saved state when the window closes.
     pub fn on_close(&mut self) {
+        self.store.settle_history(true);
         self.save_session();
     }
 
@@ -1435,6 +1497,7 @@ impl Sanaga {
         if !urls.is_empty() {
             CLOSED_WINDOWS.with(|c| c.borrow_mut().push(urls));
         }
+        self.store.settle_history(true);
         self.store.forget_session(self.slot);
         crate::page::remove_download_sink(self.slot);
     }
@@ -1513,6 +1576,66 @@ impl Sanaga {
         self.keyring_there.unwrap_or(true)
     }
 
+    /// Sanaga's menus and floating panels are shown one at a time: opening
+    /// one closes the one that was open (they used to pile up, the star's
+    /// bubble over the site's panel over the search bar…).
+    fn one_panel_at_a_time(&mut self) {
+        let open = [
+            self.menu_open,
+            self.share_open,
+            self.ai_menu_open,
+            self.profile_open,
+            self.overflow_open,
+            self.site_panel,
+            self.bm_popover,
+            self.tab_search_open,
+            self.translate_ask,
+            self.container_ask.is_some(),
+            self.suggest_open,
+            self.group_editor.is_some(),
+        ];
+        let now = open.iter().enumerate().fold(0u32, |bits, (k, on)| bits | (u32::from(*on) << k));
+        let new = now & !self.panels_open;
+        // (something just opened while others were open: the others close)
+        if new != 0 && now != new {
+            let keep = |k: usize| new & (1 << k) != 0;
+            self.menu_open &= keep(0);
+            self.share_open &= keep(1);
+            self.ai_menu_open &= keep(2);
+            self.profile_open &= keep(3);
+            self.overflow_open &= keep(4);
+            self.site_panel &= keep(5);
+            self.bm_popover &= keep(6);
+            self.tab_search_open &= keep(7);
+            self.translate_ask &= keep(8);
+            if !keep(9) {
+                self.container_ask = None;
+            }
+            self.suggest_open &= keep(10);
+            if !keep(11) {
+                self.group_editor = None;
+            }
+            self.panels_open = new;
+        } else {
+            self.panels_open = now;
+        }
+    }
+
+    /// Close whatever menu or floating panel is open; false when none was.
+    pub(super) fn close_panels(&mut self) -> bool {
+        let any = self.share_open || self.ai_menu_open || self.profile_open || self.overflow_open || self.site_panel || self.bm_popover || self.translate_ask || self.container_ask.is_some() || self.group_editor.is_some();
+        self.share_open = false;
+        self.ai_menu_open = false;
+        self.profile_open = false;
+        self.overflow_open = false;
+        self.site_panel = false;
+        self.bm_popover = false;
+        self.translate_ask = false;
+        self.container_ask = None;
+        self.group_editor = None;
+        any
+    }
+
     /// A short message at the bottom of the window.
     pub(super) fn say(&mut self, text: &str) {
         self.notice = Some((text.to_string(), self.ctx.input(|i| i.time)));
@@ -1568,6 +1691,7 @@ impl Sanaga {
         self.store_seen = now;
         let downloads = std::mem::take(&mut self.store.downloads);
         let profile = self.store.profile.clone();
+        self.store.settle_history(true);
         self.store = Store::load_profile(&profile);
         self.store.downloads = downloads;
         self.store.first_run = false;
@@ -1816,6 +1940,7 @@ impl Sanaga {
             eprintln!("frame t={:.2}", ui.input(|i| i.time));
         }
         self.apply_style();
+        self.store.settle_history(false);
         // The keyboard alone: in one of Sanaga's own pages (settings,
         // history…), the first Tab goes to the page's first control, not
         // to the window's toolbar (which comes after the page's last one).
@@ -1823,6 +1948,7 @@ impl Sanaga {
             ui.ctx().memory_mut(|m| m.request_focus(egui::Id::new("page-start")));
         }
         self.finish_jobs();
+        self.one_panel_at_a_time();
         self.poll_network();
         let ctx0 = ui.ctx().clone();
         let t_pump = std::time::Instant::now();

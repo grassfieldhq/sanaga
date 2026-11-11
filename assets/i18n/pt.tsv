@@ -345,7 +345,7 @@ Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis 
 Depuis un fichier	A partir de um ficheiro
 Mots de passe (fichier CSV)…	Palavras-passe (ficheiro CSV)…
 Favoris (fichier HTML)…	Favoritos (ficheiro HTML)…
-Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Definições › Palavras-passe › Exportar. Firefox: about:logins › ⋯ › Exportar. Lembre-se de apagar o ficheiro exportado depois da importação: contém as palavras-passe em texto simples.
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › menu « … » › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Definições › Palavras-passe › Exportar. Firefox: about:logins › … › Exportar. Lembre-se de apagar o ficheiro exportado depois da importação: contém as palavras-passe em texto simples.
 Importer des mots de passe (CSV)	Importar palavras-passe (CSV)
 Mots de passe (CSV)	Palavras-passe (CSV)
 Importer depuis un autre navigateur…	Importar de outro navegador…
@@ -419,7 +419,7 @@ Violet	Roxo
 Cyan	Ciano
 Orange	Laranja
 Simulateur mobile	Simulador móvel
-Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Ver e testar um site como num telemóvel ou tablet: mais de 35 dispositivos, moldura, rotação, zoom, versão móvel dos sites, ecrã tátil e capturas. Botão de telemóvel da barra ou Ctrl+Shift+M.
+Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Ver e testar um site como num telemóvel ou tablet: {} dispositivos, moldura, rotação, zoom, versão móvel dos sites, ecrã tátil e capturas. Botão de telemóvel da barra ou Ctrl+Shift+M.
 Intégrée à Sanaga	Integrada no Sanaga
 Téléphones iPhone	Telemóveis iPhone
 Téléphones Android	Telemóveis Android
@@ -1187,3 +1187,10 @@ Essai de « {} » sur cette page seulement : elle n'est pas encore activée.	A e
 Arrêter l'essai	Terminar o teste
 Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.	Para a experimentar antes de a ativar: abra noutro separador uma página onde ela atua e volte aqui.
 L'essayer d'abord sur :	Experimentar primeiro em:
+Confirmer ?	Confirmar?
+Moteur web	Motor web
+Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous	Criar uma extensão: descreva o que quer, o Sanaga escreve-a por si
+1 résultat	1 resultado
+{} résultats	{} resultados
+Plus de 999 résultats	Mais de 999 resultados
+Fichier	Ficheiro

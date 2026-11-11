@@ -6,6 +6,7 @@
 //! Each profile keeps its own favourites, history, passwords and cookies,
 //! and opens in its own windows.
 
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use crate::store::{ProfileInfo, Store};
@@ -319,7 +320,7 @@ impl Sanaga {
                             let p = ui.painter().clone();
                             self.paint_avatar(&p, Rect::from_center_size(pos2(r.center().x, r.top() + 64.0), vec2(84.0, 84.0)), &shown);
                             let clip = r.shrink2(vec2(10.0, 0.0));
-                            ui.painter().with_clip_rect(clip).text(pos2(r.center().x, r.top() + 124.0), Align2::CENTER_CENTER, &shown.name, FontId::new(14.5, bold()), th.text);
+                            ui.painter().with_clip_rect(clip).fit(pos2(r.center().x, r.top() + 124.0), Align2::CENTER_CENTER, &shown.name, FontId::new(14.5, bold()), th.text);
                             let sub = if mine { tr("Cette fenêtre") } else { tr("Ouvrir") };
                             ui.painter().text(pos2(r.center().x, r.top() + 146.0), Align2::CENTER_CENTER, sub, FontId::proportional(12.0), if mine { th.accent } else { th.sub });
                             // delete (not the main profile, not this window's)

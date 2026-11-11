@@ -4,6 +4,7 @@
 //! cancels; a click picks. Ctrl+Page Down / Page Up still follow the tab bar.
 
 use super::chrome::site_badge;
+use super::chrome::Fit as _;
 use super::*;
 use eframe::egui::{Align2, Color32, Margin, Sense};
 
@@ -134,7 +135,7 @@ impl Sanaga {
                             ui.painter().rect_stroke(pic, CornerRadius::same(10), stroke, egui::StrokeKind::Outside);
                             site_badge(ui.painter(), pos2(r.left() + 9.0, r.bottom() - 11.0), 7.5, t.url(), &t.title());
                             let clip = Rect::from_min_max(pos2(r.left() + 22.0, r.bottom() - 22.0), r.right_bottom());
-                            ui.painter().with_clip_rect(clip).text(pos2(clip.left(), clip.center().y), Align2::LEFT_CENTER, t.title(), FontId::proportional(12.5), if chosen { th.text } else { th.sub });
+                            ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), clip.center().y), Align2::LEFT_CENTER, t.title(), FontId::proportional(12.5), if chosen { th.text } else { th.sub });
                             if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                                 pick = Some(*id);
                             }
