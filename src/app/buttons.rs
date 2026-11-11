@@ -188,8 +188,7 @@ impl Sanaga {
         if let Some(k) = pick {
             self.overflow_open = false;
             if k == "__settings" {
-                self.settings_section = super::settings::Section::Appearance;
-                self.open_tab("sanaga://settings", false);
+                self.open_settings(&super::settings::Section::Appearance.address());
             } else {
                 self.toolbar_key_action(k);
             }

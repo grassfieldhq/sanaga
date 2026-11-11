@@ -127,6 +127,8 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://bookmarks" => Internal::Bookmarks,
         "sanaga://downloads" => Internal::Downloads,
         "sanaga://settings" => Internal::Settings,
+        // (a category of the settings: sanaga://settings/privacy)
+        p if p.starts_with("sanaga://settings/") => Internal::Settings,
         "sanaga://about" => Internal::About,
         "sanaga://activity" => Internal::Activity,
         "sanaga://crashes" => Internal::Crashes,
@@ -485,8 +487,6 @@ pub struct Sanaga {
     is_default_browser: Option<bool>,
     /// Settings: the categories seen before / after (‹ ›), and when a
     /// "clear…" button asked for confirmation.
-    settings_back: Vec<settings::Section>,
-    settings_fwd: Vec<settings::Section>,
     settings_confirm: Option<f64>,
     /// The welcome tour's step.
     onboarding_step: usize,
@@ -497,6 +497,9 @@ pub struct Sanaga {
     translate_gen: u64,
     /// The "translate with Google or the AI?" question is shown.
     translate_ask: bool,
+    /// The tab that question is about; the translation whose bar is shown.
+    translate_ask_tab: u64,
+    translation: Option<translate::Translation>,
     /// Sites whose DRM bar was dismissed; the identity chooser is open.
     drm_dismissed: HashSet<String>,
     /// The protected-site page's "always open this way" box.
@@ -849,14 +852,14 @@ impl Sanaga {
             settings_section: settings::Section::General,
             settings_filter: String::new(),
             is_default_browser: None,
-            settings_back: Vec::new(),
-            settings_fwd: Vec::new(),
             settings_confirm: None,
             onboarding_step: 0,
             translating: None,
             translate_batches: 0,
             translate_gen: 0,
             translate_ask: false,
+            translate_ask_tab: 0,
+            translation: None,
             drm_dismissed: HashSet::new(),
             drm_always_pick: true,
             saver_last_tab: 0,
@@ -1528,6 +1531,17 @@ impl Sanaga {
         self.say(tr("Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes)."));
     }
 
+    /// Open Settings (at a category's address, or where it was left) in a
+    /// new tab. The keys are for the settings — ↑ ↓ change category, Ctrl+F
+    /// searches them — so the address bar lets go of them.
+    pub(super) fn open_settings(&mut self, address: &str) {
+        self.open_tab(address, false);
+        self.focus_address = false;
+        if let Some(id) = self.ctx.memory(|m| m.focused()) {
+            self.ctx.memory_mut(|m| m.surrender_focus(id));
+        }
+    }
+
     /// Quit Sanaga: every window.
     pub(super) fn quit_app(&mut self) {
         self.quit_all = true;
@@ -1703,7 +1717,8 @@ impl Sanaga {
                         }
                         a if a.starts_with("section:") => {
                             if let Some(s) = settings::Section::by_place(a[8..].parse().unwrap_or(0)) {
-                                self.settings_section = s;
+                                let i = self.active;
+                                self.navigate(i, s.address(), None, true);
                             }
                         }
                         "syncnow" => self.sync_now(),
@@ -1890,6 +1905,11 @@ impl Sanaga {
                     ui.add_space(14.0);
                     ui.label(egui::RichText::new(tr("Sanaga est piloté par un logiciel de test automatisé.")).size(12.5).color(th.sub));
                 });
+            });
+        }
+        if self.translation_bar_visible() {
+            egui::Panel::top("translationbar").exact_size(40.0).show_separator_line(false).frame(Frame::NONE.fill(th.card).stroke(Stroke::new(1.0, th.border))).show(ui, |ui| {
+                self.translation_bar(ui, &th);
             });
         }
         if self.crash_bar_visible() {

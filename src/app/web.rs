@@ -369,6 +369,9 @@ impl Sanaga {
                         self.translate_batches = 0;
                         self.translate_gen += 1;
                     }
+                    if self.translation.as_ref().is_some_and(|t| t.tab == tab) {
+                        self.translation = None;
+                    }
                     // an error page's buttons belong to that page only: it is
                     // armed when it is committed itself (its secret goes to
                     // Sanaga's world there), and forgotten at the next commit

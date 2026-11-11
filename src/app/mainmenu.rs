@@ -103,7 +103,7 @@ impl Sanaga {
                         item(ui, Icon::Search, tr("Rechercher dans la page"), tr("Ctrl+F"), "find");
                         item(ui, Icon::Reader, if reading { tr("Quitter le Lecteur") } else { tr("Lecteur") }, tr("Ctrl+Maj+R"), "reader");
                         item(ui, Icon::Sparkle, tr("Résumer la page"), tr("Ctrl+Maj+Y"), "summary");
-                        item(ui, Icon::Mail, tr("Traduire la page"), "", "translate");
+                        item(ui, Icon::Translate, tr("Traduire la page"), "", "translate");
                         item(ui, Icon::Print, tr("Imprimer…"), tr("Ctrl+P"), "print");
                         sep(ui, th, iw);
                         // more tools, opening in place
@@ -232,7 +232,7 @@ impl Sanaga {
                 self.store.save_settings();
             }
             "settings" => {
-                self.open_tab("sanaga://settings", false);
+                self.open_settings("sanaga://settings");
             }
             "about" => {
                 self.open_tab("sanaga://about", false);

@@ -45,6 +45,10 @@ pub enum Icon {
     Pencil,
     More,
     Folder,
+    /// Two letters of two alphabets: translate.
+    Translate,
+    /// Two sheets, one over the other: copy.
+    Copy,
 }
 
 pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
@@ -147,6 +151,32 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 vec![pos2(c.x - s * 0.3, c.y - s * 0.15), pos2(c.x - s * 0.6, c.y - s * 0.15), pos2(c.x - s * 0.6, c.y + s * 0.75), pos2(c.x + s * 0.6, c.y + s * 0.75), pos2(c.x + s * 0.6, c.y - s * 0.15), pos2(c.x + s * 0.3, c.y - s * 0.15)],
                 Stroke::new(w, color),
             ));
+        }
+        Icon::Translate => {
+            let w = Stroke::new(st.width * 0.85, color);
+            // "A" (bottom left)
+            let (ax, ab, at) = (c.x - s * 0.42, c.y + s * 0.82, c.y - s * 0.12);
+            p.line_segment([pos2(ax - s * 0.42, ab), pos2(ax, at)], w);
+            p.line_segment([pos2(ax, at), pos2(ax + s * 0.42, ab)], w);
+            p.line_segment([pos2(ax - s * 0.24, ab - s * 0.34), pos2(ax + s * 0.24, ab - s * 0.34)], w);
+            // "文" (top right): a bar, its stroke above, two strokes crossing below
+            let (kx, kt) = (c.x + s * 0.42, c.y - s * 0.55);
+            p.line_segment([pos2(kx - s * 0.48, kt), pos2(kx + s * 0.48, kt)], w);
+            p.line_segment([pos2(kx, kt - s * 0.26), pos2(kx, kt)], w);
+            p.line_segment([pos2(kx + s * 0.3, kt), pos2(kx - s * 0.4, kt + s * 0.82)], w);
+            p.line_segment([pos2(kx - s * 0.24, kt + s * 0.2), pos2(kx + s * 0.44, kt + s * 0.82)], w);
+        }
+        Icon::Copy => {
+            let w = Stroke::new(st.width * 0.85, color);
+            let back = Rect::from_min_max(pos2(c.x - s * 0.72, c.y - s * 0.8), pos2(c.x + s * 0.3, c.y + s * 0.38));
+            let front = Rect::from_min_max(pos2(c.x - s * 0.28, c.y - s * 0.36), pos2(c.x + s * 0.74, c.y + s * 0.82));
+            // (the sheet behind: only what shows past the one in front)
+            p.line_segment([pos2(front.left(), back.top()), back.left_top()], w);
+            p.line_segment([back.left_top(), back.left_bottom()], w);
+            p.line_segment([back.left_bottom(), pos2(front.left(), back.bottom())], w);
+            p.line_segment([pos2(front.left(), back.top()), back.right_top()], w);
+            p.line_segment([back.right_top(), pos2(back.right(), front.top())], w);
+            p.rect_stroke(front, 2.0, w, egui::StrokeKind::Middle);
         }
         Icon::Mail => {
             let r = Rect::from_center_size(c, vec2(s * 1.5, s * 1.05));

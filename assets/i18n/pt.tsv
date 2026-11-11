@@ -49,7 +49,7 @@ Code QR de la page	Código QR da página
 Scannez-le avec votre téléphone	Leia-o com o seu telemóvel
 « {} » a été ajoutée au menu des applications.	«{}» foi adicionada ao menu de aplicações.
 Masquer la barre des favoris (Ctrl+Maj+B)	Ocultar barra de favoritos (Ctrl+Shift+B)
-Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B	Ocultar barra de favoritos (Ctrl+Shift+B)\nPara voltar a mostrar: menu ⋮ ou Ctrl+Shift+B
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu principal ou Ctrl+Maj+B	Ocultar barra de favoritos (Ctrl+Shift+B)\nPara voltar a mostrar: menu principal ou Ctrl+Shift+B
 Ajoutez des favoris avec l'étoile de la barre d'adresse.	Adicione favoritos com a estrela da barra de endereço.
 Ouvrir dans un nouvel onglet	Abrir num novo separador
 Masquer la barre des favoris	Ocultar barra de favoritos
@@ -150,7 +150,7 @@ Maximal — veille après 5 minutes, 3 pages actives au plus	Máximo — suspens
 Mots de passe et remplissage automatique	Palavras-passe e preenchimento automático
 Proposer d'enregistrer et de remplir les mots de passe	Propor guardar e preencher palavras-passe
 Gérer les mots de passe enregistrés	Gerir palavras-passe guardadas
-Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Os seus dados, para preencher formulários (menu ⋮ › Preencher com os meus dados, ou Ctrl+Shift+F):
+Vos coordonnées, pour remplir les formulaires (menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Os seus dados, para preencher formulários (menu principal › Preencher com os meus dados, ou Ctrl+Shift+F):
 Téléphone	Telefone
 Adresse	Morada
 Synchronisation	Sincronização
@@ -281,7 +281,7 @@ Réinitialiser le zoom	Repor zoom
 Rechercher ou saisir le nom d'un site	Pesquisar ou escrever o nome de um site
 Rechercher avec {} ou saisir une adresse	Pesquisar com {} ou escrever um endereço
 LISTE DE LECTURE	LISTA DE LEITURA
-Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).	Guarde uma página para mais tarde: menu ⋮ › Adicionar à lista de leitura (Ctrl+Shift+D).
+Gardez une page pour plus tard : menu principal › Ajouter à la liste de lecture (Ctrl+Maj+D).	Guarde uma página para mais tarde: menu principal › Adicionar à lista de leitura (Ctrl+Shift+D).
 GROUPES D'ONGLETS	GRUPOS DE SEPARADORES
 Renommer avec le nom saisi ci-dessous	Mudar o nome para o escrito abaixo
 Fermer le groupe et ses onglets	Fechar o grupo e os seus separadores
@@ -596,7 +596,7 @@ Où mettre la barre d'adresse :	Onde fica a barra de endereço:
 Flottante	Flutuante
 Couleur d'accent	Cor de destaque
 Résumés et extensions sur mesure	Resumos e extensões à medida
-Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	O Sanaga resume páginas (botão ✦ ou Ctrl+Shift+Y) e escreve extensões a partir do que descreve.
+Sanaga résume les pages (bouton Intelligence de la barre d'outils, ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	O Sanaga resume páginas (botão Inteligência da barra de ferramentas, ou Ctrl+Shift+Y) e escreve extensões a partir do que descreve.
 Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur	Só o Sanaga — resumo simples, sem IA, nada sai do computador
 Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)	Ollama — um modelo de IA instalado neste computador (grátis, privado)
 Claude (Anthropic) — le meilleur résultat, avec votre clé d'API	Claude (Anthropic) — o melhor resultado, com a sua chave de API
@@ -647,11 +647,11 @@ Dans le trousseau du système	No porta-chaves do sistema
 1 compte	1 conta
 {} comptes	{} contas
 Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.	As palavras-passe ficam no porta-chaves do sistema (Secret Service), nunca nos ficheiros do Sanaga. Uma só conta para um site: o Sanaga preenche-a sozinho.
-Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Para preencher formulários: menu ⋮ › Preencher com os meus dados, ou Ctrl+Shift+F.
+Pour remplir les formulaires : menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Para preencher formulários: menu principal › Preencher com os meus dados, ou Ctrl+Shift+F.
 Modéré	Moderado
 Équilibré	Equilibrado
 Maximal	Máximo
-Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.	Os separadores que não vê há algum tempo adormecem e recarregam quando volta (Equilibrado: após 20 minutos). Os que tocam som nunca adormecem.
+Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais.	Os separadores que não vê há muito tempo são postos em repouso e recarregam quando volta a eles. Os separadores que tocam som nunca dormem.
 Sites complets avec JavaScript, vidéos et applications (recommandé)	Sites completos com JavaScript, vídeos e aplicações (recomendado)
 Pages simplifiées, très rapide et très économe en mémoire	Páginas simplificadas, muito rápido e muito económico em memória
 Dossier partagé	Pasta partilhada
@@ -762,7 +762,7 @@ Extension supprimée.	Extensão removida.
 Se présenter à ce site comme…	Apresentar-se a este site como…
 Identité du navigateur par site	Identidade do navegador por site
 Aucun choix pour l'instant	Nenhuma escolha por agora
-Menu ⋮ › Plus d'outils › Se présenter à ce site comme…	Menu ⋮ › Mais ferramentas › Apresentar-se a este site como…
+Menu principal › Plus d'outils › Se présenter à ce site comme…	Menu principal › Mais ferramentas › Apresentar-se a este site como…
 Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site.	O Sanaga apresenta-se como Chrome às poucas aplicações web que recusam o WebKit (WhatsApp Web, Teams, Zoom…). Pode escolher para qualquer site.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire. Installez Chromium ou Firefox pour les regarder.	{} protege os conteúdos com um DRM (Widevine) que o motor do Sanaga não consegue ler. Instale o Chromium ou o Firefox para os ver.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire.	{} protege os conteúdos com um DRM (Widevine) que o motor do Sanaga não consegue ler.
@@ -855,7 +855,7 @@ Réglages par site	Definições por site
 Polices	Tipos de letra
 Mode sombre	Modo escuro
 Aucun réglage pour l'instant	Ainda sem definições
-Menu ⋮ › Plus d'outils › Réglages de ce site…	Menu ⋮ › Mais ferramentas › Definições deste site…
+Menu principal › Plus d'outils › Réglages de ce site…	Menu principal › Mais ferramentas › Definições deste site…
 sans JavaScript	sem JavaScript
 bloqueur coupé	bloqueador desligado
 sans ses polices	sem os seus tipos de letra
@@ -1006,7 +1006,7 @@ Détails techniques	Detalhes técnicos
 Traduire vers	Traduzir para
 Langue de Sanaga ({})	Idioma do Sanaga ({})
 Résumer ou traduire la page	Resumir ou traduzir a página
-Les points essentiels, à côté de la page — Ctrl+Maj+Y	Os pontos essenciais, ao lado da página — Ctrl+Shift+Y
+Les points essentiels, à côté de la page	Os pontos essenciais, ao lado da página
 En {}	Para {}
 En {} · avec {}	Para {} · com {}
 Cette adresse utilise un port bloqué	Este endereço usa uma porta bloqueada
@@ -1078,7 +1078,7 @@ Onglets, commandes, favoris, historique, Web…	Separadores, comandos, favoritos
 Listes de blocage complètes	Listas de bloqueio completas
 EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList e EasyPrivacy, obtidas uma vez por semana junto dos seus autores (easylist.to)
 Chiffrement activé	Cifragem ativada
-Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	A pasta só contém ficheiros selados. Clique para retirar a frase deste computador.
+Le dossier ne contient que des fichiers scellés.	A pasta só contém ficheiros selados.
 Phrase secrète	Frase secreta
 Chiffre le dossier : la même phrase sur chaque ordinateur	Cifra a pasta: a mesma frase em cada computador
 Chiffrer	Cifrar
@@ -1127,3 +1127,25 @@ Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le mot
 * Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Processo partilhado por vários separadores (páginas abertas umas pelas outras): a sua memória e o seu processador contam para cada um.
 ne répond plus	não responde
 Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes).	Ocorreu um erro no Sanaga, que continua. Foi guardado um relatório (sanaga://crashes).
+Rétablir	Repor
+Chercher	Procurar
+Synchroniser	Sincronizar
+Retirer la phrase	Remover a frase
+Choisir un fichier…	Escolher um ficheiro…
+Traduction en {} avec {}…	A traduzir para {} com {}…
+Traduction en {} avec {}… ({} parties faites)	A traduzir para {} com {}… ({} partes feitas)
+Page traduite en {} par {}.	Página traduzida para {} por {}.
+Traduction arrêtée.	Tradução parada.
+La page est de nouveau dans sa langue.	A página está de novo na sua língua.
+Arrêter	Parar
+Traduire à nouveau	Traduzir de novo
+Afficher l'original	Mostrar o original
+Choisir une IA…	Escolher uma IA…
+Claude, Ollama ou un assistant installé : dans Paramètres › Intelligence	Claude, Ollama ou um assistente instalado: em Definições › Inteligência
+Choisir une IA pour des résumés plus fins…	Escolher uma IA para resumos mais finos…
+Nom (facultatif)	Nome (opcional)
+Écrire à nouveau	Escrever de novo
+Écriture de l'extension… {} s	A escrever a extensão… {} s
+Choisissez d'abord un modèle d'IA, ci-dessus.	Escolha primeiro um modelo de IA, acima.
+Décrivez d'abord ce qu'elle doit faire.	Descreva primeiro o que deve fazer.
+Jeter	Descartar
