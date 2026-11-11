@@ -97,6 +97,114 @@ pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> 
     }
 }
 
+/// What `ask_live` answers when the person stopped it (never shown).
+pub const STOPPED: &str = "\u{1}stopped";
+
+/// Ask the model and hand its answer over as it comes: `piece` gets each
+/// part as soon as the model has written it (a summary appears word by
+/// word instead of after a long wait); the whole answer is returned at the
+/// end. When `stop` becomes true the request is dropped and the answer is
+/// `Err(STOPPED)`. (An installed assistant gives its answer in one piece.)
+pub fn ask_live(provider: &Provider, system: &str, prompt: &str, max_tokens: u32, stop: &std::sync::atomic::AtomicBool, piece: &mut dyn FnMut(&str)) -> Result<String, String> {
+    use std::io::BufRead;
+    let stopped = || stop.load(std::sync::atomic::Ordering::Relaxed);
+    let mut whole = String::new();
+    let lines = match provider {
+        Provider::Local => return Err(crate::i18n::tr("Choisissez un modèle d'IA dans Paramètres › Intelligence.").into()),
+        Provider::Cli { tool, model } => {
+            let answer = crate::ai_cli::ask_stoppable(*tool, model, system, prompt, Some(stop))?;
+            piece(&answer);
+            return Ok(answer);
+        }
+        Provider::Ollama { model } => {
+            let body = format!("{{\"model\":{},\"system\":{},\"prompt\":{},\"stream\":true}}", json_str(model), json_str(system), json_str(prompt));
+            let r = agent(240).post(&format!("{OLLAMA}/api/generate")).set("content-type", "application/json").send_string(&body).map_err(err_text)?;
+            std::io::BufReader::new(r.into_reader()).lines()
+        }
+        Provider::Claude { model, profile } => {
+            let key = crate::keyring::lookup(profile, KEY_SITE, "claude").filter(|k| !k.is_empty()).ok_or_else(|| crate::i18n::tr("Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.").to_string())?;
+            let body = format!(
+                "{{\"model\":{},\"max_tokens\":{max_tokens},\"stream\":true,\"system\":{},\"messages\":[{{\"role\":\"user\",\"content\":{}}}]}}",
+                json_str(model),
+                json_str(system),
+                json_str(prompt)
+            );
+            let r = agent(180)
+                .post("https://api.anthropic.com/v1/messages")
+                .set("content-type", "application/json")
+                .set("x-api-key", &key)
+                .set("anthropic-version", "2023-06-01")
+                .send_string(&body)
+                .map_err(err_text)?;
+            std::io::BufReader::new(r.into_reader()).lines()
+        }
+    };
+    for line in lines {
+        if stopped() {
+            // (the connection is closed as the reader goes: the model stops writing)
+            return Err(STOPPED.to_string());
+        }
+        let line = line.map_err(|e| e.to_string())?;
+        match live_piece(&line)? {
+            Live::Text(t) => {
+                piece(&t);
+                whole.push_str(&t);
+            }
+            Live::End => break,
+            Live::Nothing => {}
+        }
+    }
+    if stopped() {
+        return Err(STOPPED.to_string());
+    }
+    if whole.trim().is_empty() {
+        return Err(crate::i18n::tr("Réponse du modèle illisible.").into());
+    }
+    Ok(whole)
+}
+
+/// What one line of a model's live answer holds.
+#[derive(Debug, PartialEq)]
+enum Live {
+    Text(String),
+    End,
+    Nothing,
+}
+
+/// One line of a live answer: Ollama writes a JSON object per line
+/// (`{"response":"…","done":false}`), Claude writes events (`data: {…}`,
+/// the text in `content_block_delta` ones). An error the service reports
+/// in the stream ends it.
+fn live_piece(line: &str) -> Result<Live, String> {
+    let line = line.trim();
+    let json = line.strip_prefix("data:").map(str::trim).unwrap_or(line);
+    if !json.starts_with('{') {
+        return Ok(Live::Nothing); // (an event's name, a blank line, a comment)
+    }
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else { return Ok(Live::Nothing) };
+    if v["type"] == "error" || (v["error"].is_string() || v["error"].is_object()) {
+        let said = error_message(json);
+        return Err(if said.is_empty() { crate::i18n::tr("Réponse du modèle illisible.").to_string() } else { said });
+    }
+    // Claude
+    if v["type"] == "content_block_delta" {
+        return Ok(match v["delta"]["text"].as_str() {
+            Some(t) if !t.is_empty() => Live::Text(t.to_string()),
+            _ => Live::Nothing,
+        });
+    }
+    if v["type"] == "message_stop" {
+        return Ok(Live::End);
+    }
+    // Ollama
+    if let Some(t) = v["response"].as_str() {
+        if !t.is_empty() {
+            return Ok(Live::Text(t.to_string()));
+        }
+    }
+    Ok(if v["done"] == true { Live::End } else { Live::Nothing })
+}
+
 /// Ollama's answer: the "response" text of its JSON.
 fn ollama_answer(body: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(body).ok()?;
@@ -254,14 +362,14 @@ fn words(s: &str) -> Vec<String> {
 
 /// A user extension written by the model from a description: returns the
 /// file name and the file's text (with Sanaga's extension header).
-pub fn write_extension(provider: &Provider, name: &str, description: &str, sites: &str) -> Result<(String, String), String> {
+pub fn write_extension(provider: &Provider, name: &str, description: &str, sites: &str, stop: &std::sync::atomic::AtomicBool, piece: &mut dyn FnMut(&str)) -> Result<(String, String), String> {
     let system = "You write small, safe browser user scripts (like Greasemonkey scripts) for the Sanaga browser. \
         The script runs at document start in the page's top frame. Wait for DOMContentLoaded when you need the page, \
         and use a MutationObserver when content can appear later. To add CSS, create a <style> element. \
         Never send data to other servers, never read passwords or cookies, never use eval. \
         Reply with JavaScript code only: no explanations, no markdown fences.";
     let prompt = format!("What the extension must do:\n{description}\n\nSites: {}", if sites.trim().is_empty() { "all sites" } else { sites.trim() });
-    let code = ask(provider, system, &prompt, 4096)?;
+    let code = ask_live(provider, system, &prompt, 4096, stop, piece)?;
     let code = strip_fences(&code);
     if code.trim().is_empty() {
         return Err(crate::i18n::tr("Le modèle n'a pas écrit de code.").into());
@@ -447,6 +555,26 @@ mod tests {
 #[cfg(test)]
 mod answer_tests {
     use super::*;
+
+    #[test]
+    fn live_answers_are_read_line_by_line() {
+        // Ollama: one JSON object per line
+        assert_eq!(live_piece(r#"{"model":"m","response":"Bon","done":false}"#), Ok(Live::Text("Bon".into())));
+        assert_eq!(live_piece(r#"{"model":"m","response":"","done":true,"total_duration":1}"#), Ok(Live::End));
+        assert!(live_piece(r#"{"error":"model 'x' not found"}"#).is_err());
+        // Claude: events
+        assert_eq!(live_piece("event: content_block_delta"), Ok(Live::Nothing));
+        assert_eq!(live_piece(r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"jour"}}"#), Ok(Live::Text("jour".into())));
+        assert_eq!(live_piece(r#"data: {"type":"message_start","message":{"id":"m","content":[]}}"#), Ok(Live::Nothing));
+        assert_eq!(live_piece(r#"data: {"type":"ping"}"#), Ok(Live::Nothing));
+        assert_eq!(live_piece(r#"data: {"type":"message_stop"}"#), Ok(Live::End));
+        assert_eq!(live_piece(r#"data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#), Err("Overloaded".to_string()));
+        assert_eq!(live_piece(""), Ok(Live::Nothing));
+        // damaged lines never panic
+        crate::mutate::run(&[br#"data: {"type":"content_block_delta","delta":{"text":"a"}}"#, br#"{"response":"x","done":false}"#], 5_000, |d| {
+            let _ = live_piece(&String::from_utf8_lossy(d));
+        });
+    }
 
     /// A model's or a service's answer is read whatever it holds (see mutate.rs).
     #[test]

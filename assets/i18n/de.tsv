@@ -1132,9 +1132,9 @@ Chercher	Suchen
 Synchroniser	Synchronisieren
 Retirer la phrase	Phrase entfernen
 Choisir un fichier…	Datei auswählen…
-Traduction en {} avec {}…	Übersetzung ins {} mit {}…
-Traduction en {} avec {}… ({} parties faites)	Übersetzung ins {} mit {}… ({} Teile fertig)
-Page traduite en {} par {}.	Seite ins {} übersetzt von {}.
+Traduction en {} avec {}…	Übersetzung auf {} mit {}…
+Traduction en {} avec {}… ({} parties faites)	Übersetzung auf {} mit {}… ({} Teile fertig)
+Page traduite en {} par {}.	Seite auf {} übersetzt von {}.
 Traduction arrêtée.	Übersetzung angehalten.
 La page est de nouveau dans sa langue.	Die Seite ist wieder in ihrer Sprache.
 Arrêter	Anhalten
@@ -1149,3 +1149,41 @@ Nom (facultatif)	Name (optional)
 Choisissez d'abord un modèle d'IA, ci-dessus.	Wählen Sie zuerst oben ein KI-Modell.
 Décrivez d'abord ce qu'elle doit faire.	Beschreiben Sie zuerst, was sie tun soll.
 Jeter	Verwerfen
+français	Französisch
+anglais	Englisch
+espagnol	Spanisch
+portugais	Portugiesisch
+allemand	Deutsch
+italien	Italienisch
+néerlandais	Niederländisch
+polonais	Polnisch
+turc	Türkisch
+swahili	Swahili
+haoussa	Hausa
+yoruba	Yoruba
+lingala	Lingala
+wolof	Wolof
+arabe	Arabisch
+russe	Russisch
+chinois simplifié	vereinfachtes Chinesisch
+japonais	Japanisch
+coréen	Koreanisch
+hindi	Hindi
+Cette page n'est pas en {}.	Diese Seite ist nicht auf {}.
+Jamais sur {}	Nie auf {}
+Traduire	Übersetzen
+Proposer de traduire les pages dans une autre langue	Übersetzung von Seiten in einer anderen Sprache anbieten
+Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord	Eine Leiste unter der Symbolleiste, wenn die Seite ihre Sprache angibt; nichts wird ohne Ihre Zustimmung gesendet
+Rétablir les réglages d'origine : {}	Ursprüngliche Einstellungen wiederherstellen: {}
+Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.	Zum Bestätigen erneut klicken: Die Einstellungen dieser Kategorie werden zurückgesetzt.
+Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.	Ihre Daten (Favoriten, Passwörter, Kontaktdaten, Sprache) bleiben unberührt.
+Confirmer	Bestätigen
+Réglages d'origine rétablis : {}.	Ursprüngliche Einstellungen wiederhergestellt: {}.
+Écriture du résumé…	Zusammenfassung wird geschrieben…
+Résumé arrêté.	Zusammenfassung angehalten.
+Résumé arrêté avant la fin.	Zusammenfassung vor dem Ende angehalten.
+Écriture annulée.	Schreiben abgebrochen.
+Essai de « {} » sur cette page seulement : elle n'est pas encore activée.	„{}“ wird nur auf dieser Seite ausprobiert: noch nicht aktiviert.
+Arrêter l'essai	Test beenden
+Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.	Zum Ausprobieren vor dem Aktivieren: Öffnen Sie in einem anderen Tab eine Seite, auf der sie wirkt, und kommen Sie hierher zurück.
+L'essayer d'abord sur :	Zuerst ausprobieren auf:

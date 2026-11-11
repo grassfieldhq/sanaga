@@ -50,6 +50,8 @@ pub(super) enum WebEvent {
     PageClicked { tab: u64 },
     /// How far a page is scrolled, as a share of its height (mobile preview side by side).
     Scrolled { tab: u64, share: f32 },
+    /// The language a page says it is written in ("en", "pt-br"…).
+    PageLanguage { tab: u64, lang: String },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -64,6 +66,17 @@ const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
 }, true);
 // video calls need WebRTC; some systems' WebKitGTK is built without it
 if (typeof RTCPeerConnection === 'undefined' && window.ipc && /^https?:$/.test(location.protocol)) window.ipc.postMessage('tool:no-webrtc:');"#;
+
+/// The language a page says it is written in (its `lang`), told once the
+/// page is there: Sanaga may then offer to translate it (see translate.rs).
+/// Nothing of the page's text is read for this.
+const LANG_JS: &str = r#"(function () {
+  function tell() {
+    var l = ((document.documentElement && document.documentElement.getAttribute('lang')) || '').trim().toLowerCase();
+    if (l && window.ipc && /^(https?|file):$/.test(location.protocol)) window.ipc.postMessage('lang:' + l.slice(0, 16));
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tell); else tell();
+})();"#;
 
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
@@ -290,6 +303,8 @@ impl PageMaker {
                         WebEvent::Password { tab: id, msg: body }
                     } else if let Some(u) = body.strip_prefix("vs:") {
                         WebEvent::ViewSource { tab: id, url: u.to_string() }
+                    } else if let Some(lang) = body.strip_prefix("lang:") {
+                        WebEvent::PageLanguage { tab: id, lang: lang.to_string() }
                     } else {
                         WebEvent::Shortcut(body)
                     }
@@ -371,6 +386,9 @@ impl Sanaga {
                     }
                     if self.translation.as_ref().is_some_and(|t| t.tab == tab) {
                         self.translation = None;
+                    }
+                    if self.translate_offered.as_ref().is_some_and(|(t, _)| *t == tab) {
+                        self.translate_offered = None;
                     }
                     // an error page's buttons belong to that page only: it is
                     // armed when it is committed itself (its secret goes to
@@ -496,6 +514,7 @@ impl Sanaga {
                     t.view = View::Error(format!("{CRASH_MARK}{why}"));
                 }
             }
+            WebEvent::PageLanguage { tab, lang } => self.page_language(tab, &lang),
             WebEvent::Scrolled { tab, share } => {
                 // mobile preview side by side: the phone follows the page
                 if let Some(c) = self.companion_of(tab) {
@@ -856,6 +875,76 @@ impl Sanaga {
         }
     }
 
+    /// Try an extension that is not switched on, in one tab only: that
+    /// page is loaded again with it, shown, and a bar there says so — to
+    /// see what it does on a real page before it is allowed everywhere.
+    pub(super) fn try_extension(&mut self, tab: u64, id: &str, name: &str) {
+        let maker = self.page_maker();
+        let own: Vec<&str> = maker.scripts.iter().map(|s| s.as_str()).collect();
+        let mut on = self.store.extensions_on.clone();
+        on.push(id.to_string());
+        let with_it = crate::extensions::init_script(&on);
+        let Some(i) = self.tabs.iter().position(|t| t.id == tab) else { return };
+        let Some(w) = &self.tabs[i].web else { return };
+        w.set_scripts(&own, &[&with_it]);
+        self.ext_trial = Some((tab, id.to_string(), name.to_string()));
+        self.current_group = self.tabs[i].group;
+        self.active = i;
+    }
+
+    /// End the trial: the page goes back to the extensions switched on
+    /// (with this one among them when `keep`).
+    pub(super) fn end_extension_trial(&mut self, keep: bool) {
+        let Some((tab, id, name)) = self.ext_trial.take() else { return };
+        if keep {
+            if !self.store.extensions_on.contains(&id) {
+                // (every open page gets it, this one included)
+                self.toggle_extension(&id);
+            }
+            if self.ext_review.as_deref() == Some(id.as_str()) {
+                self.ext_review = None;
+            }
+            self.extension_tried_and_kept(&id);
+            self.say(&tf("« {} » est activée : elle s'applique aux pages ouvertes.", &[&name]));
+            return;
+        }
+        let maker = self.page_maker();
+        let own: Vec<&str> = maker.scripts.iter().map(|s| s.as_str()).collect();
+        let page: Vec<&str> = maker.page_scripts.iter().map(|s| s.as_str()).collect();
+        if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+            w.set_scripts(&own, &page);
+        }
+    }
+
+    pub(super) fn extension_trial_visible(&self) -> bool {
+        !self.focus_mode && self.ext_trial.as_ref().is_some_and(|(tab, _, _)| self.tabs.get(self.active).is_some_and(|t| t.id == *tab))
+    }
+
+    /// In the tab where an extension is being tried.
+    pub(super) fn extension_trial_bar(&mut self, ui: &mut Ui, th: &Theme) {
+        let Some((_, _, name)) = self.ext_trial.clone() else { return };
+        let mut act: Option<bool> = None;
+        ui.horizontal_centered(|ui| {
+            ui.add_space(14.0);
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::hover());
+            crate::icons::paint(ui.painter(), r, crate::icons::Icon::Puzzle, th.accent);
+            ui.add_space(6.0);
+            ui.add(egui::Label::new(egui::RichText::new(tf("Essai de « {} » sur cette page seulement : elle n'est pas encore activée.", &[&name])).size(13.0).color(th.text)).truncate());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(12.0);
+                if ui.button(tr("Arrêter l'essai")).clicked() {
+                    act = Some(false);
+                }
+                if ui.add(egui::Button::new(egui::RichText::new(tr("Activer l'extension")).color(egui::Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(8))).clicked() {
+                    act = Some(true);
+                }
+            });
+        });
+        if let Some(keep) = act {
+            self.end_extension_trial(keep);
+        }
+    }
+
     /// Switch an extension on or off.
     pub(super) fn toggle_extension(&mut self, id: &str) {
         if let Some(p) = self.store.extensions_on.iter().position(|x| x == id) {
@@ -914,7 +1003,7 @@ impl Sanaga {
         PageMaker {
             ctx: self.web_context.clone(),
             base: self.web_dir.clone(),
-            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), SOURCE_LINKS_JS.to_string(), ERROR_ACTIONS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
+            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), LANG_JS.to_string(), SOURCE_LINKS_JS.to_string(), ERROR_ACTIONS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
             popups: self.popups.clone(),

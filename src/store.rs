@@ -147,6 +147,79 @@ pub struct Settings {
     /// The address bar shows the whole address (Chrome's "Always show full
     /// URLs"); otherwise https:// and www. are left out.
     pub full_urls: bool,
+    /// Offer to translate a page written in another language than the one
+    /// pages are translated into; the sites where the person said no.
+    pub translate_offer: bool,
+    pub translate_skip: Vec<String>,
+}
+
+impl Settings {
+    /// Put a category of the settings (its name in the settings' address:
+    /// "appearance", "privacy"…) back as Sanaga comes. What is the person's
+    /// own stays: the language, the contact details, the sync folder, the
+    /// profile's name and picture. True when something changed.
+    pub fn restore(&mut self, category: &str) -> bool {
+        let d = Settings::default();
+        let before = format!("{self:?}");
+        match category {
+            "general" => {
+                self.home = d.home;
+                self.engine = d.engine;
+                self.restore_tabs = d.restore_tabs;
+                self.drm_auto = d.drm_auto;
+            }
+            "appearance" => {
+                self.theme = d.theme;
+                self.accent = d.accent;
+                self.tabs_pos = d.tabs_pos;
+                self.bar_pos = d.bar_pos;
+                self.show_bookmarks_bar = d.show_bookmarks_bar;
+                self.zoom = d.zoom;
+                self.toolbar = d.toolbar;
+                self.border = d.border;
+                self.border_size = d.border_size;
+                self.border_alpha = d.border_alpha;
+                self.compact = d.compact;
+                self.tree_tabs = d.tree_tabs;
+                self.close_right = d.close_right;
+                self.full_urls = d.full_urls;
+                self.tab_switcher = d.tab_switcher;
+                self.ntp_reading = d.ntp_reading;
+                self.ntp_frequent = d.ntp_frequent;
+                self.ntp_reports = d.ntp_reports;
+                self.reader_size = d.reader_size;
+                self.reader_theme = d.reader_theme;
+            }
+            "intelligence" => {
+                self.ai = d.ai;
+                self.ai_model = d.ai_model;
+                self.translate_with = d.translate_with;
+                self.translate_to = d.translate_to;
+                self.translate_offer = d.translate_offer;
+                self.translate_skip = d.translate_skip;
+            }
+            "privacy" => {
+                self.blocker = d.blocker;
+                self.block_lists = d.block_lists;
+                self.itp = d.itp;
+                self.notif_prompts = d.notif_prompts;
+            }
+            "passwords" => self.passwords = d.passwords,
+            "performance" => {
+                self.memory_saver = d.memory_saver;
+                self.low_power = d.low_power;
+                self.images = d.images;
+                self.webkit = d.webkit;
+            }
+            _ => {}
+        }
+        format!("{self:?}") != before
+    }
+
+    /// Would `restore` change something in this category?
+    pub fn differs_from_origin(&self, category: &str) -> bool {
+        self.clone().restore(category)
+    }
 }
 
 /// A container: tabs that keep their own cookies and logins, separate from
@@ -247,6 +320,8 @@ impl Default for Settings {
             translate_to: String::new(),
             close_right: false,
             full_urls: false,
+            translate_offer: true,
+            translate_skip: Vec::new(),
         }
     }
 }
@@ -535,6 +610,8 @@ impl Store {
                         "drm_auto" => st.drm_auto = v == "1",
                         "tab_switcher" => st.tab_switcher = v == "1",
                         "translate_to" => st.translate_to = v.to_string(),
+                        "translate_offer" => st.translate_offer = v == "1",
+                        "translate_skip" => st.translate_skip = v.split(',').map(str::trim).filter(|h| !h.is_empty()).map(str::to_string).collect(),
                         "close_right" => st.close_right = v == "1",
                         "full_urls" => st.full_urls = v == "1",
                         "toolbar" => {
@@ -601,7 +678,7 @@ impl Store {
             "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\ntranslate_to={}\nclose_right={}\nprofile_name={}\nprofile_color={}\nfull_urls={}\n",
             st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right), clean(&st.profile_name), st.profile_color, b(st.full_urls)
         );
-        let extra = format!("block_lists={}\n", b(st.block_lists));
+        let extra = format!("block_lists={}\ntranslate_offer={}\ntranslate_skip={}\n", b(st.block_lists), b(st.translate_offer), clean(&st.translate_skip.join(",")));
         save_soon(&dir.join("settings.txt"), t + &more + &extra);
     }
 
@@ -1091,6 +1168,26 @@ mod write_tests {
         super::write_atomic(&f, "a=2\n").unwrap();
         assert_eq!(std::fs::read_to_string(&f).unwrap(), "a=2\n");
         assert!(!dir.join("settings.txt.tmp").exists());
+    }
+
+    #[test]
+    fn a_category_is_restored_and_the_persons_own_stays() {
+        let mut s = super::Settings::default();
+        assert!(!s.differs_from_origin("appearance"));
+        s.accent = 4;
+        s.compact = true;
+        s.blocker = false;
+        s.language = "pt".into();
+        s.fill_name = "Awa".into();
+        s.sync_dir = "/home/awa/Sync".into();
+        assert!(s.differs_from_origin("appearance") && s.differs_from_origin("privacy") && !s.differs_from_origin("performance"));
+        assert!(s.restore("appearance"));
+        assert_eq!((s.accent, s.compact), (0, false));
+        // the other categories and what is the person's own are untouched
+        assert!(!s.blocker);
+        assert_eq!((s.language.as_str(), s.fill_name.as_str(), s.sync_dir.as_str()), ("pt", "Awa", "/home/awa/Sync"));
+        assert!(s.restore("privacy") && s.blocker);
+        assert!(!s.restore("privacy") && !s.restore("sync") && !s.restore("nowhere"));
     }
 
     #[test]

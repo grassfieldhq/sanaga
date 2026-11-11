@@ -115,6 +115,12 @@ fn work_dir() -> std::io::Result<crate::store::PrivateDir> {
 
 /// Ask an installed assistant; returns its answer.
 pub fn ask(tool: CliTool, model: &str, system: &str, prompt: &str) -> Result<String, String> {
+    ask_stoppable(tool, model, system, prompt, None)
+}
+
+/// The same; when `stop` becomes true the assistant is ended and
+/// `ai::STOPPED` is the answer.
+pub fn ask_stoppable(tool: CliTool, model: &str, system: &str, prompt: &str, stop: Option<&std::sync::atomic::AtomicBool>) -> Result<String, String> {
     let program = find(tool.program()).ok_or_else(|| crate::i18n::tf("{} n'est plus installé.", &[&tool.name()]))?;
     let work = work_dir().map_err(|e| e.to_string())?;
     let dir = work.path().to_path_buf();
@@ -196,6 +202,11 @@ pub fn ask(tool: CliTool, model: &str, system: &str, prompt: &str) -> Result<Str
     let status = loop {
         if let Some(st) = child.try_wait().map_err(|e| e.to_string())? {
             break st;
+        }
+        if stop.is_some_and(|s| s.load(std::sync::atomic::Ordering::Relaxed)) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(crate::ai::STOPPED.to_string());
         }
         if start.elapsed() > Duration::from_secs(300) {
             let _ = child.kill();

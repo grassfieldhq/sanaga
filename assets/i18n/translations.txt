@@ -1136,9 +1136,9 @@ Chercher⟂Look⟂Buscar⟂Procurar⟂Suchen
 Synchroniser⟂Sync⟂Sincronizar⟂Sincronizar⟂Synchronisieren
 Retirer la phrase⟂Remove the phrase⟂Quitar la frase⟂Remover a frase⟂Phrase entfernen
 Choisir un fichier…⟂Choose a file…⟂Elegir un archivo…⟂Escolher um ficheiro…⟂Datei auswählen…
-Traduction en {} avec {}…⟂Translating into {} with {}…⟂Traduciendo al {} con {}…⟂A traduzir para {} com {}…⟂Übersetzung ins {} mit {}…
-Traduction en {} avec {}… ({} parties faites)⟂Translating into {} with {}… ({} parts done)⟂Traduciendo al {} con {}… ({} partes hechas)⟂A traduzir para {} com {}… ({} partes feitas)⟂Übersetzung ins {} mit {}… ({} Teile fertig)
-Page traduite en {} par {}.⟂Page translated into {} by {}.⟂Página traducida al {} por {}.⟂Página traduzida para {} por {}.⟂Seite ins {} übersetzt von {}.
+Traduction en {} avec {}…⟂Translating into {} with {}…⟂Traduciendo al {} con {}…⟂A traduzir para {} com {}…⟂Übersetzung auf {} mit {}…
+Traduction en {} avec {}… ({} parties faites)⟂Translating into {} with {}… ({} parts done)⟂Traduciendo al {} con {}… ({} partes hechas)⟂A traduzir para {} com {}… ({} partes feitas)⟂Übersetzung auf {} mit {}… ({} Teile fertig)
+Page traduite en {} par {}.⟂Page translated into {} by {}.⟂Página traducida al {} por {}.⟂Página traduzida para {} por {}.⟂Seite auf {} übersetzt von {}.
 Traduction arrêtée.⟂Translation stopped.⟂Traducción detenida.⟂Tradução parada.⟂Übersetzung angehalten.
 La page est de nouveau dans sa langue.⟂The page is in its own language again.⟂La página vuelve a estar en su idioma.⟂A página está de novo na sua língua.⟂Die Seite ist wieder in ihrer Sprache.
 Arrêter⟂Stop⟂Detener⟂Parar⟂Anhalten
@@ -1153,3 +1153,41 @@ Nom (facultatif)⟂Name (optional)⟂Nombre (opcional)⟂Nome (opcional)⟂Name 
 Choisissez d'abord un modèle d'IA, ci-dessus.⟂First choose an AI model, above.⟂Elija primero un modelo de IA, arriba.⟂Escolha primeiro um modelo de IA, acima.⟂Wählen Sie zuerst oben ein KI-Modell.
 Décrivez d'abord ce qu'elle doit faire.⟂First describe what it should do.⟂Describa primero lo que debe hacer.⟂Descreva primeiro o que deve fazer.⟂Beschreiben Sie zuerst, was sie tun soll.
 Jeter⟂Discard⟂Descartar⟂Descartar⟂Verwerfen
+français⟂French⟂francés⟂francês⟂Französisch
+anglais⟂English⟂inglés⟂inglês⟂Englisch
+espagnol⟂Spanish⟂español⟂espanhol⟂Spanisch
+portugais⟂Portuguese⟂portugués⟂português⟂Portugiesisch
+allemand⟂German⟂alemán⟂alemão⟂Deutsch
+italien⟂Italian⟂italiano⟂italiano⟂Italienisch
+néerlandais⟂Dutch⟂neerlandés⟂neerlandês⟂Niederländisch
+polonais⟂Polish⟂polaco⟂polaco⟂Polnisch
+turc⟂Turkish⟂turco⟂turco⟂Türkisch
+swahili⟂Swahili⟂suajili⟂suaíli⟂Swahili
+haoussa⟂Hausa⟂hausa⟂hauçá⟂Hausa
+yoruba⟂Yoruba⟂yoruba⟂iorubá⟂Yoruba
+lingala⟂Lingala⟂lingala⟂lingala⟂Lingala
+wolof⟂Wolof⟂wólof⟂uolofe⟂Wolof
+arabe⟂Arabic⟂árabe⟂árabe⟂Arabisch
+russe⟂Russian⟂ruso⟂russo⟂Russisch
+chinois simplifié⟂Simplified Chinese⟂chino simplificado⟂chinês simplificado⟂vereinfachtes Chinesisch
+japonais⟂Japanese⟂japonés⟂japonês⟂Japanisch
+coréen⟂Korean⟂coreano⟂coreano⟂Koreanisch
+hindi⟂Hindi⟂hindi⟂hindi⟂Hindi
+Cette page n'est pas en {}.⟂This page is not in {}.⟂Esta página no está en {}.⟂Esta página não está em {}.⟂Diese Seite ist nicht auf {}.
+Jamais sur {}⟂Never on {}⟂Nunca en {}⟂Nunca em {}⟂Nie auf {}
+Traduire⟂Translate⟂Traducir⟂Traduzir⟂Übersetzen
+Proposer de traduire les pages dans une autre langue⟂Offer to translate pages in another language⟂Ofrecer traducir las páginas en otro idioma⟂Propor traduzir as páginas noutra língua⟂Übersetzung von Seiten in einer anderen Sprache anbieten
+Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord⟂A bar under the toolbar, when the page says its language; nothing is sent before you agree⟂Una barra bajo la barra de herramientas, cuando la página indica su idioma; nada se envía antes de su acuerdo⟂Uma barra sob a barra de ferramentas, quando a página indica a sua língua; nada é enviado antes do seu acordo⟂Eine Leiste unter der Symbolleiste, wenn die Seite ihre Sprache angibt; nichts wird ohne Ihre Zustimmung gesendet
+Rétablir les réglages d'origine : {}⟂Restore the original settings: {}⟂Restablecer los ajustes de origen: {}⟂Repor as definições de origem: {}⟂Ursprüngliche Einstellungen wiederherstellen: {}
+Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.⟂Click again to confirm: this category's settings go back to the original ones.⟂Haga clic de nuevo para confirmar: los ajustes de esta categoría vuelven a los de origen.⟂Clique de novo para confirmar: as definições desta categoria voltam às de origem.⟂Zum Bestätigen erneut klicken: Die Einstellungen dieser Kategorie werden zurückgesetzt.
+Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.⟂Your data (favourites, passwords, contact details, language) is not touched.⟂Sus datos (favoritos, contraseñas, datos de contacto, idioma) no se tocan.⟂Os seus dados (favoritos, palavras-passe, contactos, língua) não são tocados.⟂Ihre Daten (Favoriten, Passwörter, Kontaktdaten, Sprache) bleiben unberührt.
+Confirmer⟂Confirm⟂Confirmar⟂Confirmar⟂Bestätigen
+Réglages d'origine rétablis : {}.⟂Original settings restored: {}.⟂Ajustes de origen restablecidos: {}.⟂Definições de origem repostas: {}.⟂Ursprüngliche Einstellungen wiederhergestellt: {}.
+Écriture du résumé…⟂Writing the summary…⟂Escribiendo el resumen…⟂A escrever o resumo…⟂Zusammenfassung wird geschrieben…
+Résumé arrêté.⟂Summary stopped.⟂Resumen detenido.⟂Resumo parado.⟂Zusammenfassung angehalten.
+Résumé arrêté avant la fin.⟂Summary stopped before the end.⟂Resumen detenido antes del final.⟂Resumo parado antes do fim.⟂Zusammenfassung vor dem Ende angehalten.
+Écriture annulée.⟂Writing cancelled.⟂Escritura cancelada.⟂Escrita cancelada.⟂Schreiben abgebrochen.
+Essai de « {} » sur cette page seulement : elle n'est pas encore activée.⟂Trying “{}” on this page only: it is not switched on yet.⟂Probando «{}» solo en esta página: aún no está activada.⟂A experimentar «{}» só nesta página: ainda não está ativada.⟂„{}“ wird nur auf dieser Seite ausprobiert: noch nicht aktiviert.
+Arrêter l'essai⟂End the trial⟂Terminar la prueba⟂Terminar o teste⟂Test beenden
+Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.⟂To try it before switching it on: open a page it acts on in another tab, then come back here.⟂Para probarla antes de activarla: abra en otra pestaña una página donde actúe y vuelva aquí.⟂Para a experimentar antes de a ativar: abra noutro separador uma página onde ela atua e volte aqui.⟂Zum Ausprobieren vor dem Aktivieren: Öffnen Sie in einem anderen Tab eine Seite, auf der sie wirkt, und kommen Sie hierher zurück.
+L'essayer d'abord sur :⟂Try it first on:⟂Probarla primero en:⟂Experimentar primeiro em:⟂Zuerst ausprobieren auf:
