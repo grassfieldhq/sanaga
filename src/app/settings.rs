@@ -802,7 +802,26 @@ impl Sanaga {
             ui.ctx().request_repaint();
             return;
         }
+        // A category does not replace the other at once: it comes in over a
+        // sixth of a second, fading and rising a few points, so the eye
+        // sees that the page changed and where it starts. Not when the
+        // system asks for no animations.
+        let arrival = {
+            let id = egui::Id::new("settings-arrival");
+            let now = b.input(|i| i.time);
+            let shown = self.settings_section as u8;
+            let (was, since) = b.data(|d| d.get_temp::<(u8, f64)>(id)).unwrap_or((u8::MAX, now));
+            let since = if was == shown { since } else { now };
+            b.data_mut(|d| d.insert_temp(id, (shown, since)));
+            let t = if self.web_ok && gtk::Settings::default().is_some_and(|s| !s.is_gtk_enable_animations()) { 1.0 } else { ((now - since) / 0.16).clamp(0.0, 1.0) as f32 };
+            if t < 1.0 {
+                b.ctx().request_repaint();
+            }
+            1.0 - (1.0 - t).powi(3)
+        };
         ScrollArea::vertical().id_salt(("settings-body", self.settings_section as u8)).auto_shrink(false).show(&mut b, |ui| {
+            ui.set_opacity(arrival);
+            ui.add_space((1.0 - arrival) * 10.0);
             let w = ui.available_width();
             let cw = (w - 48.0).min(640.0);
             ui.horizontal(|ui| {

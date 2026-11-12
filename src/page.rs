@@ -45,7 +45,68 @@ pub enum PageSignal {
     Protected(String),
     /// Find in page: how many times the words are in the page (0: nowhere).
     Found(u32),
+    /// Find in page: which match is shown (1 is the first of the page), and
+    /// for a new search how many Sanaga counted itself — the place is told
+    /// only when that agrees with the engine's count.
+    FoundAt(u32, Option<u32>),
 }
+
+/// Which match of a search is the one selected: "3/8", or "3/" when the
+/// whole page is not counted again (going to the next match). The page's
+/// shown text is read in order — hidden parts and scripts left out, as the
+/// engine does — accents and capitals ignored, spaces taken as one.
+const FIND_PLACE_JS: &str = r#"function (q, whole) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !document.body) return '';
+  var norm = function (t) { return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' '); };
+  q = norm(q);
+  if (!q) return '';
+  var count = function (parts) {
+    var t = norm(parts.join('')), n = 0, i = 0;
+    while ((i = t.indexOf(q, i)) >= 0) { n++; i += q.length; }
+    return n;
+  };
+  var r = sel.getRangeAt(0), start = r.startContainer;
+  // the block a piece of text is in: the nearest parent that is not inline
+  var blocks = new Map();
+  var block = function (el) {
+    var b = blocks.get(el);
+    if (b === undefined) {
+      b = getComputedStyle(el).display.indexOf('inline') === 0 && el.parentElement ? block(el.parentElement) : el;
+      blocks.set(el, b);
+    }
+    return b;
+  };
+  var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    acceptNode: function (n) {
+      if (n.nodeType === 3) return NodeFilter.FILTER_ACCEPT;
+      var tag = n.tagName;
+      if (tag === 'BR') return NodeFilter.FILTER_ACCEPT;
+      // (what is not shown is not searched, nor anything inside it)
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') return NodeFilter.FILTER_REJECT;
+      var shown = n.checkVisibility ? n.checkVisibility({ visibilityProperty: true }) : n.getClientRects().length > 0;
+      return shown ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_REJECT;
+    }
+  });
+  var before = [], all = [], at = 0, last = null, n;
+  while ((n = walk.nextNode())) {
+    if (at === 0 && (n === start || (start.nodeType !== 3 && r.comparePoint(n, 0) >= 0))) {
+      if (n === start) before.push(n.data.slice(0, r.startOffset));
+      at = count(before) + 1;
+      if (!whole) return at + '/';
+    }
+    // (a line break, and the passage from a block to the next, end a line:
+    // no word runs across them)
+    var piece = n.nodeType === 3 ? n.data : '\n';
+    var home = n.nodeType === 3 && n.parentElement ? block(n.parentElement) : last;
+    if (last && home !== last) piece = '\n' + piece;
+    last = home;
+    if (at === 0) before.push(piece);
+    if (whole) all.push(piece);
+  }
+  if (at === 0) return '';
+  return at + '/' + count(all);
+}"#;
 
 /// The address of the page with the selected words as a text fragment
 /// (`#:~:text=`): opened, the page scrolls to them and marks them.
@@ -1048,6 +1109,8 @@ const KEY_WINDOW: Duration = Duration::from_millis(1500);
 
 pub struct PageView {
     view: WebView,
+    /// The search just asked is a new one (not "next" or "previous").
+    find_fresh: std::rc::Rc<std::cell::Cell<bool>>,
     /// WebKit's own identity (user agent) for this page.
     default_ua: String,
 }
@@ -1161,9 +1224,25 @@ impl PageView {
         let o = on.clone();
         view.connect_title_notify(move |v| o(PageSignal::Title(v.title().map(|t| t.to_string()).unwrap_or_default())));
         // find in page: the engine says how many it found, or that it found none
+        let find_fresh = std::rc::Rc::new(std::cell::Cell::new(false));
         if let Some(find) = view.find_controller() {
-            let o = on.clone();
-            find.connect_found_text(move |_, n| o(PageSignal::Found(n)));
+            // The engine says how many matches there are, not which one it
+            // shows. The match shown is the page's selection: Sanaga counts
+            // the matches before it (in its own world of the page).
+            let (o, fresh, page) = (on.clone(), find_fresh.clone(), view.downgrade());
+            find.connect_found_text(move |f, n| {
+                o(PageSignal::Found(n));
+                let Some(page) = page.upgrade() else { return };
+                let words = f.search_text().map(|t| t.to_string()).unwrap_or_default();
+                let js = format!("({FIND_PLACE_JS})({}, {})", crate::guard::js_str(&words), fresh.replace(false));
+                let o = o.clone();
+                page.evaluate_javascript(&js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |said| {
+                    let said = said.map(|v| v.to_str().to_string()).unwrap_or_default();
+                    if let Some((at, of)) = said.split_once('/') {
+                        o(PageSignal::FoundAt(at.parse().unwrap_or(0), of.parse().ok()));
+                    }
+                });
+            });
             let o = on.clone();
             find.connect_failed_to_find_text(move |_| o(PageSignal::Found(0)));
         }
@@ -1445,7 +1524,7 @@ impl PageView {
                 _ => {}
             }
         });
-        PageView { view, default_ua: default_ua_kept }
+        PageView { view, find_fresh, default_ua: default_ua_kept }
     }
 
     pub fn webview(&self) -> WebView {
@@ -1505,7 +1584,9 @@ impl PageView {
     pub fn find(&self, text: &str, backwards: bool, fresh: bool) {
         use webkit6::FindOptions;
         let Some(find) = self.view.find_controller() else { return };
-        if fresh || find.search_text().as_deref() != Some(text) {
+        let fresh = fresh || find.search_text().as_deref() != Some(text);
+        self.find_fresh.set(fresh);
+        if fresh {
             let mut how = FindOptions::CASE_INSENSITIVE | FindOptions::WRAP_AROUND;
             if backwards {
                 how |= FindOptions::BACKWARDS;

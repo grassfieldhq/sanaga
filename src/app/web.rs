@@ -54,6 +54,9 @@ pub(super) enum WebEvent {
     PageLanguage { tab: u64, lang: String },
     /// Find in page: how many matches the engine found in this tab.
     Found { tab: u64, count: u32 },
+    /// Find in page: the place of the match shown, and Sanaga's own count
+    /// of them for a new search.
+    FoundAt { tab: u64, at: u32, of: Option<u32> },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -288,6 +291,7 @@ impl PageMaker {
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
                 PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
                 PageSignal::Found(count) => WebEvent::Found { tab: id, count },
+                PageSignal::FoundAt(at, of) => WebEvent::FoundAt { tab: id, at, of },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         if !page_may_answer(what) {
@@ -524,8 +528,20 @@ impl Sanaga {
                 // one, the engine answers "1" — the one it went to)
                 if count == 0 || self.find_fresh || self.find_web.is_none_or(|(t, _)| t != tab) {
                     self.find_web = Some((tab, count));
+                    self.find_at = None;
+                    self.find_counted = false;
                 }
                 self.find_fresh = false;
+            }
+            WebEvent::FoundAt { tab, at, of } => {
+                let Some((_, total)) = self.find_web.filter(|(t, _)| *t == tab) else { return };
+                // (a new search: is Sanaga's count the engine's? If not —
+                // matches in a frame, text it reads otherwise — the place
+                // would be a guess, and only the number of matches is shown)
+                if let Some(of) = of {
+                    self.find_counted = of == total && total < 999;
+                }
+                self.find_at = (self.find_counted && (1..=total).contains(&at)).then_some((tab, at));
             }
             WebEvent::Scrolled { tab, share } => {
                 // mobile preview side by side: the phone follows the page
@@ -1037,6 +1053,8 @@ impl Sanaga {
     pub(super) fn web_find(&mut self, backwards: bool, fresh: bool) {
         if fresh {
             self.find_web = None;
+            self.find_at = None;
+            self.find_counted = false;
             self.find_fresh = true;
         }
         if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
@@ -1053,6 +1071,7 @@ impl Sanaga {
     pub(super) fn close_find(&mut self) {
         self.find_open = false;
         self.find_web = None;
+        self.find_at = None;
         for t in &self.tabs {
             if let Some(w) = &t.web {
                 w.find_done();

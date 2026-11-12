@@ -391,6 +391,33 @@ pub struct Store {
     /// when: written to the file a little later (`settle_history`).
     titles_late: Vec<String>,
     titles_since: Option<std::time::Instant>,
+    /// This store among those of the run, and how much of what the others
+    /// told about the history it has heard (see `Told`).
+    id: u64,
+    heard: u64,
+}
+
+/// What a window does to the history, told to the other windows of the
+/// same profile. Each window keeps its own copy of the history: without
+/// this, a page visited in one window was missing from the history shown
+/// in another until Sanaga was started again.
+#[derive(Clone)]
+enum Told {
+    Visit(Visit),
+    Title(String, String),
+    /// The file was written again (history cleared, a visit removed): read it.
+    Rewritten,
+}
+
+/// The last things told, each with its number, the profile folder it is
+/// about and the store that told it.
+static TOLD: std::sync::Mutex<Vec<(u64, PathBuf, u64, Told)>> = std::sync::Mutex::new(Vec::new());
+/// The number of the last thing told (read at every frame: no lock).
+static TOLD_LAST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static STORES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn new_store_id() -> u64 {
+    STORES.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 const MAX_HISTORY: usize = 5000;
@@ -444,6 +471,8 @@ impl Store {
             buttons: Vec::new(),
             titles_late: Vec::new(),
             titles_since: None,
+            id: new_store_id(),
+            heard: TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
 
@@ -535,7 +564,7 @@ impl Store {
         ensure_private_dir(&Self::root_dir());
         ensure_private_dir(&dir);
         close_files(&dir);
-        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new(), containers: Vec::new(), buttons: Vec::new(), titles_late: Vec::new(), titles_since: None };
+        let mut s = Store { dir: Some(dir.clone()), profile: profile.to_string(), logins: Vec::new(), extensions_on: Vec::new(), permissions: Vec::new(), settings: Settings::default(), history: Vec::new(), bookmarks: Vec::new(), reading: Vec::new(), site_zoom: Default::default(), downloads: Vec::new(), first_run, identities: Vec::new(), containers: Vec::new(), buttons: Vec::new(), titles_late: Vec::new(), titles_since: None, id: new_store_id(), heard: TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed) };
         if let Ok(t) = std::fs::read_to_string(dir.join("containers.tsv")) {
             s.containers = t.lines().filter_map(|l| l.split_once('\t')).map(|(n, c)| Container { name: n.to_string(), color: c.parse().unwrap_or(1) }).collect();
         }
@@ -757,7 +786,57 @@ impl Store {
         if let Some(dir) = &self.dir {
             append_soon(&dir.join("history.tsv"), format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
         }
+        self.tell(Told::Visit(v.clone()));
         self.history.push(v);
+    }
+
+    /// Tell the other windows of this profile what this one did to the history.
+    fn tell(&self, what: Told) {
+        let Some(dir) = &self.dir else { return };
+        let mut told = TOLD.lock().unwrap_or_else(|e| e.into_inner());
+        let n = TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed) + 1;
+        // (kept short: a window that has not drawn for that long reads the file)
+        if told.len() >= 2048 {
+            told.drain(..1024);
+        }
+        told.push((n, dir.clone(), self.id, what));
+        TOLD_LAST.store(n, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Take in what the other windows told since the last time (asked at
+    /// every frame: one number compared when there is nothing new).
+    fn hear(&mut self) {
+        let last = TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed);
+        if last == self.heard {
+            return;
+        }
+        let from = self.heard;
+        self.heard = last;
+        let Some(dir) = self.dir.clone() else { return };
+        let (news, mut read_file) = {
+            let told = TOLD.lock().unwrap_or_else(|e| e.into_inner());
+            // (some of it is gone from the list: only the file has it all)
+            let gone = told.first().is_some_and(|(n, ..)| *n > from + 1);
+            let news: Vec<Told> = told.iter().filter(|(n, d, by, _)| *n > from && *d == dir && *by != self.id).map(|(.., t)| t.clone()).collect();
+            (news, gone)
+        };
+        read_file |= news.iter().any(|t| matches!(t, Told::Rewritten));
+        if read_file {
+            flush_saves();
+            self.history = std::fs::read_to_string(dir.join("history.tsv")).map(|t| read_history(&t)).unwrap_or_default();
+            return;
+        }
+        for t in news {
+            match t {
+                Told::Visit(v) => self.history.push(v),
+                Told::Title(url, title) => {
+                    if let Some(v) = self.history.iter_mut().rev().take(TITLE_REACH).find(|v| v.url == url) {
+                        v.title = title;
+                    }
+                }
+                Told::Rewritten => {}
+            }
+        }
     }
 
     /// A page told its title after its visit was recorded (most do: the
@@ -780,6 +859,9 @@ impl Store {
     }
 
     fn title_is_late(&mut self, url: &str) {
+        if let Some(v) = self.history.iter().rev().take(TITLE_REACH).find(|v| v.url == url) {
+            self.tell(Told::Title(v.url.clone(), v.title.clone()));
+        }
         if !self.titles_late.iter().any(|u| u == url) {
             self.titles_late.push(url.to_string());
         }
@@ -790,6 +872,7 @@ impl Store {
     /// their title every second (a counter, "(3) Messages"), and each would
     /// add a line to the file. `now`: Sanaga is closing.
     pub fn settle_history(&mut self, now: bool) {
+        self.hear();
         if !self.titles_since.is_some_and(|t| now || t.elapsed() >= std::time::Duration::from_secs(20)) {
             return;
         }
@@ -814,6 +897,7 @@ impl Store {
             t.push_str(&format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
         }
         save_soon(&dir.join("history.tsv"), t);
+        self.tell(Told::Rewritten);
     }
 
     pub fn clear_history(&mut self) {
@@ -1314,6 +1398,44 @@ mod write_tests {
         s.add_visit("https://b.test/", "B, renamed");
         assert_eq!(s.history.len(), 2);
         assert_eq!(s.history[1].title, "B, renamed");
+    }
+
+    #[test]
+    fn windows_of_a_profile_share_their_history() {
+        let dir = std::env::temp_dir().join(format!("sanaga-shared-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let window = || {
+            let mut s = super::Store::ephemeral();
+            s.dir = Some(dir.clone());
+            s
+        };
+        let (mut a, mut b) = (window(), window());
+        // another profile, and a window that keeps nothing: they hear nothing
+        let (mut other, mut guest) = (super::Store::ephemeral(), super::Store::ephemeral());
+        other.dir = Some(dir.join("other"));
+        a.add_visit("https://a.test/", "");
+        a.title_visit("https://a.test/", "A");
+        b.add_visit("https://b.test/", "B");
+        for s in [&mut a, &mut b, &mut other, &mut guest] {
+            s.settle_history(false);
+        }
+        let seen = |s: &super::Store| s.history.iter().map(|v| format!("{} {}", v.url, v.title)).collect::<Vec<_>>().join(", ");
+        assert_eq!(seen(&b), "https://b.test/ B, https://a.test/ A");
+        assert_eq!(seen(&a), "https://a.test/ A, https://b.test/ B");
+        assert!(other.history.is_empty() && guest.history.is_empty());
+        // one window clears the history: the other reads the file again
+        a.clear_history();
+        b.settle_history(false);
+        assert!(b.history.is_empty());
+        // and a window that was away for long catches up from the file
+        for k in 0..3000 {
+            a.add_visit(&format!("https://a.test/{k}"), "x");
+        }
+        b.settle_history(false);
+        assert_eq!(b.history.len(), 3000);
+        super::flush_saves();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

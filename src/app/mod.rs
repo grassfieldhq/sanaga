@@ -436,6 +436,10 @@ pub struct Sanaga {
     find_web: Option<(u64, u32)>,
     /// The search just sent to the page is a new one (its answer is the count).
     find_fresh: bool,
+    /// Find in a web page: the tab and the place of the match shown ("3" of 8).
+    find_at: Option<(u64, u32)>,
+    /// Sanaga's own count of the matches is the engine's: places can be told.
+    find_counted: bool,
     find_key: (String, u64, usize),
     focus_address: bool,
     focus_find: bool,
@@ -845,6 +849,8 @@ impl Sanaga {
             find_pos: 0,
             find_web: None,
             find_fresh: false,
+            find_at: None,
+            find_counted: false,
             find_key: (String::new(), 0, 0),
             focus_address: false,
             focus_find: false,
