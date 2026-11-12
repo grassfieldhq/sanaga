@@ -114,6 +114,8 @@ impl Sanaga {
             match self.find_web.filter(|(t, _)| *t == tab) {
                 None => (String::new(), false),
                 Some((_, 0)) => (tr("Aucun résultat").to_string(), true),
+                // (the place of the match shown, when it is known for sure)
+                Some((_, n)) if self.find_at.is_some_and(|(t, _)| t == tab) => (format!("{}/{n}", self.find_at.map(|(_, at)| at).unwrap_or(1)), false),
                 Some((_, 1)) => (tr("1 résultat").to_string(), false),
                 Some((_, n)) if n >= 999 => (tr("Plus de 999 résultats").to_string(), false),
                 Some((_, n)) => (tf("{} résultats", &[&n]), false),

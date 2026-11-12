@@ -7,6 +7,12 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Find in page says which match is shown ("3/8"), not only how many
+  there are.
+- A web page's right-click menu, with words selected: **Search the web
+  for the selection** and **Copy link to this passage**.
+- Settings: a category arrives with a short fade (not when the system
+  asks for no animations).
 - The keyboard alone: Tab reaches every row, switch and choice of Sanaga's
   own pages and the toolbar, with a focus ring; Space or Enter acts.
 - Summaries and extensions appear as the model writes them, with **Stop**.
@@ -95,6 +101,12 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- Right-click menus (tab, group, tab bar, favourite, container, links):
+  a symbol on each line, the shortcut at the right, sub-menus alike.
+- A web page's right-click menu is in Sanaga's language throughout (the
+  engine's lines came in the system's, or in English); the inspector's
+  line goes last, "Stop" shows only while a page loads.
+- Windows of a profile share their history as it happens.
 - What can't be undone asks twice: clearing the history, deleting a
   password or an extension, resetting a site's settings.
 - One panel at a time: opening a menu or a panel closes the others, and
