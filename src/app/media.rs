@@ -173,32 +173,30 @@ impl Sanaga {
         let install = crate::codecs::install();
         let state = self.codec_install.load(AtomicOrdering::Relaxed);
         let mut act: Option<&str> = None;
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(ui.available_width() - 260.0);
-                ui.label(RichText::new(tr("Codecs vidéo et audio")).size(13.5).color(th.text));
-                let sub = match &status {
-                    None => tr("Vérification…").to_string(),
-                    Some(s) if s.complete() => {
-                        if s.hardware {
-                            tr("Tout est là : H.264, AV1, VP9, AAC, Opus, avec le décodage par la carte graphique.").to_string()
-                        } else {
-                            tr("Tout est là : H.264, AV1, VP9, AAC, Opus.").to_string()
-                        }
-                    }
-                    Some(s) => tf("Il manque : {} — YouTube et d'autres sites ne lisent pas leurs vidéos sans eux.", &[&s.missing().join(", ")]),
-                };
-                ui.label(RichText::new(sub).size(11.5).color(th.sub));
-                // the exact command that would run
-                if let (Some(i), Some(s)) = (&install, &status) {
-                    if !s.complete() {
-                        ui.label(RichText::new(&i.command).size(11.0).family(egui::FontFamily::Monospace).color(th.sub));
-                    }
+        // (the words take the card's whole width; the buttons come under
+        // them: side by side they ran into the text)
+        ui.label(RichText::new(tr("Codecs vidéo et audio")).size(13.5).color(th.text));
+        let sub = match &status {
+            None => tr("Vérification…").to_string(),
+            Some(s) if s.complete() => {
+                if s.hardware {
+                    tr("Tout est là : H.264, AV1, VP9, AAC, Opus, avec le décodage par la carte graphique.").to_string()
+                } else {
+                    tr("Tout est là : H.264, AV1, VP9, AAC, Opus.").to_string()
                 }
-            });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if status.as_ref().is_some_and(|s| !s.complete()) && install.is_some() {
+            }
+            Some(s) => tf("Il manque : {} — YouTube et d'autres sites ne lisent pas leurs vidéos sans eux.", &[&s.missing().join(", ")]),
+        };
+        ui.add(egui::Label::new(RichText::new(sub).size(11.5).color(th.sub)).wrap());
+        if status.as_ref().is_some_and(|s| !s.complete()) {
+            if let Some(i) = &install {
+                // the exact command that would run
+                ui.add_space(4.0);
+                ui.add(egui::Label::new(RichText::new(&i.command).size(11.0).family(egui::FontFamily::Monospace).color(th.sub)).wrap().selectable(true));
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
                     if state == RUNNING {
+                        ui.spinner();
                         ui.label(RichText::new(tr("Installation…")).color(th.sub));
                     } else {
                         if crate::codecs::terminal().is_some() && ui.add(egui::Button::new(RichText::new(tr("Installer dans un terminal")).color(Color32::WHITE)).fill(th.accent)).clicked() {
@@ -208,9 +206,12 @@ impl Sanaga {
                             act = Some("copy");
                         }
                     }
-                }
-            });
-        });
+                });
+            }
+        }
+        ui.add_space(10.0);
+        let line = ui.available_rect_before_wrap();
+        ui.painter().line_segment([pos2(line.left(), line.top()), pos2(line.right(), line.top())], Stroke::new(1.0, th.hairline.gamma_multiply(0.6)));
         ui.add_space(10.0);
         ui.horizontal(|ui| {
             ui.vertical(|ui| {

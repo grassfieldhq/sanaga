@@ -3,6 +3,7 @@
 //! the page's QR code, address-bar shortcuts and calculator.
 
 use super::chrome::site_badge;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, Layout, Margin, RichText, Sense, TextEdit};
@@ -525,8 +526,8 @@ impl Sanaga {
             }
             for (site, kind, allow) in &perms {
                 ui.horizontal(|ui| {
-                    site_badge(ui.painter(), pos2(ui.cursor().left() + 9.0, ui.cursor().center().y + 6.0), 8.0, site, site);
-                    ui.add_space(22.0);
+                    let (badge, _) = ui.allocate_exact_size(vec2(18.0, 22.0), Sense::hover());
+                    site_badge(ui.painter(), badge.center(), 8.0, site, site);
                     ui.label(RichText::new(host_of(site)).color(th.text));
                     ui.label(RichText::new(format!("— {} : {}", kind_label(kind), if *allow { tr("autorisé") } else { tr("bloqué") })).color(th.sub));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -589,7 +590,7 @@ impl Sanaga {
             if !q.is_empty() && !title.to_lowercase().contains(&q) && !t.url().to_lowercase().contains(&q) {
                 continue;
             }
-            let mut sub = host_of(t.url());
+            let mut sub = site_label(t.url());
             if self.groups.len() > 1 {
                 sub = format!("{sub} · {}", self.groups.get(t.group).cloned().unwrap_or_default());
             }
@@ -677,8 +678,8 @@ impl Sanaga {
                             }
                             let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
                             let p = ui.painter().with_clip_rect(clip);
-                            p.text(pos2(clip.left(), r.center().y - 7.0), Align2::LEFT_CENTER, title, FontId::proportional(13.0), th.text);
-                            p.text(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
+                            p.fit(pos2(clip.left(), r.center().y - 7.0), Align2::LEFT_CENTER, title, FontId::proportional(13.0), th.text);
+                            p.fit(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
                             if rr.clicked() {
                                 pick = Some(k);
                             }

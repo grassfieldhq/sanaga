@@ -5,8 +5,70 @@ use crate::icons::{self, Icon};
 use crate::theme::badge_color;
 use eframe::egui::{Align2, Color32, Margin, Response, Sense, TextEdit};
 
+/// The keyboard is on this control (reached with Tab): a ring in the accent
+/// colour around it. Sanaga draws most of its controls itself: without
+/// this, nothing shows where Tab is, and the interface can't be used
+/// without a mouse.
+pub(super) fn focus_ring(ui: &Ui, resp: &Response, rect: egui::Rect, radius: f32, th: &Theme) {
+    if resp.has_focus() {
+        ui.painter().rect_stroke(rect, egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8), egui::Stroke::new(2.0, th.accent), egui::StrokeKind::Outside);
+    }
+}
+
+/// A line of text that does not fit ends with "…" — never cut in the
+/// middle of a letter, which reads as a mistake. Used in place of
+/// `Painter::text` on a painter clipped to the room the text has: the room
+/// is what is left of the clip from where the text starts.
+pub(super) trait Fit {
+    fn fit(&self, pos: egui::Pos2, anchor: Align2, text: impl ToString, font: FontId, color: Color32) -> egui::Rect;
+}
+
+impl Fit for egui::Painter {
+    fn fit(&self, pos: egui::Pos2, anchor: Align2, text: impl ToString, font: FontId, color: Color32) -> egui::Rect {
+        let clip = self.clip_rect();
+        let room = match anchor.x() {
+            egui::Align::Min => clip.right() - pos.x,
+            egui::Align::Max => pos.x - clip.left(),
+            egui::Align::Center => 2.0 * (clip.right() - pos.x).min(pos.x - clip.left()),
+        };
+        let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), font, color);
+        job.wrap = egui::text::TextWrapping { max_width: room.max(0.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+        let galley = self.layout_job(job);
+        let rect = anchor.anchor_size(pos, galley.size());
+        self.galley(rect.min, galley, color);
+        rect
+    }
+}
+
+/// A button for what can't be undone (erase the history, delete a password,
+/// remove an extension): the first press only arms it — it turns red and
+/// asks "Confirm?" for a few seconds — the second does it. One slip of the
+/// mouse no longer destroys anything.
+pub(super) fn confirm_button(ui: &mut Ui, what: impl std::hash::Hash + std::fmt::Debug, label: &str) -> bool {
+    let id = egui::Id::new(("confirm-button", what));
+    let now = ui.input(|i| i.time);
+    let armed = ui.ctx().data(|d| d.get_temp::<f64>(id)).is_some_and(|t| now - t < 4.0);
+    let button = if armed {
+        egui::Button::new(egui::RichText::new(tr("Confirmer ?")).color(Color32::WHITE)).fill(Color32::from_rgb(0xC8, 0x3A, 0x2B))
+    } else {
+        egui::Button::new(label)
+    };
+    if !ui.add(button).clicked() {
+        return false;
+    }
+    if armed {
+        ui.ctx().data_mut(|d| d.remove::<f64>(id));
+        return true;
+    }
+    ui.ctx().data_mut(|d| d.insert_temp(id, now));
+    // (it goes back to its own words by itself)
+    ui.ctx().request_repaint_after(std::time::Duration::from_secs(4));
+    false
+}
+
 pub(super) fn icon_button_small(ui: &mut Ui, icon: Icon, th: &Theme) -> Response {
     let (r, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    focus_ring(ui, &resp, r, 13.0, th);
     if resp.hovered() {
         ui.painter().circle_filled(r.center(), 12.0, th.omnibox_hover);
     }
@@ -153,11 +215,11 @@ impl Sanaga {
                             }
                             let clip = Rect::from_min_max(pos2(ic.right() + 12.0, r.top()), pos2(r.right() - 12.0, r.bottom()));
                             let p = ui.painter().with_clip_rect(clip);
-                            let g = p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
+                            let g = p.fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
                             if !*search && label != url && !url.starts_with("tab:") {
                                 // (as in the address bar: decoded, no https:// nor www.)
                                 let (site, rest) = super::toolbar::display_url(url, false);
-                                p.text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {site}{rest}"), FontId::proportional(13.0), th.link);
+                                p.fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {site}{rest}"), FontId::proportional(13.0), th.link);
                             }
                             if resp.clicked() {
                                 go = Some(url.clone());
@@ -232,4 +294,98 @@ pub(super) fn same_page_key(url: &str) -> String {
     let u = url.split('#').next().unwrap_or(url);
     let u = percent_encoding::percent_decode_str(u).decode_utf8().map(|d| d.to_string()).unwrap_or_else(|_| u.to_string());
     u.trim_end_matches('/').replace("://www.", "://")
+}
+
+/// What stands at the left of a menu line.
+enum Mark {
+    Icon(Icon),
+    /// A dot of a group's or a container's colour.
+    Dot(Color32),
+}
+
+/// A line of a right-click menu, as macOS draws them: a symbol, the words,
+/// the keys that do the same at the right. Every menu Sanaga draws uses
+/// it (some were the toolkit's bare buttons: no symbol, no keys). True
+/// when chosen — the menu closes.
+pub(super) fn menu_item(ui: &mut Ui, icon: Icon, label: &str) -> bool {
+    menu_line(ui, Mark::Icon(icon), label, "")
+}
+
+pub(super) fn menu_item_keys(ui: &mut Ui, icon: Icon, label: &str, keys: &str) -> bool {
+    menu_line(ui, Mark::Icon(icon), label, keys)
+}
+
+pub(super) fn menu_item_dot(ui: &mut Ui, dot: Color32, label: &str) -> bool {
+    menu_line(ui, Mark::Dot(dot), label, "")
+}
+
+/// The width of a menu's lines: that of its widest line, as measured at
+/// the last frame — every line the same, and no wider than needed.
+fn menu_width(ui: &Ui, need: f32) -> f32 {
+    let id = ui.id().with("menu-width");
+    let pass = ui.ctx().cumulative_pass_nr();
+    let (at, now, before) = ui.data(|d| d.get_temp::<(u64, f32, f32)>(id)).unwrap_or((pass, 0.0, 0.0));
+    let (now, before) = if at == pass { (now.max(need), before) } else { (need, now) };
+    ui.data_mut(|d| d.insert_temp(id, (pass, now, before)));
+    need.max(before).max(228.0)
+}
+
+fn menu_line(ui: &mut Ui, mark: Mark, label: &str, keys: &str) -> bool {
+    let words = ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(13.0), Color32::PLACEHOLDER);
+    let keys_w = if keys.is_empty() { 0.0 } else { ui.painter().layout_no_wrap(keys.to_string(), FontId::proportional(12.0), Color32::PLACEHOLDER).size().x + 26.0 };
+    let w = menu_width(ui, 30.0 + words.size().x + keys_w + 12.0);
+    let (r, resp) = ui.allocate_exact_size(vec2(w, 26.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    let accent = ui.visuals().selection.stroke.color;
+    let hovered = resp.hovered() || resp.has_focus();
+    if hovered {
+        ui.painter().rect_filled(r, CornerRadius::same(6), accent);
+    }
+    let col = if hovered { Color32::WHITE } else { ui.visuals().text_color() };
+    match mark {
+        Mark::Icon(icon) => icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 14.0, r.center().y), vec2(13.0, 13.0)), icon, col),
+        Mark::Dot(dot) => {
+            ui.painter().circle_filled(pos2(r.left() + 14.0, r.center().y), 5.0, dot);
+        }
+    }
+    ui.painter().galley(pos2(r.left() + 30.0, r.center().y - words.size().y / 2.0), words, col);
+    if !keys.is_empty() {
+        let dim = if hovered { Color32::from_white_alpha(215) } else { ui.visuals().weak_text_color() };
+        ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, keys, FontId::proportional(12.0), dim);
+    }
+    if resp.clicked() {
+        ui.close();
+        return true;
+    }
+    false
+}
+
+/// A menu line that opens a second menu beside it (its arrow at the
+/// right), drawn like the other lines.
+pub(super) fn menu_sub<R>(ui: &mut Ui, icon: Icon, label: &str, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+    let accent = ui.visuals().selection.stroke.color;
+    let text = ui.visuals().text_color();
+    let w = menu_width(ui, 30.0 + ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(13.0), Color32::PLACEHOLDER).size().x + 34.0);
+    let (resp, inner) = ui
+        .scope(|ui| {
+            let v = ui.visuals_mut();
+            for look in [&mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
+                look.weak_bg_fill = accent;
+                look.bg_fill = accent;
+                look.fg_stroke.color = Color32::WHITE;
+                look.bg_stroke = Stroke::NONE;
+                look.corner_radius = CornerRadius::same(6);
+                look.expansion = 0.0;
+            }
+            v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+            v.widgets.inactive.bg_stroke = Stroke::NONE;
+            ui.spacing_mut().button_padding = vec2(8.0, 4.0);
+            // (the symbol's place is kept empty in the button, and painted below)
+            let button = egui::Button::new((egui::Atom::custom(egui::IdSalt::new("menu-symbol"), vec2(18.0, 13.0)), egui::RichText::new(label).size(13.0), egui::Atom::grow(), egui::containers::menu::SubMenuButton::arrow_atom(None))).min_size(vec2(w, 26.0));
+            egui::containers::menu::SubMenuButton::from_button(button).ui(ui, add)
+        })
+        .inner;
+    let lit = resp.hovered() || resp.has_focus() || inner.is_some();
+    icons::paint(ui.painter(), Rect::from_center_size(pos2(resp.rect.left() + 14.0, resp.rect.center().y), vec2(13.0, 13.0)), icon, if lit { Color32::WHITE } else { text });
+    inner.map(|i| i.inner)
 }

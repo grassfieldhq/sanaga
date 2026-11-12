@@ -1,0 +1,55 @@
+# Coverage-guided fuzzing (libFuzzer) of the readers of files and pages that
+# come from anywhere: the Light engine's HTML, extensions from other
+# browsers, imported bookmarks, the ad-block lists (fuzz/, docs/FUZZING.md).
+#
+# Every week for five minutes per reader, on demand, and for one minute when
+# a pull request touches one of them. (Their repeatable fuzzing runs with
+# the unit tests at every push: see ci.yml.)
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "fuzz/**"
+      - "src/html.rs"
+      - "src/webext.rs"
+      - "src/import.rs"
+      - "src/blocklist.rs"
+      - "src/guard.rs"
+      - ".github/workflows/fuzz.yml"
+
+# (read only: this workflow never writes to the repository)
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [html, webext, import, blocklist]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # (libFuzzer's instrumentation needs the nightly compiler)
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: nightly
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
+        with:
+          tool: cargo-fuzz
+      - name: Fuzz ${{ matrix.target }}
+        run: |
+          seconds=300
+          [ "${{ github.event_name }}" = "pull_request" ] && seconds=60
+          # an input that takes more than 10 s is a finding too (a reader stuck)
+          cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=$seconds -timeout=10 -max_len=65536
+      - name: Keep what made it fail
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}

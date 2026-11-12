@@ -7,6 +7,64 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Find in page says which match is shown ("3/8"), not only how many
+  there are.
+- A web page's right-click menu, with words selected: **Search the web
+  for the selection** and **Copy link to this passage**.
+- Settings: a category arrives with a short fade (not when the system
+  asks for no animations).
+- The keyboard alone: Tab reaches every row, switch and choice of Sanaga's
+  own pages and the toolbar, with a focus ring; Space or Enter acts.
+- Summaries and extensions appear as the model writes them, with **Stop**.
+  The summary draws headings, lists and emphasis, in a panel resized by
+  its edge.
+- A page in another language offers its translation in a bar (a switch in
+  Settings; "never on this site").
+- Settings: **Restore the defaults** per category; the search also finds
+  what lives one page further.
+- An extension can be tried on the page in front of you before it is
+  switched on.
+- Find in page uses the engine's own search on web pages: every match is
+  marked, their number is shown ("No results" in red), the words are kept
+  for next time.
+- A favourite's right-click menu: **Edit…** and **Copy address**.
+- About shows the WebKitGTK version and links to the Activity page; the
+  Extensions page links to the extension writer.
+- Each Settings category has an address (`sanaga://settings/privacy`): the
+  toolbar's arrows, Alt+← / → and the mouse's side buttons go back and
+  forth between categories, a category can be opened directly, and the
+  session restores it.
+- Translating a page with an AI shows a bar while it works (what, with
+  which model, how far, **Stop**) and afterwards **Show original**, which
+  puts the page's own words back at once.
+- Writing an extension: the seconds while the model works, **Discard**,
+  and **Write it again** (in place of the draft, not next to it).
+- `tools/fake-model.py`: a stand-in model to try the intelligence features.
+- `SANAGA_DEBUG_STALLS=30`: every time the window did not answer, with what
+  held it; `tools/lag-audit.sh`: the real window on a heavy profile with
+  slow helper programs, every feature in turn, in CI.
+- Crash reports (`sanaga://crashes`, also from About and the command
+  palette): when Sanaga or a page's process stops, a short report is kept
+  on the computer — what stopped, Sanaga's and the system's versions, no
+  page address, the home folder's name taken out. Read it, copy it, send it
+  as a pre-filled GitHub issue, or delete it; nothing is sent by itself. The
+  newest 20 are kept.
+- After an abrupt end (a crash, a kill, a power cut) the next start says so
+  in a bar: the tabs are back, or one click reopens them when "restore
+  tabs" is off.
+- Asked to stop by the system (logging out, `kill`, Ctrl+C), Sanaga closes
+  as with Quit: tabs saved.
+- Activity page: memory and processor **tab by tab**. Each page's process
+  tells Sanaga which tab it serves (a small library loaded by the page
+  processes, `page-helper/`); processes are named after their tab, shared
+  ones are marked, and a tab whose page no longer answers says so.
+- `sanaga --automation`: test software drives Sanaga through WebDriver
+  (WebKit's own driver), in a window that keeps nothing
+  (docs/AUTOMATION.md).
+- Fuzzing of the readers of outside files and pages (Light engine's HTML,
+  extensions of other browsers, imported bookmarks, block lists): a
+  repeatable fuzzer with the unit tests, libFuzzer targets in `fuzz/`
+  (docs/FUZZING.md).
 - Menus and panels open over the living page: the page keeps moving
   under them (a video goes on playing) instead of being replaced by a
   picture of itself, and opening a menu no longer makes the window stutter.
@@ -43,6 +101,39 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- Right-click menus (tab, group, tab bar, favourite, container, links):
+  a symbol on each line, the shortcut at the right, sub-menus alike.
+- A web page's right-click menu is in Sanaga's language throughout (the
+  engine's lines came in the system's, or in English); the inspector's
+  line goes last, "Stop" shows only while a page loads.
+- Windows of a profile share their history as it happens.
+- What can't be undone asks twice: clearing the history, deleting a
+  password or an extension, resetting a site's settings.
+- One panel at a time: opening a menu or a panel closes the others, and
+  Escape closes whichever is open.
+- A site's settings panel and the Extensions page use the Settings' cards,
+  rows and switches.
+- A file of this computer is shown by its name, then its folder, in the
+  address bar, the tabs and the lists.
+- Settings (interface audit, docs/UX-AUDIT-2026-11-11.md): a row's text is
+  never cut any more (it wraps, the row grows); the search finds every
+  setting shown — also by a menu's choices, without accents — says which
+  category each result is in and tints the rows that match; things done on
+  the spot have a button, not a chevron; Ctrl+F searches the settings.
+- The ✦ menu shows its keys on the right; "Translate" and "Copy" have
+  their own icons (they were envelopes).
+- Nothing is waited for in the window's thread any more (stability audit,
+  docs/STABILITY-AUDIT-2026-11-11.md): the keyring, `xdg-settings`, the
+  icon cache and the sync round run on threads; data files are saved by a
+  thread, in order, still safely. Opening Settings with a slow keyring took
+  24 s; it takes a frame.
+- The new tab page and the lists no longer work the history and the site
+  names out again at every frame.
+- Block lists are handed to WebKit one at a time after their weekly
+  refresh (three short holds instead of one long one).
+- CI: Clippy and the test of the real window (it starts, a page answers,
+  WebDriver drives it) now stop a merge; they were advice only. A weekly
+  job fuzzes the readers with libFuzzer.
 - Starts faster: the web engine is made after the window's first picture,
   and GTK is told light or dark before it reads its theme (measured: the
   interface drawn after about 1.0 s instead of 1.2–1.3 s).
@@ -104,6 +195,37 @@ All notable changes to Sanaga are listed here. The format follows
   les URL en entier" shows the whole address.
 
 ### Fixed
+- History: a title that arrived after its page had loaded was never
+  written to the file (the visit showed its bare address after a
+  restart), and could add a second visit of the same page.
+- Text painted by Sanaga that doesn't fit ends with "…" instead of being
+  cut in the middle of a letter (tabs, favourites, lists, menus, the
+  address bar).
+- Site badges: the letter of the site's own name ("W" for
+  fr.wikipedia.org, not "F").
+- A band of the wrong colour across the last row of scrolling lists.
+- An empty box in place of "⋮" in the welcome page, and in place of
+  language names written in their own script on a computer without those
+  fonts. A test now fails if a text uses a character the carried fonts
+  cannot draw.
+- The address bar no longer keeps the caret on Sanaga's own pages; a menu
+  label no longer runs into its shortcut; the names under the new tab's
+  tiles no longer run into one another.
+- Settings: missing characters (▯) in help texts; a switch that is off was
+  invisible in the dark look; the memory saver's note contradicted its
+  row; the codecs card's buttons ran into its text; the sidebar cut its
+  longest name in German; rows and switches said nothing to screen readers.
+- Translation: choosing "an AI" with none set up was kept and failed at
+  every later try; the question stayed over other pages and tabs.
+- Find in page (Light engine, Reader) made Sanaga crash on a page holding
+  letters such as İ or ẞ; the address bar's completion could crash on a
+  pasted Kelvin sign.
+- A panic while making a frame no longer ends Sanaga with all its tabs:
+  the frame is dropped, a report kept, and Sanaga goes on (three in a row
+  still stop it, and the tabs come back at the next start).
+- Importing bookmarks from a damaged Chrome `Bookmarks` file could run for
+  ever (a file holding `[}`), found by fuzzing; a broken surrogate pair in
+  a bookmark's name is now read as an unknown character.
 - The address bar now follows every move of the page: sites that change
   page without loading a new one (YouTube, Google, Facebook, X… with
   history.pushState), #anchors and going back inside them. These moves are

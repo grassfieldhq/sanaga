@@ -50,6 +50,13 @@ pub(super) enum WebEvent {
     PageClicked { tab: u64 },
     /// How far a page is scrolled, as a share of its height (mobile preview side by side).
     Scrolled { tab: u64, share: f32 },
+    /// The language a page says it is written in ("en", "pt-br"…).
+    PageLanguage { tab: u64, lang: String },
+    /// Find in page: how many matches the engine found in this tab.
+    Found { tab: u64, count: u32 },
+    /// Find in page: the place of the match shown, and Sanaga's own count
+    /// of them for a new search.
+    FoundAt { tab: u64, at: u32, of: Option<u32> },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -64,6 +71,17 @@ const MEDIA_JS: &str = r#"window.addEventListener('error', function (e) {
 }, true);
 // video calls need WebRTC; some systems' WebKitGTK is built without it
 if (typeof RTCPeerConnection === 'undefined' && window.ipc && /^https?:$/.test(location.protocol)) window.ipc.postMessage('tool:no-webrtc:');"#;
+
+/// The language a page says it is written in (its `lang`), told once the
+/// page is there: Sanaga may then offer to translate it (see translate.rs).
+/// Nothing of the page's text is read for this.
+const LANG_JS: &str = r#"(function () {
+  function tell() {
+    var l = ((document.documentElement && document.documentElement.getAttribute('lang')) || '').trim().toLowerCase();
+    if (l && window.ipc && /^(https?|file):$/.test(location.protocol)) window.ipc.postMessage('lang:' + l.slice(0, 16));
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tell); else tell();
+})();"#;
 
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
@@ -222,6 +240,8 @@ pub(super) struct PageMaker {
     ids: Rc<Cell<u64>>,
     /// The person's extensions: they act on the page itself (its world).
     page_scripts: Rc<Vec<String>>,
+    /// The window is driven by test software (`--automation`): its pages say so to the engine.
+    automation: bool,
 }
 
 impl PageMaker {
@@ -250,7 +270,7 @@ impl PageMaker {
         let scripts: Vec<&str> = self.scripts.iter().map(|s| s.as_str()).collect();
         let page_scripts: Vec<&str> = self.page_scripts.iter().map(|s| s.as_str()).collect();
         let engine = if container.is_empty() || private { self.ctx.clone() } else { self.container_engine(container).or_else(|| self.ctx.clone()) };
-        PageView::new(engine.as_ref(), private, &scripts, &page_scripts, opener, Some(popup), move |sig| {
+        PageView::new(engine.as_ref(), private, &scripts, &page_scripts, opener, Some(popup), self.automation, move |sig| {
             let ev = match sig {
                 PageSignal::Started(url) => WebEvent::Load { tab: id, finished: false, url },
                 PageSignal::Finished(url) => WebEvent::Load { tab: id, finished: true, url },
@@ -270,6 +290,8 @@ impl PageMaker {
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
                 PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
+                PageSignal::Found(count) => WebEvent::Found { tab: id, count },
+                PageSignal::FoundAt(at, of) => WebEvent::FoundAt { tab: id, at, of },
                 PageSignal::Message(body) => {
                     if let Some((what, arg)) = body.strip_prefix("tool:").and_then(|r| r.split_once(':')) {
                         if !page_may_answer(what) {
@@ -288,6 +310,8 @@ impl PageMaker {
                         WebEvent::Password { tab: id, msg: body }
                     } else if let Some(u) = body.strip_prefix("vs:") {
                         WebEvent::ViewSource { tab: id, url: u.to_string() }
+                    } else if let Some(lang) = body.strip_prefix("lang:") {
+                        WebEvent::PageLanguage { tab: id, lang: lang.to_string() }
                     } else {
                         WebEvent::Shortcut(body)
                     }
@@ -366,6 +390,12 @@ impl Sanaga {
                         self.translating = None;
                         self.translate_batches = 0;
                         self.translate_gen += 1;
+                    }
+                    if self.translation.as_ref().is_some_and(|t| t.tab == tab) {
+                        self.translation = None;
+                    }
+                    if self.translate_offered.as_ref().is_some_and(|(t, _)| *t == tab) {
+                        self.translate_offered = None;
                     }
                     // an error page's buttons belong to that page only: it is
                     // armed when it is committed itself (its secret goes to
@@ -457,8 +487,9 @@ impl Sanaga {
                 t.entries[t.idx].title = title.clone();
                 let url = t.entries[t.idx].url.clone();
                 if !t.private && !url.is_empty() {
-                    // updates the title of the visit just recorded
-                    self.store.add_visit(&url, &title);
+                    // the visit of this page takes its title (and no visit
+                    // is added: a title is not a visit)
+                    self.store.title_visit(&url, &title);
                 }
             }
             WebEvent::NewTab { tab, url } => {
@@ -480,6 +511,7 @@ impl Sanaga {
             }
             WebEvent::Password { tab, msg } => self.on_password_msg(tab, &msg),
             WebEvent::Crashed { tab, memory } => {
+                self.report_page_crash(memory);
                 if let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab) {
                     t.loading = false;
                     let why = if memory {
@@ -489,6 +521,27 @@ impl Sanaga {
                     };
                     t.view = View::Error(format!("{CRASH_MARK}{why}"));
                 }
+            }
+            WebEvent::PageLanguage { tab, lang } => self.page_language(tab, &lang),
+            WebEvent::Found { tab, count } => {
+                // (only a new search counts the matches: going to the next
+                // one, the engine answers "1" — the one it went to)
+                if count == 0 || self.find_fresh || self.find_web.is_none_or(|(t, _)| t != tab) {
+                    self.find_web = Some((tab, count));
+                    self.find_at = None;
+                    self.find_counted = false;
+                }
+                self.find_fresh = false;
+            }
+            WebEvent::FoundAt { tab, at, of } => {
+                let Some((_, total)) = self.find_web.filter(|(t, _)| *t == tab) else { return };
+                // (a new search: is Sanaga's count the engine's? If not —
+                // matches in a frame, text it reads otherwise — the place
+                // would be a guess, and only the number of matches is shown)
+                if let Some(of) = of {
+                    self.find_counted = of == total && total < 999;
+                }
+                self.find_at = (self.find_counted && (1..=total).contains(&at)).then_some((tab, at));
             }
             WebEvent::Scrolled { tab, share } => {
                 // mobile preview side by side: the phone follows the page
@@ -808,12 +861,14 @@ impl Sanaga {
         let list: Vec<(u64, u64, PageView)> = self.popups.borrow_mut().drain(..).collect();
         for (opener, id, pv) in list {
             let (private, group, container) = self.tabs.iter().find(|t| t.id == opener).map(|t| (t.private, t.group, t.container.clone())).unwrap_or((false, 0, String::new()));
+            let has_opener = self.tabs.iter().any(|t| t.id == opener);
             let i = self.open_tab("sanaga://newtab", private);
             self.focus_address = false;
             let t = &mut self.tabs[i];
             t.id = id;
             t.group = group;
-            t.parent = Some(opener);
+            // (a page opened by test software has no opener)
+            t.parent = has_opener.then_some(opener);
             t.container = container;
             t.view = View::Web;
             t.loading = true;
@@ -848,6 +903,76 @@ impl Sanaga {
         }
     }
 
+    /// Try an extension that is not switched on, in one tab only: that
+    /// page is loaded again with it, shown, and a bar there says so — to
+    /// see what it does on a real page before it is allowed everywhere.
+    pub(super) fn try_extension(&mut self, tab: u64, id: &str, name: &str) {
+        let maker = self.page_maker();
+        let own: Vec<&str> = maker.scripts.iter().map(|s| s.as_str()).collect();
+        let mut on = self.store.extensions_on.clone();
+        on.push(id.to_string());
+        let with_it = crate::extensions::init_script(&on);
+        let Some(i) = self.tabs.iter().position(|t| t.id == tab) else { return };
+        let Some(w) = &self.tabs[i].web else { return };
+        w.set_scripts(&own, &[&with_it]);
+        self.ext_trial = Some((tab, id.to_string(), name.to_string()));
+        self.current_group = self.tabs[i].group;
+        self.active = i;
+    }
+
+    /// End the trial: the page goes back to the extensions switched on
+    /// (with this one among them when `keep`).
+    pub(super) fn end_extension_trial(&mut self, keep: bool) {
+        let Some((tab, id, name)) = self.ext_trial.take() else { return };
+        if keep {
+            if !self.store.extensions_on.contains(&id) {
+                // (every open page gets it, this one included)
+                self.toggle_extension(&id);
+            }
+            if self.ext_review.as_deref() == Some(id.as_str()) {
+                self.ext_review = None;
+            }
+            self.extension_tried_and_kept(&id);
+            self.say(&tf("« {} » est activée : elle s'applique aux pages ouvertes.", &[&name]));
+            return;
+        }
+        let maker = self.page_maker();
+        let own: Vec<&str> = maker.scripts.iter().map(|s| s.as_str()).collect();
+        let page: Vec<&str> = maker.page_scripts.iter().map(|s| s.as_str()).collect();
+        if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+            w.set_scripts(&own, &page);
+        }
+    }
+
+    pub(super) fn extension_trial_visible(&self) -> bool {
+        !self.focus_mode && self.ext_trial.as_ref().is_some_and(|(tab, _, _)| self.tabs.get(self.active).is_some_and(|t| t.id == *tab))
+    }
+
+    /// In the tab where an extension is being tried.
+    pub(super) fn extension_trial_bar(&mut self, ui: &mut Ui, th: &Theme) {
+        let Some((_, _, name)) = self.ext_trial.clone() else { return };
+        let mut act: Option<bool> = None;
+        ui.horizontal_centered(|ui| {
+            ui.add_space(14.0);
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::hover());
+            crate::icons::paint(ui.painter(), r, crate::icons::Icon::Puzzle, th.accent);
+            ui.add_space(6.0);
+            ui.add(egui::Label::new(egui::RichText::new(tf("Essai de « {} » sur cette page seulement : elle n'est pas encore activée.", &[&name])).size(13.0).color(th.text)).truncate());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(12.0);
+                if ui.button(tr("Arrêter l'essai")).clicked() {
+                    act = Some(false);
+                }
+                if ui.add(egui::Button::new(egui::RichText::new(tr("Activer l'extension")).color(egui::Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(8))).clicked() {
+                    act = Some(true);
+                }
+            });
+        });
+        if let Some(keep) = act {
+            self.end_extension_trial(keep);
+        }
+    }
+
     /// Switch an extension on or off.
     pub(super) fn toggle_extension(&mut self, id: &str) {
         if let Some(p) = self.store.extensions_on.iter().position(|x| x == id) {
@@ -873,17 +998,46 @@ impl Sanaga {
         self.notice = Some((tr("Extension supprimée.").into(), self.ctx.input(|i| i.time)));
     }
 
+    /// `sanaga --automation`: test software speaking WebDriver (through
+    /// WebKit's own driver, see docs/AUTOMATION.md) may start a session.
+    /// Each page it asks for is a new tab of this window, which keeps
+    /// nothing and shares nothing with the person's profile.
+    pub(super) fn allow_automation(&self) {
+        let Some(engine) = &self.web_context else { return };
+        let maker = self.page_maker();
+        engine.ctx.set_automation_allowed(true);
+        engine.ctx.connect_automation_started(move |_, session| {
+            let info = webkit6::ApplicationInfo::new();
+            info.set_name("Sanaga");
+            let mut v = env!("CARGO_PKG_VERSION").split('.').map(|n| n.parse::<u64>().unwrap_or(0));
+            info.set_version(v.next().unwrap_or(0), v.next().unwrap_or(0), v.next().unwrap_or(0));
+            session.set_application_info(&info);
+            let maker = maker.clone();
+            session.connect_create_web_view(None, move |_| {
+                let id = maker.ids.get();
+                maker.ids.set(id + 1);
+                let page = maker.make(id, false, None, "");
+                let view = page.webview();
+                // (it becomes a tab at the next frame: see adopt_popups)
+                maker.popups.borrow_mut().push((0, id, page));
+                maker.repaint.request_repaint();
+                view
+            });
+        });
+    }
+
     pub(super) fn page_maker(&self) -> PageMaker {
         let extensions = crate::extensions::init_script(&self.store.extensions_on);
         PageMaker {
             ctx: self.web_context.clone(),
             base: self.web_dir.clone(),
-            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), SOURCE_LINKS_JS.to_string(), ERROR_ACTIONS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
+            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), LANG_JS.to_string(), SOURCE_LINKS_JS.to_string(), ERROR_ACTIONS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
             popups: self.popups.clone(),
             ids: self.popup_ids.clone(),
             page_scripts: Rc::new(vec![extensions]),
+            automation: self.automation,
         }
     }
 
@@ -893,10 +1047,35 @@ impl Sanaga {
     }
 
     /// Find in a WebKit page (uses the page's own search).
-    pub(super) fn web_find(&self, backwards: bool) {
+    /// Find in a web page: the engine's own search (all matches marked,
+    /// and their number told — `window.find` gave neither). `fresh`: the
+    /// words changed.
+    pub(super) fn web_find(&mut self, backwards: bool, fresh: bool) {
+        if fresh {
+            self.find_web = None;
+            self.find_at = None;
+            self.find_counted = false;
+            self.find_fresh = true;
+        }
         if let Some(w) = self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
-            let q = self.find_query.replace('\\', "\\\\").replace('\'', "\\'");
-            let _ = w.evaluate_own(&format!("window.find('{q}', false, {backwards}, true, false, false, false);"));
+            if self.find_query.is_empty() {
+                w.find_done();
+            } else {
+                w.find(&self.find_query, backwards, fresh);
+            }
+        }
+    }
+
+    /// The find bar closes: the marks leave the pages (the words are kept
+    /// for the next time, as in other browsers).
+    pub(super) fn close_find(&mut self) {
+        self.find_open = false;
+        self.find_web = None;
+        self.find_at = None;
+        for t in &self.tabs {
+            if let Some(w) = &t.web {
+                w.find_done();
+            }
         }
     }
 }

@@ -43,6 +43,196 @@ pub enum PageSignal {
     /// A link to a site whose videos need a DRM WebKit doesn't have
     /// (Netflix…): not loaded here; Sanaga opens it where it plays.
     Protected(String),
+    /// Find in page: how many times the words are in the page (0: nowhere).
+    Found(u32),
+    /// Find in page: which match is shown (1 is the first of the page), and
+    /// for a new search how many Sanaga counted itself — the place is told
+    /// only when that agrees with the engine's count.
+    FoundAt(u32, Option<u32>),
+}
+
+/// Which match of a search is the one selected: "3/8", or "3/" when the
+/// whole page is not counted again (going to the next match). The page's
+/// shown text is read in order — hidden parts and scripts left out, as the
+/// engine does — accents and capitals ignored, spaces taken as one.
+const FIND_PLACE_JS: &str = r#"function (q, whole) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !document.body) return '';
+  var norm = function (t) { return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' '); };
+  q = norm(q);
+  if (!q) return '';
+  var count = function (parts) {
+    var t = norm(parts.join('')), n = 0, i = 0;
+    while ((i = t.indexOf(q, i)) >= 0) { n++; i += q.length; }
+    return n;
+  };
+  var r = sel.getRangeAt(0), start = r.startContainer;
+  // the block a piece of text is in: the nearest parent that is not inline
+  var blocks = new Map();
+  var block = function (el) {
+    var b = blocks.get(el);
+    if (b === undefined) {
+      b = getComputedStyle(el).display.indexOf('inline') === 0 && el.parentElement ? block(el.parentElement) : el;
+      blocks.set(el, b);
+    }
+    return b;
+  };
+  var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    acceptNode: function (n) {
+      if (n.nodeType === 3) return NodeFilter.FILTER_ACCEPT;
+      var tag = n.tagName;
+      if (tag === 'BR') return NodeFilter.FILTER_ACCEPT;
+      // (what is not shown is not searched, nor anything inside it)
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') return NodeFilter.FILTER_REJECT;
+      var shown = n.checkVisibility ? n.checkVisibility({ visibilityProperty: true }) : n.getClientRects().length > 0;
+      return shown ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_REJECT;
+    }
+  });
+  var before = [], all = [], at = 0, last = null, n;
+  while ((n = walk.nextNode())) {
+    if (at === 0 && (n === start || (start.nodeType !== 3 && r.comparePoint(n, 0) >= 0))) {
+      if (n === start) before.push(n.data.slice(0, r.startOffset));
+      at = count(before) + 1;
+      if (!whole) return at + '/';
+    }
+    // (a line break, and the passage from a block to the next, end a line:
+    // no word runs across them)
+    var piece = n.nodeType === 3 ? n.data : '\n';
+    var home = n.nodeType === 3 && n.parentElement ? block(n.parentElement) : last;
+    if (last && home !== last) piece = '\n' + piece;
+    last = home;
+    if (at === 0) before.push(piece);
+    if (whole) all.push(piece);
+  }
+  if (at === 0) return '';
+  return at + '/' + count(all);
+}"#;
+
+/// The address of the page with the selected words as a text fragment
+/// (`#:~:text=`): opened, the page scrolls to them and marks them.
+const LINK_TO_SELECTION_JS: &str = r#"(function () {
+  var s = String(window.getSelection()).replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  var enc = function (t) { return encodeURIComponent(t).replace(/-/g, '%2D'); };
+  var w = s.split(' ');
+  var frag = w.length > 12 ? enc(w.slice(0, 5).join(' ')) + ',' + enc(w.slice(-5).join(' ')) : enc(s);
+  return location.href.split('#')[0] + '#:~:text=' + frag;
+})()"#;
+
+/// The engine's own menu lines, in Sanaga's language. WebKit names them in
+/// the system's language — in English when it has no translation — and
+/// Sanaga has its own: the menu spoke two languages at once.
+fn stock_label(action: webkit6::ContextMenuAction) -> Option<&'static str> {
+    use crate::i18n::tr;
+    use webkit6::ContextMenuAction as A;
+    Some(match action {
+        A::OpenLink => tr("Ouvrir le lien"),
+        // (a "new window" of the engine is a tab in Sanaga)
+        A::OpenLinkInNewWindow => tr("Ouvrir le lien dans un nouvel onglet"),
+        A::DownloadLinkToDisk => tr("Télécharger le fichier lié"),
+        A::CopyLinkToClipboard => tr("Copier l'adresse du lien"),
+        A::OpenImageInNewWindow => tr("Ouvrir l'image dans un nouvel onglet"),
+        A::DownloadImageToDisk => tr("Enregistrer l'image sous…"),
+        A::CopyImageToClipboard => tr("Copier l'image"),
+        A::CopyImageUrlToClipboard => tr("Copier l'adresse de l'image"),
+        A::OpenFrameInNewWindow => tr("Ouvrir le cadre dans un nouvel onglet"),
+        A::GoBack => tr("Précédent"),
+        A::GoForward => tr("Suivant"),
+        A::Stop => tr("Arrêter"),
+        A::Reload => tr("Actualiser"),
+        A::Copy => tr("Copier"),
+        A::Cut => tr("Couper"),
+        A::Paste => tr("Coller"),
+        A::PasteAsPlainText => tr("Coller sans mise en forme"),
+        A::Delete => tr("Supprimer"),
+        A::SelectAll => tr("Tout sélectionner"),
+        A::InsertEmoji => tr("Insérer un émoji"),
+        A::InputMethods => tr("Méthodes de saisie"),
+        A::Unicode => tr("Insérer un caractère de contrôle Unicode"),
+        A::NoGuessesFound => tr("Aucune suggestion"),
+        A::IgnoreSpelling => tr("Ignorer ce mot"),
+        A::LearnSpelling => tr("Ajouter au dictionnaire"),
+        A::IgnoreGrammar => tr("Ignorer la grammaire"),
+        A::FontMenu => tr("Police"),
+        A::Bold => tr("Gras"),
+        A::Italic => tr("Italique"),
+        A::Underline => tr("Souligné"),
+        A::Outline => tr("Contour"),
+        A::InspectElement => tr("Inspecter l'élément"),
+        A::OpenVideoInNewWindow => tr("Ouvrir la vidéo dans un nouvel onglet"),
+        A::OpenAudioInNewWindow => tr("Ouvrir l'audio dans un nouvel onglet"),
+        A::CopyVideoLinkToClipboard => tr("Copier l'adresse de la vidéo"),
+        A::CopyAudioLinkToClipboard => tr("Copier l'adresse de l'audio"),
+        A::ToggleMediaControls => tr("Afficher ou masquer les commandes"),
+        A::ToggleMediaLoop => tr("Lire en boucle"),
+        A::EnterVideoFullscreen => tr("Plein écran"),
+        A::MediaPlay => tr("Lecture"),
+        A::MediaPause => tr("Pause"),
+        A::MediaMute => tr("Couper ou rétablir le son"),
+        A::DownloadVideoToDisk => tr("Enregistrer la vidéo sous…"),
+        A::DownloadAudioToDisk => tr("Enregistrer l'audio sous…"),
+        // (a spelling suggestion is the word itself; the rest is not the engine's)
+        _ => return None,
+    })
+}
+
+/// The engine's menu, put in order before Sanaga adds its lines: each line
+/// renamed (greyed or ticked as the engine had it), "Stop" left out when
+/// nothing loads, no rule at the top, the bottom or twice in a row. The
+/// inspector's line is taken out and handed back: it goes last.
+fn tidy_menu(menu: &webkit6::ContextMenu, loading: bool, no_unnamed: bool) -> Option<webkit6::ContextMenuItem> {
+    use gtk::glib::translate::IntoGlib;
+    use webkit6::{ContextMenuAction as A, ContextMenuItem};
+    let mut inspect = None;
+    let lines = menu.items();
+    menu.remove_all();
+    for line in lines {
+        if line.is_separator() {
+            if !menu.last().is_none_or(|l| l.is_separator()) {
+                menu.append(&line);
+            }
+            continue;
+        }
+        let action = line.stock_action();
+        if (action == A::Stop && !loading) || (action == A::Custom && no_unnamed) {
+            continue;
+        }
+        let renamed = match (stock_label(action), line.submenu()) {
+            (None, _) => line,
+            (Some(label), Some(inner)) => {
+                tidy_menu(&inner, loading, false);
+                // (a menu belongs to one line at a time)
+                line.set_submenu(None::<&webkit6::ContextMenu>);
+                ContextMenuItem::with_submenu(label, &inner)
+            }
+            (Some(label), None) => {
+                let was = line.gaction();
+                let ticked = was.as_ref().and_then(|a| a.state()).and_then(|s| s.get::<bool>()) == Some(true);
+                if ticked {
+                    // (a renamed line can't carry a tick: this one keeps the engine's words)
+                    line
+                } else if was.is_some_and(|a| !a.is_enabled()) {
+                    // greyed, as the engine had it: a renamed line of the
+                    // engine comes back usable, so this is a line of
+                    // Sanaga's that does nothing and says so
+                    let grey = gtk::gio::SimpleAction::new(&format!("sanaga-unavailable-{}", action.into_glib()), None);
+                    grey.set_enabled(false);
+                    ContextMenuItem::from_gaction(&grey, label, None)
+                } else {
+                    ContextMenuItem::from_stock_action_with_label(action, label)
+                }
+            }
+        };
+        if action == A::InspectElement {
+            inspect = Some(renamed);
+        } else {
+            menu.append(&renamed);
+        }
+    }
+    if let Some(last) = menu.last().filter(|l| l.is_separator()) {
+        menu.remove(&last);
+    }
+    inspect
 }
 
 /// Why a page did not load.
@@ -253,6 +443,9 @@ struct ViewState {
     typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
+    /// The engine process the page runs in, as it told Sanaga (see
+    /// page-helper/): when it started, and its number as it sees it.
+    process: Cell<Option<(u64, u32)>>,
 }
 
 /// The person acted in this page (a click or key that navigates): it may
@@ -385,16 +578,32 @@ fn list_ready(f: webkit6::UserContentFilter) {
 }
 
 /// WebKit compiles one converted list (on its own thread; it takes a while).
-fn compile_list(store: &webkit6::UserContentFilterStore, k: usize, path: &Path) {
+/// `then` runs once it is compiled (or failed).
+fn compile_list(store: &webkit6::UserContentFilterStore, k: usize, path: &Path, then: impl FnOnce() + 'static) {
     let started = std::time::Instant::now();
-    store.save_from_file(&crate::blocklist::list_id(k), &gtk::gio::File::for_path(path), None::<&gtk::gio::Cancellable>, move |res| match res {
-        Ok(f) => {
-            debug_lists(&format!("list {k} compiled in {:.1} s", started.elapsed().as_secs_f64()));
-            list_ready(f);
+    store.save_from_file(&crate::blocklist::list_id(k), &gtk::gio::File::for_path(path), None::<&gtk::gio::Cancellable>, move |res| {
+        match res {
+            Ok(f) => {
+                debug_lists(&format!("list {k} compiled in {:.1} s", started.elapsed().as_secs_f64()));
+                list_ready(f);
+            }
+            // (the list kept from last time, if any, stays in use)
+            Err(e) => eprintln!("listes de blocage : {e}"),
         }
-        // (the list kept from last time, if any, stays in use)
-        Err(e) => eprintln!("listes de blocage : {e}"),
+        then();
     });
+    debug_lists(&format!("list {k} handed to WebKit in {} ms", started.elapsed().as_millis()));
+}
+
+/// Compile the converted lists one after the other. Taking a list from
+/// Sanaga holds WebKit — and so the window — for about a tenth of a second
+/// (some 40 000 rules): one at a time, each once the one before is
+/// compiled, it is three short holds seconds apart, once a week, instead of
+/// one long one; and the compilations don't fight for the processor.
+fn compile_lists(store: webkit6::UserContentFilterStore, mut files: std::collections::VecDeque<(usize, PathBuf)>) {
+    let Some((k, path)) = files.pop_front() else { return };
+    let next = store.clone();
+    compile_list(&store, k, &path, move || compile_lists(next, files));
 }
 
 /// The big block lists: those compiled earlier are loaded at once (nothing
@@ -415,7 +624,7 @@ pub fn prepare_lists() {
             store.load(&list_id(k), None::<&gtk::gio::Cancellable>, move |res| match res {
                 Ok(f) => list_ready(f),
                 // converted but not compiled (Sanaga was closed meanwhile): compiled now
-                Err(_) => compile_list(&store2, k, &path),
+                Err(_) => compile_list(&store2, k, &path, || {}),
             });
         }
     }
@@ -433,9 +642,7 @@ pub fn prepare_lists() {
             };
             debug_lists(&format!("{n} rules in {} lists", files.len()));
             let store = webkit6::UserContentFilterStore::new(&dir.to_string_lossy());
-            for (k, path) in files.iter().enumerate() {
-                compile_list(&store, k, path);
-            }
+            compile_lists(store.clone(), files.iter().cloned().enumerate().collect());
             for k in files.len()..MAX_LISTS {
                 let id = list_id(k);
                 LISTS.with(|l| l.borrow_mut().retain(|x| x.identifier().as_deref() != Some(id.as_str())));
@@ -661,9 +868,57 @@ fn pressure_settings() -> webkit6::MemoryPressureSettings {
     s
 }
 
+/// The web engine's version ("2.52.6"), for crash reports.
+pub fn engine_version() -> String {
+    format!("{}.{}.{}", webkit6::functions::major_version(), webkit6::functions::minor_version(), webkit6::functions::micro_version())
+}
+
+/// The folder of the small library the page processes load (page-helper/:
+/// it tells Sanaga which process a page runs in, for the Activity page).
+/// Installed in `lib/sanaga` next to `bin`; when Sanaga runs from its build
+/// folder, the library sits next to the program and is copied to a folder
+/// of its own (WebKit loads every library of the folder it is given, and
+/// the build folder is not Sanaga's alone). None: Activity shows the
+/// processes without saying which tab each one serves.
+fn helper_dir() -> Option<PathBuf> {
+    static DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| {
+        const NAME: &str = "libsanaga_page_helper.so";
+        let exe = std::env::current_exe().ok()?;
+        let bin = exe.parent()?;
+        for lib in ["lib", "lib64"] {
+            let dir = bin.parent()?.join(lib).join("sanaga");
+            if dir.join(NAME).is_file() {
+                return Some(dir);
+            }
+        }
+        let built = bin.join(NAME);
+        if !built.is_file() {
+            return None;
+        }
+        // (kept as long as Sanaga runs; removed by the system with the
+        // runtime folder otherwise)
+        let dir = Box::leak(Box::new(crate::guard::PrivateDir::new("sanaga-helper").ok()?));
+        std::fs::copy(&built, dir.path().join(NAME)).ok()?;
+        Some(dir.path().to_path_buf())
+    })
+    .clone()
+}
+
 /// The processes of a profile's pages, with Sanaga's memory limits.
 fn new_context() -> WebContext {
-    WebContext::builder().memory_pressure_settings(&pressure_settings()).build()
+    let ctx = WebContext::builder().memory_pressure_settings(&pressure_settings()).build();
+    // (before the first page process starts)
+    if let Some(dir) = helper_dir() {
+        ctx.set_web_process_extensions_directory(&dir.to_string_lossy());
+    }
+    ctx
+}
+
+/// "start time:process number", as page-helper/ sends it.
+fn parse_process(text: &str) -> Option<(u64, u32)> {
+    let (start, pid) = text.split_once(':')?;
+    Some((start.parse().ok()?, pid.parse().ok()?))
 }
 
 /// The network process's memory limits (once, before the first session).
@@ -854,6 +1109,8 @@ const KEY_WINDOW: Duration = Duration::from_millis(1500);
 
 pub struct PageView {
     view: WebView,
+    /// The search just asked is a new one (not "next" or "previous").
+    find_fresh: std::rc::Rc<std::cell::Cell<bool>>,
     /// WebKit's own identity (user agent) for this page.
     default_ua: String,
 }
@@ -862,7 +1119,8 @@ impl PageView {
     /// A new page. `scripts` run at the start of every page (top frame).
     /// `opener`: the page that opened this one (its windows share the engine).
     /// `popups`: makes the pages this one opens; without it they open as new tabs.
-    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, on: impl Fn(PageSignal) + 'static) -> PageView {
+    /// `automation`: the page belongs to a window driven by test software.
+    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, automation: bool, on: impl Fn(PageSignal) + 'static) -> PageView {
         let ucm = UserContentManager::new();
         add_scripts(&ucm, own, page);
         let on = Rc::new(on);
@@ -888,6 +1146,10 @@ impl PageView {
         // (no page shouting at you when it opens)
         let policies = webkit6::WebsitePolicies::builder().autoplay(webkit6::AutoplayPolicy::AllowWithoutSound).build();
         let mut b = WebView::builder().user_content_manager(&ucm).website_policies(&policies);
+        // (said when the page is made: the engine then lets the test software drive it)
+        if automation {
+            b = b.is_controlled_by_automation(true);
+        }
         match opener {
             // same engine process and data as the opener
             Some(o) => b = b.related_view(o),
@@ -961,6 +1223,29 @@ impl PageView {
         });
         let o = on.clone();
         view.connect_title_notify(move |v| o(PageSignal::Title(v.title().map(|t| t.to_string()).unwrap_or_default())));
+        // find in page: the engine says how many it found, or that it found none
+        let find_fresh = std::rc::Rc::new(std::cell::Cell::new(false));
+        if let Some(find) = view.find_controller() {
+            // The engine says how many matches there are, not which one it
+            // shows. The match shown is the page's selection: Sanaga counts
+            // the matches before it (in its own world of the page).
+            let (o, fresh, page) = (on.clone(), find_fresh.clone(), view.downgrade());
+            find.connect_found_text(move |f, n| {
+                o(PageSignal::Found(n));
+                let Some(page) = page.upgrade() else { return };
+                let words = f.search_text().map(|t| t.to_string()).unwrap_or_default();
+                let js = format!("({FIND_PLACE_JS})({}, {})", crate::guard::js_str(&words), fresh.replace(false));
+                let o = o.clone();
+                page.evaluate_javascript(&js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |said| {
+                    let said = said.map(|v| v.to_str().to_string()).unwrap_or_default();
+                    if let Some((at, of)) = said.split_once('/') {
+                        o(PageSignal::FoundAt(at.parse().unwrap_or(0), of.parse().ok()));
+                    }
+                });
+            });
+            let o = on.clone();
+            find.connect_failed_to_find_text(move |_| o(PageSignal::Found(0)));
+        }
         // the page's icon, as WebKit loaded it
         let o = on.clone();
         view.connect_favicon_notify(move |v| {
@@ -1085,16 +1370,59 @@ impl PageView {
             }
             false
         });
-        // the page's right-click menu: Sanaga's page tools at the end
+        // the page's right-click menu: the engine's own lines said in
+        // Sanaga's language, then Sanaga's page tools, the inspector last
         let o = on.clone();
-        view.connect_context_menu(move |_, menu, hit| {
+        view.connect_context_menu(move |v, menu, hit| {
+            // (lines of the engine that have no name Sanaga can change come
+            // with a selection: "copy link with highlight", which Sanaga
+            // offers itself below, in its own language)
+            let inspect = tidy_menu(menu, v.is_loading(), hit.context_is_selection() && !hit.context_is_media() && !hit.context_is_image());
             let add = |label: &str, what: &'static str, arg: String| {
                 let action = gtk::gio::SimpleAction::new(&format!("sanaga-{what}"), None);
                 let o = o.clone();
                 action.connect_activate(move |_, _| o(PageSignal::Tool(what, arg.clone())));
                 menu.append(&webkit6::ContextMenuItem::from_gaction(&action, label, None));
             };
-            menu.append(&webkit6::ContextMenuItem::new_separator());
+            // words selected in the page: look them up on the web (the page
+            // is asked for them when the line is chosen, in Sanaga's own
+            // world: it cannot answer anything else in their place)
+            if hit.context_is_selection() && !hit.context_is_editable() {
+                let action = gtk::gio::SimpleAction::new("sanaga-search-selection", None);
+                let (tell, page) = (o.clone(), v.downgrade());
+                action.connect_activate(move |_, _| {
+                    let Some(page) = page.upgrade() else { return };
+                    let o = tell.clone();
+                    page.evaluate_javascript("String(window.getSelection())", Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| {
+                        let words: String = found.map(|w| w.to_str().to_string()).unwrap_or_default().split_whitespace().collect::<Vec<_>>().join(" ");
+                        if !words.is_empty() {
+                            o(PageSignal::Tool("search-selection", words.chars().take(300).collect()));
+                        }
+                    });
+                });
+                menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Rechercher la sélection sur le Web"), None));
+                // a link that opens the page at these very words (a "text
+                // fragment": the first and last words when there are many)
+                if v.uri().is_some_and(|u| u.starts_with("http")) {
+                    let action = gtk::gio::SimpleAction::new("sanaga-link-to-selection", None);
+                    let (tell, page) = (o.clone(), v.downgrade());
+                    action.connect_activate(move |_, _| {
+                        let Some(page) = page.upgrade() else { return };
+                        let (o, to) = (tell.clone(), page.clone());
+                        page.evaluate_javascript(LINK_TO_SELECTION_JS, Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| {
+                            let link = found.map(|w| w.to_str().to_string()).unwrap_or_default();
+                            if link.starts_with("http") {
+                                to.clipboard().set_text(&link);
+                                o(PageSignal::Tool("link-copied", String::new()));
+                            }
+                        });
+                    });
+                    menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Copier le lien vers ce passage"), None));
+                }
+            }
+            if !menu.last().is_none_or(|l| l.is_separator()) {
+                menu.append(&webkit6::ContextMenuItem::new_separator());
+            }
             if hit.context_is_link() {
                 if let Some(link) = hit.link_uri() {
                     add(crate::i18n::tr("Aperçu du lien"), "preview", link.to_string());
@@ -1108,6 +1436,10 @@ impl PageView {
             add(crate::i18n::tr("Supprimer un élément de la page…"), "zap", String::new());
             add(crate::i18n::tr("Modifier le texte de la page"), "edit-text", String::new());
             add(crate::i18n::tr("Réglages de ce site…"), "site-settings", String::new());
+            if let Some(inspect) = inspect {
+                menu.append(&webkit6::ContextMenuItem::new_separator());
+                menu.append(&inspect);
+            }
             if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                 eprintln!("page menu: {} items", menu.n_items());
             }
@@ -1164,6 +1496,18 @@ impl PageView {
             o(PageSignal::Dialog(key));
             true
         });
+        // the page's process says who it is (page-helper/; again after the
+        // engine moves the page to another process)
+        let st = state.clone();
+        view.connect_user_message_received(move |_, message| {
+            if message.name().as_deref() != Some("sanaga-process") {
+                return false;
+            }
+            if let Some(who) = message.parameters().and_then(|p| p.str().and_then(parse_process)) {
+                st.process.set(Some(who));
+            }
+            true
+        });
         // a page that closes itself (window.close(), allowed by WebKit only
         // for windows a script opened): its tab closes
         let o = on.clone();
@@ -1171,16 +1515,29 @@ impl PageView {
         // the page's process stopped: say so, instead of a blank page (the
         // other tabs are not touched); ending it on purpose is not a crash
         let o = on.clone();
-        view.connect_web_process_terminated(move |_, reason| match reason {
-            webkit6::WebProcessTerminationReason::ExceededMemoryLimit => o(PageSignal::Crashed(true)),
-            webkit6::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
-            _ => {}
+        let st = state.clone();
+        view.connect_web_process_terminated(move |_, reason| {
+            st.process.set(None);
+            match reason {
+                webkit6::WebProcessTerminationReason::ExceededMemoryLimit => o(PageSignal::Crashed(true)),
+                webkit6::WebProcessTerminationReason::Crashed => o(PageSignal::Crashed(false)),
+                _ => {}
+            }
         });
-        PageView { view, default_ua: default_ua_kept }
+        PageView { view, find_fresh, default_ua: default_ua_kept }
     }
 
     pub fn webview(&self) -> WebView {
         self.view.clone()
+    }
+    /// The engine process this page runs in (when it started, its number as
+    /// it sees it), once it has said so: see `net::processes_cached`.
+    pub fn process(&self) -> Option<(u64, u32)> {
+        view_state(&self.view).and_then(|s| s.process.get())
+    }
+    /// Does the page's process still answer? (false: stuck in a script…)
+    pub fn responsive(&self) -> bool {
+        self.view.is_web_process_responsive()
     }
     /// The address the page really shows (not what a page script claims).
     pub fn uri(&self) -> Option<String> {
@@ -1219,6 +1576,33 @@ impl PageView {
     pub fn evaluate_own(&self, js: &str) -> R<()> {
         self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, |_| {});
         Ok(())
+    }
+    /// Find in page with the engine's own search: every match is marked,
+    /// the current one stands out, and the page tells how many there are
+    /// (`PageSignal::Found`). `fresh`: the words changed; else go to the
+    /// next match (the one before when `backwards`).
+    pub fn find(&self, text: &str, backwards: bool, fresh: bool) {
+        use webkit6::FindOptions;
+        let Some(find) = self.view.find_controller() else { return };
+        let fresh = fresh || find.search_text().as_deref() != Some(text);
+        self.find_fresh.set(fresh);
+        if fresh {
+            let mut how = FindOptions::CASE_INSENSITIVE | FindOptions::WRAP_AROUND;
+            if backwards {
+                how |= FindOptions::BACKWARDS;
+            }
+            find.search(text, how.bits(), 999);
+        } else if backwards {
+            find.search_previous();
+        } else {
+            find.search_next();
+        }
+    }
+    /// The search is over: the marks leave the page.
+    pub fn find_done(&self) {
+        if let Some(find) = self.view.find_controller() {
+            find.search_finish();
+        }
     }
     pub fn zoom(&self, z: f64) -> R<()> {
         self.view.set_zoom_level(z);

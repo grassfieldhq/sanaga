@@ -6,6 +6,8 @@
 //! every row. Groups are renamed in place (double-click), favourites too.
 
 use super::chrome::site_badge;
+pub(super) use super::chrome::menu_item;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, CursorIcon, Layout, Margin, RichText, ScrollArea, Sense, TextEdit, UiBuilder};
@@ -100,7 +102,7 @@ impl Sanaga {
                     } else {
                         let label = if g == 0 { tr("Onglets").to_string() } else { self.group_label(g) };
                         let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 34.0, r.bottom()));
-                        ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), th.text);
+                        ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), th.text);
                         ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, n.to_string(), FontId::proportional(12.0), th.sub);
                     }
                     let resp = resp.on_hover_cursor(CursorIcon::PointingHand);
@@ -166,7 +168,7 @@ impl Sanaga {
                     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(15.0, 15.0)), Icon::Grid, th.accent);
                     let label = title.trim_end_matches(" - Sanaga");
                     let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
-                    ui.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), th.text);
+                    ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), th.text);
                     if resp.on_hover_cursor(CursorIcon::PointingHand).tip(title).clicked() && !this {
                         acts.push(Do::ShowWindow(*slot));
                     }
@@ -221,10 +223,10 @@ impl Sanaga {
             let reading: Vec<(String, String)> = self.store.reading.iter().filter(|b| matches(&b.url, &b.title)).map(|b| (b.url.clone(), b.title.clone())).collect();
             if self.section_header(ui, th, "sb-reading", tr("Liste de lecture"), None) {
                 if reading.is_empty() {
-                    hint(ui, th, if q.is_empty() { tr("Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).") } else { tr("Aucun résultat") });
+                    hint(ui, th, if q.is_empty() { tr("Gardez une page pour plus tard : menu principal › Ajouter à la liste de lecture (Ctrl+Maj+D).") } else { tr("Aucun résultat") });
                 }
                 for (url, title) in reading {
-                    let resp = page_row(ui, th, dark, &url, &title, &host_of(&url));
+                    let resp = page_row(ui, th, dark, &url, &title, &site_label(&url));
                     // a hovered item can be taken out of the list
                     if ui.rect_contains_pointer(resp.rect) {
                         let xr = Rect::from_center_size(pos2(resp.rect.right() - 16.0, resp.rect.center().y), vec2(20.0, 20.0));
@@ -464,10 +466,10 @@ fn page_row(ui: &mut Ui, th: &Theme, dark: bool, url: &str, title: &str, sub: &s
     let p = ui.painter().with_clip_rect(clip);
     let t = if title.is_empty() { url } else { title };
     if sub.is_empty() {
-        p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
+        p.fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
     } else {
-        p.text(pos2(clip.left(), r.top() + 13.0), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
-        p.text(pos2(clip.left(), r.top() + 29.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
+        p.fit(pos2(clip.left(), r.top() + 13.0), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
+        p.fit(pos2(clip.left(), r.top() + 29.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
     }
     resp.tip(url).on_hover_cursor(CursorIcon::PointingHand)
 }
@@ -509,27 +511,8 @@ fn link_menu(ui: &mut Ui, url: &str, acts: &mut Vec<Do>) {
     if menu_item(ui, Icon::Share, tr("Ouvrir dans une nouvelle fenêtre")) {
         acts.push(Do::OpenWindow(url.to_string()));
     }
-    if menu_item(ui, Icon::Mail, tr("Copier l'adresse")) {
+    if menu_item(ui, Icon::Copy, tr("Copier l'adresse")) {
         acts.push(Do::Copy(url.to_string()));
     }
 }
 
-/// A menu item with an icon (macOS menus show symbols beside the words).
-pub(super) fn menu_item(ui: &mut Ui, icon: Icon, label: &str) -> bool {
-    // a steady width: the menu keeps its size whatever its widest line
-    let w = ui.min_rect().width().max(228.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w, 26.0), Sense::click());
-    let accent = ui.visuals().selection.stroke.color;
-    let hovered = resp.hovered();
-    if hovered {
-        ui.painter().rect_filled(r, CornerRadius::same(6), accent);
-    }
-    let col = if hovered { Color32::WHITE } else { ui.visuals().text_color() };
-    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 14.0, r.center().y), vec2(13.0, 13.0)), icon, col);
-    ui.painter().text(pos2(r.left() + 30.0, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), col);
-    if resp.clicked() {
-        ui.close();
-        return true;
-    }
-    false
-}

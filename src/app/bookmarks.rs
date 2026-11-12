@@ -6,6 +6,7 @@
 
 use super::chrome::site_badge;
 use super::sidebar::menu_item;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, CursorIcon, Layout, Margin, RichText, Sense, TextEdit};
@@ -210,8 +211,8 @@ impl Sanaga {
                     let text_right = r.right() - if over { 96.0 } else { 16.0 };
                     let clip = Rect::from_min_max(pos2(r.left() + 56.0, r.top()), pos2(text_right, r.bottom()));
                     let p = ui.painter().with_clip_rect(clip);
-                    p.text(pos2(clip.left(), r.top() + 18.0), Align2::LEFT_CENTER, if title.is_empty() { url } else { title }, FontId::proportional(13.5), th.text);
-                    p.text(pos2(clip.left(), r.top() + 36.0), Align2::LEFT_CENTER, url, FontId::proportional(11.5), th.sub);
+                    p.fit(pos2(clip.left(), r.top() + 18.0), Align2::LEFT_CENTER, if title.is_empty() { url } else { title }, FontId::proportional(13.5), th.text);
+                    p.fit(pos2(clip.left(), r.top() + 36.0), Align2::LEFT_CENTER, url, FontId::proportional(11.5), th.sub);
                     if over {
                         // the row's actions: edit, more, and the handle to drag it
                         let mut bx = r.right() - 14.0;
@@ -344,7 +345,7 @@ fn bookmark_menu(ui: &mut Ui, i: usize, url: &str, go: &mut Option<(String, bool
     if menu_item(ui, Icon::Share, tr("Ouvrir dans une nouvelle fenêtre")) {
         *window = Some(url.to_string());
     }
-    if menu_item(ui, Icon::Mail, tr("Copier l'adresse")) {
+    if menu_item(ui, Icon::Copy, tr("Copier l'adresse")) {
         *copy = Some(url.to_string());
     }
     ui.separator();

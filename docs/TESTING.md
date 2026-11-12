@@ -1,9 +1,11 @@
-# Testing Sanaga by hand
+# Testing Sanaga
 
-Unit tests run with `cargo test` and need no display. The security rules
-(download names and marks, page-message checks, `.desktop` escaping, the
-single-instance socket's limits, private folders; `src/guard.rs`) and the codec
-module also build on their own, without GTK and WebKitGTK:
+Unit tests run with `cargo test` and need no display; they include the
+repeatable fuzzing of the file and page readers ([FUZZING.md](FUZZING.md)).
+The security rules (download names and marks, page-message checks,
+`.desktop` escaping, the single-instance socket's limits, private folders;
+`src/guard.rs`), the crash reports (`src/crash.rs`) and the codec module also
+build on their own, without GTK and WebKitGTK:
 
 ```sh
 cargo test --manifest-path tools/guard-tests/Cargo.toml
@@ -60,13 +62,60 @@ tools/smoke.sh            # the debug build (test hooks are not in release build
 
 It starts the real window on a temporary profile, waits for the interface,
 loads `tests/smoke.html` and asks the page its title through Sanaga's own
-channel. CI runs it under a virtual display (job `window`).
+channel. CI runs it under a virtual display (job `window`), and a failure
+there stops the merge.
+
+## Driven by test software
+
+```sh
+tools/webdriver-test.py   # needs WebKitWebDriver (docs/AUTOMATION.md)
+```
+
+The real window again, driven through WebDriver: a session, a page, a
+script, an element, a screenshot, a second tab. Also part of CI's `window` job.
+
+## After a crash
+
+```sh
+XDG_DATA_HOME=/tmp/sanaga-test ./target/debug/sanaga https://example.com &
+sleep 5; kill -9 $!                                   # an abrupt end
+XDG_DATA_HOME=/tmp/sanaga-test ./target/debug/sanaga  # the bar, and sanaga://crashes
+```
+
+`kill -TERM` (or logging out) is not a crash: Sanaga saves its tabs and
+closes as with Quit.
+
+## The intelligence features without a model
+
+```sh
+tools/fake-model.py &     # answers at Ollama's address, always the same
+```
+
+Then Settings › Intelligence › Ollama: the summary, the translation (its
+bar, Stop, Show original) and the writing of an extension can be tried and
+captured. See [UX-AUDIT-2026-11-11.md](UX-AUDIT-2026-11-11.md).
+
+## Looking for lag
+
+```sh
+tools/lag-audit.sh        # a heavy profile, slow helper programs, every feature
+```
+
+See [STABILITY-AUDIT-2026-11-11.md](STABILITY-AUDIT-2026-11-11.md). It reads
+the lines of `SANAGA_DEBUG_STALLS` (below), which also works in a release
+build, on your own profile: `SANAGA_DEBUG_STALLS=30 sanaga`.
+
+More scripted actions for it: `go:ADDRESS` (in this tab), `opentab:ADDRESS`,
+`section:N` (the Nth Settings category), `syncnow`, and `panic` (a panic
+inside a frame: Sanaga must go on).
 
 ## Other switches
 
 | Variable | Effect |
 |---|---|
 | `SANAGA_DEBUG_FRAMES=1` | print each frame's duration |
+| `SANAGA_DEBUG_STALLS=30` | print every time the window did not answer for 30 ms or more (`stall … ms after <last command> (layout … ms, painting … ms)`), and each frame whose own work took 4 ms or more (`frame … ms after …`); all builds |
+| `SANAGA_DEBUG_STALL_STACKS=200` | with it: where the window's thread is during a stall of 200 ms or more |
 | `SANAGA_DEBUG_TICK=1` | print the web engine ticks |
 | `SANAGA_DEBUG_GL=1` | print the OpenGL version and errors |
 | `SANAGA_DEBUG_START=1` | print how long each step of the start took |

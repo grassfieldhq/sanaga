@@ -12,10 +12,11 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Pages isolated from the computer | ✅ | WebKit's bubblewrap sandbox is on when `bwrap` and `xdg-dbus-proxy` are installed (both are on Arch/Omarchy). |
 | Engine security updates | 🟡 | Come from the distribution's WebKitGTK package — keep the system updated. Sanaga should warn when WebKitGTK is old. |
 | Data files never half-written | ✅ | Settings, history, bookmarks, session… are written to a copy then swapped in. |
-| Crash information kept | ✅ | `~/.local/share/sanaga/crash.log`. Next: offer to send it (opt-in) and restore the session after a crash with a notice. |
+| Crash information kept | ✅ | A report per crash in `~/.local/share/sanaga/crashes/` (Sanaga itself, a page's process, an abrupt end), read on `sanaga://crashes`, sent only by the person (a GitHub issue, pre-filled). After an abrupt end the tabs come back and a bar says so. A crash inside a system library leaves no detail, only the note that the run ended abruptly. |
 | One Sanaga per profile | ✅ | Links opened from other apps go to the running Sanaga as new tabs. |
 | Passwords | ✅ | In the system keyring (libsecret); AutoFill only for the site really shown. |
-| Security review | ❌ | Review the scripts Sanaga adds to pages (passwords, AutoFill, extensions), `sanaga://` pages and imports before 1.0. |
+| Never frozen, never taken down by a page | 🟡 | Audit of 11 November 2026 (docs/STABILITY-AUDIT-2026-11-11.md): nothing waited for in the window's thread any more, a panic in a frame no longer ends Sanaga, checked in CI. Left: the engine itself, and measuring drawing on real hardware. |
+| Security review | 🟡 | Audit of 8 November 2026 (docs/SECURITY-AUDIT-2026-11-08.md). The readers of outside files and pages are fuzzed at every push and weekly (docs/FUZZING.md). |
 
 ## 2. The web must work (must have)
 
@@ -46,7 +47,7 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Install for one user | ✅ | `packaging/install.sh` |
 | Packages | 🟡 | Recipes ready, codecs included as dependencies (docs/PACKAGING.md): Arch PKGBUILD (built and checked), Flatpak manifest with the ffmpeg extension, .deb metadata. Next: publish on the AUR and Flathub. |
 | Updates | ❌ | Through the package manager once packaged; until then rerun `install.sh` on a new version. |
-| Automatic tests of the real window | 🟡 | `docs/TESTING.md` scripted actions work locally; run them in CI under a headless Wayland compositor (weston/cage). |
+| Automatic tests of the real window | ✅ | In CI under a virtual display, and required: the window starts and a page answers (`tools/smoke.sh`), then WebDriver drives it (`tools/webdriver-test.py`, docs/AUTOMATION.md). Clippy is required too. Next: more scripted scenes of the interface. |
 | Releases | ❌ | Tagged versions with notes (`CHANGELOG.md`) and signed builds. |
 
 ## GTK 4 / WebKitGTK 6

@@ -1035,8 +1035,42 @@ mod more_tests {
     }
 }
 
+/// One input for the fuzzers (`cargo test`'s repeatable one and libFuzzer,
+/// see docs/FUZZING.md): any bytes read as a page, whole and main part only.
+/// What comes out must hold together: links and anchors point inside it.
+#[cfg(any(test, fuzzing))]
+pub fn fuzz_one(data: &[u8]) {
+    let text = String::from_utf8_lossy(data);
+    let _ = decode_entities(&text);
+    for main_only in [false, true] {
+        let d = parse_page(&text, "https://example.com/a/b?c#d", main_only);
+        for at in d.anchors.values() {
+            assert!(*at <= d.blocks.len(), "anchor past the end of the page");
+        }
+        for b in &d.blocks {
+            if let Block::Para(spans) | Block::Heading(_, spans) = b {
+                let _ = Document::plain_text(spans);
+            }
+        }
+    }
+    let _ = plain(&text, "https://example.com/");
+}
+
 #[cfg(test)]
 mod robustness {
+    /// Thousands of damaged pages (see mutate.rs): none may panic.
+    #[test]
+    fn damaged_pages_do_not_panic() {
+        let seeds: [&[u8]; 5] = [
+            b"<html><head><title>Salut &amp; bonjour</title><style>p{}</style></head><body><h1 id=t>Titre</h1><p>Un <b>gras</b> et <a href='/x'>lien</a>.</p><ul><li>a<li>b</ul><script>var x='<p>';</script><form action=/s><input name=q><button>Go</button></form></body></html>",
+            b"<nav><ul><li><a href=/a>Menu</a></ul></nav><main><h1>T</h1><p>a</p><p id=z>c</p></main><footer>pied</footer>",
+            b"<table><tr><td>1.</td><td><center><a href=x></a></center></td><td colspan=2><a href=/t>Titre</a></td></tr></table><img src=a.png alt=\"x\" width=10>",
+            "<h1>中文標題</h1><p dir=rtl>עברית 👍🏽 &amp &#x1F600; &#99999999; &notanentity; &<select name=s><option value=1>un</select><textarea name=t>x</textarea>".as_bytes(),
+            b"<!doctype html><!-- c --><pre>a\n  b</pre><blockquote>q</blockquote><ol start=3><li>x</ol><hr><iframe src=//f.example/></iframe><video src=v.mp4></video>",
+        ];
+        crate::mutate::run(&seeds, 30_000, super::fuzz_one);
+    }
+
     /// Odd pages must never stop Sanaga: any alphabet, broken tags,
     /// entities cut short, unclosed comments, attributes without values.
     #[test]

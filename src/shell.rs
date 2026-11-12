@@ -728,6 +728,8 @@ struct Gui {
     start: Instant,
     cursor: egui::CursorIcon,
     text_focus: bool,
+    /// Frames in a row that ended in an error of Sanaga's own (see `update`).
+    failed_frames: u8,
     /// The last frame made (drawn again if GTK asks), and the picture changes
     /// not sent to the graphics card yet.
     frame: Option<Frame>,
@@ -1061,6 +1063,9 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
             glib::ControlFlow::Continue
         });
     }
+    if let Some(ms) = std::env::var("SANAGA_DEBUG_STALLS").ok().and_then(|v| v.parse::<u64>().ok()) {
+        watch_stalls(Duration::from_millis(ms.max(10)));
+    }
     let main = glib::MainLoop::new(None, false);
     MAIN.with(|m| *m.borrow_mut() = Some(main.clone()));
     if let Some(path) = shot {
@@ -1077,7 +1082,12 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
         open_window(w);
     }
     drop(first);
+    quit_on_signals();
     main.run();
+    // what was saved last is on the disk before Sanaga ends
+    crate::store::flush_saves();
+    // closed as it should
+    crate::crash::mark_stopped();
     if let Some(sock) = sock.as_ref().filter(|_| single) {
         let _ = std::fs::remove_file(sock);
     }
@@ -1085,6 +1095,147 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     HOST.with(|h| *h.borrow_mut() = None);
     MAIN.with(|m| *m.borrow_mut() = None);
     Ok(())
+}
+
+thread_local! {
+    /// The longest time Sanaga's own work took since the last stall was
+    /// told: laying out a frame (the interface's code), and painting it
+    /// (the graphics card, or the processor without one). For `watch_stalls`.
+    static COSTS: std::cell::Cell<[Duration; 2]> = const { std::cell::Cell::new([Duration::ZERO; 2]) };
+}
+
+fn note_cost(which: usize, took: Duration) {
+    COSTS.with(|c| {
+        let mut v = c.get();
+        v[which] = v[which].max(took);
+        c.set(v);
+    });
+}
+
+/// What Sanaga was last asked to do (a command's name), for `watch_stalls`.
+static DOING: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
+/// Note what Sanaga is asked to do now (only read by `SANAGA_DEBUG_STALLS`).
+pub fn doing(what: &str) {
+    if let Ok(mut d) = DOING.lock() {
+        d.clear();
+        d.push_str(what);
+    }
+}
+
+/// `SANAGA_DEBUG_STALLS=50`: say every time the window stopped answering
+/// for that many milliseconds or more — whatever held it (a frame, a page
+/// event, a file, another program waited for). A thread asks the window's
+/// loop for a sign of life and measures how late it comes; one line per
+/// stall, with the last command asked and what Sanaga's own frame cost.
+/// With `SANAGA_DEBUG_STALL_STACKS=200`, a stall that lasts that long also
+/// prints where the window's thread is at that moment (its call stack).
+/// Nothing runs unless the variable is set. (tools/lag-audit.sh reads these
+/// lines.)
+fn watch_stalls(limit: Duration) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static ANSWERED: AtomicU64 = AtomicU64::new(0);
+    let stacks = std::env::var("SANAGA_DEBUG_STALL_STACKS").ok().and_then(|v| v.parse::<u64>().ok()).map(Duration::from_millis);
+    // SAFETY: this thread's own handle (the window's thread: it lives as
+    // long as Sanaga), and a handler set for a signal nothing else uses.
+    let window_thread = unsafe { libc::pthread_self() };
+    if stacks.is_some() {
+        unsafe { libc::signal(libc::SIGUSR2, stack_asked as extern "C" fn(libc::c_int) as libc::sighandler_t) };
+    }
+    let started = Instant::now();
+    let _ = std::thread::Builder::new().name("sanaga-stalls".into()).spawn(move || {
+        let mut n = 0u64;
+        loop {
+            n += 1;
+            let asked = Instant::now();
+            // (what was asked last when the stall began)
+            let what = DOING.lock().map(|d| d.clone()).unwrap_or_default();
+            glib::MainContext::default().invoke(move || {
+                let late = asked.elapsed();
+                ANSWERED.store(n, Ordering::Relaxed);
+                let [layout, paint] = COSTS.with(|c| c.replace([Duration::ZERO; 2]));
+                if late >= limit {
+                    eprintln!("stall {} ms at {:.1} s after {} (layout {} ms, painting {} ms)", late.as_millis(), asked.duration_since(started).as_secs_f64(), if what.is_empty() { "start" } else { &what }, layout.as_millis(), paint.as_millis());
+                }
+            });
+            let mut shown = false;
+            while ANSWERED.load(Ordering::Relaxed) < n {
+                std::thread::sleep(Duration::from_millis(5));
+                if !shown && stacks.is_some_and(|after| asked.elapsed() >= after) {
+                    shown = true;
+                    // SAFETY: the window's thread is still there (see above).
+                    unsafe { libc::pthread_kill(window_thread, libc::SIGUSR2) };
+                }
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    });
+}
+
+/// Runs in the window's thread while it is held up: prints where it is.
+/// (A development aid only, asked for with SANAGA_DEBUG_STALL_STACKS:
+/// reading the stack inside a signal is not something a program may rely on.)
+extern "C" fn stack_asked(_: libc::c_int) {
+    let stack = std::backtrace::Backtrace::force_capture().to_string();
+    // Sanaga's own steps, and the first step outside it (what it waits in)
+    let lines: Vec<&str> = stack.lines().map(|l| l.trim()).filter(|l| !l.starts_with("at ")).collect();
+    let mine: Vec<&str> = lines.iter().filter(|l| l.contains("sanaga::") && !l.contains("stack_asked")).take(8).copied().collect();
+    let outside: Vec<&str> = lines.iter().skip_while(|l| !l.contains("stack_asked")).skip(1).take(16).copied().collect();
+    eprintln!("  held in: {}", outside.join(" < "));
+    for l in mine {
+        eprintln!("    {l}");
+    }
+}
+
+/// The write end of the pipe the signal handler pokes (see `quit_on_signals`).
+static STOP_PIPE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+
+/// Runs inside the signal: only tells the waiting thread, through the pipe.
+extern "C" fn stop_asked(signal: libc::c_int) {
+    let fd = STOP_PIPE.load(std::sync::atomic::Ordering::Relaxed);
+    // SAFETY: `write` and `signal` may be called inside a signal handler;
+    // the pipe's write end stays open as long as Sanaga runs.
+    unsafe {
+        if fd >= 0 {
+            libc::write(fd, [1u8].as_ptr().cast(), 1);
+        }
+        // asked a second time (Sanaga is stuck): the system's own way
+        libc::signal(signal, libc::SIG_DFL);
+    }
+}
+
+/// Asked to stop by the system (logging out, `kill`, Ctrl+C in a terminal):
+/// close as the Quit command does — tabs saved, and nothing taken for a
+/// crash at the next start. A thread waits on a pipe (it costs nothing
+/// until then) and hands the request to the window's loop.
+fn quit_on_signals() {
+    let mut fds = [0 as libc::c_int; 2];
+    // SAFETY: `fds` has room for the two ends; closed on exec, so the
+    // engine's processes don't inherit them.
+    if unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) } != 0 {
+        return;
+    }
+    let (read_end, write_end) = (fds[0], fds[1]);
+    STOP_PIPE.store(write_end, std::sync::atomic::Ordering::Relaxed);
+    let waiting = std::thread::Builder::new().name("sanaga-signals".into()).spawn(move || {
+        let mut byte = [0u8; 1];
+        loop {
+            // SAFETY: a valid descriptor and a buffer of one byte.
+            let n = unsafe { libc::read(read_end, byte.as_mut_ptr().cast(), 1) };
+            if n == 1 {
+                glib::MainContext::default().invoke(quit_all);
+            } else if n == 0 || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+                break;
+            }
+        }
+    });
+    if waiting.is_ok() {
+        let handler = stop_asked as extern "C" fn(libc::c_int) as libc::sighandler_t;
+        for signal in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP] {
+            // SAFETY: a handler that only calls async-signal-safe functions.
+            unsafe { libc::signal(signal, handler) };
+        }
+    }
 }
 
 /// The window used last (it gets the links opened from other applications).
@@ -1254,7 +1405,7 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     crate::stage("window built");
     let app = Sanaga::new(&ctx, urls, SHOT_JOB.with(|s| s.borrow_mut().take()));
     crate::stage("app ready");
-    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, frame: None, delta: Default::default(), painter_top: None, delta_top: Default::default(), free_top: Vec::new() }));
+    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, failed_frames: 0, frame: None, delta: Default::default(), painter_top: None, delta_top: Default::default(), free_top: Vec::new() }));
     crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
 
@@ -1642,7 +1793,38 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
     TOOLTIP.with(|t| *t.borrow_mut() = None);
     let ctx = g.ctx.clone();
     let app = &mut g.app;
-    let mut full = ctx.run_ui(raw, |ui| app.frame_ui(ui));
+    let laid_out = Instant::now();
+    // An error of Sanaga's own while it makes a frame (a panic) must not
+    // take the window and every tab with it: the frame is dropped, the
+    // error is reported (see main.rs), and the next frame starts afresh.
+    // The same error three frames in a row is not going away: Sanaga then
+    // stops as before, and the next start brings the tabs back.
+    let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ctx.run_ui(raw, |ui| app.frame_ui(ui))));
+    let mut full = match made {
+        Ok(full) => {
+            g.failed_frames = 0;
+            full
+        }
+        Err(_) => {
+            g.failed_frames += 1;
+            if g.failed_frames >= 3 {
+                crate::store::flush_saves();
+                std::process::abort();
+            }
+            // (the frame the error cut short is closed, so that the
+            // interface can start the next one; what it had drawn is dropped)
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(ctx.end_pass())));
+            g.app.after_error(g.failed_frames);
+            schedule(host, Duration::from_millis(50));
+            return;
+        }
+    };
+    let took = laid_out.elapsed();
+    note_cost(0, took);
+    // (SANAGA_DEBUG_STALLS: Sanaga's own work for one frame, when it shows)
+    if took >= Duration::from_millis(4) && std::env::var_os("SANAGA_DEBUG_STALLS").is_some() {
+        eprintln!("frame {} ms after {}", took.as_millis(), DOING.lock().map(|d| if d.is_empty() { "start".to_string() } else { d.clone() }).unwrap_or_default());
+    }
     if let Some(update) = full.platform_output.accesskit_update.take() {
         g.a11y.adapter.update_if_active(|| update);
     }
@@ -1812,8 +1994,10 @@ fn draw(g: &mut Gui, area: &gtk::GLArea) {
     let (w, h) = (area.width().max(1), area.height().max(1));
     let size_px = [(w as f32 * scale) as u32, (h as f32 * scale) as u32];
     let mut delta = std::mem::take(&mut g.delta);
+    let painted = Instant::now();
     p.clear(size_px, [0.0, 0.0, 0.0, 1.0]);
     p.paint_and_update_textures(size_px, frame.ppp, &frame.prims, &mut delta);
+    note_cost(1, painted.elapsed());
     if let Some(gl) = &g.gl {
         use glow::HasContext;
         if std::env::var_os("SANAGA_DEBUG_GL").is_some() {

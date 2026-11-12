@@ -1,6 +1,7 @@
 //! Built-in pages: new tab, history, bookmarks, downloads, settings, about, errors.
 
 use super::chrome::site_badge;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use crate::store;
@@ -38,8 +39,8 @@ fn list_row(ui: &mut Ui, th: &Theme, url: &str, title: &str, meta: &str, go: &mu
     let clip = Rect::from_min_max(pos2(c.x + 20.0, r.top()), pos2(right - meta_w, r.bottom()));
     let p = ui.painter().with_clip_rect(clip);
     let t = if title.is_empty() { url } else { title };
-    let g = p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(14.0), th.text);
-    p.text(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, host_of(url), FontId::proportional(12.5), th.sub);
+    let g = p.fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(14.0), th.text);
+    p.fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.5), th.sub);
     if !meta.is_empty() {
         ui.painter().text(pos2(right - 4.0, r.center().y), Align2::RIGHT_CENTER, meta, FontId::proportional(12.0), th.sub);
     }
@@ -76,7 +77,7 @@ impl Sanaga {
             ui.horizontal(|ui| {
                 ui.add(TextEdit::singleline(hf).hint_text(tr("Rechercher dans l'historique")).desired_width(320.0));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !store.history.is_empty() && ui.button(tr("Effacer l'historique")).clicked() {
+                    if !store.history.is_empty() && super::chrome::confirm_button(ui, "clear-history", tr("Effacer l'historique")) {
                         clear = true;
                     }
                 });
@@ -166,9 +167,23 @@ impl Sanaga {
     }
 
     /// `sanaga://activity`: what Sanaga uses right now, process by process,
-    /// and the tabs with their state — any running tab can be put to sleep.
+    /// and tab by tab (memory, processor, state) — any running tab can be
+    /// put to sleep.
     pub(super) fn page_activity(&mut self, ui: &mut Ui, th: &Theme) {
         let list = net::processes_cached();
+        // which process serves which tab: each page's process says who it is
+        // (page-helper/); pages opened by one another share one
+        let serves: Vec<Option<usize>> = self
+            .tabs
+            .iter()
+            .map(|t| {
+                let (start, inner) = t.web.as_ref()?.process()?;
+                list.iter().position(|p| p.kind == 2 && p.start == start && p.inner_pid == inner)
+            })
+            .collect();
+        let shared = |k: usize| serves.iter().filter(|s| **s == Some(k)).count() > 1;
+        let any_known = serves.iter().any(|s| s.is_some());
+        let any_shared = (0..list.len()).any(shared);
         // (measured every 2 s: the page follows)
         ui.ctx().request_repaint_after(std::time::Duration::from_secs(2));
         let total: u64 = list.iter().map(|p| p.bytes).sum();
@@ -192,13 +207,20 @@ impl Sanaga {
             ui.add_space(6.0);
             card(ui, &mut |ui| {
                 let mut page = 0;
-                for p in &list {
+                for (k, p) in list.iter().enumerate() {
                     let name = match p.kind {
                         0 => tr("Interface de Sanaga").to_string(),
                         1 => tr("Réseau").to_string(),
                         2 => {
                             page += 1;
-                            tf("Page {}", &[&page])
+                            // named after the tab it serves (the first one, when shared)
+                            match serves.iter().position(|s| *s == Some(k)) {
+                                Some(i) => {
+                                    let title: String = self.tabs[i].title().chars().take(48).collect();
+                                    if shared(k) { format!("{title} *") } else { title }
+                                }
+                                None => tf("Page {}", &[&page]),
+                            }
                         }
                         _ => continue,
                     };
@@ -231,14 +253,24 @@ impl Sanaga {
                 }
             });
             ui.add_space(4.0);
-            ui.label(RichText::new(tr("Chaque page a son propre processus ; le moteur ne dit pas à quel onglet chacun appartient.")).size(12.0).color(th.sub));
+            let note = if any_known {
+                tr("Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le moteur pour la prochaine page, ou finissent de se fermer.")
+            } else {
+                tr("Chaque page a son propre processus ; le moteur ne dit pas à quel onglet chacun appartient.")
+            };
+            ui.label(RichText::new(note).size(12.0).color(th.sub));
+            if any_shared {
+                ui.label(RichText::new(tr("* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.")).size(12.0).color(th.sub));
+            }
             ui.add_space(18.0);
             ui.label(RichText::new(tr("Onglets")).size(15.0).family(bold()).color(th.text));
             ui.add_space(6.0);
             card(ui, &mut |ui| {
                 for (i, t) in self.tabs.iter().enumerate() {
                     let title = t.title();
-                    let state = if i == active {
+                    let state = if t.web.as_ref().is_some_and(|w| !w.responsive()) {
+                        tr("ne répond plus")
+                    } else if i == active {
                         tr("affiché")
                     } else if t.web.is_some() && t.audio {
                         tr("en cours · son")
@@ -259,6 +291,15 @@ impl Sanaga {
                             if i != active && t.web.is_some() && !t.pinned && !t.form_dirty && ui.button(tr("Mettre en veille")).clicked() {
                                 sleep = Some(i);
                             }
+                            // what this tab's page uses (its process)
+                            if let Some(k) = serves[i] {
+                                let p = &list[k];
+                                let star = if shared(k) { " *" } else { "" };
+                                ui.label(RichText::new(format!("{:.0} %", p.cpu)).color(if p.cpu >= 20.0 { th.accent } else { th.sub }));
+                                ui.add_space(10.0);
+                                ui.label(RichText::new(format!("{}{star}", net::human_bytes(p.bytes))).color(th.text));
+                                ui.add_space(10.0);
+                            }
                             ui.label(RichText::new(state).color(th.sub));
                         });
                     });
@@ -278,6 +319,7 @@ impl Sanaga {
     pub(super) fn page_about(&mut self, ui: &mut Ui, th: &Theme) {
         let cached: usize = self.tabs.iter().flat_map(|t| t.entries.iter()).filter_map(|e| e.doc.as_ref()).map(|d| d.bytes).sum();
         let rows = [
+            (tr("Moteur web"), format!("WebKitGTK {}", crate::page::engine_version())),
             (tr("Mémoire utilisée"), net::human_bytes(self.mem.1)),
             (tr("Onglets ouverts"), self.tabs.len().to_string()),
             (tr("Pages gardées en mémoire"), net::human_bytes(cached as u64)),
@@ -286,6 +328,8 @@ impl Sanaga {
             (tr("Données téléchargées"), net::human_bytes(self.bytes_loaded)),
         ];
         let mut open_welcome = false;
+        let mut open_crashes = false;
+        let mut open_activity = false;
         centered_column(ui, |ui| {
             ui.add_space(30.0);
             ui.horizontal(|ui| {
@@ -314,9 +358,23 @@ impl Sanaga {
             if ui.link(tr("Revoir la page de bienvenue")).clicked() {
                 open_welcome = true;
             }
+            ui.add_space(4.0);
+            if ui.link(tr("Activité : mémoire et processeur")).clicked() {
+                open_activity = true;
+            }
+            ui.add_space(4.0);
+            if ui.link(tr("Rapports de plantage")).clicked() {
+                open_crashes = true;
+            }
         });
         if open_welcome {
             self.navigate(self.active, "sanaga://welcome".into(), None, true);
+        }
+        if open_crashes {
+            self.open_tab("sanaga://crashes", false);
+        }
+        if open_activity {
+            self.open_tab("sanaga://activity", false);
         }
     }
 
@@ -324,6 +382,7 @@ impl Sanaga {
         let url = self.tabs[self.active].url().to_string();
         let mut retry = false;
         let mut archive = false;
+        let mut report = false;
         ui.vertical_centered(|ui| {
             ui.add_space(ui.available_height() * 0.18);
             let (r, _) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
@@ -352,6 +411,12 @@ impl Sanaga {
                 retry = true;
             }
             // gone or not loading: the copy kept by the Internet Archive
+            if crashed {
+                ui.add_space(8.0);
+                if ui.add(egui::Button::new(RichText::new(tr("Voir le rapport")).size(13.5)).corner_radius(CornerRadius::same(16)).min_size(vec2(120.0, 30.0))).clicked() {
+                    report = true;
+                }
+            }
             if !crashed && (url.starts_with("http://") || url.starts_with("https://")) {
                 ui.add_space(8.0);
                 if ui.add(egui::Button::new(RichText::new(tr("Version archivée")).size(13.5)).corner_radius(CornerRadius::same(16)).min_size(vec2(120.0, 30.0))).clicked() {
@@ -364,6 +429,9 @@ impl Sanaga {
         }
         if archive {
             self.open_archive();
+        }
+        if report {
+            self.open_tab("sanaga://crashes", false);
         }
     }
 }

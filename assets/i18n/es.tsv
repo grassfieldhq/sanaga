@@ -49,7 +49,7 @@ Code QR de la page	Código QR de la página
 Scannez-le avec votre téléphone	Escanéalo con tu teléfono
 « {} » a été ajoutée au menu des applications.	«{}» se añadió al menú de aplicaciones.
 Masquer la barre des favoris (Ctrl+Maj+B)	Ocultar barra de favoritos (Ctrl+Mayús+B)
-Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B	Ocultar barra de favoritos (Ctrl+Mayús+B)\nPara volver a mostrarla: menú ⋮ o Ctrl+Mayús+B
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu principal ou Ctrl+Maj+B	Ocultar barra de favoritos (Ctrl+Mayús+B)\nPara volver a mostrarla: menú principal o Ctrl+Mayús+B
 Ajoutez des favoris avec l'étoile de la barre d'adresse.	Añade favoritos con la estrella de la barra de direcciones.
 Ouvrir dans un nouvel onglet	Abrir en una pestaña nueva
 Masquer la barre des favoris	Ocultar barra de favoritos
@@ -150,7 +150,7 @@ Maximal — veille après 5 minutes, 3 pages actives au plus	Máximo: suspensió
 Mots de passe et remplissage automatique	Contraseñas y autorrelleno
 Proposer d'enregistrer et de remplir les mots de passe	Ofrecer guardar y rellenar contraseñas
 Gérer les mots de passe enregistrés	Gestionar contraseñas guardadas
-Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Tus datos, para rellenar formularios (menú ⋮ › Rellenar con mis datos, o Ctrl+Mayús+F):
+Vos coordonnées, pour remplir les formulaires (menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :	Tus datos, para rellenar formularios (menú principal › Rellenar con mis datos, o Ctrl+Mayús+F):
 Téléphone	Teléfono
 Adresse	Dirección
 Synchronisation	Sincronización
@@ -281,7 +281,7 @@ Réinitialiser le zoom	Restablecer zoom
 Rechercher ou saisir le nom d'un site	Buscar o escribir el nombre de un sitio
 Rechercher avec {} ou saisir une adresse	Buscar con {} o escribir una dirección
 LISTE DE LECTURE	LISTA DE LECTURA
-Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).	Guarda una página para más tarde: menú ⋮ › Añadir a la lista de lectura (Ctrl+Mayús+D).
+Gardez une page pour plus tard : menu principal › Ajouter à la liste de lecture (Ctrl+Maj+D).	Guarda una página para más tarde: menú principal › Añadir a la lista de lectura (Ctrl+Mayús+D).
 GROUPES D'ONGLETS	GRUPOS DE PESTAÑAS
 Renommer avec le nom saisi ci-dessous	Renombrar con el nombre escrito abajo
 Fermer le groupe et ses onglets	Cerrar el grupo y sus pestañas
@@ -345,7 +345,7 @@ Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis 
 Depuis un fichier	Desde un archivo
 Mots de passe (fichier CSV)…	Contraseñas (archivo CSV)…
 Favoris (fichier HTML)…	Favoritos (archivo HTML)…
-Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Configuración › Contraseñas › Exportar. Firefox: about:logins › ⋯ › Exportar. Recuerda borrar el archivo exportado después de importarlo: contiene tus contraseñas sin cifrar.
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › menu « … » › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.	Chrome: Configuración › Contraseñas › Exportar. Firefox: about:logins › … › Exportar. Recuerda borrar el archivo exportado después de importarlo: contiene tus contraseñas sin cifrar.
 Importer des mots de passe (CSV)	Importar contraseñas (CSV)
 Mots de passe (CSV)	Contraseñas (CSV)
 Importer depuis un autre navigateur…	Importar desde otro navegador…
@@ -419,7 +419,7 @@ Violet	Morado
 Cyan	Cian
 Orange	Naranja
 Simulateur mobile	Simulador móvil
-Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Ver y probar un sitio como en un teléfono o una tableta: más de 35 dispositivos, marco, rotación, zoom, versión móvil de los sitios, pantalla táctil y capturas. Botón de teléfono de la barra o Ctrl+Mayús+M.
+Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.	Ver y probar un sitio como en un teléfono o una tableta: {} dispositivos, marco, rotación, zoom, versión móvil de los sitios, pantalla táctil y capturas. Botón de teléfono de la barra o Ctrl+Mayús+M.
 Intégrée à Sanaga	Integrada en Sanaga
 Téléphones iPhone	Teléfonos iPhone
 Téléphones Android	Teléfonos Android
@@ -596,7 +596,7 @@ Où mettre la barre d'adresse :	Dónde va la barra de direcciones:
 Flottante	Flotante
 Couleur d'accent	Color de acento
 Résumés et extensions sur mesure	Resúmenes y extensiones a medida
-Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga resume páginas (botón ✦ o Ctrl+Mayús+Y) y escribe extensiones a partir de lo que describes.
+Sanaga résume les pages (bouton Intelligence de la barre d'outils, ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.	Sanaga resume páginas (botón Inteligencia de la barra de herramientas, o Ctrl+Mayús+Y) y escribe extensiones a partir de lo que describes.
 Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur	Solo Sanaga — resumen sencillo, sin IA, nada sale del ordenador
 Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)	Ollama — un modelo de IA instalado en este ordenador (gratis, privado)
 Claude (Anthropic) — le meilleur résultat, avec votre clé d'API	Claude (Anthropic) — el mejor resultado, con tu clave de API
@@ -647,11 +647,11 @@ Dans le trousseau du système	En el llavero del sistema
 1 compte	1 cuenta
 {} comptes	{} cuentas
 Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.	Las contraseñas se guardan en el llavero del sistema (Secret Service), nunca en los archivos de Sanaga. Una sola cuenta para un sitio: Sanaga la rellena sola.
-Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Para rellenar formularios: menú ⋮ › Rellenar con mis datos, o Ctrl+Mayús+F.
+Pour remplir les formulaires : menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F.	Para rellenar formularios: menú principal › Rellenar con mis datos, o Ctrl+Mayús+F.
 Modéré	Moderado
 Équilibré	Equilibrado
 Maximal	Máximo
-Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.	Las pestañas que no has mirado en un rato se duermen y se recargan al volver (Equilibrado: tras 20 minutos). Las que reproducen sonido nunca duermen.
+Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais.	Las pestañas que no ha mirado desde hace mucho se ponen en reposo y se recargan cuando vuelve a ellas. Las pestañas que reproducen sonido nunca duermen.
 Sites complets avec JavaScript, vidéos et applications (recommandé)	Sitios completos con JavaScript, vídeos y aplicaciones (recomendado)
 Pages simplifiées, très rapide et très économe en mémoire	Páginas simplificadas, muy rápido y muy ahorrador de memoria
 Dossier partagé	Carpeta compartida
@@ -762,7 +762,7 @@ Extension supprimée.	Extensión eliminada.
 Se présenter à ce site comme…	Presentarse a este sitio como…
 Identité du navigateur par site	Identidad del navegador por sitio
 Aucun choix pour l'instant	Ninguna elección por ahora
-Menu ⋮ › Plus d'outils › Se présenter à ce site comme…	Menú ⋮ › Más herramientas › Presentarse a este sitio como…
+Menu principal › Plus d'outils › Se présenter à ce site comme…	Menú principal › Más herramientas › Presentarse a este sitio como…
 Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site.	Sanaga se presenta como Chrome a las pocas aplicaciones web que rechazan WebKit (WhatsApp Web, Teams, Zoom…). Puedes elegir para cualquier sitio.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire. Installez Chromium ou Firefox pour les regarder.	{} protege su contenido con un DRM (Widevine) que el motor de Sanaga no puede reproducir. Instala Chromium o Firefox para verlo.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire.	{} protege su contenido con un DRM (Widevine) que el motor de Sanaga no puede reproducir.
@@ -855,7 +855,7 @@ Réglages par site	Ajustes por sitio
 Polices	Fuentes
 Mode sombre	Modo oscuro
 Aucun réglage pour l'instant	Aún no hay ajustes
-Menu ⋮ › Plus d'outils › Réglages de ce site…	Menú ⋮ › Más herramientas › Ajustes de este sitio…
+Menu principal › Plus d'outils › Réglages de ce site…	Menú principal › Más herramientas › Ajustes de este sitio…
 sans JavaScript	sin JavaScript
 bloqueur coupé	bloqueador desactivado
 sans ses polices	sin sus fuentes
@@ -1006,7 +1006,7 @@ Détails techniques	Detalles técnicos
 Traduire vers	Traducir al
 Langue de Sanaga ({})	Idioma de Sanaga ({})
 Résumer ou traduire la page	Resumir o traducir la página
-Les points essentiels, à côté de la page — Ctrl+Maj+Y	Los puntos clave, junto a la página — Ctrl+Mayús+Y
+Les points essentiels, à côté de la page	Los puntos clave, junto a la página
 En {}	Al {}
 En {} · avec {}	Al {} · con {}
 Cette adresse utilise un port bloqué	Esta dirección usa un puerto bloqueado
@@ -1078,7 +1078,7 @@ Onglets, commandes, favoris, historique, Web…	Pestañas, comandos, favoritos, 
 Listes de blocage complètes	Listas de bloqueo completas
 EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)	EasyList y EasyPrivacy, descargadas una vez por semana de sus autores (easylist.to)
 Chiffrement activé	Cifrado activado
-Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.	La carpeta solo contiene archivos sellados. Haga clic para quitar la frase de este ordenador.
+Le dossier ne contient que des fichiers scellés.	La carpeta solo contiene archivos sellados.
 Phrase secrète	Frase secreta
 Chiffre le dossier : la même phrase sur chaque ordinateur	Cifra la carpeta: la misma frase en cada ordenador
 Chiffrer	Cifrar
@@ -1107,3 +1107,132 @@ affiché	mostrada
 en cours · son	en curso · sonido
 en cours	en curso
 Mettre en veille	Poner en reposo
+Sanaga s'est arrêté de façon inattendue. {} onglet(s) peuvent être rouverts.	Sanaga se detuvo de forma inesperada. Se pueden reabrir {} pestaña(s).
+Sanaga s'est arrêté de façon inattendue. Vos onglets sont revenus.	Sanaga se detuvo de forma inesperada. Sus pestañas han vuelto.
+Voir le rapport	Ver el informe
+Rouvrir les onglets	Reabrir las pestañas
+Rapports de plantage	Informes de fallos
+Tout supprimer	Eliminar todo
+Quand Sanaga ou une page s'arrête sans prévenir, un court rapport est gardé ici, sur cet ordinateur. Rien n'est envoyé tout seul : vous le lisez, puis vous choisissez de l'envoyer ou non. Il ne contient ni l'adresse des pages, ni votre nom.	Cuando Sanaga o una página se detiene sin avisar, se guarda aquí un breve informe, en este ordenador. Nada se envía solo: usted lo lee y luego decide si lo envía. No contiene la dirección de las páginas ni su nombre.
+Aucun rapport : rien ne s'est arrêté.	Ningún informe: nada se ha detenido.
+Sanaga s'est arrêté	Sanaga se detuvo
+Une page a cessé de fonctionner	Una página dejó de funcionar
+Une page utilisait trop de mémoire	Una página usaba demasiada memoria
+Sanaga a été arrêté sans se fermer	Sanaga fue detenido sin cerrarse
+Envoyer sur GitHub…	Enviar en GitHub…
+Copié	Copiado
+« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez.	«Enviar en GitHub» abre una nueva incidencia ya rellenada con este texto: aún puede modificarlo, y es usted quien lo envía.
+Sanaga est piloté par un logiciel de test automatisé.	Sanaga está controlado por un software de pruebas automatizadas.
+Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le moteur pour la prochaine page, ou finissent de se fermer.	Cada página tiene su propio proceso. Los que no tienen nombre los mantiene listos el motor para la próxima página, o están terminando de cerrarse.
+* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.	* Proceso compartido por varias pestañas (páginas abiertas una por otra): su memoria y su procesador cuentan para cada una.
+ne répond plus	no responde
+Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes).	Se produjo un error en Sanaga, que continúa. Se guardó un informe (sanaga://crashes).
+Rétablir	Restablecer
+Chercher	Buscar
+Synchroniser	Sincronizar
+Retirer la phrase	Quitar la frase
+Choisir un fichier…	Elegir un archivo…
+Traduction en {} avec {}…	Traduciendo al {} con {}…
+Traduction en {} avec {}… ({} parties faites)	Traduciendo al {} con {}… ({} partes hechas)
+Page traduite en {} par {}.	Página traducida al {} por {}.
+Traduction arrêtée.	Traducción detenida.
+La page est de nouveau dans sa langue.	La página vuelve a estar en su idioma.
+Arrêter	Detener
+Traduire à nouveau	Traducir de nuevo
+Afficher l'original	Mostrar el original
+Choisir une IA…	Elegir una IA…
+Claude, Ollama ou un assistant installé : dans Paramètres › Intelligence	Claude, Ollama o un asistente instalado: en Ajustes › Inteligencia
+Choisir une IA pour des résumés plus fins…	Elegir una IA para resúmenes más finos…
+Nom (facultatif)	Nombre (opcional)
+Écrire à nouveau	Escribir de nuevo
+Écriture de l'extension… {} s	Escribiendo la extensión… {} s
+Choisissez d'abord un modèle d'IA, ci-dessus.	Elija primero un modelo de IA, arriba.
+Décrivez d'abord ce qu'elle doit faire.	Describa primero lo que debe hacer.
+Jeter	Descartar
+français	francés
+anglais	inglés
+espagnol	español
+portugais	portugués
+allemand	alemán
+italien	italiano
+néerlandais	neerlandés
+polonais	polaco
+turc	turco
+swahili	suajili
+haoussa	hausa
+yoruba	yoruba
+lingala	lingala
+wolof	wólof
+arabe	árabe
+russe	ruso
+chinois simplifié	chino simplificado
+japonais	japonés
+coréen	coreano
+hindi	hindi
+Cette page n'est pas en {}.	Esta página no está en {}.
+Jamais sur {}	Nunca en {}
+Traduire	Traducir
+Proposer de traduire les pages dans une autre langue	Ofrecer traducir las páginas en otro idioma
+Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord	Una barra bajo la barra de herramientas, cuando la página indica su idioma; nada se envía antes de su acuerdo
+Rétablir les réglages d'origine : {}	Restablecer los ajustes de origen: {}
+Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.	Haga clic de nuevo para confirmar: los ajustes de esta categoría vuelven a los de origen.
+Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.	Sus datos (favoritos, contraseñas, datos de contacto, idioma) no se tocan.
+Confirmer	Confirmar
+Réglages d'origine rétablis : {}.	Ajustes de origen restablecidos: {}.
+Écriture du résumé…	Escribiendo el resumen…
+Résumé arrêté.	Resumen detenido.
+Résumé arrêté avant la fin.	Resumen detenido antes del final.
+Écriture annulée.	Escritura cancelada.
+Essai de « {} » sur cette page seulement : elle n'est pas encore activée.	Probando «{}» solo en esta página: aún no está activada.
+Arrêter l'essai	Terminar la prueba
+Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.	Para probarla antes de activarla: abra en otra pestaña una página donde actúe y vuelva aquí.
+L'essayer d'abord sur :	Probarla primero en:
+Confirmer ?	¿Confirmar?
+Moteur web	Motor web
+Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous	Crear una extensión: describa lo que quiere, Sanaga la escribe por usted
+1 résultat	1 resultado
+{} résultats	{} resultados
+Plus de 999 résultats	Más de 999 resultados
+Fichier	Archivo
+Ctrl+R	Ctrl+R
+Ctrl+W	Ctrl+W
+Ctrl+Maj+T	Ctrl+Mayús+T
+Ouvrir le lien	Abrir enlace
+Ouvrir le lien dans un nouvel onglet	Abrir enlace en una pestaña nueva
+Télécharger le fichier lié	Descargar el archivo enlazado
+Ouvrir l'image dans un nouvel onglet	Abrir imagen en una pestaña nueva
+Enregistrer l'image sous…	Guardar imagen como…
+Copier l'image	Copiar imagen
+Copier l'adresse de l'image	Copiar dirección de la imagen
+Ouvrir le cadre dans un nouvel onglet	Abrir marco en una pestaña nueva
+Couper	Cortar
+Coller	Pegar
+Coller sans mise en forme	Pegar sin formato
+Tout sélectionner	Seleccionar todo
+Insérer un émoji	Insertar emoji
+Méthodes de saisie	Métodos de entrada
+Insérer un caractère de contrôle Unicode	Insertar carácter de control Unicode
+Aucune suggestion	Sin sugerencias
+Ignorer ce mot	Ignorar esta palabra
+Ajouter au dictionnaire	Añadir al diccionario
+Ignorer la grammaire	Ignorar la gramática
+Police	Fuente
+Gras	Negrita
+Italique	Cursiva
+Souligné	Subrayado
+Contour	Contorno
+Inspecter l'élément	Inspeccionar elemento
+Ouvrir la vidéo dans un nouvel onglet	Abrir vídeo en una pestaña nueva
+Ouvrir l'audio dans un nouvel onglet	Abrir audio en una pestaña nueva
+Copier l'adresse de la vidéo	Copiar dirección del vídeo
+Copier l'adresse de l'audio	Copiar dirección del audio
+Afficher ou masquer les commandes	Mostrar u ocultar los controles
+Lire en boucle	Repetir
+Lecture	Reproducir
+Pause	Pausa
+Couper ou rétablir le son	Silenciar o activar el sonido
+Enregistrer la vidéo sous…	Guardar vídeo como…
+Enregistrer l'audio sous…	Guardar audio como…
+Rechercher la sélection sur le Web	Buscar la selección en la Web
+Copier le lien vers ce passage	Copiar enlace a este pasaje
+Lien copié	Enlace copiado

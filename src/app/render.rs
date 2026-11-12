@@ -57,6 +57,11 @@ impl Sanaga {
             self.tab_overview(ui, th);
             return;
         }
+        // Where Tab starts in one of Sanaga's own pages (see `frame_body`):
+        // an unseen stop just before the page's first control.
+        if matches!(self.tabs[a].view, View::Internal(_)) {
+            ui.interact(Rect::from_min_size(ui.max_rect().min, vec2(1.0, 1.0)), egui::Id::new("page-start"), Sense::focusable_noninteractive());
+        }
         if let View::Internal(Internal::Onboarding) = self.tabs[a].view {
             self.page_onboarding(ui, th);
             self.hover_url = None;
@@ -78,6 +83,7 @@ impl Sanaga {
                 Internal::Settings => self.page_settings(ui, th),
                 Internal::About => self.page_about(ui, th),
                 Internal::Activity => self.page_activity(ui, th),
+                Internal::Crashes => self.page_crashes(ui, th),
                 Internal::Passwords => self.page_passwords(ui, th),
                 Internal::Extensions => self.page_extensions(ui, th),
                 Internal::Profiles => self.page_profiles(ui, th),
@@ -449,27 +455,42 @@ fn heading_size(level: u8, base: f32) -> f32 {
     }
 }
 
-fn split_find<'t>(text: &'t str, q: &str) -> Vec<(&'t str, bool)> {
+pub(super) fn split_find<'t>(text: &'t str, q: &str) -> Vec<(&'t str, bool)> {
     if q.is_empty() {
         return vec![(text, false)];
     }
-    let lower = text.to_lowercase();
-    if lower.len() != text.len() {
-        // lowercasing changed byte offsets: highlight the whole span instead
-        return vec![(text, lower.contains(q))];
-    }
-    let mut out = Vec::new();
-    let mut pos = 0;
-    while let Some(i) = lower[pos..].find(q) {
-        let s = pos + i;
-        if s > pos {
-            out.push((&text[pos..s], false));
+    // The text in small letters, and for each of its bytes where the letter
+    // it comes from starts in `text`: a small letter does not always take
+    // as many bytes as its capital (İ, ẞ, the Kelvin sign), so a place
+    // found in one is not the same place in the other.
+    let mut lower = String::with_capacity(text.len());
+    let mut from: Vec<usize> = Vec::with_capacity(text.len());
+    for (i, c) in text.char_indices() {
+        for small in c.to_lowercase() {
+            lower.push(small);
+            from.extend(std::iter::repeat_n(i, small.len_utf8()));
         }
-        out.push((&text[s..s + q.len()], true));
-        pos = s + q.len();
     }
-    if pos < text.len() {
-        out.push((&text[pos..], false));
+    let letter_end = |start: usize| start + text[start..].chars().next().map_or(0, |c| c.len_utf8());
+    let mut out = Vec::new();
+    let (mut pos, mut done) = (0, 0); // where the search is in `lower`, what is already given of `text`
+    while let Some(i) = lower[pos..].find(q) {
+        let (s, e) = (pos + i, pos + i + q.len());
+        pos = e;
+        // whole letters of `text`: from the one the find starts in to the
+        // end of the one it ends in
+        let (start, end) = (from[s], letter_end(from[e - 1]));
+        if start < done {
+            continue; // (inside the letter just shown)
+        }
+        if start > done {
+            out.push((&text[done..start], false));
+        }
+        out.push((&text[start..end], true));
+        done = end;
+    }
+    if done < text.len() {
+        out.push((&text[done..], false));
     }
     out
 }
@@ -529,17 +550,15 @@ fn link_behaviour(ui: &Ui, resp: &Response, url: &str, rc: &mut RenderCtx) {
     let private = rc.private;
     let mut act: Option<Action> = None;
     resp.menu_on_press(|ui| {
-        if ui.button(tr("Ouvrir dans un nouvel onglet")).clicked() {
+        use super::chrome::menu_item;
+        if menu_item(ui, Icon::Plus, tr("Ouvrir dans un nouvel onglet")) {
             act = Some(Action::OpenTab { url: url.to_string(), private, focus: false });
-            ui.close();
         }
-        if ui.button(tr("Ouvrir dans un onglet privé")).clicked() {
+        if menu_item(ui, Icon::Private, tr("Ouvrir dans un onglet privé")) {
             act = Some(Action::OpenTab { url: url.to_string(), private: true, focus: true });
-            ui.close();
         }
-        if ui.button(tr("Copier l'adresse du lien")).clicked() {
+        if menu_item(ui, Icon::Copy, tr("Copier l'adresse du lien")) {
             ui.ctx().copy_text(url.to_string());
-            ui.close();
         }
     });
     if let Some(a) = act {

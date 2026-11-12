@@ -290,6 +290,28 @@ fn read_folder(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>, depth:
     }
 }
 
+/// One input for the fuzzers (see docs/FUZZING.md): any bytes read as an
+/// extension archive, and as a manifest next to a script. An archive never
+/// yields more than the limits allow.
+#[cfg(any(test, fuzzing))]
+pub fn fuzz_one(data: &[u8]) {
+    if let Ok(files) = unzip(data) {
+        assert!(files.iter().map(|f| f.1.len()).sum::<usize>() <= MAX_UNPACKED, "an archive unpacked past the limit");
+        let _ = convert(&files);
+    }
+    let _ = parse_json(&String::from_utf8_lossy(data));
+    let files = vec![
+        ("manifest.json".to_string(), data.to_vec()),
+        ("a.js".to_string(), b"var a = 1".to_vec()),
+        ("s.css".to_string(), b"body{}".to_vec()),
+        ("_locales/en/messages.json".to_string(), data.to_vec()),
+    ];
+    if let Ok((_, text)) = convert(&files) {
+        // (the script handed to pages never closes its own <script> early)
+        assert!(!text.is_empty());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -394,6 +416,15 @@ mod tests {
         for m in ["", "[]", "null", "{\"content_scripts\":3}", "{\"content_scripts\":[1,{\"js\":7,\"matches\":[2]}]}", "{\"name\":{}}", "/*", "\"", "{\"a\":\"\\"] {
             let _ = convert(&[("manifest.json".to_string(), m.as_bytes().to_vec())]);
         }
+    }
+
+    /// Thousands of damaged archives and manifests (see mutate.rs).
+    #[test]
+    fn damaged_extensions_do_not_panic() {
+        let manifest = "\u{feff}{ // a comment\n \"description\": \"d\", /* block */ \"name\": \"__MSG_appName__\", \"default_locale\": \"en\",\n \"content_scripts\": [{\"matches\": [\"https://a.example/x,y/*\"], \"js\": [\"/a.js\"], \"css\": [\"s.css\"], \"run_at\": \"document_start\"}]}";
+        let zip = stored_zip("manifest.json", manifest.as_bytes());
+        let seeds: [&[u8]; 3] = [&zip, manifest.as_bytes(), br#"{"APPNAME": {"message": "Real \"name\""}}"#];
+        crate::mutate::run(&seeds, 30_000, fuzz_one);
     }
 
     #[test]

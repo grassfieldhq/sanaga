@@ -6,6 +6,8 @@
 //! rows and a note under the group. ↑ / ↓ change category, Escape clears the
 //! search.
 
+use super::chrome::focus_ring;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use crate::store;
@@ -26,6 +28,12 @@ pub(super) enum Section {
 impl Section {
     const ALL: [Section; 8] = [Section::General, Section::Appearance, Section::Intelligence, Section::Privacy, Section::Passwords, Section::Performance, Section::Sync, Section::Extensions];
 
+    /// The category at this place in the list (test aid).
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
+    pub(super) fn by_place(n: usize) -> Option<Section> {
+        Section::ALL.get(n).copied()
+    }
+
     fn label(self) -> &'static str {
         match self {
             Section::General => tr("Général"),
@@ -37,6 +45,31 @@ impl Section {
             Section::Extensions => tr("Extensions"),
             Section::Intelligence => tr("Intelligence"),
         }
+    }
+
+    /// The category's name in its address: `sanaga://settings/privacy`.
+    fn slug(self) -> &'static str {
+        match self {
+            Section::General => "general",
+            Section::Appearance => "appearance",
+            Section::Privacy => "privacy",
+            Section::Passwords => "passwords",
+            Section::Performance => "performance",
+            Section::Sync => "sync",
+            Section::Extensions => "extensions",
+            Section::Intelligence => "intelligence",
+        }
+    }
+
+    /// The address of a category.
+    pub(super) fn address(self) -> String {
+        format!("sanaga://settings/{}", self.slug())
+    }
+
+    /// The category an address names (None: Settings with no category).
+    pub(super) fn of_address(url: &str) -> Option<Section> {
+        let name = url.trim_end_matches('/').strip_prefix("sanaga://settings/")?;
+        Section::ALL.into_iter().find(|s| s.slug() == name)
     }
 
     fn icon(self) -> Icon {
@@ -67,8 +100,83 @@ impl Section {
     }
 }
 
-/// Is a group shown? Its category is the chosen one, or, while searching, its
-/// title or one of its labels contains the search.
+/// A text as it is searched: small letters, accents left out ("général"
+/// is found by typing "general"; "ß" by "ss").
+pub(super) fn fold(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars().flat_map(|c| c.to_lowercase()) {
+        match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => out.push('a'),
+            'ç' => out.push('c'),
+            'è' | 'é' | 'ê' | 'ë' => out.push('e'),
+            'ì' | 'í' | 'î' | 'ï' => out.push('i'),
+            'ñ' => out.push('n'),
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' => out.push('o'),
+            'ù' | 'ú' | 'û' | 'ü' => out.push('u'),
+            'ý' | 'ÿ' => out.push('y'),
+            'œ' => out.push_str("oe"),
+            'æ' => out.push_str("ae"),
+            'ß' => out.push_str("ss"),
+            // (a combining accent typed apart from its letter)
+            '\u{300}'..='\u{36f}' => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// The search of the settings. (Kept in one place for the frame being
+/// drawn, rather than handed to every group and row.)
+///
+/// What can be found is what the settings really show: before the first
+/// results, every category is drawn once out of sight, and each group notes
+/// the words of its title, rows and note (`index`). A group is a result
+/// when one of them holds what is searched; a setting added to a category
+/// is found without being declared anywhere.
+#[derive(Default)]
+struct Search {
+    /// What is searched (folded); empty: not searching.
+    query: String,
+    /// The categories are being drawn out of sight to note their words.
+    indexing: bool,
+    /// The words of each group: (block, place of the group in it) → folded.
+    index: HashMap<(String, usize), String>,
+    indexed: bool,
+    /// The block being drawn (category and title), its category, whether
+    /// its own name is what was found (then all its groups are shown), and
+    /// the place of the next group in it.
+    block: String,
+    section: Option<Section>,
+    block_found: bool,
+    next_group: usize,
+    /// The group being drawn, and whether it is shown (its note follows it).
+    group: usize,
+    group_shown: bool,
+    /// A category's name clicked in the results: go there.
+    go: Option<Section>,
+}
+
+thread_local! {
+    static SEARCH: std::cell::RefCell<Search> = std::cell::RefCell::new(Search::default());
+}
+
+/// Note words of the group being drawn (while the index is made).
+fn index_words(words: &[&str]) {
+    SEARCH.with(|s| {
+        let mut s = s.borrow_mut();
+        if s.indexing {
+            let key = (s.block.clone(), s.group);
+            let entry = s.index.entry(key).or_default();
+            for w in words {
+                entry.push_str(&fold(w));
+                entry.push('\n');
+            }
+        }
+    });
+}
+
+/// Is a block of groups shown? Its category is the chosen one, or, while
+/// searching, one of its groups holds what is searched.
 struct Shown<'a> {
     section: Section,
     query: &'a str,
@@ -76,11 +184,24 @@ struct Shown<'a> {
 
 impl Shown<'_> {
     fn shows(&self, sec: Section, title: &str, labels: &[&str]) -> bool {
-        if self.query.is_empty() {
-            return sec == self.section;
-        }
-        let q = self.query;
-        title.to_lowercase().contains(q) || sec.label().to_lowercase().contains(q) || labels.iter().any(|l| l.to_lowercase().contains(q))
+        SEARCH.with(|s| {
+            let mut s = s.borrow_mut();
+            s.block = format!("{}/{title}", sec.slug());
+            s.section = Some(sec);
+            s.next_group = 0;
+            s.block_found = false;
+            if s.indexing {
+                return true;
+            }
+            if self.query.is_empty() {
+                return sec == self.section;
+            }
+            let q = self.query;
+            // the block's own name, its category's, or words given for it
+            // (other languages, brand names): all its groups are results
+            s.block_found = fold(title).contains(q) || fold(sec.label()).contains(q) || labels.iter().any(|l| fold(l).contains(q));
+            s.block_found || s.index.iter().any(|((block, _), words)| *block == s.block && words.contains(q))
+        })
     }
 }
 
@@ -90,13 +211,53 @@ impl Shown<'_> {
 struct Rows<'t> {
     th: &'t Theme,
     n: usize,
+    /// The next row is a switch, on or off (said to screen readers).
+    checked: Option<bool>,
+    /// Words the next row can also be found by: what the page it opens
+    /// holds (a site's name, a kind of data…), see `reaches`.
+    extra: String,
 }
 
 const ROW_PAD: f32 = 14.0;
 
 /// A rounded group of rows, with an optional title above it.
 fn group(ui: &mut Ui, th: &Theme, title: &str, add: impl FnOnce(&mut Ui, &mut Rows)) {
-    if !title.is_empty() {
+    // its place in its block; while searching: is it a result, and of which category
+    let (shown, found_in) = SEARCH.with(|s| {
+        let mut s = s.borrow_mut();
+        s.group = s.next_group;
+        s.next_group += 1;
+        let searching = !s.query.is_empty() && !s.indexing;
+        let shown = !searching || s.block_found || s.index.get(&(s.block.clone(), s.group)).is_some_and(|words| words.contains(s.query.as_str()));
+        s.group_shown = shown;
+        (shown, if searching { s.section } else { None })
+    });
+    index_words(&[title]);
+    if !shown {
+        return;
+    }
+    if let Some(sec) = found_in {
+        // a search result: the category it is found in, to go there in one click
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+            ui.painter().rect_filled(r, CornerRadius::same(4), sec.tile());
+            icons::paint(ui.painter(), r.shrink(3.5), sec.icon(), Color32::WHITE);
+            let name = egui::Label::new(RichText::new(sec.label()).size(12.0).color(th.sub)).sense(Sense::click());
+            let resp = ui.add(name).on_hover_cursor(CursorIcon::PointingHand);
+            if resp.hovered() {
+                ui.painter().line_segment([resp.rect.left_bottom(), resp.rect.right_bottom()], Stroke::new(1.0, th.sub));
+            }
+            if resp.clicked() {
+                SEARCH.with(|s| s.borrow_mut().go = Some(sec));
+            }
+            if !title.is_empty() {
+                ui.label(RichText::new("›").size(12.0).color(th.sub));
+                ui.label(RichText::new(title).size(12.0).family(bold()).color(th.text));
+            }
+        });
+        ui.add_space(4.0);
+    } else if !title.is_empty() {
         ui.add_space(4.0);
         ui.label(RichText::new(title).size(13.0).family(bold()).color(th.text));
         ui.add_space(6.0);
@@ -104,7 +265,7 @@ fn group(ui: &mut Ui, th: &Theme, title: &str, add: impl FnOnce(&mut Ui, &mut Ro
     Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::symmetric(0, 2)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing.y = 0.0;
-        let mut rows = Rows { th, n: 0 };
+        let mut rows = Rows { th, n: 0, checked: None, extra: String::new() };
         add(ui, &mut rows);
     });
     ui.add_space(6.0);
@@ -112,6 +273,11 @@ fn group(ui: &mut Ui, th: &Theme, title: &str, add: impl FnOnce(&mut Ui, &mut Ro
 
 /// A note under a group (secondary text).
 fn footnote(ui: &mut Ui, th: &Theme, text: &str) {
+    index_words(&[text]);
+    // (the note of a group that is not among the results goes with it)
+    if !SEARCH.with(|s| s.borrow().group_shown) {
+        return;
+    }
     ui.horizontal(|ui| {
         ui.add_space(ROW_PAD);
         ui.add(egui::Label::new(RichText::new(text).size(11.5).color(th.sub)).wrap());
@@ -120,41 +286,90 @@ fn footnote(ui: &mut Ui, th: &Theme, text: &str) {
 }
 
 impl Rows<'_> {
-    /// One row: label (and a line of explanation) on the left, `control` on
-    /// the right. `click`: the whole row is clickable (returns the response).
+    /// One row: label (and its explanation) on the left, `control` on the
+    /// right. `click`: the whole row is clickable (returns the response).
+    ///
+    /// The text is never cut: it takes the room the control leaves (measured
+    /// at the frame before), goes on to further lines when it must, and the
+    /// row grows with it — in every language and at every window width.
     fn row(&mut self, ui: &mut Ui, label: &str, sub: &str, click: bool, control: impl FnOnce(&mut Ui)) -> egui::Response {
         let th = self.th;
         let w = ui.available_width();
-        let h = if sub.is_empty() { 40.0 } else { 54.0 };
+        let id = ui.id().with(("settings-row", label));
+        let known: Option<f32> = ui.data(|d| d.get_temp(id));
+        let ctl_w = known.unwrap_or(w * 0.42).min(w * 0.62);
+        let text_w = (w - 2.0 * ROW_PAD - ctl_w - if ctl_w > 0.0 { 14.0 } else { 0.0 }).max(110.0);
+        let title = ui.painter().layout(label.to_string(), FontId::proportional(13.5), th.text, text_w);
+        let note = (!sub.is_empty()).then(|| ui.painter().layout(sub.to_string(), FontId::proportional(11.5), th.sub, text_w));
+        let text_h = title.size().y + note.as_ref().map_or(0.0, |n| 3.0 + n.size().y);
+        let h = (text_h + 20.0).max(if sub.is_empty() { 40.0 } else { 54.0 }).round();
         let (r, resp) = ui.allocate_exact_size(vec2(w, h), if click { Sense::click() } else { Sense::hover() });
+        // screen readers: the row's words, and what it is
+        let checked = self.checked.take();
+        let said = if sub.is_empty() { label.to_string() } else { format!("{label}. {sub}") };
+        resp.widget_info(|| match checked {
+            Some(on) => egui::WidgetInfo::selected(egui::WidgetType::CheckBox, true, on, &said),
+            None => egui::WidgetInfo::labeled(if click { egui::WidgetType::Button } else { egui::WidgetType::Label }, true, &said),
+        });
         if self.n > 0 {
             ui.painter().line_segment([pos2(r.left() + ROW_PAD, r.top()), pos2(r.right() - ROW_PAD, r.top())], Stroke::new(1.0, th.hairline.gamma_multiply(0.6)));
         }
         self.n += 1;
+        // a search result: the rows that hold what is searched stand out
+        let extra = std::mem::take(&mut self.extra);
+        index_words(&[label, sub, &extra]);
+        let searched = SEARCH.with(|s| {
+            let s = s.borrow();
+            !s.query.is_empty() && !s.indexing && (fold(label).contains(s.query.as_str()) || fold(sub).contains(s.query.as_str()) || extra.contains(s.query.as_str()))
+        });
+        if searched {
+            ui.painter().rect_filled(r.shrink2(vec2(4.0, 2.0)), CornerRadius::same(8), th.accent.gamma_multiply(0.13));
+        }
         if click && resp.hovered() {
             ui.painter().rect_filled(r.shrink2(vec2(4.0, 2.0)), CornerRadius::same(8), th.track.gamma_multiply(0.6));
         }
-        let label_w = (w * 0.55).max(160.0);
-        let clip = Rect::from_min_max(pos2(r.left() + ROW_PAD, r.top()), pos2(r.left() + label_w, r.bottom()));
-        let p = ui.painter().with_clip_rect(clip);
-        if sub.is_empty() {
-            p.text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.5), th.text);
-        } else {
-            p.text(pos2(clip.left(), r.top() + 18.0), Align2::LEFT_CENTER, label, FontId::proportional(13.5), th.text);
-            p.text(pos2(clip.left(), r.top() + 37.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
+        focus_ring(ui, &resp, r.shrink2(vec2(4.0, 2.0)), 8.0, th);
+        let top = r.center().y - text_h / 2.0;
+        ui.painter().galley(pos2(r.left() + ROW_PAD, top), title.clone(), th.text);
+        if let Some(note) = note {
+            ui.painter().galley(pos2(r.left() + ROW_PAD, top + title.size().y + 3.0), note, th.sub);
         }
-        let ctl = Rect::from_min_max(pos2(r.left() + label_w * 0.6, r.top()), pos2(r.right() - ROW_PAD, r.bottom()));
+        let ctl = Rect::from_min_max(pos2(r.left() + ROW_PAD + 110.0, r.top()), pos2(r.right() - ROW_PAD, r.bottom()));
         let mut child = ui.new_child(UiBuilder::new().max_rect(ctl).layout(Layout::right_to_left(Align::Center)));
         control(&mut child);
+        // what the control really took, for the text at the next frame
+        let used = child.min_rect().width().max(0.0);
+        if known.is_none_or(|k| (k - used).abs() > 0.5) {
+            ui.data_mut(|d| d.insert_temp(id, used));
+            ui.ctx().request_repaint();
+        }
         if click { resp.on_hover_cursor(CursorIcon::PointingHand) } else { resp }
+    }
+
+    /// The next row opens a page: it is also found by what that page holds
+    /// (searching a site's name finds "Website settings").
+    fn reaches(&mut self, words: &[&str]) -> &mut Self {
+        self.extra = fold(&words.join("\n"));
+        self
+    }
+
+    /// A row that does something now (not a page to go to): a button on the
+    /// right says what. True when it is pressed.
+    fn action(&mut self, ui: &mut Ui, label: &str, sub: &str, button: &str) -> bool {
+        let mut pressed = false;
+        self.row(ui, label, sub, false, |ui| {
+            pressed = ui.button(button).clicked();
+        });
+        pressed
     }
 
     /// A row with a switch on the right; true when it changed.
     fn switch(&mut self, ui: &mut Ui, label: &str, sub: &str, on: &mut bool) -> bool {
         let th = self.th;
         let mut changed = false;
+        self.checked = Some(*on);
         let resp = self.row(ui, label, sub, true, |ui| {
-            changed |= switch(ui, th, on);
+            changed |= switch_with(ui, th, on, false);
         });
         if resp.clicked() && !changed {
             *on = !*on;
@@ -192,9 +407,20 @@ impl Rows<'_> {
 
 /// The macOS switch: a capsule, the accent colour when on, a white knob.
 pub(super) fn switch(ui: &mut Ui, th: &Theme, on: &mut bool) -> bool {
-    let (r, resp) = ui.allocate_exact_size(vec2(38.0, 22.0), Sense::click());
+    switch_with(ui, th, on, true)
+}
+
+/// `tab_stop`: Tab stops on the switch itself (not when its whole row is
+/// the stop: the row then flips it).
+fn switch_with(ui: &mut Ui, th: &Theme, on: &mut bool, tab_stop: bool) -> bool {
+    let (r, resp) = ui.allocate_exact_size(vec2(38.0, 22.0), if tab_stop { Sense::click() } else { Sense::CLICK });
+    focus_ring(ui, &resp, r.expand(2.0), 13.0, th);
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::CheckBox, true, *on, ""));
     let t = ui.ctx().animate_bool_with_time(resp.id, *on, 0.14);
-    let off = th.track.gamma_multiply(1.4);
+    // (off: a grey that shows on the card in the light and the dark look —
+    // the track's own colour is the card's in the dark, and left the knob
+    // floating alone)
+    let off = lerp(th.card, th.sub, 0.42);
     let col = lerp(off, th.accent, t);
     let p = ui.painter();
     p.rect_filled(r, CornerRadius::same(11), col);
@@ -217,6 +443,7 @@ fn lerp(a: Color32, b: Color32, t: f32) -> Color32 {
 /// A segmented control (the chosen part a light pill); the index clicked.
 pub(super) fn segmented(ui: &mut Ui, th: &Theme, options: &[&str], chosen: usize) -> Option<usize> {
     let font = FontId::proportional(12.5);
+    index_words(options);
     let widths: Vec<f32> = options.iter().map(|o| ui.painter().layout_no_wrap(o.to_string(), font.clone(), th.text).size().x + 26.0).collect();
     let total: f32 = widths.iter().sum::<f32>() + 4.0;
     let (r, _) = ui.allocate_exact_size(vec2(total, 26.0), Sense::hover());
@@ -226,6 +453,8 @@ pub(super) fn segmented(ui: &mut Ui, th: &Theme, options: &[&str], chosen: usize
     for (k, (o, w)) in options.iter().zip(&widths).enumerate() {
         let cell = Rect::from_min_size(pos2(x, r.top() + 2.0), vec2(*w, r.height() - 4.0));
         let resp = ui.interact(cell, ui.id().with(("seg", o, k)), Sense::click());
+        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::RadioButton, true, k == chosen, *o));
+        focus_ring(ui, &resp, cell, 11.0, th);
         if k == chosen {
             ui.painter().add(egui::Shadow { offset: [0, 1], blur: 3, spread: 0, color: Color32::from_black_alpha(25) }.as_shape(cell, CornerRadius::same(11)));
             ui.painter().rect_filled(cell, CornerRadius::same(11), th.pill);
@@ -244,6 +473,8 @@ pub(super) fn segmented(ui: &mut Ui, th: &Theme, options: &[&str], chosen: usize
 /// A pop-up menu button on the right of a row (macOS: the value and ⌃⌄).
 pub(super) fn popup<T: PartialEq + Copy>(ui: &mut Ui, id: &str, current: T, options: &[(T, &str)]) -> Option<T> {
     let label = options.iter().find(|o| o.0 == current).map(|o| o.1).unwrap_or("");
+    // (its choices can be searched for: "battery", "DuckDuckGo"…)
+    index_words(&options.iter().map(|o| o.1).collect::<Vec<_>>());
     let mut out = None;
     egui::ComboBox::from_id_salt(id).selected_text(label).width(220.0).show_ui(ui, |ui| {
         for (v, l) in options {
@@ -270,6 +501,7 @@ fn check(p: &egui::Painter, c: Pos2, col: Color32) {
 /// A small round button with a symbol (in a row's controls).
 fn small_icon_button(ui: &mut Ui, th: &Theme, icon: Icon, tip: &str) -> bool {
     let (r, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    focus_ring(ui, &resp, r, 13.0, th);
     if resp.hovered() {
         ui.painter().circle_filled(r.center(), 13.0, th.track);
     }
@@ -286,7 +518,10 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32, password: bool
 /// address bar go). `tabs`: 0 top, 1 bottom, 2 left, 3 right, 9 not shown;
 /// `bar`: 0 top, 1 bottom, 2 floating, 9 not shown.
 pub(super) fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar: u8, selected: bool) -> bool {
+    index_words(&[label]);
     let (r, resp) = ui.allocate_exact_size(vec2(100.0, 88.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::RadioButton, true, selected, label));
+    focus_ring(ui, &resp, r, 10.0, th);
     let pic = Rect::from_min_size(r.min + vec2(4.0, 4.0), vec2(92.0, 58.0));
     let p = ui.painter();
     p.rect_filled(pic, CornerRadius::same(8), th.page);
@@ -389,24 +624,48 @@ enum Act {
     InstallExt,
     ProfileLauncher,
     ResetSite(String),
+    /// Put a category's settings back as Sanaga comes.
+    Restore(Section),
 }
 
 const SIDEBAR_W: f32 = 236.0;
 
 impl Sanaga {
-    /// Change category, remembering the way back (the ‹ › arrows).
+    /// Change category. Each category has its address
+    /// (`sanaga://settings/privacy`): going to one is a step of the tab's
+    /// own history, so the toolbar's arrows, Alt+← / Alt+→ and the mouse's
+    /// side buttons go back and forth between categories like between
+    /// pages, a category can be opened from anywhere, and the session
+    /// brings it back.
     fn settings_go(&mut self, sec: Section) {
+        self.settings_filter.clear();
         if sec != self.settings_section {
-            self.settings_back.push(self.settings_section);
-            self.settings_fwd.clear();
+            let a = self.active;
+            self.navigate(a, sec.address(), None, true);
             self.settings_section = sec;
         }
-        self.settings_filter.clear();
+    }
+
+    /// The category follows the tab's address (a step back or forward, a
+    /// link, a restored tab); Settings opened without one shows the
+    /// category seen last, and takes its address.
+    fn settings_follow_address(&mut self) {
+        let a = self.active;
+        let Some(t) = self.tabs.get_mut(a) else { return };
+        match Section::of_address(&t.entries[t.idx].url) {
+            Some(sec) => self.settings_section = sec,
+            None => {
+                let address = self.settings_section.address();
+                t.entries[t.idx].url = address.clone();
+                t.address = address;
+            }
+        }
     }
 
     pub(super) fn page_settings(&mut self, ui: &mut Ui, th: &Theme) {
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, th.page);
+        self.settings_follow_address();
 
         // keyboard: ↑ / ↓ change category (when no field has the keys), Escape clears the search
         let typing = ui.ctx().memory(|m| m.focused().is_some());
@@ -423,7 +682,10 @@ impl Sanaga {
 
         // ---------------- sidebar ----------------
         let wide = full.width() >= 760.0;
-        let side = Rect::from_min_size(full.min, vec2(if wide { SIDEBAR_W } else { 0.0 }, full.height()));
+        // (as wide as its longest name asks, in every language)
+        let longest = Section::ALL.iter().map(|s| ui.painter().layout_no_wrap(s.label().to_string(), FontId::proportional(13.0), th.text).size().x).fold(0.0, f32::max);
+        let side_w = (longest + 36.0 + 6.0 + 20.0 + 8.0).clamp(SIDEBAR_W, 320.0);
+        let side = Rect::from_min_size(full.min, vec2(if wide { side_w } else { 0.0 }, full.height()));
         let mut picked: Option<Section> = None;
         let mut about = false;
         if wide {
@@ -436,6 +698,8 @@ impl Sanaga {
             for sec in Section::ALL {
                 let sel = !searching && sec == self.settings_section;
                 let (r, resp) = s.allocate_exact_size(vec2(s.available_width(), 32.0), Sense::click());
+                resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Tab, true, sel, sec.label()));
+                focus_ring(&s, &resp, r, 8.0, th);
                 if sel {
                     s.painter().rect_filled(r, CornerRadius::same(8), th.accent);
                 } else if resp.hovered() {
@@ -446,7 +710,7 @@ impl Sanaga {
                 icons::paint(s.painter(), tile.shrink(5.0), sec.icon(), Color32::WHITE);
                 let col = if sel { Color32::WHITE } else { th.text };
                 let clip = Rect::from_min_max(pos2(r.left() + 36.0, r.top()), pos2(r.right() - 6.0, r.bottom()));
-                s.painter().with_clip_rect(clip).text(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, sec.label(), FontId::proportional(13.0), col);
+                s.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, sec.label(), FontId::proportional(13.0), col);
                 if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                     picked = Some(sec);
                 }
@@ -454,6 +718,8 @@ impl Sanaga {
             // at the bottom: about Sanaga
             let ar = Rect::from_min_size(pos2(side.left() + 10.0, side.bottom() - 44.0), vec2(side.width() - 20.0, 32.0));
             let aresp = ui.interact(ar, egui::Id::new("settings-about"), Sense::click());
+            aresp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tr("À propos de Sanaga")));
+            focus_ring(ui, &aresp, ar, 8.0, th);
             if aresp.hovered() {
                 ui.painter().rect_filled(ar, CornerRadius::same(8), th.track.gamma_multiply(0.7));
             }
@@ -477,13 +743,17 @@ impl Sanaga {
             let cap = Rect::from_min_size(pos2(head.left() + 16.0, cy - 15.0), vec2(60.0, 30.0));
             ui.painter().add(egui::Shadow { offset: [0, 1], blur: 6, spread: 0, color: th.capsule_shadow }.as_shape(cap, CornerRadius::same(15)));
             ui.painter().rect_filled(cap, CornerRadius::same(15), th.capsule);
-            for (k, enabled) in [(0, !self.settings_back.is_empty()), (1, !self.settings_fwd.is_empty())] {
+            // (the same steps as the toolbar's arrows: the tab's history)
+            let (can_back, can_fwd) = self.tabs.get(self.active).map(|t| (t.idx > 0, t.idx + 1 < t.entries.len())).unwrap_or((false, false));
+            for (k, enabled) in [(0, can_back), (1, can_fwd)] {
                 let r = Rect::from_min_size(pos2(cap.left() + k as f32 * 30.0, cap.top()), vec2(30.0, 30.0));
                 let resp = ui.interact(r, egui::Id::new(("settings-nav", k)), if enabled { Sense::click() } else { Sense::hover() });
+                focus_ring(ui, &resp, r.shrink(2.0), 13.0, th);
                 if enabled && resp.hovered() {
                     ui.painter().circle_filled(r.center(), 13.0, th.track);
                 }
                 icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(13.0, 13.0)), if k == 0 { Icon::Back } else { Icon::Forward }, if enabled { th.text } else { th.sub.gamma_multiply(0.45) });
+                let resp = resp.tip(if k == 0 { tr("Précédent") } else { tr("Suivant") });
                 if resp.clicked() {
                     if k == 0 {
                         back = true;
@@ -497,23 +767,61 @@ impl Sanaga {
             let title = if searching { tr("Résultats de la recherche").to_string() } else { self.settings_section.label().to_string() };
             ui.painter().text(pos2(cap.right() + 14.0, cy), Align2::LEFT_CENTER, title, FontId::new(15.0, bold()), th.text);
         }
-        if back {
-            if let Some(s) = self.settings_back.pop() {
-                self.settings_fwd.push(self.settings_section);
-                self.settings_section = s;
-            }
-        } else if fwd {
-            if let Some(s) = self.settings_fwd.pop() {
-                self.settings_back.push(self.settings_section);
-                self.settings_section = s;
-            }
+        if back || fwd {
+            self.settings_filter.clear();
+            let a = self.active;
+            self.go_history(a, if back { -1 } else { 1 });
+            return;
         }
 
         // ---------------- content ----------------
         let body = Rect::from_min_max(pos2(content.left(), head.bottom()), content.max);
         let mut b = ui.new_child(UiBuilder::new().max_rect(body).layout(Layout::top_down(Align::Min)));
         let mut acts: Vec<Act> = Vec::new();
+        // The first frame of a search: every category is drawn once, out of
+        // sight and out of reach, to note what each group says (see
+        // `Search`); the results come at the next frame.
+        let searching = !self.settings_filter.trim().is_empty();
+        if searching && !SEARCH.with(|s| s.borrow().indexed) {
+            SEARCH.with(|s| {
+                let mut s = s.borrow_mut();
+                s.index.clear();
+                s.indexing = true;
+            });
+            let away = Rect::from_min_size(pos2(body.left(), body.bottom() + 20_000.0), vec2(640.0, 10.0));
+            let mut hidden = ui.new_child(UiBuilder::new().max_rect(away).layout(Layout::top_down(Align::Min)).id_salt("settings-index"));
+            hidden.set_invisible();
+            hidden.set_width(640.0);
+            // (nothing it holds can be clicked: what it asks for is dropped)
+            self.settings_content(&mut hidden, th, &mut Vec::new());
+            SEARCH.with(|s| {
+                let mut s = s.borrow_mut();
+                s.indexing = false;
+                s.indexed = true;
+            });
+            ui.ctx().request_repaint();
+            return;
+        }
+        // A category does not replace the other at once: it comes in over a
+        // sixth of a second, fading and rising a few points, so the eye
+        // sees that the page changed and where it starts. Not when the
+        // system asks for no animations.
+        let arrival = {
+            let id = egui::Id::new("settings-arrival");
+            let now = b.input(|i| i.time);
+            let shown = self.settings_section as u8;
+            let (was, since) = b.data(|d| d.get_temp::<(u8, f64)>(id)).unwrap_or((u8::MAX, now));
+            let since = if was == shown { since } else { now };
+            b.data_mut(|d| d.insert_temp(id, (shown, since)));
+            let t = if self.web_ok && gtk::Settings::default().is_some_and(|s| !s.is_gtk_enable_animations()) { 1.0 } else { ((now - since) / 0.16).clamp(0.0, 1.0) as f32 };
+            if t < 1.0 {
+                b.ctx().request_repaint();
+            }
+            1.0 - (1.0 - t).powi(3)
+        };
         ScrollArea::vertical().id_salt(("settings-body", self.settings_section as u8)).auto_shrink(false).show(&mut b, |ui| {
+            ui.set_opacity(arrival);
+            ui.add_space((1.0 - arrival) * 10.0);
             let w = ui.available_width();
             let cw = (w - 48.0).min(640.0);
             ui.horizontal(|ui| {
@@ -540,6 +848,11 @@ impl Sanaga {
             acts.push(Act::Go("sanaga://about"));
         }
         self.settings_actions(acts);
+        // a category's name clicked in the search results
+        let wanted = SEARCH.with(|s| s.borrow_mut().go.take());
+        if let Some(sec) = wanted {
+            self.settings_go(sec);
+        }
     }
 
     fn settings_search(&mut self, ui: &mut Ui, th: &Theme) {
@@ -566,14 +879,25 @@ impl Sanaga {
         let web_ok = self.web_ok;
         let sync = self.sync_status.clone();
         let profile = if self.store.profile.is_empty() { tr("Personnel").to_string() } else { self.store.profile.clone() };
-        if self.is_default_browser.is_none() {
-            self.is_default_browser = Some(default_browser_is_sanaga());
+        // (asked of the desktop's tools once, on a thread)
+        if self.is_default_browser.is_none() && self.first_time("default-browser") {
+            self.off_thread(default_browser_is_sanaga, |app, yes| app.is_default_browser = Some(yes));
         }
         let is_default = self.is_default_browser.unwrap_or(false);
         let section = self.settings_section;
-        let query = self.settings_filter.trim().to_lowercase();
+        let query = fold(self.settings_filter.trim());
+        SEARCH.with(|s| {
+            let mut s = s.borrow_mut();
+            s.query = query.clone();
+            s.group_shown = true;
+            // (the index is made again at the next search: extensions,
+            // sites and the language may have changed)
+            if query.is_empty() && !s.indexing {
+                s.indexed = false;
+            }
+        });
         if section == Section::Intelligence && self.store.settings.ai == "claude" && self.ai_key_known.is_none() {
-            self.ai_key_known = Some(crate::keyring::lookup(&self.store.profile, crate::ai::KEY_SITE, "claude").is_some_and(|k| !k.is_empty()));
+            self.check_ai_key();
         }
         if section == Section::Intelligence && self.store.settings.ai == "ollama" && self.ai_models.is_none() {
             self.refresh_ollama_models();
@@ -589,7 +913,14 @@ impl Sanaga {
         let mobile_on = self.tb("mobile");
         let confirm_key = egui::Id::new("settings-confirm-delete");
         let confirm_del: Option<(String, f64)> = ui.ctx().data(|d| d.get_temp(confirm_key));
-        let keyring_ok = crate::keyring::available();
+        let keyring_ok = self.keyring_ok();
+        // what the pages reached from here hold, to find them by it
+        let mut site_words: Vec<String> = permissions.iter().map(|p| p.0.clone()).chain(crate::site_prefs::all().into_iter().map(|s| s.0)).chain(self.store.site_zoom.keys().cloned()).collect();
+        site_words.sort();
+        site_words.dedup();
+        let account_words: Vec<String> = login_list.iter().map(|(site, user)| format!("{} {user}", host_of(site))).collect();
+        let profile_words = Store::profiles();
+        let restorable = self.store.settings.differs_from_origin(self.settings_section.slug());
         let now = ui.input(|i| i.time);
         let confirm_clear = self.settings_confirm.is_some_and(|t| now - t < 4.0);
         let key_input = &mut self.ai_key_input;
@@ -677,6 +1008,7 @@ impl Sanaga {
                     for (k, (name, _l, _d, swatch)) in crate::theme::ACCENTS.iter().enumerate().rev() {
                         let col = if k == 0 { crate::theme::ACCENTS[crate::theme::accent_in_use_of_system()].3 } else { *swatch };
                         let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+                        focus_ring(ui, &resp, r, 11.0, th);
                         let chosen = st.accent as usize == k;
                         if k == 0 {
                             // "System": half of the system colour, half white, as macOS's multicolour
@@ -755,7 +1087,7 @@ impl Sanaga {
                         }
                     });
                 }
-                if rows.link(ui, tr("Rétablir les boutons d'origine"), "", "") {
+                if rows.action(ui, tr("Rétablir les boutons d'origine"), "", tr("Rétablir")) {
                     st.toolbar = crate::store::default_toolbar();
                     changed = true;
                 }
@@ -782,7 +1114,7 @@ impl Sanaga {
                 pick(rows, ui, "ollama", "Ollama", tr("Un modèle sur cet ordinateur : gratuit et privé"));
                 pick(rows, ui, "", tr("Sanaga seul"), tr("Résumé simple, sans IA ; rien ne quitte l'ordinateur"));
             });
-            footnote(ui, th, tr("Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez."));
+            footnote(ui, th, tr("Sanaga résume les pages (bouton Intelligence de la barre d'outils, ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez."));
             match st.ai.as_str() {
                 "ollama" => {
                     group(ui, th, "", |ui, rows| {
@@ -800,7 +1132,7 @@ impl Sanaga {
                                 ui.label(RichText::new(tr("Ollama ne répond pas")).color(th.sub));
                             }
                         });
-                        if rows.link(ui, tr("Chercher les modèles"), "", "") {
+                        if rows.action(ui, tr("Chercher les modèles"), "", tr("Chercher")) {
                             acts.push(Act::FindModels);
                         }
                     });
@@ -858,15 +1190,17 @@ impl Sanaga {
                         changed = true;
                     }
                 }
+                changed |= rows.switch(ui, tr("Proposer de traduire les pages dans une autre langue"), tr("Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord"), &mut st.translate_offer);
                 rows.row(ui, tr("Traduire vers"), "", false, |ui| {
-                    let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&super::translate::target("").2]) } else { super::translate::target(code).2.to_string() };
+                    let ctx = ui.ctx().clone();
+                    let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&super::translate::shown_name(&ctx, super::translate::target("").2)]) } else { super::translate::shown_name(&ctx, super::translate::target(code).2) };
                     egui::ComboBox::from_id_salt("translate-to").selected_text(label(&st.translate_to)).width(220.0).show_ui(ui, |ui| {
                         if ui.selectable_label(st.translate_to.is_empty(), label("")).clicked() && !st.translate_to.is_empty() {
                             st.translate_to.clear();
                             changed = true;
                         }
                         for (code, _, name) in super::translate::LANGUAGES {
-                            if ui.selectable_label(st.translate_to == code, name).clicked() && st.translate_to != code {
+                            if ui.selectable_label(st.translate_to == code, super::translate::shown_name(&ctx, name)).clicked() && st.translate_to != code {
                                 st.translate_to = code.to_string();
                                 changed = true;
                             }
@@ -910,7 +1244,7 @@ impl Sanaga {
             }
             group(ui, th, tr("Identité du navigateur par site"), |ui, rows| {
                 if identities.is_empty() {
-                    rows.row(ui, tr("Aucun choix pour l'instant"), tr("Menu ⋮ › Plus d'outils › Se présenter à ce site comme…"), false, |_| {});
+                    rows.row(ui, tr("Aucun choix pour l'instant"), tr("Menu principal › Plus d'outils › Se présenter à ce site comme…"), false, |_| {});
                 }
                 for (host, i) in &identities {
                     rows.row(ui, host, "", false, |ui| {
@@ -928,10 +1262,11 @@ impl Sanaga {
             });
             footnote(ui, th, tr("Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site."));
             group(ui, th, tr("Données de navigation"), |ui, rows| {
-                if rows.link(ui, tr("Effacer les données"), tr("Historique, cookies, cache…"), "") {
+                let clear_words = [tr("Période"), tr("Historique de navigation et téléchargements"), tr("Cookies et données des sites (vous serez déconnecté de la plupart des sites)"), tr("Images et fichiers en cache"), tr("La dernière heure"), tr("Depuis toujours")];
+                if rows.reaches(&clear_words).link(ui, tr("Effacer les données"), tr("Historique, cookies, cache…"), "") {
                     acts.push(Act::Go("sanaga://clear"));
                 }
-                if rows.link(ui, tr("Paramètres des sites"), tr("Caméra, micro, notifications, zoom… site par site"), "") {
+                if rows.reaches(&site_words.iter().map(String::as_str).collect::<Vec<_>>()).link(ui, tr("Paramètres des sites"), tr("Caméra, micro, notifications, zoom… site par site"), "") {
                     acts.push(Act::Go("sanaga://sites"));
                 }
                 rows.row(ui, tr("Historique de navigation"), "", false, |ui| {
@@ -965,10 +1300,10 @@ impl Sanaga {
             group(ui, th, "", |ui, rows| {
                 changed |= rows.switch(ui, tr("Proposer d'enregistrer et de remplir les mots de passe"), "", &mut st.passwords);
                 let count = if logins == 1 { tr("1 compte").to_string() } else { tf("{} comptes", &[&logins]) };
-                if rows.link(ui, tr("Gérer les mots de passe enregistrés"), "", &count) {
+                if rows.reaches(&account_words.iter().map(String::as_str).collect::<Vec<_>>()).link(ui, tr("Gérer les mots de passe enregistrés"), "", &count) {
                     acts.push(Act::Go("sanaga://passwords"));
                 }
-                if rows.link(ui, tr("Importer depuis un autre navigateur (Chrome, Firefox…)"), "", "") {
+                if rows.reaches(&["Chromium", "Brave", "Edge", "Vivaldi", "Safari", "HTML"]).link(ui, tr("Importer depuis un autre navigateur (Chrome, Firefox…)"), "", "") {
                     acts.push(Act::Go("sanaga://import"));
                 }
             });
@@ -990,7 +1325,7 @@ impl Sanaga {
                             if small_icon_button(ui, th, Icon::Close, tr("Supprimer")) {
                                 acts.push(Act::DeletePassword(i));
                             }
-                            if small_icon_button(ui, th, Icon::Mail, tr("Copier le mot de passe")) {
+                            if small_icon_button(ui, th, Icon::Copy, tr("Copier le mot de passe")) {
                                 acts.push(Act::CopyPassword(i));
                             }
                         });
@@ -1008,7 +1343,7 @@ impl Sanaga {
                     });
                 }
             });
-            footnote(ui, th, tr("Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F."));
+            footnote(ui, th, tr("Pour remplir les formulaires : menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F."));
         }
 
         // ---------------- Performance ----------------
@@ -1029,7 +1364,7 @@ impl Sanaga {
                 });
                 changed |= rows.switch(ui, tr("Charger les images"), "", &mut st.images);
             });
-            footnote(ui, th, tr("Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais."));
+            footnote(ui, th, tr("Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais."));
             group(ui, th, tr("Moteur d'affichage des pages"), |ui, rows| {
                 if rows.choice(ui, "WebKit", tr("Sites complets avec JavaScript, vidéos et applications (recommandé)"), st.webkit) && !st.webkit {
                     st.webkit = true;
@@ -1057,13 +1392,13 @@ impl Sanaga {
                 rows.row(ui, tr("Dossier partagé"), "", false, |ui| {
                     changed |= field(ui, &mut st.sync_dir, "/home/vous/Nextcloud", 260.0, false);
                 });
-                if rows.link(ui, tr("Synchroniser maintenant"), &state, "") {
+                if rows.action(ui, tr("Synchroniser maintenant"), &state, tr("Synchroniser")) {
                     acts.push(Act::SyncNow);
                 }
                 // the secret phrase: what goes into the folder is sealed on this computer first
                 match crate::sync::has_secret(&profile_key) {
                     Some(true) => {
-                        if rows.link(ui, tr("Chiffrement activé"), tr("Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur."), "") {
+                        if rows.action(ui, tr("Chiffrement activé"), tr("Le dossier ne contient que des fichiers scellés."), tr("Retirer la phrase")) {
                             acts.push(Act::SyncSecret(false));
                         }
                     }
@@ -1080,7 +1415,7 @@ impl Sanaga {
             });
             footnote(ui, th, tr("Choisissez un dossier partagé entre vos ordinateurs (Syncthing, Nextcloud, Dropbox, clé USB…). Sanaga y garde vos favoris, votre liste de lecture et vos onglets ouverts, et montre sur la page d'accueil les onglets de vos autres appareils."));
             group(ui, th, tr("Profils"), |ui, rows| {
-                if rows.link(ui, tr("Gérer les profils"), "", &profile) {
+                if rows.reaches(&profile_words.iter().map(String::as_str).collect::<Vec<_>>()).link(ui, tr("Gérer les profils"), "", &profile) {
                     acts.push(Act::Go("sanaga://profiles"));
                 }
                 rows.row(ui, tr("Emoji du profil"), tr("Sur son badge et l'icône de son lanceur"), false, |ui| {
@@ -1088,7 +1423,7 @@ impl Sanaga {
                         changed = true;
                     }
                 });
-                if rows.link(ui, tr("Ajouter ce profil à mes applications"), tr("Un lanceur à lui, avec son icône : vraiment séparé des autres"), "") {
+                if rows.action(ui, tr("Ajouter ce profil à mes applications"), tr("Un lanceur à lui, avec son icône : vraiment séparé des autres"), tr("Ajouter")) {
                     acts.push(Act::ProfileLauncher);
                 }
             });
@@ -1132,10 +1467,10 @@ impl Sanaga {
                 if rows.link(ui, tr("Créer une extension"), tr("Décrivez ce que vous voulez : Sanaga l'écrit pour vous"), "") {
                     acts.push(Act::Go("sanaga://create-extension"));
                 }
-                if rows.link(ui, tr("Installer une extension…"), tr("Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)"), "") {
+                if rows.action(ui, tr("Installer une extension…"), tr("Chrome (.crx, .zip, manifest.json), Firefox (.xpi), scripts utilisateur (.user.js)"), tr("Choisir un fichier…")) {
                     acts.push(Act::InstallExt);
                 }
-                if rows.link(ui, tr("Ouvrir le dossier des extensions"), tr("Vos fichiers .js et .css"), "") {
+                if rows.action(ui, tr("Ouvrir le dossier des extensions"), tr("Vos fichiers .js et .css"), tr("Ouvrir")) {
                     acts.push(Act::OpenExtFolder);
                 }
             });
@@ -1149,7 +1484,7 @@ impl Sanaga {
             ui.add_space(4.0);
             ui.label(RichText::new(tr("Vidéo et musique")).size(13.0).family(bold()).color(th.text));
             ui.add_space(6.0);
-            Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(12)).show(ui, |ui| {
+            Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::symmetric(14, 12)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 changed_more |= self.media_settings(ui, th);
             });
@@ -1201,6 +1536,7 @@ impl Sanaga {
                     ui.horizontal_wrapped(|ui| {
                         for (k, (name, top, bottom, _)) in crate::icons::ICON_STYLES.iter().enumerate() {
                             let (r, resp) = ui.allocate_exact_size(vec2(84.0, 84.0), Sense::click());
+                            focus_ring(ui, &resp, r, 10.0, th);
                             let tile = Rect::from_center_size(pos2(r.center().x, r.top() + 30.0), vec2(48.0, 48.0));
                             let mut mesh = egui::Mesh::default();
                             let (t, b) = (Color32::from_rgb(top[0], top[1], top[2]), Color32::from_rgb(bottom[0], bottom[1], bottom[2]));
@@ -1279,7 +1615,7 @@ impl Sanaga {
             let sites = crate::site_prefs::all();
             group(ui, th, tr("Réglages par site"), |ui, rows| {
                 if sites.is_empty() {
-                    rows.row(ui, tr("Aucun réglage pour l'instant"), tr("Menu ⋮ › Plus d'outils › Réglages de ce site…"), false, |_| {});
+                    rows.row(ui, tr("Aucun réglage pour l'instant"), tr("Menu principal › Plus d'outils › Réglages de ce site…"), false, |_| {});
                 }
                 for (host, p) in &sites {
                     let sub = super::sitepanel::summary(p);
@@ -1296,6 +1632,25 @@ impl Sanaga {
             changed = true;
         }
 
+        // back to how Sanaga comes, one category at a time (asked twice)
+        if query.is_empty() && restorable {
+            let confirm_id = egui::Id::new(("settings-restore", section.slug()));
+            let asked: Option<f64> = ui.ctx().data(|d| d.get_temp(confirm_id));
+            let sure = asked.is_some_and(|t| now - t < 5.0);
+            ui.add_space(8.0);
+            group(ui, th, "", |ui, rows| {
+                let sub = if sure { tr("Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.") } else { tr("Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.") };
+                if rows.action(ui, &tf("Rétablir les réglages d'origine : {}", &[&section.label()]), sub, if sure { tr("Confirmer") } else { tr("Rétablir") }) {
+                    if sure {
+                        ui.ctx().data_mut(|d| d.remove::<f64>(confirm_id));
+                        acts.push(Act::Restore(section));
+                    } else {
+                        ui.ctx().data_mut(|d| d.insert_temp(confirm_id, now));
+                        ui.ctx().request_repaint_after(std::time::Duration::from_secs(5));
+                    }
+                }
+            });
+        }
         if !any {
             ui.add_space(30.0);
             ui.vertical_centered(|ui| {
@@ -1330,30 +1685,50 @@ impl Sanaga {
                     self.notice = Some((tr("Historique effacé.").into(), self.ctx.input(|i| i.time)));
                 }
                 Act::SyncNow => self.sync_now(),
+                Act::Restore(sec) => {
+                    if self.store.settings.restore(sec.slug()) {
+                        // (applied like any change made by hand)
+                        crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
+                        crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
+                        crate::page::prepare_lists();
+                        self.applied_dark = None;
+                        self.store.save_settings();
+                        self.say(&tf("Réglages d'origine rétablis : {}.", &[&sec.label()]));
+                    }
+                }
                 Act::SyncSecret(set) => {
                     let phrase = self.sync_phrase_input.trim().to_string();
-                    let ok = crate::sync::set_secret(&self.store.profile, set.then_some(phrase.as_str()));
                     self.sync_phrase_input.clear();
-                    let msg = match (ok, set) {
-                        (false, _) => tr("Le trousseau du système n'est pas disponible."),
-                        (true, true) => tr("Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré."),
-                        (true, false) => tr("Phrase retirée de cet ordinateur."),
-                    };
-                    self.notice = Some((msg.into(), self.ctx.input(|i| i.time)));
-                    if ok {
-                        self.sync_now();
-                    }
+                    let profile = self.store.profile.clone();
+                    self.off_thread(
+                        move || crate::sync::set_secret(&profile, set.then_some(phrase.as_str())),
+                        move |app, ok| {
+                            app.say(match (ok, set) {
+                                (false, _) => tr("Le trousseau du système n'est pas disponible."),
+                                (true, true) => tr("Phrase enregistrée dans le trousseau. Le dossier est maintenant chiffré."),
+                                (true, false) => tr("Phrase retirée de cet ordinateur."),
+                            });
+                            if ok {
+                                app.sync_now();
+                            }
+                        },
+                    );
                 }
                 Act::SaveKey => {
                     let key = self.ai_key_input.trim().to_string();
-                    let ok = crate::keyring::store(&self.store.profile, crate::ai::KEY_SITE, "claude", &key);
                     self.ai_key_input.clear();
-                    self.ai_key_known = Some(ok);
-                    let msg = if ok { tr("Clé enregistrée dans le trousseau du système.") } else { tr("Le trousseau du système n'est pas disponible.") };
-                    self.notice = Some((msg.into(), self.ctx.input(|i| i.time)));
+                    let profile = self.store.profile.clone();
+                    self.off_thread(
+                        move || crate::keyring::store(&profile, crate::ai::KEY_SITE, "claude", &key),
+                        |app, ok| {
+                            app.ai_key_known = Some(ok);
+                            app.say(if ok { tr("Clé enregistrée dans le trousseau du système.") } else { tr("Le trousseau du système n'est pas disponible.") });
+                        },
+                    );
                 }
                 Act::ForgetKey => {
-                    crate::keyring::delete(&self.store.profile, crate::ai::KEY_SITE, "claude");
+                    let profile = self.store.profile.clone();
+                    self.off_thread(move || crate::keyring::delete(&profile, crate::ai::KEY_SITE, "claude"), |_, ()| {});
                     self.ai_key_known = Some(false);
                 }
                 Act::FindModels => self.refresh_ollama_models(),
@@ -1375,16 +1750,14 @@ impl Sanaga {
                 }
                 Act::CopyPassword(i) => {
                     if let Some((s, u)) = self.store.logins.get(i).cloned() {
-                        if let Some(p) = crate::keyring::lookup(&self.store.profile, &s, &u) {
-                            self.ctx.copy_text(p);
-                            self.notice = Some((tr("Mot de passe copié.").into(), self.ctx.input(|i| i.time)));
-                        }
+                        self.copy_password(s, u);
                     }
                 }
                 Act::DeletePassword(i) => {
                     if i < self.store.logins.len() {
                         let (s, u) = self.store.logins.remove(i);
-                        crate::keyring::delete(&self.store.profile, &s, &u);
+                        let profile = self.store.profile.clone();
+                        self.off_thread(move || crate::keyring::delete(&profile, &s, &u), |_, ()| {});
                         self.store.save_logins();
                     }
                 }
@@ -1430,21 +1803,59 @@ impl Sanaga {
             self.notice = Some((tr("Installez d'abord Sanaga (packaging/install.sh) pour qu'il apparaisse dans vos applications.").into(), now));
             return;
         }
-        // 1. the general list (~/.config/mimeapps.list): what every desktop
-        //    reads, and where Omarchy's routing entry looks for the browser
-        let general = |program: &str, args: &[&str]| {
-            std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
-        };
-        general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
-        // web links and HTML files
-        general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);
-        // 2. the desktop's own setting (GNOME, KDE…), unless it routes links
-        //    to the general choice by itself (Omarchy)
-        if !ROUTERS.contains(&xdg_default_browser(false).as_str()) {
-            let _ = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status();
+        let _ = now;
+        // (the desktop's tools are slow, and are waited for: on a thread)
+        self.off_thread(
+            || {
+                // 1. the general list (~/.config/mimeapps.list): what every desktop
+                //    reads, and where Omarchy's routing entry looks for the browser
+                let general = |program: &str, args: &[&str]| {
+                    std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
+                };
+                general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
+                // web links and HTML files
+                general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);
+                // 2. the desktop's own setting (GNOME, KDE…), unless it routes links
+                //    to the general choice by itself (Omarchy)
+                if !ROUTERS.contains(&xdg_default_browser(false).as_str()) {
+                    let _ = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "sanaga.desktop"]).status();
+                }
+                default_browser_is_sanaga()
+            },
+            |app, ok| {
+                app.is_default_browser = Some(ok);
+                app.say(if ok { tr("Sanaga est maintenant votre navigateur par défaut.") } else { tr("Impossible de changer le navigateur par défaut.") });
+            },
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn searching_ignores_accents_and_capitals() {
+        assert_eq!(fold("Général"), "general");
+        assert_eq!(fold("Économiseur de MÉMOIRE"), "economiseur de memoire");
+        assert_eq!(fold("Straße · Œuvre · Ñandú"), "strasse · oeuvre · nandu");
+        // an accent typed apart from its letter
+        assert_eq!(fold("e\u{301}te\u{301}"), "ete");
+        assert!(fold("Confidentialité et sécurité").contains(&fold("SECUR")));
+    }
+
+    #[test]
+    fn every_category_has_its_address() {
+        for sec in Section::ALL {
+            assert_eq!(Section::of_address(&sec.address()), Some(sec));
+            assert_eq!(Section::of_address(&format!("{}/", sec.address())), Some(sec));
         }
-        let ok = default_browser_is_sanaga();
-        self.is_default_browser = Some(ok);
-        self.notice = Some((if ok { tr("Sanaga est maintenant votre navigateur par défaut.") } else { tr("Impossible de changer le navigateur par défaut.") }.into(), now));
+        assert_eq!(Section::of_address("sanaga://settings"), None);
+        assert_eq!(Section::of_address("sanaga://settings/nowhere"), None);
+        assert_eq!(Section::of_address("https://example.com/sanaga://settings/privacy"), None);
+        // each address is one of Sanaga's own pages
+        for sec in Section::ALL {
+            assert!(matches!(crate::app::internal_from_url(&sec.address()), Some(crate::app::Internal::Settings)));
+        }
     }
 }

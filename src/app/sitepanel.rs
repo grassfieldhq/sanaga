@@ -45,6 +45,8 @@ impl Sanaga {
         let mut p = before.clone();
         let mut identity = crate::identity::for_host(&host);
         let identity_before = identity;
+        // (nothing to reset on a site left as it came)
+        let changed = before != SitePrefs::default() || identity != Identity::Auto;
         let mut close = false;
         let mut reset = false;
         let mut zap = false;
@@ -66,71 +68,107 @@ impl Sanaga {
                 .show(ui, |ui| {
                     ui.set_width(368.0);
                     ui.horizontal(|ui| {
-                        super::chrome::site_badge(ui.painter(), ui.cursor().min + vec2(10.0, 11.0), 9.0, &url, &host);
-                        ui.add_space(26.0);
-                        ui.label(RichText::new(&host).size(15.0).family(bold()).color(th.text));
+                        let (badge, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
+                        super::chrome::site_badge(ui.painter(), badge.center(), 9.0, &url, &host);
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = 1.0;
+                            ui.add(egui::Label::new(RichText::new(&host).size(15.0).family(bold()).color(th.text)).truncate());
+                            ui.label(RichText::new(tr("Réglages de ce site")).size(12.0).color(th.sub));
+                        });
                     });
-                    ui.label(RichText::new(tr("Réglages de ce site")).size(12.0).color(th.sub));
                     ui.add_space(10.0);
-                    let row = |ui: &mut Ui, label: &str, sub: &str, on: &mut bool| {
+                    // The same language as the Settings: cards of rows, the
+                    // words on the left (as many lines as they need), the
+                    // control against the right edge, a hairline between rows.
+                    let card = |ui: &mut Ui, rows: &mut dyn FnMut(&mut Ui)| {
+                        Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 4)).show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.spacing_mut().item_spacing.y = 0.0;
+                            rows(ui);
+                        });
+                        ui.add_space(8.0);
+                    };
+                    let line = |ui: &mut Ui, first: bool, label: &str, sub: &str, room: f32, control: &mut dyn FnMut(&mut Ui)| {
+                        if !first {
+                            let y = ui.cursor().top();
+                            ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(0.6, th.border));
+                        }
+                        ui.add_space(7.0);
                         ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.set_width(290.0);
-                                ui.label(RichText::new(label).size(13.5).color(th.text));
-                                if !sub.is_empty() {
-                                    ui.label(RichText::new(sub).size(11.0).color(th.sub));
-                                }
-                            });
+                            ui.set_min_height(24.0);
+                            let w = (ui.available_width() - room).max(80.0);
+                            let name = egui::Label::new(RichText::new(label).size(13.5).color(th.text)).wrap();
+                            if sub.is_empty() {
+                                // (alone on its line: level with its control, not above it)
+                                ui.allocate_ui_with_layout(vec2(w, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    ui.set_width(w);
+                                    ui.add(name);
+                                });
+                            } else {
+                                ui.vertical(|ui| {
+                                    ui.set_width(w);
+                                    ui.spacing_mut().item_spacing.y = 1.0;
+                                    ui.add(name);
+                                    ui.add(egui::Label::new(RichText::new(sub).size(11.0).color(th.sub)).wrap());
+                                });
+                            }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), control);
+                        });
+                        ui.add_space(7.0);
+                    };
+                    let switch = |ui: &mut Ui, first: bool, label: &str, sub: &str, on: &mut bool| {
+                        line(ui, first, label, sub, 50.0, &mut |ui| {
                             super::settings::switch(ui, th, on);
                         });
-                        ui.add_space(4.0);
                     };
-                    row(ui, tr("JavaScript"), tr("Désactivé : pages plus légères, mais certains sites ne marchent plus"), &mut p.js);
-                    row(ui, tr("Bloqueur de publicités et de traceurs"), "", &mut p.blocker);
-                    row(ui, tr("Polices du site"), tr("Désactivé : les polices de votre système, plus légères"), &mut p.fonts);
-                    ui.separator();
-                    row(ui, tr("Mode sombre"), "", &mut p.dark);
-                    row(ui, tr("Sans bandeaux collants"), tr("Les en-têtes et barres fixés à l'écran défilent avec la page"), &mut p.no_sticky);
-                    row(ui, tr("Copier-coller débloqué"), tr("Sélection, copie et clic droit même si le site les interdit"), &mut p.unlock);
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(tr("Police des pages")).size(13.5).color(th.text));
-                        ui.add_space(8.0);
-                        let label = |f: &str| if f.is_empty() { tr("Celle du site").to_string() } else { f.to_string() };
-                        egui::ComboBox::from_id_salt("site-font").selected_text(label(&p.font)).width(170.0).show_ui(ui, |ui| {
-                            for f in FONTS {
-                                if ui.selectable_label(p.font == f, label(f)).clicked() {
-                                    p.font = f.to_string();
+                    // (a small window: the panel scrolls rather than leaving the screen)
+                    egui::ScrollArea::vertical().max_height((screen.height() - 190.0).max(160.0)).show(ui, |ui| {
+                        card(ui, &mut |ui| {
+                            switch(ui, true, tr("JavaScript"), tr("Désactivé : pages plus légères, mais certains sites ne marchent plus"), &mut p.js);
+                            switch(ui, false, tr("Bloqueur de publicités et de traceurs"), "", &mut p.blocker);
+                            switch(ui, false, tr("Polices du site"), tr("Désactivé : les polices de votre système, plus légères"), &mut p.fonts);
+                        });
+                        card(ui, &mut |ui| {
+                            switch(ui, true, tr("Mode sombre"), "", &mut p.dark);
+                            switch(ui, false, tr("Sans bandeaux collants"), tr("Les en-têtes et barres fixés à l'écran défilent avec la page"), &mut p.no_sticky);
+                            switch(ui, false, tr("Copier-coller débloqué"), tr("Sélection, copie et clic droit même si le site les interdit"), &mut p.unlock);
+                            line(ui, false, tr("Police des pages"), "", 170.0, &mut |ui| {
+                                let label = |f: &str| if f.is_empty() { tr("Celle du site").to_string() } else { f.to_string() };
+                                egui::ComboBox::from_id_salt("site-font").selected_text(label(&p.font)).width(150.0).show_ui(ui, |ui| {
+                                    for f in FONTS {
+                                        if ui.selectable_label(p.font == f, label(f)).clicked() {
+                                            p.font = f.to_string();
+                                        }
+                                    }
+                                });
+                            });
+                            line(ui, false, tr("Se présenter comme"), "", 170.0, &mut |ui| {
+                                egui::ComboBox::from_id_salt("site-identity").selected_text(identity.label()).width(150.0).show_ui(ui, |ui| {
+                                    for i in Identity::ALL {
+                                        if ui.selectable_label(identity == i, i.label()).clicked() {
+                                            identity = i;
+                                        }
+                                    }
+                                });
+                            });
+                        });
+                        card(ui, &mut |ui| {
+                            let n = p.hidden.len();
+                            let text = if n == 0 { tr("Aucun élément retiré").to_string() } else { tf("{} élément(s) retiré(s)", &[&n]) };
+                            line(ui, true, &text, "", if n > 0 { 250.0 } else { 150.0 }, &mut |ui| {
+                                if ui.button(tr("Retirer un élément…")).clicked() {
+                                    zap = true;
                                 }
-                            }
+                                if n > 0 && ui.button(tr("Tout remettre")).clicked() {
+                                    p.hidden.clear();
+                                }
+                            });
                         });
                     });
-                    ui.add_space(6.0);
+                    ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(tr("Se présenter comme")).size(13.5).color(th.text));
-                        ui.add_space(8.0);
-                        egui::ComboBox::from_id_salt("site-identity").selected_text(identity.label()).width(150.0).show_ui(ui, |ui| {
-                            for i in Identity::ALL {
-                                if ui.selectable_label(identity == i, i.label()).clicked() {
-                                    identity = i;
-                                }
-                            }
-                        });
-                    });
-                    ui.add_space(6.0);
-                    ui.horizontal(|ui| {
-                        let n = p.hidden.len();
-                        let text = if n == 0 { tr("Aucun élément retiré").to_string() } else { tf("{} élément(s) retiré(s)", &[&n]) };
-                        ui.label(RichText::new(text).size(12.5).color(th.sub));
-                        if n > 0 && ui.small_button(tr("Tout remettre")).clicked() {
-                            p.hidden.clear();
-                        }
-                        if ui.small_button(tr("Retirer un élément…")).clicked() {
-                            zap = true;
-                        }
-                    });
-                    ui.add_space(12.0);
-                    ui.horizontal(|ui| {
-                        if ui.button(tr("Réinitialiser")).clicked() {
+                        // (it undoes every choice made for this site: asked twice)
+                        if changed && super::chrome::confirm_button(ui, ("site-reset", &host), tr("Réinitialiser")) {
                             reset = true;
                         }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

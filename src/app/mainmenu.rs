@@ -2,6 +2,7 @@
 //! new window, private tab), the zoom, the everyday actions with their symbols
 //! and shortcuts, and the rest under "More tools", which opens in place.
 
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, Margin, Sense};
@@ -103,7 +104,7 @@ impl Sanaga {
                         item(ui, Icon::Search, tr("Rechercher dans la page"), tr("Ctrl+F"), "find");
                         item(ui, Icon::Reader, if reading { tr("Quitter le Lecteur") } else { tr("Lecteur") }, tr("Ctrl+Maj+R"), "reader");
                         item(ui, Icon::Sparkle, tr("Résumer la page"), tr("Ctrl+Maj+Y"), "summary");
-                        item(ui, Icon::Mail, tr("Traduire la page"), "", "translate");
+                        item(ui, Icon::Translate, tr("Traduire la page"), "", "translate");
                         item(ui, Icon::Print, tr("Imprimer…"), tr("Ctrl+P"), "print");
                         sep(ui, th, iw);
                         // more tools, opening in place
@@ -232,7 +233,7 @@ impl Sanaga {
                 self.store.save_settings();
             }
             "settings" => {
-                self.open_tab("sanaga://settings", false);
+                self.open_settings("sanaga://settings");
             }
             "about" => {
                 self.open_tab("sanaga://about", false);
@@ -257,7 +258,10 @@ fn menu_row(ui: &mut Ui, th: &Theme, w: f32, icon: Icon, label: &str, key: &str)
     }
     let (tc, kc) = if hovered { (Color32::WHITE, Color32::from_white_alpha(210)) } else { (th.text, th.sub) };
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(14.0, 14.0)), icon, if hovered { Color32::WHITE } else { th.text.gamma_multiply(0.8) });
-    ui.painter().text(pos2(r.left() + 34.0, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.5), tc);
-    ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, key, FontId::proportional(12.0), kc);
+    // (the keys first: the label gets the room they leave, and ends with "…" past it)
+    let keys = ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, key, FontId::proportional(12.0), kc);
+    let room = Rect::from_min_max(r.min, pos2(if key.is_empty() { r.right() - 8.0 } else { keys.left() - 10.0 }, r.max.y));
+    ui.painter().with_clip_rect(room).fit(pos2(r.left() + 34.0, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.5), tc);
+    super::chrome::focus_ring(ui, &resp, r, 7.0, th);
     resp.clicked()
 }

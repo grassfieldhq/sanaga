@@ -248,6 +248,14 @@ impl Sanaga {
             "zap" => self.start_zapper(),
             "zap-done" => self.zapped(tab, arg),
             "edit-text" => self.toggle_edit_text(),
+            "link-copied" => self.say(tr("Lien copié")),
+            // (the words selected in the page, read by Sanaga itself)
+            "search-selection" => {
+                let url = self.store.settings.engine.search_url(arg);
+                let private = self.tabs.iter().find(|t| t.id == tab).is_some_and(|t| t.private);
+                self.open_tab(&url, private);
+                self.focus_address = false;
+            }
             "site-settings" => self.site_panel = true,
             "media-unsupported" => self.codec_flag = Some(tab),
             // this system's engine can't make video calls: call sites open
@@ -556,16 +564,22 @@ impl Sanaga {
             self.notice = Some((tr("Icône changée dans Sanaga. Installez Sanaga (packaging/install.sh) pour la voir aussi dans vos applications.").into(), now));
             return;
         }
-        let _ = std::fs::write(&svg, crate::icons::logo_svg(style as usize, ""));
-        for s in [48u32, 64, 128, 256, 512] {
-            let png = dir.join(format!("{s}x{s}/apps/sanaga.png"));
-            if png.exists() {
-                let icon = crate::icons::window_icon(s);
-                let _ = image::save_buffer(&png, &icon.rgba, icon.width, icon.height, image::ColorType::Rgba8);
-            }
-        }
-        let _ = std::process::Command::new("gtk-update-icon-cache").args(["-q", "-t"]).arg(&dir).status();
-        self.notice = Some((tr("Icône changée. Le dock et le menu des applications la montrent au prochain démarrage.").into(), now));
+        let _ = now;
+        // (drawing five pictures and the system's icon cache take a moment)
+        self.off_thread(
+            move || {
+                let _ = std::fs::write(&svg, crate::icons::logo_svg(style as usize, ""));
+                for s in [48u32, 64, 128, 256, 512] {
+                    let png = dir.join(format!("{s}x{s}/apps/sanaga.png"));
+                    if png.exists() {
+                        let icon = crate::icons::window_icon(s);
+                        let _ = image::save_buffer(&png, &icon.rgba, icon.width, icon.height, image::ColorType::Rgba8);
+                    }
+                }
+                let _ = std::process::Command::new("gtk-update-icon-cache").args(["-q", "-t"]).arg(&dir).status();
+            },
+            |app, ()| app.say(tr("Icône changée. Le dock et le menu des applications la montrent au prochain démarrage.")),
+        );
     }
 
     /// This profile in the applications menu: its own launcher, with its

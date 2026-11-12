@@ -42,6 +42,7 @@ both.
 | File | Installed as |
 |---|---|
 | `target/release/sanaga` | `/usr/bin/sanaga` |
+| `target/release/libsanaga_page_helper.so` | `/usr/lib/sanaga/libsanaga_page_helper.so` (Sanaga looks in `../lib/sanaga` and `../lib64/sanaga` from its program; loaded by WebKit's page processes, it tells Sanaga which process serves which tab — without it the Activity page lists processes without tab names) |
 | `packaging/sanaga.desktop` | `/usr/share/applications/sanaga.desktop` |
 | `packaging/sanaga.svg` | `/usr/share/icons/hicolor/scalable/apps/sanaga.svg` |
 | `sanaga --export-icon FILE SIZE` (48, 64, 128, 256, 512) | `/usr/share/icons/hicolor/<size>x<size>/apps/sanaga.png` |

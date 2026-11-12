@@ -144,6 +144,16 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 
 **For web developers**
 - Web inspector (Ctrl+Shift+I or F12), docked or in its own window.
+- Test software can drive Sanaga through WebDriver (Selenium…):
+  `sanaga --automation`, in a window that keeps nothing — see
+  [docs/AUTOMATION.md](docs/AUTOMATION.md).
+
+**When something goes wrong**
+- Activity (`sanaga://activity`): memory and processor of every process and
+  of every tab; a tab that weighs too much can be put to sleep.
+- After a crash, the tabs come back and a bar says so. A short report stays
+  on your computer (`sanaga://crashes`): you read it, and send it or not —
+  nothing is ever sent by itself, and it holds no page address.
 
 **Mobile simulator** (Ctrl+Shift+M, or the phone button)
 - 120 devices: iPhone, Pixel, Galaxy, Tecno, Infinix, itel, Xiaomi, OnePlus…,
@@ -227,6 +237,7 @@ sanaga --preview https://…    # preview a link in a small window
 sanaga --reader https://…     # open in Reader mode
 sanaga --apercu               # start on the tab overview
 sanaga --screenshot out.png   # draw the window once, save a picture, quit
+sanaga --automation           # let test software drive it (WebDriver); keeps nothing
 ```
 
 ### Keyboard shortcuts
@@ -267,8 +278,8 @@ Everything stays on your computer, in `~/.local/share/sanaga/`
 (or `$XDG_DATA_HOME/sanaga/`): settings, history, bookmarks, session, site
 data (`webkit/`, and `webkit/containers/<name>/` for each container), website
 settings (`sites.tsv`), your toolbar buttons (`buttons.tsv`), extensions
-(`extensions/`), device frames (`cadres/`), and one sub-folder per extra
-profile (`profils/<name>/`). Passwords are not stored
+(`extensions/`), device frames (`cadres/`), crash reports (`crashes/`), and
+one sub-folder per extra profile (`profils/<name>/`). Passwords are not stored
 there: they go to the system keyring.
 
 ## How it is built
@@ -283,6 +294,9 @@ there: they go to the system keyring.
 | Light engine (HTML to blocks, Reader) | `src/html.rs`, `src/net.rs` |
 | Saved data, profiles, sync, keyring, imports | `src/store.rs`, `src/sync.rs`, `src/keyring.rs`, `src/migrate.rs`, `src/import.rs` |
 | Device frames and drawn mobile browsers (cairo) | `src/frames.rs`, `src/app/devices.rs`, `src/app/scene.rs` |
+| Crash reports, the bar after a crash | `src/crash.rs`, `src/app/crashes.rs` |
+| Which process serves which tab (loaded by the page processes) | `page-helper/` |
+| Fuzzing of the file and page readers | `src/mutate.rs`, `fuzz/`, [docs/FUZZING.md](docs/FUZZING.md) |
 | Translations | `src/i18n.rs`, `assets/i18n/` |
 
 `eframe` is only used for `--screenshot` (a picture of the interface without
@@ -331,6 +345,18 @@ engine bridge and a few system services.
 
 A strict, feature-by-feature check of Sanaga, with what was fixed:
 [docs/REVIEW.md](docs/REVIEW.md).
+
+## Stability
+
+Can a site crash Sanaga, can a feature make it lag? What was looked for,
+measured and fixed, and what stays out of reach:
+[docs/STABILITY-AUDIT-2026-11-11.md](docs/STABILITY-AUDIT-2026-11-11.md).
+
+## Interface
+
+Settings, their search and navigation, the ✦ features: what was found and
+fixed, and what still separates them from the very best:
+[docs/UX-AUDIT-2026-11-11.md](docs/UX-AUDIT-2026-11-11.md).
 
 ## Audit
 

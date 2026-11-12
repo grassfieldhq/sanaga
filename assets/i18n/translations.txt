@@ -52,7 +52,7 @@ Code QR de la page⟂QR code for this page⟂Código QR de la página⟂Código 
 Scannez-le avec votre téléphone⟂Scan it with your phone⟂Escanéalo con tu teléfono⟂Leia-o com o seu telemóvel⟂Mit dem Handy scannen
 « {} » a été ajoutée au menu des applications.⟂“{}” was added to the applications menu.⟂«{}» se añadió al menú de aplicaciones.⟂«{}» foi adicionada ao menu de aplicações.⟂„{}“ wurde dem Anwendungsmenü hinzugefügt.
 Masquer la barre des favoris (Ctrl+Maj+B)⟂Hide favourites bar (Ctrl+Shift+B)⟂Ocultar barra de favoritos (Ctrl+Mayús+B)⟂Ocultar barra de favoritos (Ctrl+Shift+B)⟂Favoritenleiste ausblenden (Strg+Umschalt+B)
-Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu ⋮ ou Ctrl+Maj+B⟂Hide favourites bar (Ctrl+Shift+B)\nTo show it again: menu ⋮ or Ctrl+Shift+B⟂Ocultar barra de favoritos (Ctrl+Mayús+B)\nPara volver a mostrarla: menú ⋮ o Ctrl+Mayús+B⟂Ocultar barra de favoritos (Ctrl+Shift+B)\nPara voltar a mostrar: menu ⋮ ou Ctrl+Shift+B⟂Favoritenleiste ausblenden (Strg+Umschalt+B)\nWieder anzeigen: Menü ⋮ oder Strg+Umschalt+B
+Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu principal ou Ctrl+Maj+B⟂Hide favourites bar (Ctrl+Shift+B)\nTo show it again: main menu or Ctrl+Shift+B⟂Ocultar barra de favoritos (Ctrl+Mayús+B)\nPara volver a mostrarla: menú principal o Ctrl+Mayús+B⟂Ocultar barra de favoritos (Ctrl+Shift+B)\nPara voltar a mostrar: menu principal ou Ctrl+Shift+B⟂Favoritenleiste ausblenden (Strg+Umschalt+B)\nWieder anzeigen: Hauptmenü oder Strg+Umschalt+B
 Ajoutez des favoris avec l'étoile de la barre d'adresse.⟂Add favourites with the star in the address bar.⟂Añade favoritos con la estrella de la barra de direcciones.⟂Adicione favoritos com a estrela da barra de endereço.⟂Fügen Sie Favoriten mit dem Stern in der Adressleiste hinzu.
 Ouvrir dans un nouvel onglet⟂Open in new tab⟂Abrir en una pestaña nueva⟂Abrir num novo separador⟂In neuem Tab öffnen
 Masquer la barre des favoris⟂Hide favourites bar⟂Ocultar barra de favoritos⟂Ocultar barra de favoritos⟂Favoritenleiste ausblenden
@@ -153,7 +153,7 @@ Maximal — veille après 5 minutes, 3 pages actives au plus⟂Maximum — sleep
 Mots de passe et remplissage automatique⟂Passwords and AutoFill⟂Contraseñas y autorrelleno⟂Palavras-passe e preenchimento automático⟂Passwörter und automatisches Ausfüllen
 Proposer d'enregistrer et de remplir les mots de passe⟂Offer to save and fill in passwords⟂Ofrecer guardar y rellenar contraseñas⟂Propor guardar e preencher palavras-passe⟂Anbieten, Passwörter zu speichern und auszufüllen
 Gérer les mots de passe enregistrés⟂Manage saved passwords⟂Gestionar contraseñas guardadas⟂Gerir palavras-passe guardadas⟂Gespeicherte Passwörter verwalten
-Vos coordonnées, pour remplir les formulaires (menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :⟂Your details, to fill in forms (menu ⋮ › Fill in my details, or Ctrl+Shift+F):⟂Tus datos, para rellenar formularios (menú ⋮ › Rellenar con mis datos, o Ctrl+Mayús+F):⟂Os seus dados, para preencher formulários (menu ⋮ › Preencher com os meus dados, ou Ctrl+Shift+F):⟂Ihre Daten zum Ausfüllen von Formularen (Menü ⋮ › Mit meinen Daten ausfüllen oder Strg+Umschalt+F):
+Vos coordonnées, pour remplir les formulaires (menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F) :⟂Your details, to fill in forms (main menu › Fill in my details, or Ctrl+Shift+F):⟂Tus datos, para rellenar formularios (menú principal › Rellenar con mis datos, o Ctrl+Mayús+F):⟂Os seus dados, para preencher formulários (menu principal › Preencher com os meus dados, ou Ctrl+Shift+F):⟂Ihre Daten zum Ausfüllen von Formularen (Hauptmenü › Mit meinen Daten ausfüllen oder Strg+Umschalt+F):
 Téléphone⟂Phone⟂Teléfono⟂Telefone⟂Telefon
 Adresse⟂Address⟂Dirección⟂Morada⟂Adresse
 Synchronisation⟂Sync⟂Sincronización⟂Sincronização⟂Synchronisierung
@@ -284,7 +284,7 @@ Réinitialiser le zoom⟂Reset zoom⟂Restablecer zoom⟂Repor zoom⟂Zoom zurü
 Rechercher ou saisir le nom d'un site⟂Search or enter website name⟂Buscar o escribir el nombre de un sitio⟂Pesquisar ou escrever o nome de um site⟂Suchen oder Websitenamen eingeben
 Rechercher avec {} ou saisir une adresse⟂Search with {} or enter an address⟂Buscar con {} o escribir una dirección⟂Pesquisar com {} ou escrever um endereço⟂Mit {} suchen oder Adresse eingeben
 LISTE DE LECTURE⟂READING LIST⟂LISTA DE LECTURA⟂LISTA DE LEITURA⟂LESELISTE
-Gardez une page pour plus tard : menu ⋮ › Ajouter à la liste de lecture (Ctrl+Maj+D).⟂Keep a page for later: menu ⋮ › Add to Reading List (Ctrl+Shift+D).⟂Guarda una página para más tarde: menú ⋮ › Añadir a la lista de lectura (Ctrl+Mayús+D).⟂Guarde uma página para mais tarde: menu ⋮ › Adicionar à lista de leitura (Ctrl+Shift+D).⟂Seite für später merken: Menü ⋮ › Zur Leseliste hinzufügen (Strg+Umschalt+D).
+Gardez une page pour plus tard : menu principal › Ajouter à la liste de lecture (Ctrl+Maj+D).⟂Keep a page for later: main menu › Add to Reading List (Ctrl+Shift+D).⟂Guarda una página para más tarde: menú principal › Añadir a la lista de lectura (Ctrl+Mayús+D).⟂Guarde uma página para mais tarde: menu principal › Adicionar à lista de leitura (Ctrl+Shift+D).⟂Seite für später merken: Hauptmenü › Zur Leseliste hinzufügen (Strg+Umschalt+D).
 GROUPES D'ONGLETS⟂TAB GROUPS⟂GRUPOS DE PESTAÑAS⟂GRUPOS DE SEPARADORES⟂TABGRUPPEN
 Renommer avec le nom saisi ci-dessous⟂Rename with the name typed below⟂Renombrar con el nombre escrito abajo⟂Mudar o nome para o escrito abaixo⟂Mit dem unten eingegebenen Namen umbenennen
 Fermer le groupe et ses onglets⟂Close the group and its tabs⟂Cerrar el grupo y sus pestañas⟂Fechar o grupo e os seus separadores⟂Gruppe und ihre Tabs schließen
@@ -348,7 +348,7 @@ Favoris et historique (mots de passe : exportez-les en CSV depuis Firefox, puis 
 Depuis un fichier⟂From a file⟂Desde un archivo⟂A partir de um ficheiro⟂Aus einer Datei
 Mots de passe (fichier CSV)…⟂Passwords (CSV file)…⟂Contraseñas (archivo CSV)…⟂Palavras-passe (ficheiro CSV)…⟂Passwörter (CSV-Datei)…
 Favoris (fichier HTML)…⟂Favourites (HTML file)…⟂Favoritos (archivo HTML)…⟂Favoritos (ficheiro HTML)…⟂Favoriten (HTML-Datei)…
-Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › ⋯ › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.⟂Chrome: Settings › Passwords › Export. Firefox: about:logins › ⋯ › Export. Remember to delete the exported file after importing: it contains your passwords in plain text.⟂Chrome: Configuración › Contraseñas › Exportar. Firefox: about:logins › ⋯ › Exportar. Recuerda borrar el archivo exportado después de importarlo: contiene tus contraseñas sin cifrar.⟂Chrome: Definições › Palavras-passe › Exportar. Firefox: about:logins › ⋯ › Exportar. Lembre-se de apagar o ficheiro exportado depois da importação: contém as palavras-passe em texto simples.⟂Chrome: Einstellungen › Passwörter › Exportieren. Firefox: about:logins › ⋯ › Exportieren. Löschen Sie die exportierte Datei nach dem Import: Sie enthält Ihre Passwörter im Klartext.
+Chrome : Paramètres › Mots de passe › Exporter. Firefox : about:logins › menu « … » › Exporter. Pensez à supprimer le fichier exporté après l'import : il contient vos mots de passe en clair.⟂Chrome: Settings › Passwords › Export. Firefox: about:logins › … › Export. Remember to delete the exported file after importing: it contains your passwords in plain text.⟂Chrome: Configuración › Contraseñas › Exportar. Firefox: about:logins › … › Exportar. Recuerda borrar el archivo exportado después de importarlo: contiene tus contraseñas sin cifrar.⟂Chrome: Definições › Palavras-passe › Exportar. Firefox: about:logins › … › Exportar. Lembre-se de apagar o ficheiro exportado depois da importação: contém as palavras-passe em texto simples.⟂Chrome: Einstellungen › Passwörter › Exportieren. Firefox: about:logins › … › Exportieren. Löschen Sie die exportierte Datei nach dem Import: Sie enthält Ihre Passwörter im Klartext.
 Importer des mots de passe (CSV)⟂Import passwords (CSV)⟂Importar contraseñas (CSV)⟂Importar palavras-passe (CSV)⟂Passwörter importieren (CSV)
 Mots de passe (CSV)⟂Passwords (CSV)⟂Contraseñas (CSV)⟂Palavras-passe (CSV)⟂Passwörter (CSV)
 Importer depuis un autre navigateur…⟂Import from another browser…⟂Importar desde otro navegador…⟂Importar de outro navegador…⟂Aus einem anderen Browser importieren…
@@ -422,7 +422,7 @@ Violet⟂Purple⟂Morado⟂Roxo⟂Lila
 Cyan⟂Cyan⟂Cian⟂Ciano⟂Cyan
 Orange⟂Orange⟂Naranja⟂Laranja⟂Orange
 Simulateur mobile⟂Mobile simulator⟂Simulador móvil⟂Simulador móvel⟂Mobil-Simulator
-Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.⟂See and test a site as on a phone or tablet: 35+ devices, frame, rotation, zoom, mobile version of sites, touch screen and screenshots. Phone button in the toolbar or Ctrl+Shift+M.⟂Ver y probar un sitio como en un teléfono o una tableta: más de 35 dispositivos, marco, rotación, zoom, versión móvil de los sitios, pantalla táctil y capturas. Botón de teléfono de la barra o Ctrl+Mayús+M.⟂Ver e testar um site como num telemóvel ou tablet: mais de 35 dispositivos, moldura, rotação, zoom, versão móvel dos sites, ecrã tátil e capturas. Botão de telemóvel da barra ou Ctrl+Shift+M.⟂Eine Website wie auf einem Telefon oder Tablet ansehen und testen: über 35 Geräte, Rahmen, Drehung, Zoom, mobile Version der Websites, Touchscreen und Screenshots. Telefon-Schaltfläche in der Symbolleiste oder Strg+Umschalt+M.
+Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.⟂See and test a site as on a phone or tablet: {} devices, frame, rotation, zoom, mobile version of sites, touch screen and screenshots. Phone button in the toolbar or Ctrl+Shift+M.⟂Ver y probar un sitio como en un teléfono o una tableta: {} dispositivos, marco, rotación, zoom, versión móvil de los sitios, pantalla táctil y capturas. Botón de teléfono de la barra o Ctrl+Mayús+M.⟂Ver e testar um site como num telemóvel ou tablet: {} dispositivos, moldura, rotação, zoom, versão móvel dos sites, ecrã tátil e capturas. Botão de telemóvel da barra ou Ctrl+Shift+M.⟂Eine Website wie auf einem Telefon oder Tablet ansehen und testen: {} Geräte, Rahmen, Drehung, Zoom, mobile Version der Websites, Touchscreen und Screenshots. Telefon-Schaltfläche in der Symbolleiste oder Strg+Umschalt+M.
 Intégrée à Sanaga⟂Built into Sanaga⟂Integrada en Sanaga⟂Integrada no Sanaga⟂In Sanaga integriert
 Téléphones iPhone⟂iPhone phones⟂Teléfonos iPhone⟂Telemóveis iPhone⟂iPhone-Telefone
 Téléphones Android⟂Android phones⟂Teléfonos Android⟂Telemóveis Android⟂Android-Telefone
@@ -599,7 +599,7 @@ Où mettre la barre d'adresse :⟂Where the address bar goes:⟂Dónde va la bar
 Flottante⟂Floating⟂Flotante⟂Flutuante⟂Schwebend
 Couleur d'accent⟂Accent colour⟂Color de acento⟂Cor de destaque⟂Akzentfarbe
 Résumés et extensions sur mesure⟂Summaries and made-to-measure extensions⟂Resúmenes y extensiones a medida⟂Resumos e extensões à medida⟂Zusammenfassungen und maßgeschneiderte Erweiterungen
-Sanaga résume les pages (bouton ✦ ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.⟂Sanaga summarises pages (✦ button or Ctrl+Shift+Y) and writes extensions from what you describe.⟂Sanaga resume páginas (botón ✦ o Ctrl+Mayús+Y) y escribe extensiones a partir de lo que describes.⟂O Sanaga resume páginas (botão ✦ ou Ctrl+Shift+Y) e escreve extensões a partir do que descreve.⟂Sanaga fasst Seiten zusammen (✦-Taste oder Strg+Umschalt+Y) und schreibt Erweiterungen nach Ihrer Beschreibung.
+Sanaga résume les pages (bouton Intelligence de la barre d'outils, ou Ctrl+Maj+Y) et écrit des extensions à partir de ce que vous décrivez.⟂Sanaga summarises pages (Intelligence button of the toolbar, or Ctrl+Shift+Y) and writes extensions from what you describe.⟂Sanaga resume páginas (botón Inteligencia de la barra de herramientas, o Ctrl+Mayús+Y) y escribe extensiones a partir de lo que describes.⟂O Sanaga resume páginas (botão Inteligência da barra de ferramentas, ou Ctrl+Shift+Y) e escreve extensões a partir do que descreve.⟂Sanaga fasst Seiten zusammen (Schaltfläche „Intelligenz“ der Symbolleiste oder Strg+Umschalt+Y) und schreibt Erweiterungen nach Ihrer Beschreibung.
 Sanaga seul — résumé simple, sans IA, rien ne quitte l'ordinateur⟂Sanaga alone — simple summary, no AI, nothing leaves the computer⟂Solo Sanaga — resumen sencillo, sin IA, nada sale del ordenador⟂Só o Sanaga — resumo simples, sem IA, nada sai do computador⟂Nur Sanaga — einfache Zusammenfassung, ohne KI, nichts verlässt den Computer
 Ollama — un modèle d'IA installé sur cet ordinateur (gratuit, privé)⟂Ollama — an AI model installed on this computer (free, private)⟂Ollama — un modelo de IA instalado en este ordenador (gratis, privado)⟂Ollama — um modelo de IA instalado neste computador (grátis, privado)⟂Ollama — ein KI-Modell auf diesem Computer (kostenlos, privat)
 Claude (Anthropic) — le meilleur résultat, avec votre clé d'API⟂Claude (Anthropic) — the best results, with your API key⟂Claude (Anthropic) — el mejor resultado, con tu clave de API⟂Claude (Anthropic) — o melhor resultado, com a sua chave de API⟂Claude (Anthropic) — die besten Ergebnisse, mit Ihrem API-Schlüssel
@@ -650,11 +650,11 @@ Dans le trousseau du système⟂In the system keyring⟂En el llavero del sistem
 1 compte⟂1 account⟂1 cuenta⟂1 conta⟂1 Konto
 {} comptes⟂{} accounts⟂{} cuentas⟂{} contas⟂{} Konten
 Les mots de passe sont enregistrés dans le trousseau du système (Secret Service), jamais dans les fichiers de Sanaga. Un seul compte pour un site : Sanaga le remplit tout seul.⟂Passwords are saved in the system keyring (Secret Service), never in Sanaga's files. One account for a site: Sanaga fills it in by itself.⟂Las contraseñas se guardan en el llavero del sistema (Secret Service), nunca en los archivos de Sanaga. Una sola cuenta para un sitio: Sanaga la rellena sola.⟂As palavras-passe ficam no porta-chaves do sistema (Secret Service), nunca nos ficheiros do Sanaga. Uma só conta para um site: o Sanaga preenche-a sozinho.⟂Passwörter werden im Systemschlüsselbund (Secret Service) gespeichert, nie in Sanagas Dateien. Ein Konto für eine Website: Sanaga füllt es selbst aus.
-Pour remplir les formulaires : menu ⋮ › Remplir avec mes coordonnées, ou Ctrl+Maj+F.⟂To fill in forms: menu ⋮ › Fill in my details, or Ctrl+Shift+F.⟂Para rellenar formularios: menú ⋮ › Rellenar con mis datos, o Ctrl+Mayús+F.⟂Para preencher formulários: menu ⋮ › Preencher com os meus dados, ou Ctrl+Shift+F.⟂Zum Ausfüllen von Formularen: Menü ⋮ › Mit meinen Daten ausfüllen, oder Strg+Umschalt+F.
+Pour remplir les formulaires : menu principal › Remplir avec mes coordonnées, ou Ctrl+Maj+F.⟂To fill in forms: main menu › Fill in my details, or Ctrl+Shift+F.⟂Para rellenar formularios: menú principal › Rellenar con mis datos, o Ctrl+Mayús+F.⟂Para preencher formulários: menu principal › Preencher com os meus dados, ou Ctrl+Shift+F.⟂Zum Ausfüllen von Formularen: Hauptmenü › Mit meinen Daten ausfüllen, oder Strg+Umschalt+F.
 Modéré⟂Moderate⟂Moderado⟂Moderado⟂Mäßig
 Équilibré⟂Balanced⟂Equilibrado⟂Equilibrado⟂Ausgewogen
 Maximal⟂Maximum⟂Máximo⟂Máximo⟂Maximal
-Les onglets que vous n'avez pas regardés depuis un moment sont mis en veille et se rechargent quand vous y revenez (Équilibré : après 20 minutes). Les onglets qui jouent du son ne dorment jamais.⟂Tabs you have not looked at for a while go to sleep and reload when you come back (Balanced: after 20 minutes). Tabs playing sound never sleep.⟂Las pestañas que no has mirado en un rato se duermen y se recargan al volver (Equilibrado: tras 20 minutos). Las que reproducen sonido nunca duermen.⟂Os separadores que não vê há algum tempo adormecem e recarregam quando volta (Equilibrado: após 20 minutos). Os que tocam som nunca adormecem.⟂Tabs, die Sie eine Weile nicht angesehen haben, schlafen ein und laden neu, wenn Sie zurückkehren (Ausgewogen: nach 20 Minuten). Tabs mit Ton schlafen nie.
+Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais.⟂Tabs you haven't looked at for a long time are put to sleep and reload when you come back to them. Tabs playing sound never sleep.⟂Las pestañas que no ha mirado desde hace mucho se ponen en reposo y se recargan cuando vuelve a ellas. Las pestañas que reproducen sonido nunca duermen.⟂Os separadores que não vê há muito tempo são postos em repouso e recarregam quando volta a eles. Os separadores que tocam som nunca dormem.⟂Tabs, die Sie lange nicht angesehen haben, werden in den Ruhezustand versetzt und laden neu, wenn Sie zurückkehren. Tabs, die Ton abspielen, schlafen nie.
 Sites complets avec JavaScript, vidéos et applications (recommandé)⟂Full sites with JavaScript, videos and apps (recommended)⟂Sitios completos con JavaScript, vídeos y aplicaciones (recomendado)⟂Sites completos com JavaScript, vídeos e aplicações (recomendado)⟂Vollständige Websites mit JavaScript, Videos und Apps (empfohlen)
 Pages simplifiées, très rapide et très économe en mémoire⟂Simplified pages, very fast and very light on memory⟂Páginas simplificadas, muy rápido y muy ahorrador de memoria⟂Páginas simplificadas, muito rápido e muito económico em memória⟂Vereinfachte Seiten, sehr schnell und sehr speichersparend
 Dossier partagé⟂Shared folder⟂Carpeta compartida⟂Pasta partilhada⟂Gemeinsamer Ordner
@@ -765,7 +765,7 @@ Extension supprimée.⟂Extension removed.⟂Extensión eliminada.⟂Extensão r
 Se présenter à ce site comme…⟂Introduce Sanaga to this site as…⟂Presentarse a este sitio como…⟂Apresentar-se a este site como…⟂Sich dieser Website vorstellen als…
 Identité du navigateur par site⟂Browser identity per site⟂Identidad del navegador por sitio⟂Identidade do navegador por site⟂Browser-Identität pro Website
 Aucun choix pour l'instant⟂No choice yet⟂Ninguna elección por ahora⟂Nenhuma escolha por agora⟂Noch keine Auswahl
-Menu ⋮ › Plus d'outils › Se présenter à ce site comme…⟂Menu ⋮ › More tools › Introduce Sanaga to this site as…⟂Menú ⋮ › Más herramientas › Presentarse a este sitio como…⟂Menu ⋮ › Mais ferramentas › Apresentar-se a este site como…⟂Menü ⋮ › Weitere Tools › Sich dieser Website vorstellen als…
+Menu principal › Plus d'outils › Se présenter à ce site comme…⟂Main menu › More tools › Introduce Sanaga to this site as…⟂Menú principal › Más herramientas › Presentarse a este sitio como…⟂Menu principal › Mais ferramentas › Apresentar-se a este site como…⟂Hauptmenü › Weitere Tools › Sich dieser Website vorstellen als…
 Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site.⟂Sanaga introduces itself as Chrome to the few web apps that refuse WebKit (WhatsApp Web, Teams, Zoom…). You can choose for any site.⟂Sanaga se presenta como Chrome a las pocas aplicaciones web que rechazan WebKit (WhatsApp Web, Teams, Zoom…). Puedes elegir para cualquier sitio.⟂O Sanaga apresenta-se como Chrome às poucas aplicações web que recusam o WebKit (WhatsApp Web, Teams, Zoom…). Pode escolher para qualquer site.⟂Sanaga stellt sich den wenigen Web-Apps, die WebKit ablehnen, als Chrome vor (WhatsApp Web, Teams, Zoom…). Sie können für jede Website wählen.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire. Installez Chromium ou Firefox pour les regarder.⟂{} protects its content with a DRM (Widevine) that Sanaga's engine cannot play. Install Chromium or Firefox to watch it.⟂{} protege su contenido con un DRM (Widevine) que el motor de Sanaga no puede reproducir. Instala Chromium o Firefox para verlo.⟂{} protege os conteúdos com um DRM (Widevine) que o motor do Sanaga não consegue ler. Instale o Chromium ou o Firefox para os ver.⟂{} schützt seine Inhalte mit einem DRM (Widevine), das Sanagas Engine nicht abspielen kann. Installieren Sie Chromium oder Firefox, um sie anzusehen.
 {} protège ses contenus avec un DRM (Widevine) que le moteur de Sanaga ne peut pas lire.⟂{} protects its content with a DRM (Widevine) that Sanaga's engine cannot play.⟂{} protege su contenido con un DRM (Widevine) que el motor de Sanaga no puede reproducir.⟂{} protege os conteúdos com um DRM (Widevine) que o motor do Sanaga não consegue ler.⟂{} schützt seine Inhalte mit einem DRM (Widevine), das Sanagas Engine nicht abspielen kann.
@@ -858,7 +858,7 @@ Réglages par site⟂Website settings⟂Ajustes por sitio⟂Definições por sit
 Polices⟂Fonts⟂Fuentes⟂Tipos de letra⟂Schriften
 Mode sombre⟂Dark mode⟂Modo oscuro⟂Modo escuro⟂Dunkelmodus
 Aucun réglage pour l'instant⟂No settings yet⟂Aún no hay ajustes⟂Ainda sem definições⟂Noch keine Einstellungen
-Menu ⋮ › Plus d'outils › Réglages de ce site…⟂Menu ⋮ › More tools › Settings for this website…⟂Menú ⋮ › Más herramientas › Ajustes de este sitio…⟂Menu ⋮ › Mais ferramentas › Definições deste site…⟂Menü ⋮ › Weitere Tools › Einstellungen für diese Website…
+Menu principal › Plus d'outils › Réglages de ce site…⟂Main menu › More tools › Settings for this website…⟂Menú principal › Más herramientas › Ajustes de este sitio…⟂Menu principal › Mais ferramentas › Definições deste site…⟂Hauptmenü › Weitere Tools › Einstellungen für diese Website…
 sans JavaScript⟂no JavaScript⟂sin JavaScript⟂sem JavaScript⟂ohne JavaScript
 bloqueur coupé⟂blocker off⟂bloqueador desactivado⟂bloqueador desligado⟂Blocker aus
 sans ses polices⟂without its fonts⟂sin sus fuentes⟂sem os seus tipos de letra⟂ohne eigene Schriften
@@ -1009,7 +1009,7 @@ Détails techniques⟂Technical details⟂Detalles técnicos⟂Detalhes técnico
 Traduire vers⟂Translate into⟂Traducir al⟂Traduzir para⟂Übersetzen in
 Langue de Sanaga ({})⟂Sanaga's language ({})⟂Idioma de Sanaga ({})⟂Idioma do Sanaga ({})⟂Sprache von Sanaga ({})
 Résumer ou traduire la page⟂Summarise or translate the page⟂Resumir o traducir la página⟂Resumir ou traduzir a página⟂Seite zusammenfassen oder übersetzen
-Les points essentiels, à côté de la page — Ctrl+Maj+Y⟂The key points, next to the page — Ctrl+Shift+Y⟂Los puntos clave, junto a la página — Ctrl+Mayús+Y⟂Os pontos essenciais, ao lado da página — Ctrl+Shift+Y⟂Die wichtigsten Punkte neben der Seite — Strg+Umschalt+Y
+Les points essentiels, à côté de la page⟂The key points, next to the page⟂Los puntos clave, junto a la página⟂Os pontos essenciais, ao lado da página⟂Die wichtigsten Punkte neben der Seite
 En {}⟂Into {}⟂Al {}⟂Para {}⟂Auf {}
 En {} · avec {}⟂Into {} · with {}⟂Al {} · con {}⟂Para {} · com {}⟂Auf {} · mit {}
 Cette adresse utilise un port bloqué⟂This address uses a blocked port⟂Esta dirección usa un puerto bloqueado⟂Este endereço usa uma porta bloqueada⟂Diese Adresse nutzt einen gesperrten Port
@@ -1081,7 +1081,7 @@ Onglets, commandes, favoris, historique, Web…⟂Tabs, commands, favourites, hi
 Listes de blocage complètes⟂Full block lists⟂Listas de bloqueo completas⟂Listas de bloqueio completas⟂Vollständige Sperrlisten
 EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)⟂EasyList and EasyPrivacy, fetched once a week from their authors (easylist.to)⟂EasyList y EasyPrivacy, descargadas una vez por semana de sus autores (easylist.to)⟂EasyList e EasyPrivacy, obtidas uma vez por semana junto dos seus autores (easylist.to)⟂EasyList und EasyPrivacy, einmal pro Woche von ihren Autoren abgerufen (easylist.to)
 Chiffrement activé⟂Encryption on⟂Cifrado activado⟂Cifragem ativada⟂Verschlüsselung aktiv
-Le dossier ne contient que des fichiers scellés. Cliquez pour retirer la phrase de cet ordinateur.⟂The folder only holds sealed files. Click to remove the phrase from this computer.⟂La carpeta solo contiene archivos sellados. Haga clic para quitar la frase de este ordenador.⟂A pasta só contém ficheiros selados. Clique para retirar a frase deste computador.⟂Der Ordner enthält nur versiegelte Dateien. Klicken, um den Satz von diesem Computer zu entfernen.
+Le dossier ne contient que des fichiers scellés.⟂The folder holds sealed files only.⟂La carpeta solo contiene archivos sellados.⟂A pasta só contém ficheiros selados.⟂Der Ordner enthält nur versiegelte Dateien.
 Phrase secrète⟂Secret phrase⟂Frase secreta⟂Frase secreta⟂Geheimer Satz
 Chiffre le dossier : la même phrase sur chaque ordinateur⟂Encrypts the folder: the same phrase on every computer⟂Cifra la carpeta: la misma frase en cada ordenador⟂Cifra a pasta: a mesma frase em cada computador⟂Verschlüsselt den Ordner: derselbe Satz auf jedem Computer
 Chiffrer⟂Encrypt⟂Cifrar⟂Cifrar⟂Verschlüsseln
@@ -1110,3 +1110,133 @@ affiché⟂shown⟂mostrada⟂mostrado⟂angezeigt
 en cours · son⟂running · sound⟂en curso · sonido⟂em curso · som⟂läuft · Ton
 en cours⟂running⟂en curso⟂em curso⟂läuft
 Mettre en veille⟂Put to sleep⟂Poner en reposo⟂Pôr em repouso⟂In den Ruhezustand
+Sanaga s'est arrêté de façon inattendue. {} onglet(s) peuvent être rouverts.⟂Sanaga stopped unexpectedly. {} tab(s) can be reopened.⟂Sanaga se detuvo de forma inesperada. Se pueden reabrir {} pestaña(s).⟂O Sanaga parou inesperadamente. {} separador(es) podem ser reabertos.⟂Sanaga wurde unerwartet beendet. {} Tab(s) können wieder geöffnet werden.
+Sanaga s'est arrêté de façon inattendue. Vos onglets sont revenus.⟂Sanaga stopped unexpectedly. Your tabs are back.⟂Sanaga se detuvo de forma inesperada. Sus pestañas han vuelto.⟂O Sanaga parou inesperadamente. Os seus separadores voltaram.⟂Sanaga wurde unerwartet beendet. Ihre Tabs sind wieder da.
+Voir le rapport⟂View the report⟂Ver el informe⟂Ver o relatório⟂Bericht ansehen
+Rouvrir les onglets⟂Reopen the tabs⟂Reabrir las pestañas⟂Reabrir os separadores⟂Tabs wieder öffnen
+Rapports de plantage⟂Crash reports⟂Informes de fallos⟂Relatórios de falhas⟂Absturzberichte
+Tout supprimer⟂Delete all⟂Eliminar todo⟂Eliminar tudo⟂Alle löschen
+Quand Sanaga ou une page s'arrête sans prévenir, un court rapport est gardé ici, sur cet ordinateur. Rien n'est envoyé tout seul : vous le lisez, puis vous choisissez de l'envoyer ou non. Il ne contient ni l'adresse des pages, ni votre nom.⟂When Sanaga or a page stops without warning, a short report is kept here, on this computer. Nothing is sent by itself: you read it, then choose whether to send it. It holds neither the addresses of pages nor your name.⟂Cuando Sanaga o una página se detiene sin avisar, se guarda aquí un breve informe, en este ordenador. Nada se envía solo: usted lo lee y luego decide si lo envía. No contiene la dirección de las páginas ni su nombre.⟂Quando o Sanaga ou uma página para sem avisar, um breve relatório fica guardado aqui, neste computador. Nada é enviado sozinho: lê-o e depois escolhe se o envia. Não contém o endereço das páginas nem o seu nome.⟂Wenn Sanaga oder eine Seite unerwartet stoppt, wird hier auf diesem Computer ein kurzer Bericht aufbewahrt. Nichts wird von selbst gesendet: Sie lesen ihn und entscheiden dann, ob Sie ihn senden. Er enthält weder die Adressen der Seiten noch Ihren Namen.
+Aucun rapport : rien ne s'est arrêté.⟂No report: nothing has stopped.⟂Ningún informe: nada se ha detenido.⟂Nenhum relatório: nada parou.⟂Kein Bericht: Nichts wurde unerwartet beendet.
+Sanaga s'est arrêté⟂Sanaga stopped⟂Sanaga se detuvo⟂O Sanaga parou⟂Sanaga wurde beendet
+Une page a cessé de fonctionner⟂A page stopped working⟂Una página dejó de funcionar⟂Uma página deixou de funcionar⟂Eine Seite funktioniert nicht mehr
+Une page utilisait trop de mémoire⟂A page was using too much memory⟂Una página usaba demasiada memoria⟂Uma página usava demasiada memória⟂Eine Seite verbrauchte zu viel Speicher
+Sanaga a été arrêté sans se fermer⟂Sanaga was stopped without closing⟂Sanaga fue detenido sin cerrarse⟂O Sanaga foi parado sem se fechar⟂Sanaga wurde beendet, ohne sich zu schließen
+Envoyer sur GitHub…⟂Send on GitHub…⟂Enviar en GitHub…⟂Enviar no GitHub…⟂Auf GitHub senden…
+Copié⟂Copied⟂Copiado⟂Copiado⟂Kopiert
+« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez.⟂“Send on GitHub” opens a new issue already filled with this text: you can still edit it, and you are the one who sends it.⟂«Enviar en GitHub» abre una nueva incidencia ya rellenada con este texto: aún puede modificarlo, y es usted quien lo envía.⟂«Enviar no GitHub» abre um novo relato já preenchido com este texto: ainda o pode alterar, e é você quem o envia.⟂„Auf GitHub senden“ öffnet eine neue Meldung, die bereits mit diesem Text ausgefüllt ist: Sie können ihn noch ändern, und Sie senden ihn selbst.
+Sanaga est piloté par un logiciel de test automatisé.⟂Sanaga is being controlled by automated test software.⟂Sanaga está controlado por un software de pruebas automatizadas.⟂O Sanaga está a ser controlado por software de testes automatizados.⟂Sanaga wird von automatisierter Testsoftware gesteuert.
+Chaque page a son propre processus. Ceux sans nom sont gardés prêts par le moteur pour la prochaine page, ou finissent de se fermer.⟂Each page has its own process. Those without a name are kept ready by the engine for the next page, or are closing.⟂Cada página tiene su propio proceso. Los que no tienen nombre los mantiene listos el motor para la próxima página, o están terminando de cerrarse.⟂Cada página tem o seu próprio processo. Os que não têm nome são mantidos prontos pelo motor para a próxima página, ou estão a terminar de fechar.⟂Jede Seite hat ihren eigenen Prozess. Die ohne Namen hält die Engine für die nächste Seite bereit, oder sie werden gerade beendet.
+* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.⟂* Process shared by several tabs (pages opened by one another): its memory and processor count for each of them.⟂* Proceso compartido por varias pestañas (páginas abiertas una por otra): su memoria y su procesador cuentan para cada una.⟂* Processo partilhado por vários separadores (páginas abertas umas pelas outras): a sua memória e o seu processador contam para cada um.⟂* Von mehreren Tabs geteilter Prozess (Seiten, die einander geöffnet haben): Speicher und Prozessor zählen für jeden von ihnen.
+ne répond plus⟂not responding⟂no responde⟂não responde⟂reagiert nicht
+Une erreur s'est produite dans Sanaga, qui continue. Un rapport a été gardé (sanaga://crashes).⟂Something went wrong in Sanaga, which carries on. A report was kept (sanaga://crashes).⟂Se produjo un error en Sanaga, que continúa. Se guardó un informe (sanaga://crashes).⟂Ocorreu um erro no Sanaga, que continua. Foi guardado um relatório (sanaga://crashes).⟂In Sanaga ist ein Fehler aufgetreten; es läuft weiter. Ein Bericht wurde aufbewahrt (sanaga://crashes).
+
+Rétablir⟂Restore⟂Restablecer⟂Repor⟂Zurücksetzen
+Chercher⟂Look⟂Buscar⟂Procurar⟂Suchen
+Synchroniser⟂Sync⟂Sincronizar⟂Sincronizar⟂Synchronisieren
+Retirer la phrase⟂Remove the phrase⟂Quitar la frase⟂Remover a frase⟂Phrase entfernen
+Choisir un fichier…⟂Choose a file…⟂Elegir un archivo…⟂Escolher um ficheiro…⟂Datei auswählen…
+Traduction en {} avec {}…⟂Translating into {} with {}…⟂Traduciendo al {} con {}…⟂A traduzir para {} com {}…⟂Übersetzung auf {} mit {}…
+Traduction en {} avec {}… ({} parties faites)⟂Translating into {} with {}… ({} parts done)⟂Traduciendo al {} con {}… ({} partes hechas)⟂A traduzir para {} com {}… ({} partes feitas)⟂Übersetzung auf {} mit {}… ({} Teile fertig)
+Page traduite en {} par {}.⟂Page translated into {} by {}.⟂Página traducida al {} por {}.⟂Página traduzida para {} por {}.⟂Seite auf {} übersetzt von {}.
+Traduction arrêtée.⟂Translation stopped.⟂Traducción detenida.⟂Tradução parada.⟂Übersetzung angehalten.
+La page est de nouveau dans sa langue.⟂The page is in its own language again.⟂La página vuelve a estar en su idioma.⟂A página está de novo na sua língua.⟂Die Seite ist wieder in ihrer Sprache.
+Arrêter⟂Stop⟂Detener⟂Parar⟂Anhalten
+Traduire à nouveau⟂Translate again⟂Traducir de nuevo⟂Traduzir de novo⟂Erneut übersetzen
+Afficher l'original⟂Show original⟂Mostrar el original⟂Mostrar o original⟂Original anzeigen
+Choisir une IA…⟂Choose an AI…⟂Elegir una IA…⟂Escolher uma IA…⟂Eine KI auswählen…
+Claude, Ollama ou un assistant installé : dans Paramètres › Intelligence⟂Claude, Ollama or an installed assistant: in Settings › Intelligence⟂Claude, Ollama o un asistente instalado: en Ajustes › Inteligencia⟂Claude, Ollama ou um assistente instalado: em Definições › Inteligência⟂Claude, Ollama oder ein installierter Assistent: in Einstellungen › Intelligenz
+Choisir une IA pour des résumés plus fins…⟂Choose an AI for finer summaries…⟂Elegir una IA para resúmenes más finos…⟂Escolher uma IA para resumos mais finos…⟂Eine KI für feinere Zusammenfassungen auswählen…
+Nom (facultatif)⟂Name (optional)⟂Nombre (opcional)⟂Nome (opcional)⟂Name (optional)
+Écrire à nouveau⟂Write it again⟂Escribir de nuevo⟂Escrever de novo⟂Neu schreiben
+Écriture de l'extension… {} s⟂Writing the extension… {} s⟂Escribiendo la extensión… {} s⟂A escrever a extensão… {} s⟂Erweiterung wird geschrieben… {} s
+Choisissez d'abord un modèle d'IA, ci-dessus.⟂First choose an AI model, above.⟂Elija primero un modelo de IA, arriba.⟂Escolha primeiro um modelo de IA, acima.⟂Wählen Sie zuerst oben ein KI-Modell.
+Décrivez d'abord ce qu'elle doit faire.⟂First describe what it should do.⟂Describa primero lo que debe hacer.⟂Descreva primeiro o que deve fazer.⟂Beschreiben Sie zuerst, was sie tun soll.
+Jeter⟂Discard⟂Descartar⟂Descartar⟂Verwerfen
+français⟂French⟂francés⟂francês⟂Französisch
+anglais⟂English⟂inglés⟂inglês⟂Englisch
+espagnol⟂Spanish⟂español⟂espanhol⟂Spanisch
+portugais⟂Portuguese⟂portugués⟂português⟂Portugiesisch
+allemand⟂German⟂alemán⟂alemão⟂Deutsch
+italien⟂Italian⟂italiano⟂italiano⟂Italienisch
+néerlandais⟂Dutch⟂neerlandés⟂neerlandês⟂Niederländisch
+polonais⟂Polish⟂polaco⟂polaco⟂Polnisch
+turc⟂Turkish⟂turco⟂turco⟂Türkisch
+swahili⟂Swahili⟂suajili⟂suaíli⟂Swahili
+haoussa⟂Hausa⟂hausa⟂hauçá⟂Hausa
+yoruba⟂Yoruba⟂yoruba⟂iorubá⟂Yoruba
+lingala⟂Lingala⟂lingala⟂lingala⟂Lingala
+wolof⟂Wolof⟂wólof⟂uolofe⟂Wolof
+arabe⟂Arabic⟂árabe⟂árabe⟂Arabisch
+russe⟂Russian⟂ruso⟂russo⟂Russisch
+chinois simplifié⟂Simplified Chinese⟂chino simplificado⟂chinês simplificado⟂vereinfachtes Chinesisch
+japonais⟂Japanese⟂japonés⟂japonês⟂Japanisch
+coréen⟂Korean⟂coreano⟂coreano⟂Koreanisch
+hindi⟂Hindi⟂hindi⟂hindi⟂Hindi
+Cette page n'est pas en {}.⟂This page is not in {}.⟂Esta página no está en {}.⟂Esta página não está em {}.⟂Diese Seite ist nicht auf {}.
+Jamais sur {}⟂Never on {}⟂Nunca en {}⟂Nunca em {}⟂Nie auf {}
+Traduire⟂Translate⟂Traducir⟂Traduzir⟂Übersetzen
+Proposer de traduire les pages dans une autre langue⟂Offer to translate pages in another language⟂Ofrecer traducir las páginas en otro idioma⟂Propor traduzir as páginas noutra língua⟂Übersetzung von Seiten in einer anderen Sprache anbieten
+Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord⟂A bar under the toolbar, when the page says its language; nothing is sent before you agree⟂Una barra bajo la barra de herramientas, cuando la página indica su idioma; nada se envía antes de su acuerdo⟂Uma barra sob a barra de ferramentas, quando a página indica a sua língua; nada é enviado antes do seu acordo⟂Eine Leiste unter der Symbolleiste, wenn die Seite ihre Sprache angibt; nichts wird ohne Ihre Zustimmung gesendet
+Rétablir les réglages d'origine : {}⟂Restore the original settings: {}⟂Restablecer los ajustes de origen: {}⟂Repor as definições de origem: {}⟂Ursprüngliche Einstellungen wiederherstellen: {}
+Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.⟂Click again to confirm: this category's settings go back to the original ones.⟂Haga clic de nuevo para confirmar: los ajustes de esta categoría vuelven a los de origen.⟂Clique de novo para confirmar: as definições desta categoria voltam às de origem.⟂Zum Bestätigen erneut klicken: Die Einstellungen dieser Kategorie werden zurückgesetzt.
+Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.⟂Your data (favourites, passwords, contact details, language) is not touched.⟂Sus datos (favoritos, contraseñas, datos de contacto, idioma) no se tocan.⟂Os seus dados (favoritos, palavras-passe, contactos, língua) não são tocados.⟂Ihre Daten (Favoriten, Passwörter, Kontaktdaten, Sprache) bleiben unberührt.
+Confirmer⟂Confirm⟂Confirmar⟂Confirmar⟂Bestätigen
+Réglages d'origine rétablis : {}.⟂Original settings restored: {}.⟂Ajustes de origen restablecidos: {}.⟂Definições de origem repostas: {}.⟂Ursprüngliche Einstellungen wiederhergestellt: {}.
+Écriture du résumé…⟂Writing the summary…⟂Escribiendo el resumen…⟂A escrever o resumo…⟂Zusammenfassung wird geschrieben…
+Résumé arrêté.⟂Summary stopped.⟂Resumen detenido.⟂Resumo parado.⟂Zusammenfassung angehalten.
+Résumé arrêté avant la fin.⟂Summary stopped before the end.⟂Resumen detenido antes del final.⟂Resumo parado antes do fim.⟂Zusammenfassung vor dem Ende angehalten.
+Écriture annulée.⟂Writing cancelled.⟂Escritura cancelada.⟂Escrita cancelada.⟂Schreiben abgebrochen.
+Essai de « {} » sur cette page seulement : elle n'est pas encore activée.⟂Trying “{}” on this page only: it is not switched on yet.⟂Probando «{}» solo en esta página: aún no está activada.⟂A experimentar «{}» só nesta página: ainda não está ativada.⟂„{}“ wird nur auf dieser Seite ausprobiert: noch nicht aktiviert.
+Arrêter l'essai⟂End the trial⟂Terminar la prueba⟂Terminar o teste⟂Test beenden
+Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.⟂To try it before switching it on: open a page it acts on in another tab, then come back here.⟂Para probarla antes de activarla: abra en otra pestaña una página donde actúe y vuelva aquí.⟂Para a experimentar antes de a ativar: abra noutro separador uma página onde ela atua e volte aqui.⟂Zum Ausprobieren vor dem Aktivieren: Öffnen Sie in einem anderen Tab eine Seite, auf der sie wirkt, und kommen Sie hierher zurück.
+L'essayer d'abord sur :⟂Try it first on:⟂Probarla primero en:⟂Experimentar primeiro em:⟂Zuerst ausprobieren auf:
+Confirmer ?⟂Confirm?⟂¿Confirmar?⟂Confirmar?⟂Bestätigen?
+Moteur web⟂Web engine⟂Motor web⟂Motor web⟂Web-Engine
+Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous⟂Create an extension: describe what you want, Sanaga writes it for you⟂Crear una extensión: describa lo que quiere, Sanaga la escribe por usted⟂Criar uma extensão: descreva o que quer, o Sanaga escreve-a por si⟂Erweiterung erstellen: Beschreiben Sie, was Sie möchten, Sanaga schreibt sie für Sie
+1 résultat⟂1 result⟂1 resultado⟂1 resultado⟂1 Treffer
+{} résultats⟂{} results⟂{} resultados⟂{} resultados⟂{} Treffer
+Plus de 999 résultats⟂More than 999 results⟂Más de 999 resultados⟂Mais de 999 resultados⟂Mehr als 999 Treffer
+Fichier⟂File⟂Archivo⟂Ficheiro⟂Datei
+Ctrl+R⟂Ctrl+R⟂Ctrl+R⟂Ctrl+R⟂Strg+R
+Ctrl+W⟂Ctrl+W⟂Ctrl+W⟂Ctrl+W⟂Strg+W
+Ctrl+Maj+T⟂Ctrl+Shift+T⟂Ctrl+Mayús+T⟂Ctrl+Shift+T⟂Strg+Umschalt+T
+Ouvrir le lien⟂Open link⟂Abrir enlace⟂Abrir ligação⟂Link öffnen
+Ouvrir le lien dans un nouvel onglet⟂Open link in new tab⟂Abrir enlace en una pestaña nueva⟂Abrir ligação num novo separador⟂Link in neuem Tab öffnen
+Télécharger le fichier lié⟂Download linked file⟂Descargar el archivo enlazado⟂Transferir o ficheiro ligado⟂Verknüpfte Datei herunterladen
+Ouvrir l'image dans un nouvel onglet⟂Open image in new tab⟂Abrir imagen en una pestaña nueva⟂Abrir imagem num novo separador⟂Bild in neuem Tab öffnen
+Enregistrer l'image sous…⟂Save image as…⟂Guardar imagen como…⟂Guardar imagem como…⟂Bild speichern unter…
+Copier l'image⟂Copy image⟂Copiar imagen⟂Copiar imagem⟂Bild kopieren
+Copier l'adresse de l'image⟂Copy image address⟂Copiar dirección de la imagen⟂Copiar endereço da imagem⟂Bildadresse kopieren
+Ouvrir le cadre dans un nouvel onglet⟂Open frame in new tab⟂Abrir marco en una pestaña nueva⟂Abrir moldura num novo separador⟂Frame in neuem Tab öffnen
+Couper⟂Cut⟂Cortar⟂Cortar⟂Ausschneiden
+Coller⟂Paste⟂Pegar⟂Colar⟂Einfügen
+Coller sans mise en forme⟂Paste as plain text⟂Pegar sin formato⟂Colar sem formatação⟂Ohne Formatierung einfügen
+Tout sélectionner⟂Select all⟂Seleccionar todo⟂Selecionar tudo⟂Alles auswählen
+Insérer un émoji⟂Insert emoji⟂Insertar emoji⟂Inserir emoji⟂Emoji einfügen
+Méthodes de saisie⟂Input methods⟂Métodos de entrada⟂Métodos de introdução⟂Eingabemethoden
+Insérer un caractère de contrôle Unicode⟂Insert Unicode control character⟂Insertar carácter de control Unicode⟂Inserir carácter de controlo Unicode⟂Unicode-Steuerzeichen einfügen
+Aucune suggestion⟂No suggestions⟂Sin sugerencias⟂Sem sugestões⟂Keine Vorschläge
+Ignorer ce mot⟂Ignore this word⟂Ignorar esta palabra⟂Ignorar esta palavra⟂Dieses Wort ignorieren
+Ajouter au dictionnaire⟂Add to dictionary⟂Añadir al diccionario⟂Adicionar ao dicionário⟂Zum Wörterbuch hinzufügen
+Ignorer la grammaire⟂Ignore grammar⟂Ignorar la gramática⟂Ignorar a gramática⟂Grammatik ignorieren
+Police⟂Font⟂Fuente⟂Tipo de letra⟂Schrift
+Gras⟂Bold⟂Negrita⟂Negrito⟂Fett
+Italique⟂Italic⟂Cursiva⟂Itálico⟂Kursiv
+Souligné⟂Underline⟂Subrayado⟂Sublinhado⟂Unterstrichen
+Contour⟂Outline⟂Contorno⟂Contorno⟂Kontur
+Inspecter l'élément⟂Inspect element⟂Inspeccionar elemento⟂Inspecionar elemento⟂Element untersuchen
+Ouvrir la vidéo dans un nouvel onglet⟂Open video in new tab⟂Abrir vídeo en una pestaña nueva⟂Abrir vídeo num novo separador⟂Video in neuem Tab öffnen
+Ouvrir l'audio dans un nouvel onglet⟂Open audio in new tab⟂Abrir audio en una pestaña nueva⟂Abrir áudio num novo separador⟂Audio in neuem Tab öffnen
+Copier l'adresse de la vidéo⟂Copy video address⟂Copiar dirección del vídeo⟂Copiar endereço do vídeo⟂Videoadresse kopieren
+Copier l'adresse de l'audio⟂Copy audio address⟂Copiar dirección del audio⟂Copiar endereço do áudio⟂Audioadresse kopieren
+Afficher ou masquer les commandes⟂Show or hide controls⟂Mostrar u ocultar los controles⟂Mostrar ou ocultar os controlos⟂Steuerelemente ein- oder ausblenden
+Lire en boucle⟂Loop⟂Repetir⟂Repetir⟂Wiederholen
+Lecture⟂Play⟂Reproducir⟂Reproduzir⟂Wiedergabe
+Pause⟂Pause⟂Pausa⟂Pausa⟂Pause
+Couper ou rétablir le son⟂Mute or unmute⟂Silenciar o activar el sonido⟂Silenciar ou ativar o som⟂Ton aus- oder einschalten
+Enregistrer la vidéo sous…⟂Save video as…⟂Guardar vídeo como…⟂Guardar vídeo como…⟂Video speichern unter…
+Enregistrer l'audio sous…⟂Save audio as…⟂Guardar audio como…⟂Guardar áudio como…⟂Audio speichern unter…
+Rechercher la sélection sur le Web⟂Search the web for the selection⟂Buscar la selección en la Web⟂Pesquisar a seleção na Web⟂Auswahl im Web suchen
+Copier le lien vers ce passage⟂Copy link to this passage⟂Copiar enlace a este pasaje⟂Copiar ligação para este excerto⟂Link zu dieser Textstelle kopieren
+Lien copié⟂Link copied⟂Enlace copiado⟂Ligação copiada⟂Link kopiert

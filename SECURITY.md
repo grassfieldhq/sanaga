@@ -56,6 +56,13 @@ The last security audit and its fixes are in
   made inert), are marked with where they came from (`user.xdg.origin.url`,
   `user.xdg.referrer.url`), and a site that starts a download by itself or
   several at once must be allowed first.
+- **Crash reports** stay on the computer (`crashes/`, closed to other
+  users) until the person sends one themselves; they hold where Sanaga
+  stopped and the system's version, never a page's address, and the home
+  folder's name is taken out.
+- **Test software** can drive Sanaga only when it is started with
+  `--automation`, in a window that keeps nothing and shares nothing with
+  the profiles ([docs/AUTOMATION.md](docs/AUTOMATION.md)).
 - **Page text and AI**: the text of a page is only sent to models run with no
   tools and no access to your files; their answer goes back into the page as
   plain text.

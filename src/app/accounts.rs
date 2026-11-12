@@ -54,10 +54,21 @@ impl Sanaga {
                 let (site, user, pass) = (parts[1].clone(), parts[2].clone(), parts[3].clone());
                 let profile = self.store.profile.clone();
                 let known = self.store.logins.iter().any(|(s, u)| *s == site && *u == user);
-                if known && keyring::lookup(&profile, &site, &user).as_deref() == Some(pass.as_str()) {
+                if !known {
+                    self.pw_prompt = Some(PwPrompt::Save { tab, site, user, pass });
                     return;
                 }
-                self.pw_prompt = Some(PwPrompt::Save { tab, site, user, pass });
+                // already saved: offered again only if the password changed
+                // (the keyring is asked on a thread: it may wait to be unlocked)
+                let (s, u) = (site.clone(), user.clone());
+                self.off_thread(
+                    move || keyring::lookup(&profile, &s, &u),
+                    move |app, saved| {
+                        if saved.as_deref() != Some(pass.as_str()) && app.tabs.iter().any(|t| t.id == tab) {
+                            app.pw_prompt = Some(PwPrompt::Save { tab, site, user, pass });
+                        }
+                    },
+                );
             }
             Some("pw:get") if parts.len() >= 2 => {
                 // sign-in fields appeared: Sanaga offers its saved accounts in
@@ -80,16 +91,29 @@ impl Sanaga {
     /// it in Sanaga's bar, only if the tab still shows that site, and the
     /// page script checks the origin again when it fills (top frame only).
     fn fill_login(&mut self, tab: u64, site: &str, user: &str) {
-        let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };
-        let Some(w) = t.web.as_ref() else { return };
-        if w.uri().map(|u| origin_of(&u)).as_deref() != Some(site) {
+        let shows_site = |app: &Sanaga| app.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()).is_some_and(|w| w.uri().map(|u| origin_of(&u)).as_deref() == Some(site));
+        if !shows_site(self) {
             return;
         }
-        let Some(pass) = keyring::lookup(&self.store.profile, site, user) else {
-            self.notice = Some((tr("Mot de passe introuvable dans le trousseau.").into(), self.ctx.input(|i| i.time)));
-            return;
-        };
-        let _ = w.evaluate_own(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {});", keyring::js_str(user), keyring::js_str(&pass), keyring::js_str(site)));
+        // (the keyring is asked on a thread: it may wait to be unlocked)
+        let (profile, site, user) = (self.store.profile.clone(), site.to_string(), user.to_string());
+        let (s, u) = (site.clone(), user.clone());
+        self.off_thread(
+            move || keyring::lookup(&profile, &s, &u),
+            move |app, pass| {
+                let Some(pass) = pass else {
+                    app.say(tr("Mot de passe introuvable dans le trousseau."));
+                    return;
+                };
+                // the tab may have moved on while the keyring answered: the
+                // password only ever goes to the site it was saved for
+                let Some(w) = app.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) else { return };
+                if w.uri().map(|u| origin_of(&u)).as_deref() != Some(site.as_str()) {
+                    return;
+                }
+                let _ = w.evaluate_own(&format!("window.__sanagaFill && window.__sanagaFill({}, {}, {});", keyring::js_str(&user), keyring::js_str(&pass), keyring::js_str(&site)));
+            },
+        );
     }
 
     /// AutoFill the form of the page with the person's contact details.
@@ -140,15 +164,22 @@ impl Sanaga {
                         let save = egui::Button::new(RichText::new(tr("Enregistrer")).color(Color32::WHITE)).fill(th.accent);
                         if ui.add(save).clicked() {
                             keep = false;
-                            if keyring::store(&self.store.profile, site, user, pass) {
-                                if !self.store.logins.iter().any(|(s, u)| s == site && u == user) {
-                                    self.store.logins.push((site.clone(), user.clone()));
-                                    self.store.save_logins();
-                                }
-                                self.notice = Some((tr("Mot de passe enregistré dans le trousseau.").into(), ui.input(|i| i.time)));
-                            } else {
-                                self.notice = Some((tr("Le trousseau du système n'est pas disponible.").into(), ui.input(|i| i.time)));
-                            }
+                            let (profile, site, user, pass) = (self.store.profile.clone(), site.clone(), user.clone(), pass.clone());
+                            let (s, u) = (site.clone(), user.clone());
+                            self.off_thread(
+                                move || keyring::store(&profile, &s, &u, &pass),
+                                move |app, ok| {
+                                    if ok {
+                                        if !app.store.logins.iter().any(|(s, u)| *s == site && *u == user) {
+                                            app.store.logins.push((site, user));
+                                            app.store.save_logins();
+                                        }
+                                        app.say(tr("Mot de passe enregistré dans le trousseau."));
+                                    } else {
+                                        app.say(tr("Le trousseau du système n'est pas disponible."));
+                                    }
+                                },
+                            );
                         }
                     });
                 }
@@ -187,11 +218,55 @@ impl Sanaga {
             .filter(|t| !t.private && !t.entries.is_empty() && t.url().starts_with("http"))
             .map(|t| (t.url().to_string(), t.title()))
             .collect();
-        let mut status = std::mem::take(&mut self.sync_status);
-        if crate::sync::sync(&self.store, &tabs, &mut status) {
-            self.store.reload_lists();
+        // one round at a time, on its own thread (the folder may be slow)
+        let Some(local_dir) = self.store.data_dir().cloned() else { return };
+        if self.sync_running {
+            return;
         }
-        self.sync_status = status;
+        self.sync_running = true;
+        let job = crate::sync::SyncJob { folder: self.store.settings.sync_dir.clone(), local_dir, profile: self.store.profile.clone(), open_tabs: tabs };
+        let mut status = self.sync_status.clone();
+        // the lists as they are now: what the person changes during the
+        // round is joined with the round's result, not lost (see `rejoin`)
+        let pairs = |list: &[crate::store::Bookmark]| -> Vec<crate::sync::Item> { list.iter().map(|b| (b.url.clone(), b.title.clone())).collect() };
+        let (bookmarks_before, reading_before) = (pairs(&self.store.bookmarks), pairs(&self.store.reading));
+        self.off_thread(
+            move || {
+                let synced = crate::sync::sync(&job, &mut status);
+                (synced, status)
+            },
+            move |app, (synced, status)| {
+                app.sync_running = false;
+                app.sync_status = status;
+                let settle = |before: &[crate::sync::Item], now: &[crate::store::Bookmark], synced: Vec<crate::sync::Item>| -> Vec<crate::store::Bookmark> {
+                    let now = pairs(now);
+                    let list = if now == before { synced } else { crate::sync::rejoin(before, &now, &synced) };
+                    list.into_iter().map(|(url, title)| crate::store::Bookmark { url, title }).collect()
+                };
+                if let Some(list) = synced.bookmarks {
+                    app.store.bookmarks = settle(&bookmarks_before, &app.store.bookmarks, list);
+                    app.store.save_bookmarks();
+                }
+                if let Some(list) = synced.reading {
+                    app.store.reading = settle(&reading_before, &app.store.reading, list);
+                    app.store.save_reading();
+                }
+            },
+        );
+    }
+
+    /// Copy a saved password (read from the keyring on a thread).
+    pub(super) fn copy_password(&mut self, site: String, user: String) {
+        let profile = self.store.profile.clone();
+        self.off_thread(
+            move || keyring::lookup(&profile, &site, &user),
+            |app, pass| {
+                if let Some(p) = pass {
+                    app.ctx.copy_text(p);
+                    app.say(tr("Mot de passe copié."));
+                }
+            },
+        );
     }
 
     pub(super) fn page_passwords(&mut self, ui: &mut Ui, th: &Theme) {
@@ -204,10 +279,11 @@ impl Sanaga {
         let mut reveal: Option<usize> = None;
         let mut copy: Option<usize> = None;
         let filter = self.pw_filter.to_lowercase();
+        let keyring_ok = self.keyring_ok();
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Mots de passe"));
             ui.label(RichText::new(tr("Les mots de passe sont gardés dans le trousseau de votre système, pas dans les fichiers de Sanaga. Sanaga propose de les enregistrer quand vous vous connectez à un site, et de les remplir la fois suivante.")).size(13.0).color(th.sub));
-            if !keyring::available() {
+            if !keyring_ok {
                 ui.add_space(6.0);
                 ui.label(RichText::new(tr("Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.")).size(13.0).color(Color32::from_rgb(0xD0, 0x40, 0x30)));
             }
@@ -236,7 +312,7 @@ impl Sanaga {
                             ui.label(RichText::new(format!("{}   {}", if user.is_empty() { "(sans identifiant)" } else { user }, shown)).size(12.5).color(th.sub));
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui.button(tr("Supprimer")).clicked() {
+                            if super::chrome::confirm_button(ui, ("password", site, user), tr("Supprimer")) {
                                 remove = Some(i);
                             }
                             if ui.button(tr("Copier")).clicked() {
@@ -252,20 +328,22 @@ impl Sanaga {
             }
         });
         let profile = self.store.profile.clone();
-        if let Some(i) = reveal {
-            let (s, u) = self.store.logins[i].clone();
-            self.pw_shown = keyring::lookup(&profile, &s, &u).map(|p| (i, p));
+        // (the keyring is asked on a thread: it may wait to be unlocked)
+        if let Some((s, u)) = reveal.and_then(|i| self.store.logins.get(i).cloned()) {
+            let p = profile.clone();
+            let (s2, u2) = (s.clone(), u.clone());
+            self.off_thread(
+                move || keyring::lookup(&p, &s2, &u2),
+                // (shown on the account's line, wherever it is by now)
+                move |app, pass| app.pw_shown = app.store.logins.iter().position(|(a, b)| *a == s && *b == u).zip(pass),
+            );
         }
-        if let Some(i) = copy {
-            let (s, u) = self.store.logins[i].clone();
-            if let Some(p) = keyring::lookup(&profile, &s, &u) {
-                self.ctx.copy_text(p);
-                self.notice = Some((tr("Mot de passe copié.").into(), self.ctx.input(|i| i.time)));
-            }
+        if let Some((s, u)) = copy.and_then(|i| self.store.logins.get(i).cloned()) {
+            self.copy_password(s, u);
         }
-        if let Some(i) = remove {
+        if let Some(i) = remove.filter(|i| *i < self.store.logins.len()) {
             let (s, u) = self.store.logins.remove(i);
-            keyring::delete(&profile, &s, &u);
+            self.off_thread(move || keyring::delete(&profile, &s, &u), |_, ()| {});
             self.store.save_logins();
             self.pw_shown = None;
         }
@@ -278,6 +356,7 @@ impl Sanaga {
         let mut toggle_mobile = false;
         let mut open_folder = false;
         let mut install = false;
+        let mut create = false;
         let mut review_done = false;
         let on = self.store.extensions_on.clone();
         // an extension just installed (switched off): what it would do, first
@@ -316,51 +395,60 @@ impl Sanaga {
                 });
                 ui.add_space(12.0);
             }
-            // built-in, native: the mobile simulator
-            Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
-                    crate::icons::paint(ui.painter(), r, crate::icons::Icon::Phone, th.accent);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(tr("Simulateur mobile")).size(14.0).family(bold()).color(th.text));
-                        ui.label(RichText::new(tr("Voir et tester un site comme sur un téléphone ou une tablette : plus de 35 appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.")).size(12.5).color(th.sub));
-                        ui.label(RichText::new(tr("Intégrée à Sanaga")).size(11.5).color(th.sub));
-                    });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let mut enabled = self.tb("mobile");
-                        let label = if enabled { tr("Activée") } else { tr("Désactivée") };
-                        if ui.checkbox(&mut enabled, label).changed() {
-                            toggle_mobile = true;
-                        }
-                    });
-                });
-            });
-            ui.add_space(6.0);
-            for e in &list {
+            // One row: what it is on the left (as many lines as it takes),
+            // its switch on the right — the same switch as in Settings.
+            let row = |ui: &mut Ui, icon: bool, name: &str, lines: &[String], removable: Option<&str>, on: bool| -> (bool, bool) {
+                let (mut flipped, mut removed) = (false, false);
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
+                        if icon {
+                            let (r, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
+                            crate::icons::paint(ui.painter(), r, crate::icons::Icon::Phone, th.accent);
+                        }
+                        // (the text stops before the controls: it used to run under them)
+                        let controls = if removable.is_some() { 150.0 } else { 54.0 };
                         ui.vertical(|ui| {
-                            ui.label(RichText::new(&e.name).size(14.0).family(bold()).color(th.text));
-                            ui.label(RichText::new(&e.description).size(12.5).color(th.sub));
-                            if !e.builtin {
-                                ui.label(RichText::new(if e.matches.is_empty() { tr("Tous les sites").to_string() } else { e.matches.join(", ") }).size(11.5).color(th.sub));
+                            ui.set_width((ui.available_width() - controls).max(120.0));
+                            ui.label(RichText::new(name).size(14.0).family(bold()).color(th.text));
+                            for (k, line) in lines.iter().filter(|l| !l.is_empty()).enumerate() {
+                                ui.add(egui::Label::new(RichText::new(line).size(if k == 0 { 12.5 } else { 11.5 }).color(th.sub)).wrap());
                             }
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if !e.builtin && ui.button(tr("Supprimer")).clicked() {
-                                delete = Some(e.id.clone());
+                            let mut now = on;
+                            if super::settings::switch(ui, th, &mut now) {
+                                flipped = true;
                             }
-                            let mut enabled = on.contains(&e.id);
-                            let label = if enabled { tr("Activée") } else { tr("Désactivée") };
-                            if ui.checkbox(&mut enabled, label).changed() {
-                                toggle = Some(e.id.clone());
+                            if let Some(id) = removable {
+                                ui.add_space(8.0);
+                                if super::chrome::confirm_button(ui, ("extension", id), tr("Supprimer")) {
+                                    removed = true;
+                                }
                             }
                         });
                     });
                 });
                 ui.add_space(6.0);
+                (flipped, removed)
+            };
+            // built-in, native: the mobile simulator
+            let devices = crate::app::devices::DEVICES.len();
+            let (flip, _) = row(ui, true, tr("Simulateur mobile"), &[tf("Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.", &[&devices]), tr("Intégrée à Sanaga").to_string()], None, self.tb("mobile"));
+            toggle_mobile |= flip;
+            for e in &list {
+                let place = if e.builtin { String::new() } else if e.matches.is_empty() { tr("Tous les sites").to_string() } else { e.matches.join(", ") };
+                let (flip, gone) = row(ui, false, &e.name, &[e.description.clone(), place], (!e.builtin).then_some(e.id.as_str()), on.contains(&e.id));
+                if flip {
+                    toggle = Some(e.id.clone());
+                }
+                if gone {
+                    delete = Some(e.id.clone());
+                }
+            }
+            ui.add_space(4.0);
+            if ui.link(tr("Créer une extension : décrivez ce que vous voulez, Sanaga l'écrit pour vous")).clicked() {
+                create = true;
             }
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Vos propres extensions : déposez des fichiers .js ou .css dans le dossier des extensions.")).size(12.5).color(th.sub));
@@ -379,6 +467,10 @@ impl Sanaga {
         }
         if install {
             self.install_extension_dialog();
+        }
+        if create {
+            let a = self.active;
+            self.navigate(a, "sanaga://create-extension".into(), None, true);
         }
         if toggle_mobile {
             let on = self.tb("mobile");

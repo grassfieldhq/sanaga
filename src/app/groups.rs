@@ -5,6 +5,7 @@
 //! among a group's tabs puts it in the group; dragging it out takes it out.
 
 use super::tabs::GROUP_COLORS;
+use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, Margin, Sense};
@@ -66,7 +67,7 @@ impl Sanaga {
             let fill = if resp.hovered() { col.gamma_multiply(0.85) } else { col };
             ui.painter().rect_filled(chip, CornerRadius::same(7), fill);
             let text = if folded { if name.is_empty() { count.to_string() } else { format!("{name}  {count}") } } else { name.clone() };
-            ui.painter().with_clip_rect(chip.shrink2(vec2(6.0, 0.0))).text(chip.center(), Align2::CENTER_CENTER, text, FontId::new(12.0, bold()), Color32::WHITE);
+            ui.painter().with_clip_rect(chip.shrink2(vec2(6.0, 0.0))).fit(chip.center(), Align2::CENTER_CENTER, text, FontId::new(12.0, bold()), Color32::WHITE);
         }
         self.group_label_rects.push((g, r));
         let tip = if folded { tr("Déplier le groupe — clic droit : nom, couleur…") } else { tr("Replier le groupe — clic droit : nom, couleur…") };

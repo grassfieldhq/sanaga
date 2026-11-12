@@ -49,6 +49,7 @@ pub(super) fn commands() -> Vec<(&'static str, &'static str)> {
         ("fullscreen", tr("Plein écran")),
         ("cleardata", tr("Effacer les données de navigation…")),
         ("activity", tr("Activité : mémoire et processeur")),
+        ("crashes", tr("Rapports de plantage")),
         ("split", tr("Vue partagée : deux onglets côte à côte")),
         ("mobileside", tr("Aperçu mobile à côté de la page")),
     ]
@@ -187,8 +188,7 @@ impl Sanaga {
         if let Some(k) = pick {
             self.overflow_open = false;
             if k == "__settings" {
-                self.settings_section = super::settings::Section::Appearance;
-                self.open_tab("sanaga://settings", false);
+                self.open_settings(&super::settings::Section::Appearance.address());
             } else {
                 self.toolbar_key_action(k);
             }

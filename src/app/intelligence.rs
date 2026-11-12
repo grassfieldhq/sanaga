@@ -21,6 +21,93 @@ const PAGE_TEXT_JS: &str = r#"(function(){
   if (window.ipc) window.ipc.postMessage('sum:' + (document.title || '').replace(/\n/g, ' ') + '\n' + t.slice(0, 80000));
 })();"#;
 
+/// One paragraph of a model's answer, as it is shown.
+#[derive(Debug, PartialEq)]
+pub(super) struct Para {
+    /// A point of a list ("• ", "- ", "* ", "1. ").
+    bullet: bool,
+    /// A heading ("# …", or a line that is all bold).
+    heading: bool,
+    /// Its text, in parts: (words, in bold).
+    spans: Vec<(String, bool)>,
+}
+
+/// A model's answer as paragraphs: models write lists ("• ", "- ", "1. "),
+/// emphasis (`**…**`) and sometimes headings ("## …"); shown raw, the
+/// signs clutter the text. Only these few are read; everything else is
+/// kept as written (never HTML: the answer is shown as text).
+pub(super) fn paragraphs(text: &str) -> Vec<Para> {
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        // (a point's sign whose words have not come yet, while the model writes)
+        if line.is_empty() || matches!(line, "•" | "-" | "*" | "–") {
+            continue;
+        }
+        let (mut bullet, mut heading, mut rest) = (false, false, line);
+        if let Some(r) = line.strip_prefix("• ").or_else(|| line.strip_prefix("- ")).or_else(|| line.strip_prefix("* ")).or_else(|| line.strip_prefix("– ")) {
+            (bullet, rest) = (true, r.trim_start());
+        } else if let Some((n, r)) = line.split_once(". ").filter(|(n, _)| !n.is_empty() && n.len() <= 2 && n.chars().all(|c| c.is_ascii_digit())) {
+            let _ = n;
+            (bullet, rest) = (true, r.trim_start());
+        } else if line.starts_with('#') {
+            (heading, rest) = (true, line.trim_start_matches('#').trim_start());
+        }
+        // **bold** parts (a "**" left alone is shown as it is)
+        let mut spans: Vec<(String, bool)> = Vec::new();
+        let mut parts = rest.split("**").peekable();
+        let mut bold = false;
+        while let Some(part) = parts.next() {
+            let closed = parts.peek().is_some();
+            if bold && !closed {
+                // an opening "**" never closed: its signs stay
+                match spans.last_mut() {
+                    Some(last) if !last.1 => last.0.push_str(&format!("**{part}")),
+                    _ => spans.push((format!("**{part}"), false)),
+                }
+            } else if !part.is_empty() {
+                spans.push((part.to_string(), bold));
+            }
+            bold = !bold;
+        }
+        if spans.is_empty() {
+            continue;
+        }
+        // a line that is all bold is a heading
+        if !bullet && spans.len() == 1 && spans[0].1 {
+            heading = true;
+        }
+        out.push(Para { bullet, heading, spans });
+    }
+    out
+}
+
+/// Show a model's answer: paragraphs, points with their bullet hanging,
+/// bold where the model put emphasis. The text can be selected.
+fn rich_text(ui: &mut Ui, th: &Theme, text: &str) {
+    let size = 14.5;
+    for para in paragraphs(text) {
+        let mut job = egui::text::LayoutJob::default();
+        for (words, strong) in &para.spans {
+            let family = if *strong || para.heading { bold() } else { FontFamily::Proportional };
+            job.append(words, 0.0, egui::TextFormat { font_id: FontId::new(size, family), color: th.text, line_height: Some(21.0), ..Default::default() });
+        }
+        if para.bullet {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.add_sized(vec2(18.0, 21.0), egui::Label::new(RichText::new("•").size(size).color(th.accent)));
+                job.wrap.max_width = ui.available_width();
+                ui.add(egui::Label::new(job).selectable(true).wrap());
+            });
+            ui.add_space(4.0);
+        } else {
+            job.wrap.max_width = ui.available_width();
+            ui.add(egui::Label::new(job).selectable(true).wrap());
+            ui.add_space(8.0);
+        }
+    }
+}
+
 pub(super) struct Summary {
     tab: u64,
     title: String,
@@ -30,6 +117,10 @@ pub(super) struct Summary {
     note: String,
     /// The page's text has arrived (later ones are ignored).
     sent: bool,
+    /// The request being answered (parts of an earlier one are dropped),
+    /// and what stops it.
+    run: u64,
+    stop: std::sync::Arc<AtomicBool>,
 }
 
 impl Summary {
@@ -39,8 +130,12 @@ impl Summary {
 }
 
 pub(super) enum AiDone {
-    Summary { tab: u64, result: Result<String, String>, by: String, fallback: String },
-    Extension(Result<(String, String), String>),
+    Summary { tab: u64, run: u64, result: Result<String, String>, by: String, fallback: String },
+    /// A part of a summary, as the model writes it.
+    SummaryPiece { tab: u64, run: u64, text: String },
+    Extension(u64, Result<(String, String), String>),
+    /// A part of an extension's code, as the model writes it.
+    ExtensionPiece(u64, String),
     Models(Vec<String>),
     /// The accounts read from the system keyring.
     Logins(Vec<(String, String)>),
@@ -55,7 +150,14 @@ pub(super) struct ExtForm {
     description: String,
     sites: String,
     status: String,
+    /// `status` says what went wrong (shown as such).
+    failed: bool,
     busy: bool,
+    /// When the writing began (the interface's clock); the request being
+    /// answered, and what stops it.
+    started: f64,
+    run: u64,
+    stop: std::sync::Arc<AtomicBool>,
     code: String,
     /// The extension just written: installed switched off, until the person
     /// has read it and clicks "Turn on" (its id, and where it would act).
@@ -63,7 +165,30 @@ pub(super) struct ExtForm {
     matches: Vec<String>,
 }
 
+/// Could an extension's "where it acts" pattern (`*://*.youtube.com/*`)
+/// be about this address? (For offering pages to try it on: the extension
+/// itself checks exactly.)
+pub(super) fn pattern_fits(pattern: &str, url: &str) -> bool {
+    let site = pattern.split_once("://").map(|p| p.1).unwrap_or(pattern);
+    let site = site.split('/').next().unwrap_or("").trim_start_matches("*.").trim_start_matches("www.");
+    if site.is_empty() || site == "*" {
+        return true;
+    }
+    let host = host_of(url);
+    host == site || host.ends_with(&format!(".{site}"))
+}
+
 impl Sanaga {
+    /// The extension written was switched on from its trial (see web.rs):
+    /// the form says so.
+    pub(super) fn extension_tried_and_kept(&mut self, id: &str) {
+        if self.ext_form.pending.as_deref() == Some(id) {
+            self.ext_form.pending = None;
+            self.ext_form.failed = false;
+            self.ext_form.status = tf("« {} » est activée : elle s'applique aux pages ouvertes.", &[&self.ext_form.name]);
+        }
+    }
+
     /// The model chosen in Settings › Intelligence (with its key, for Claude).
     pub(super) fn ai_provider(&self) -> Provider {
         let st = &self.store.settings;
@@ -82,10 +207,10 @@ impl Sanaga {
             // (a window without a profile folder, such as a guest window,
             // never reads a profile's key)
             "claude" if self.store.data_dir().is_none() => Provider::Local,
-            "claude" => match crate::keyring::lookup(&self.store.profile, ai::KEY_SITE, "claude") {
-                Some(key) if !key.is_empty() => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, key },
-                _ => Provider::Local,
-            },
+            // (no key in the keyring: Sanaga's own summary; the key itself
+            // is read where the request is made, on its thread)
+            "claude" if self.ai_key_known == Some(false) => Provider::Local,
+            "claude" => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, profile: self.store.profile.clone() },
             _ => Provider::Local,
         }
     }
@@ -99,7 +224,12 @@ impl Sanaga {
             return;
         };
         let _ = w.evaluate_own(PAGE_TEXT_JS);
-        self.summary = Some(Summary { tab: id, title, text: String::new(), busy: true, by: String::new(), note: String::new(), sent: false });
+        // (a summary still being written gives way to the new one)
+        if let Some(old) = &self.summary {
+            old.stop.store(true, Ordering::Relaxed);
+        }
+        self.ai_run += 1;
+        self.summary = Some(Summary { tab: id, title, text: String::new(), busy: true, by: String::new(), note: String::new(), sent: false, run: self.ai_run, stop: Default::default() });
     }
 
     pub(super) fn summary_text_arrived(&mut self, tab: u64, text: String) {
@@ -139,12 +269,21 @@ impl Sanaga {
         let tx = self.ai_tx.clone();
         let repaint = self.ctx.clone();
         let by = provider.label();
+        let (run, stop) = self.summary.as_ref().map(|s| (s.run, s.stop.clone())).unwrap_or_default();
+        if let Some(s) = self.summary.as_mut() {
+            s.by = by.clone();
+        }
         std::thread::Builder::new()
             .name("sanaga-summary".into())
             .spawn(move || {
                 let (system, prompt) = ai::summary_prompt(&title, &body);
-                let result = ai::ask(&provider, &system, &prompt, 900);
-                let _ = tx.send(AiDone::Summary { tab, result, by, fallback });
+                // (shown as the model writes it)
+                let (tx2, repaint2) = (tx.clone(), repaint.clone());
+                let result = ai::ask_live(&provider, &system, &prompt, 900, &stop, &mut |text| {
+                    let _ = tx2.send(AiDone::SummaryPiece { tab, run, text: text.to_string() });
+                    repaint2.request_repaint();
+                });
+                let _ = tx.send(AiDone::Summary { tab, run, result, by, fallback });
                 repaint.request_repaint();
             })
             .ok();
@@ -154,14 +293,21 @@ impl Sanaga {
     pub(super) fn poll_ai(&mut self) {
         while let Ok(done) = self.ai_rx.try_recv() {
             match done {
-                AiDone::Summary { tab, result, by, fallback } => {
-                    let Some(s) = self.summary.as_mut().filter(|s| s.tab == tab) else { continue };
+                AiDone::SummaryPiece { tab, run, text } => {
+                    if let Some(s) = self.summary.as_mut().filter(|s| s.tab == tab && s.run == run && s.busy) {
+                        s.text.push_str(&text);
+                    }
+                }
+                AiDone::Summary { tab, run, result, by, fallback } => {
+                    let Some(s) = self.summary.as_mut().filter(|s| s.tab == tab && s.run == run && s.busy) else { continue };
                     s.busy = false;
                     match result {
                         Ok(t) => {
                             s.text = t.trim().to_string();
                             s.by = by;
                         }
+                        // (stopped by the person: what was written stays)
+                        Err(e) if e == ai::STOPPED => {}
                         Err(e) => {
                             // the model failed: Sanaga's own summary instead
                             s.text = fallback;
@@ -170,8 +316,18 @@ impl Sanaga {
                         }
                     }
                 }
-                AiDone::Extension(r) => {
+                AiDone::ExtensionPiece(run, text) => {
+                    if self.ext_form.busy && self.ext_form.run == run {
+                        self.ext_form.code.push_str(&text);
+                    }
+                }
+                AiDone::Extension(run, r) => {
+                    // (an answer to a request that was cancelled or replaced)
+                    if !self.ext_form.busy || self.ext_form.run != run {
+                        continue;
+                    }
                     self.ext_form.busy = false;
+                    self.ext_form.code.clear();
                     match r {
                         Ok((file, text)) => {
                             let dir = crate::extensions::prepare_folder();
@@ -190,10 +346,17 @@ impl Sanaga {
                                     self.ext_form.pending = Some(id);
                                     self.ext_form.code = text;
                                 }
-                                Err(e) => self.ext_form.status = e.to_string(),
+                                Err(e) => {
+                                    self.ext_form.status = e.to_string();
+                                    self.ext_form.failed = true;
+                                }
                             }
                         }
-                        Err(e) => self.ext_form.status = e,
+                        Err(e) if e == ai::STOPPED => {}
+                        Err(e) => {
+                            self.ext_form.status = e;
+                            self.ext_form.failed = true;
+                        }
                     }
                 }
                 AiDone::Models(m) => self.ai_models = Some(m),
@@ -208,6 +371,20 @@ impl Sanaga {
                 }
             }
         }
+    }
+
+    /// Is there a Claude key in the keyring? (Asked on a thread.)
+    pub(super) fn check_ai_key(&mut self) {
+        if self.store.data_dir().is_none() || !self.first_time("ai-key") {
+            return;
+        }
+        let profile = self.store.profile.clone();
+        self.off_thread(move || crate::keyring::lookup(&profile, ai::KEY_SITE, "claude").is_some_and(|k| !k.is_empty()), |app, known| {
+            // (a key saved or forgotten meanwhile is what counts)
+            if app.ai_key_known.is_none() {
+                app.ai_key_known = Some(known);
+            }
+        });
     }
 
     /// Read the saved accounts from the system keyring (in the background).
@@ -242,6 +419,9 @@ impl Sanaga {
         let mut close = false;
         let mut again = false;
         let mut copy = false;
+        let mut choose = false;
+        let mut stop = false;
+        let no_model = self.ai_provider() == Provider::Local;
         let active_id = self.tabs[self.active].id;
         let Some(s) = self.summary.as_ref() else { return };
         Frame::new().inner_margin(Margin::symmetric(18, 14)).show(ui, |ui| {
@@ -260,19 +440,34 @@ impl Sanaga {
             ui.label(RichText::new(&s.title).size(13.5).family(bold()).color(th.sub));
             ui.add_space(10.0);
             if s.busy {
+                // (the answer shows as the model writes it)
+                if !s.text.is_empty() {
+                    egui::ScrollArea::vertical().id_salt("summary-scroll").max_height(ui.available_height() - 80.0).stick_to_bottom(true).show(ui, |ui| {
+                        rich_text(ui, th, &s.text);
+                    });
+                    ui.add_space(10.0);
+                }
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(RichText::new(tr("Lecture de la page…")).color(th.sub));
+                    ui.label(RichText::new(if s.text.is_empty() { tr("Lecture de la page…") } else { tr("Écriture du résumé…") }).color(th.sub));
+                    // (only a model's answer can be stopped; Sanaga's own is immediate)
+                    if !s.by.is_empty() && ui.button(tr("Arrêter")).clicked() {
+                        stop = true;
+                    }
                 });
             } else {
                 egui::ScrollArea::vertical().id_salt("summary-scroll").max_height(ui.available_height() - 80.0).show(ui, |ui| {
-                    ui.add(egui::Label::new(RichText::new(&s.text).size(14.5).color(th.text).line_height(Some(22.0))).selectable(true).wrap());
+                    rich_text(ui, th, &s.text);
                 });
                 ui.add_space(12.0);
                 if !s.note.is_empty() {
                     ui.label(RichText::new(&s.note).size(11.5).color(Color32::from_rgb(0xD0, 0x60, 0x30)));
                 }
                 ui.label(RichText::new(tf("Par : {}", &[&s.by])).size(11.5).color(th.sub));
+                // no model chosen: say that one would do better, and where
+                if no_model && ui.link(RichText::new(tr("Choisir une IA pour des résumés plus fins…")).size(12.0)).clicked() {
+                    choose = true;
+                }
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if ui.button(tr("Copier")).clicked() {
@@ -290,6 +485,16 @@ impl Sanaga {
                 self.ctx.copy_text(format!("{}\n\n{}", s.title, s.text));
             }
         }
+        if stop {
+            if let Some(s) = self.summary.as_mut() {
+                s.stop.store(true, Ordering::Relaxed);
+                s.busy = false;
+                s.note = if s.text.trim().is_empty() { tr("Résumé arrêté.").to_string() } else { tr("Résumé arrêté avant la fin.").to_string() };
+            }
+        }
+        if choose {
+            self.open_settings(&super::settings::Section::Intelligence.address());
+        }
         if close {
             self.summary = None;
         } else if again {
@@ -305,6 +510,13 @@ impl Sanaga {
         let mut go_settings = false;
         let mut create = false;
         let mut enable = false;
+        let mut discard = false;
+        let mut cancel = false;
+        let mut try_on: Option<u64> = None;
+        // open pages the extension written could be tried on (where it acts)
+        let fits = |url: &str| self.ext_form.matches.is_empty() || self.ext_form.matches.iter().any(|m| pattern_fits(m, url));
+        let pages: Vec<(u64, String)> = self.tabs.iter().filter(|t| t.web.is_some() && matches!(t.view, View::Web) && !t.private && fits(t.url())).map(|t| (t.id, t.title())).take(5).collect();
+        let now = ui.input(|i| i.time);
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Créer une extension"));
             ui.label(RichText::new(tr("Décrivez ce que vous voulez changer sur les sites : Sanaga écrit l'extension, vous la lisez, puis vous l'activez.")).size(14.0).color(th.sub));
@@ -332,7 +544,7 @@ impl Sanaga {
                 ui.add_space(12.0);
             }
             let f = &mut self.ext_form;
-            ui.label(RichText::new(tr("Nom")).family(bold()).color(th.text));
+            ui.label(RichText::new(tr("Nom (facultatif)")).family(bold()).color(th.text));
             ui.add(TextEdit::singleline(&mut f.name).hint_text(tr("Ex. : YouTube sans distractions")).desired_width(f32::INFINITY));
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Ce qu'elle doit faire")).family(bold()).color(th.text));
@@ -356,20 +568,37 @@ impl Sanaga {
                 }
             });
             ui.add_space(14.0);
+            let ready = !f.description.trim().is_empty() && !f.busy && provider_label.is_some();
             ui.horizontal(|ui| {
-                let ready = !f.description.trim().is_empty() && !f.busy && provider_label.is_some();
-                let b = egui::Button::new(RichText::new(tr("Créer l'extension")).color(Color32::WHITE)).fill(if ready { th.accent } else { th.sub }).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
+                // (once one is written: the same button writes it again, in its place)
+                let label = if f.pending.is_some() { tr("Écrire à nouveau") } else { tr("Créer l'extension") };
+                let b = egui::Button::new(RichText::new(label).color(Color32::WHITE)).fill(if ready { th.accent } else { th.sub }).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
                 if ui.add_enabled(ready, b).clicked() {
                     create = true;
                 }
                 if f.busy {
                     ui.spinner();
-                    ui.label(RichText::new(tr("Écriture de l'extension…")).color(th.sub));
+                    // (a model takes from a few seconds to a minute or two:
+                    // the time shows that it is still at work)
+                    let secs = (now - f.started).max(0.0) as u64;
+                    ui.label(RichText::new(tf("Écriture de l'extension… {} s", &[&secs])).color(th.sub));
+                    ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+                    if ui.button(tr("Annuler")).clicked() {
+                        cancel = true;
+                    }
+                } else if !ready {
+                    // why the button can't be pressed
+                    let why = if provider_label.is_none() { tr("Choisissez d'abord un modèle d'IA, ci-dessus.") } else { tr("Décrivez d'abord ce qu'elle doit faire.") };
+                    ui.label(RichText::new(why).size(12.5).color(th.sub));
                 }
             });
             if !f.status.is_empty() {
                 ui.add_space(10.0);
-                ui.label(RichText::new(&f.status).color(th.text));
+                let (fill, text) = if f.failed { (Color32::from_rgb(0xD0, 0x40, 0x30).gamma_multiply(0.12), Color32::from_rgb(0xC0, 0x38, 0x2B)) } else { (th.accent.gamma_multiply(0.12), th.text) };
+                Frame::new().fill(fill).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 9)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.add(egui::Label::new(RichText::new(&f.status).color(text)).wrap());
+                });
             }
             if !f.code.is_empty() {
                 ui.add_space(8.0);
@@ -380,28 +609,78 @@ impl Sanaga {
                     ui.label(RichText::new(tr("Sur ces sites, elle pourrait lire et modifier tout ce que la page affiche, y compris ce que vous y tapez.")).size(12.5).color(th.sub));
                     ui.add_space(6.0);
                 }
-                egui::CollapsingHeader::new(tr("Voir le code")).default_open(f.pending.is_some()).show(ui, |ui| {
-                    let mut code = f.code.clone();
-                    ui.add(TextEdit::multiline(&mut code).code_editor().desired_width(f32::INFINITY).interactive(false));
-                });
                 if f.pending.is_some() {
                     ui.add_space(8.0);
-                    let b = egui::Button::new(RichText::new(tr("Activer l'extension")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
-                    if ui.add(b).clicked() {
-                        enable = true;
+                    ui.horizontal(|ui| {
+                        let b = egui::Button::new(RichText::new(tr("Activer l'extension")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(160.0, 34.0)).corner_radius(CornerRadius::same(10));
+                        if ui.add(b).clicked() {
+                            enable = true;
+                        }
+                        // not what was wanted: its file goes
+                        if ui.add(egui::Button::new(tr("Jeter")).min_size(vec2(80.0, 34.0)).corner_radius(CornerRadius::same(10))).clicked() {
+                            discard = true;
+                        }
+                    });
+                    // see it work on a real page first, in that tab only
+                    ui.add_space(10.0);
+                    if pages.is_empty() {
+                        ui.label(RichText::new(tr("Pour l'essayer avant de l'activer : ouvrez une page où elle agit dans un autre onglet, puis revenez ici.")).size(12.5).color(th.sub));
+                    } else {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(tr("L'essayer d'abord sur :")).size(12.5).color(th.sub));
+                            for (tab, title) in &pages {
+                                let short: String = title.chars().take(36).collect();
+                                if ui.button(short).clicked() {
+                                    try_on = Some(*tab);
+                                }
+                            }
+                        });
                     }
                 }
+                ui.add_space(8.0);
+                egui::CollapsingHeader::new(tr("Voir le code")).default_open(f.pending.is_some() || f.busy).show(ui, |ui| {
+                    let mut code = f.code.clone();
+                    // (its own scrolling: the buttons above stay in view)
+                    egui::ScrollArea::vertical().id_salt("ext-code").max_height(300.0).stick_to_bottom(f.busy).show(ui, |ui| {
+                        ui.add(TextEdit::multiline(&mut code).code_editor().desired_width(f32::INFINITY).interactive(false));
+                    });
+                });
             }
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.")).size(12.0).color(th.sub));
         });
+        if let Some(tab) = try_on {
+            if let Some(id) = self.ext_form.pending.clone() {
+                let name = self.ext_form.name.clone();
+                self.try_extension(tab, &id, &name);
+            }
+        }
+        if cancel {
+            let f = &mut self.ext_form;
+            f.stop.store(true, Ordering::Relaxed);
+            f.busy = false;
+            f.code.clear();
+            f.failed = false;
+            f.status = tr("Écriture annulée.").into();
+        }
+        if discard {
+            self.end_extension_trial(false);
+            if let Some(id) = self.ext_form.pending.take() {
+                self.delete_extension(&id);
+            }
+            self.ext_form.code.clear();
+            self.ext_form.status.clear();
+            self.ext_form.matches.clear();
+        }
         // the person read it and turned it on
         if enable {
+            self.ext_trial = None;
             if let Some(id) = self.ext_form.pending.take() {
                 if !self.store.extensions_on.contains(&id) {
                     self.toggle_extension(&id);
                 }
                 self.ext_form.status = tf("« {} » est activée : elle s'applique aux pages ouvertes.", &[&self.ext_form.name]);
+                self.ext_form.failed = false;
             }
         }
         if let Some(t) = use_tool {
@@ -410,17 +689,30 @@ impl Sanaga {
             self.store.save_settings();
         }
         if go_settings {
-            self.settings_section = super::settings::Section::Intelligence;
-            self.navigate(self.active, "sanaga://settings".into(), None, true);
+            self.navigate(self.active, super::settings::Section::Intelligence.address(), None, true);
         }
         if create {
             let provider = self.ai_provider();
             if provider == Provider::Local {
                 self.ext_form.status = tr("Ajoutez votre clé Claude ou lancez Ollama (Paramètres › Intelligence).").into();
+                self.ext_form.failed = true;
                 return;
             }
+            // written again: the draft not turned on gives way to the new one
+            self.end_extension_trial(false);
+            if let Some(id) = self.ext_form.pending.take() {
+                self.delete_extension(&id);
+                self.notice = None;
+            }
+            self.ai_run += 1;
+            let run = self.ai_run;
             let f = &mut self.ext_form;
             f.busy = true;
+            f.failed = false;
+            f.started = now;
+            f.run = run;
+            f.stop = Default::default();
+            let stop = f.stop.clone();
             f.status.clear();
             f.code.clear();
             f.pending = None;
@@ -434,10 +726,60 @@ impl Sanaga {
             std::thread::Builder::new()
                 .name("sanaga-extension".into())
                 .spawn(move || {
-                    let _ = tx.send(AiDone::Extension(ai::write_extension(&provider, &name, &desc, &sites)));
+                    // (the code shows as the model writes it)
+                    let (tx2, repaint2) = (tx.clone(), repaint.clone());
+                    let result = ai::write_extension(&provider, &name, &desc, &sites, &stop, &mut |text| {
+                        let _ = tx2.send(AiDone::ExtensionPiece(run, text.to_string()));
+                        repaint2.request_repaint();
+                    });
+                    let _ = tx.send(AiDone::Extension(run, result));
                     repaint.request_repaint();
                 })
                 .ok();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn plain(p: &Para) -> String {
+        p.spans.iter().map(|s| if s.1 { format!("[{}]", s.0) } else { s.0.clone() }).collect()
+    }
+
+    #[test]
+    fn pages_to_try_an_extension_on() {
+        assert!(pattern_fits("*://*.youtube.com/*", "https://www.youtube.com/watch?v=1"));
+        assert!(pattern_fits("*://youtube.com/*", "https://m.youtube.com/"));
+        assert!(pattern_fits("https://example.org/a/*", "https://example.org/b"));
+        assert!(pattern_fits("*://*/*", "https://anything.example/"));
+        assert!(!pattern_fits("*://*.youtube.com/*", "https://notyoutube.com/"));
+        assert!(!pattern_fits("*://*.youtube.com/*", "https://example.com/youtube.com"));
+    }
+
+    #[test]
+    fn a_models_answer_becomes_paragraphs() {
+        let p = paragraphs("## Résumé\n\nLa **Sanaga** est un fleuve.\n• Premier **point**\n- Deuxième\n* Troisième\n1. Quatrième\n12. Douzième\n**Titre**\nUn ** seul et 3. pas une liste\n\n");
+        let shown: Vec<(bool, bool, String)> = p.iter().map(|x| (x.bullet, x.heading, plain(x))).collect();
+        assert_eq!(
+            shown,
+            vec![
+                (false, true, "Résumé".to_string()),
+                (false, false, "La [Sanaga] est un fleuve.".to_string()),
+                (true, false, "Premier [point]".to_string()),
+                (true, false, "Deuxième".to_string()),
+                (true, false, "Troisième".to_string()),
+                (true, false, "Quatrième".to_string()),
+                (true, false, "Douzième".to_string()),
+                (false, true, "[Titre]".to_string()),
+                (false, false, "Un ** seul et 3. pas une liste".to_string()),
+            ]
+        );
+        assert!(paragraphs("").is_empty() && paragraphs("\n \n").is_empty());
+        // whatever a model writes, nothing is lost and nothing panics
+        crate::mutate::run(&["• a **b** c\n## d\n1. e **f".as_bytes(), "**\n****\n- \n#".as_bytes()], 10_000, |d| {
+            let _ = paragraphs(&String::from_utf8_lossy(d));
+        });
     }
 }
