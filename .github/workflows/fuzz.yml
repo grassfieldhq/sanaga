@@ -46,7 +46,10 @@ jobs:
           seconds=300
           [ "${{ github.event_name }}" = "pull_request" ] && seconds=60
           # an input that takes more than 10 s is a finding too (a reader stuck)
-          cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=$seconds -timeout=10 -max_len=65536
+          # (the target is named: the ready-made cargo-fuzz is built for musl
+          # and would aim at it, where the sanitizers and nightly's own
+          # libraries are not available)
+          cargo +nightly fuzz run --target x86_64-unknown-linux-gnu ${{ matrix.target }} -- -max_total_time=$seconds -timeout=10 -max_len=65536
       - name: Keep what made it fail
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
