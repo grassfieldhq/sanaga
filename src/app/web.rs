@@ -378,7 +378,22 @@ impl Sanaga {
                     return;
                 }
                 t.loading = !finished;
+                // A load that ends with no address showed no page (it
+                // failed, or became a download): the tab keeps its address
+                // and its error page's mark, and nothing is a visit.
+                if finished && url.is_empty() {
+                    self.shown_tabs.remove(&tab);
+                    return;
+                }
                 if !finished {
+                    self.shown_tabs.insert(tab);
+                    // another page: the title of the one before is not its
+                    // title (a picture, a PDF or a text file has none, and
+                    // was listed in the history under the last page's)
+                    let (shown, new) = (super::chrome::same_page_key(&t.entries[t.idx].url), super::chrome::same_page_key(&url));
+                    if shown != new {
+                        t.entries[t.idx].title.clear();
+                    }
                     // a new page: nothing typed in it yet
                     t.form_dirty = false;
                     // its saved accounts may be offered again
@@ -441,7 +456,11 @@ impl Sanaga {
                     let private = t.private;
                     let title = t.entries[t.idx].title.clone();
                     let error_page = self.error_tabs.remove(&tab);
-                    if !private && !url.starts_with("about:") && !error_page {
+                    // (a page was really shown by this load: a download
+                    // started from a page ends a load of its own, under the
+                    // page's address, and is no second visit)
+                    let shown = self.shown_tabs.remove(&tab);
+                    if !private && !url.starts_with("about:") && !error_page && shown {
                         self.store.add_visit(&url, &title);
                         self.visited.insert(url);
                     }
@@ -794,6 +813,17 @@ impl Sanaga {
                 continue;
             }
             let tab = &mut self.tabs[i];
+            // A tab that now shows something else than its web page (one of
+            // Sanaga's own pages, the Reader, a protected site's notice):
+            // the page ends. Only hidden, it went on running under what is
+            // shown — its sound, its camera and microphone, its messages —
+            // with nothing on screen to stop it. Going back loads it again.
+            if tab.web.is_some() && tab.web_pending.is_none() && !matches!(tab.view, View::Web) {
+                tab.web = None;
+                tab.web_shown = false;
+                tab.audio = false;
+                continue;
+            }
             let Some(w) = &tab.web else { continue };
             if let Some(url) = tab.web_pending.take() {
                 load_into(w, &url, std::mem::take(&mut tab.web_by_person));

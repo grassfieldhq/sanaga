@@ -702,6 +702,10 @@ pub struct Sanaga {
     last_dialog_host: String,
     silenced_sites: HashSet<String>,
     error_tabs: HashSet<u64>,
+    /// Tabs whose page was shown (committed) and whose load has not ended
+    /// yet: only such a load counts as a visit when it ends (a load that
+    /// failed, or became a download, shows no page).
+    shown_tabs: HashSet<u64>,
     /// Tabs showing Sanaga's error page: for what failure, on which host
     /// (its buttons are accepted from there only).
     error_pages: HashMap<u64, errors::ErrorPage>,
@@ -1033,6 +1037,7 @@ impl Sanaga {
             last_dialog_host: String::new(),
             silenced_sites: HashSet::new(),
             error_tabs: HashSet::new(),
+            shown_tabs: HashSet::new(),
             error_pages: HashMap::new(),
             group_editor: None,
             group_label_rects: Vec::new(),
@@ -1506,6 +1511,16 @@ impl Sanaga {
         self.store.settle_history(true);
         self.store.forget_session(self.slot);
         crate::page::remove_download_sink(self.slot);
+    }
+
+    /// This window is closed for good while Sanaga goes on: its pages end
+    /// (each page's engine process with it).
+    pub fn release_pages(&mut self) {
+        for t in &mut self.tabs {
+            t.web = None;
+            t.web_shown = false;
+        }
+        self.popups.borrow_mut().clear();
     }
 
     /// "profil:NAME" for windows of the same profile (nothing for the main one).

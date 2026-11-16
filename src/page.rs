@@ -443,6 +443,15 @@ struct ViewState {
     typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
+    /// The page shown is Sanaga's own error page (set when it is shown,
+    /// from `error_next` set when it is asked for).
+    error_shown: Cell<bool>,
+    error_next: Cell<bool>,
+    /// The site whose settings the view has now (see `apply_site`).
+    site: RefCell<String>,
+    /// The address asked for again so that its site's settings count from
+    /// the start of its page (never twice for the same address).
+    asked_again: RefCell<String>,
     /// The engine process the page runs in, as it told Sanaga (see
     /// page-helper/): when it started, and its number as it sees it.
     process: Cell<Option<(u64, u32)>>,
@@ -723,6 +732,26 @@ fn apply_site(v: &WebView, host: &str) {
     let css = prefs.css();
     if !css.is_empty() {
         ucm.add_style_sheet(&webkit6::UserStyleSheet::new(&css, UserContentInjectedFrames::AllFrames, webkit6::UserStyleLevel::User, &[], &[]));
+    }
+}
+
+/// Would `host`'s settings change something a page's process only takes
+/// when it starts (JavaScript on or off, the video formats)?
+fn starts_with_process(v: &WebView, host: &str) -> bool {
+    let prefs = crate::site_prefs::for_host(host);
+    WebViewExt::settings(v).is_some_and(|st| st.enables_javascript_markup() != prefs.js || st.media_content_types_requiring_hardware_support().map(|g| g.to_string()) != crate::codecs::hardware_only_types(is_video_site(host)))
+}
+
+/// The address of the page a view really shows (the one its scripts, its
+/// dialogs and its requests belong to). While another page is on its way,
+/// `uri()` already gives that one's address for a navigation Sanaga
+/// started, and the page still shown would speak under its name.
+pub fn shown_uri(v: &WebView) -> String {
+    let committed = view_state(v).map(|s| s.committed.borrow().clone()).unwrap_or_default();
+    if committed.is_empty() {
+        v.uri().map(|u| u.to_string()).unwrap_or_default()
+    } else {
+        committed
     }
 }
 
@@ -1132,7 +1161,11 @@ impl PageView {
             let text = value.to_str().to_string();
             let Some(view) = me2.borrow().as_ref().and_then(|w| w.upgrade()) else { return };
             let current = view.uri().map(|u| u.to_string()).unwrap_or_default();
-            let Some(body) = message_body(&text, &current) else { return };
+            // (Sanaga's own error page is shown under the address that
+            // failed, but is a blank document to itself: its buttons speak
+            // as "about:blank")
+            let own_error_page = text.starts_with("about:blank\n") && view_state(&view).is_some_and(|s| s.error_shown.get());
+            let Some(body) = message_body(&text, if own_error_page { "about:blank" } else { &current }) else { return };
             // a shortcut only follows a real key press in the page (seen by
             // GTK, not claimed by a script)
             if is_shortcut_message(body) && !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW)) {
@@ -1204,10 +1237,20 @@ impl PageView {
         view.connect_load_changed(move |v, ev| {
             let uri = v.uri().map(|u| u.to_string()).unwrap_or_default();
             match ev {
-                // website settings: before the new page is made
-                LoadEvent::Started | LoadEvent::Redirected => apply_site(v, &host_of_uri(&uri)),
+                // website settings: before the new page is made. (Right
+                // for an address Sanaga opens itself, a reload, back and
+                // forward; for a link or a form of the page, the engine
+                // still gives the page being left here — see the response
+                // below, which knows where the page really comes from.)
+                LoadEvent::Started | LoadEvent::Redirected => {
+                    let host = host_of_uri(&uri);
+                    apply_site(v, &host);
+                    *st.site.borrow_mut() = host;
+                }
                 LoadEvent::Committed => {
                     *st.committed.borrow_mut() = uri.clone();
+                    st.error_shown.set(st.error_next.replace(false));
+                    st.asked_again.borrow_mut().clear();
                     // a new page: its downloads need its own actions
                     st.gesture.set(None);
                     st.typed.set(None);
@@ -1331,6 +1374,38 @@ impl PageView {
                         if (200..300).contains(&status) {
                             decision.download();
                             return true;
+                        }
+                    }
+                    // The page about to be shown: its site's settings
+                    // (JavaScript off, blocker, dark, fonts) are set now if
+                    // the view still has another site's — a link clicked or
+                    // a form sent in a page starts under the address of the
+                    // page being left, which got its own settings again.
+                    if r.is_main_frame_main_resource() {
+                        if let (Some(uri), Some(st)) = (r.response().and_then(|x| x.uri()).map(|u| u.to_string()), view_state(v)) {
+                            let host = host_of_uri(&uri);
+                            if *st.site.borrow() != host {
+                                // (JavaScript on or off and the video
+                                // formats are given to a page's process
+                                // when it starts, and the engine has
+                                // started one for this site already)
+                                let too_late = starts_with_process(v, &host);
+                                apply_site(v, &host);
+                                *st.site.borrow_mut() = host;
+                                // so the page is asked for again, this time
+                                // by Sanaga and under its own address (a
+                                // form being sent goes on as it is)
+                                if too_late && r.request().and_then(|q| q.http_method()).is_none_or(|m| m == "GET") && *st.asked_again.borrow() != uri {
+                                    *st.asked_again.borrow_mut() = uri.clone();
+                                    decision.ignore();
+                                    // (once the engine has dropped this
+                                    // load: asked at once, the new one
+                                    // started under the old page's address)
+                                    let v = v.clone();
+                                    gtk::glib::idle_add_local_once(move || v.load_uri(&uri));
+                                    return true;
+                                }
+                            }
                         }
                     }
                 }
@@ -1479,7 +1554,8 @@ impl PageView {
                 webkit6::ScriptDialogType::Prompt => DialogKind::Prompt(d.prompt_get_default_text().map(|t| t.to_string()).unwrap_or_default()),
                 _ => DialogKind::Leave,
             };
-            let info = DialogInfo { kind, message: d.message().map(|m| m.to_string()).unwrap_or_default(), host: host_of_uri(&v.uri().map(|u| u.to_string()).unwrap_or_default()) };
+            // (the page that speaks is the one shown, not one on its way)
+            let info = DialogInfo { kind, message: d.message().map(|m| m.to_string()).unwrap_or_default(), host: host_of_uri(&shown_uri(v)) };
             let key = keep_dialog(Pending::Script(d.clone()), info);
             o(PageSignal::Dialog(key));
             true
@@ -1640,6 +1716,17 @@ impl PageView {
     pub fn set_visible(&self, v: bool) -> R<()> {
         self.view.set_visible(v);
         Ok(())
+    }
+}
+
+impl PageView {
+    /// Show Sanaga's own page for a load that failed, under the address
+    /// that failed. Its buttons may then ask Sanaga (see `error_shown`).
+    pub fn show_error_page(&self, html: &str, url: &str) {
+        if let Some(st) = view_state(&self.view) {
+            st.error_next.set(true);
+        }
+        self.view.load_alternate_html(html, url, None);
     }
 }
 

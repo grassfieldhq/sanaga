@@ -48,6 +48,11 @@ struct Host {
     wanted: Cell<bool>,
     /// Waiting for the screen's next refresh.
     ticking: Cell<bool>,
+    /// The one timer that stands in for the screen's refresh is running.
+    fallback: Cell<bool>,
+    /// How many frames this window's interface ran (the timer above only
+    /// steps in when none ran since it was set).
+    frames: Cell<u64>,
     /// The window's number (0 = the first window).
     slot: usize,
 }
@@ -96,6 +101,7 @@ fn run_window(slot: usize) {
     let found = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| (x.host.clone(), x.gui.upgrade(), x.input.clone(), x.im.clone())));
     let Some((host, Some(gui), input, im)) = found else { return };
     host.wanted.set(false);
+    host.frames.set(host.frames.get().wrapping_add(1));
     let Ok(mut g) = gui.try_borrow_mut() else {
         // (busy: a dialog of this window is open) try again shortly
         let h = Rc::downgrade(&host);
@@ -512,6 +518,14 @@ pub fn widget_texture(w: &impl IsA<gtk::Widget>) -> Option<gdk::Texture> {
     parent.snapshot_child(w, &snap);
     let node = snap.to_node()?;
     let renderer = w.native()?.renderer()?;
+    // (GTK renders a node at one pixel per point: on a dense screen the
+    // picture is asked for at the screen's own scale, so it is as large,
+    // and as sharp, as the page it stands for)
+    let scale = w.scale_factor().max(1) as f32;
+    if scale > 1.0 {
+        let scaled = gtk::gsk::TransformNode::new(&node, Some(&gtk::gsk::Transform::new().scale(scale, scale)));
+        return Some(renderer.render_texture(&scaled, None));
+    }
     Some(renderer.render_texture(&node, None))
 }
 
@@ -814,6 +828,24 @@ fn gl_loader() -> Result<impl Fn(&str) -> *const std::ffi::c_void, String> {
     })
 }
 
+/// The screen's refresh may never come (the window is hidden, the screen is
+/// off): a fifth of a second after a frame was asked for, the frame runs
+/// anyway if none ran meanwhile (`seen`: the frames run when the timer was
+/// set). While frames go on being asked for, the timer goes on watching.
+fn refresh_fallback(slot: usize, seen: u64) {
+    glib::timeout_add_local_once(Duration::from_millis(200), move || {
+        let Some(h) = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| x.host.clone())) else { return };
+        if !h.wanted.get() {
+            h.fallback.set(false);
+        } else if h.frames.get() == seen {
+            h.fallback.set(false);
+            run_window(slot);
+        } else {
+            refresh_fallback(slot, h.frames.get());
+        }
+    });
+}
+
 /// Ask for the next frame in `delay` (keeps the earliest request).
 fn schedule(host: &Rc<Host>, delay: Duration) {
     if delay.is_zero() {
@@ -834,11 +866,11 @@ fn schedule(host: &Rc<Host>, delay: Duration) {
                 glib::ControlFlow::Break
             });
         }
-        glib::timeout_add_local_once(Duration::from_millis(200), move || {
-            if WINDOWS.with(|w| w.borrow().iter().any(|x| x.host.slot == slot && x.host.wanted.get())) {
-                run_window(slot);
-            }
-        });
+        // (one such timer per window, however many frames ask: a new one at
+        // every frame made the frames multiply while a page was loading)
+        if !host.fallback.replace(true) {
+            refresh_fallback(slot, host.frames.get());
+        }
         return;
     }
     let next = &host.next;
@@ -1249,7 +1281,7 @@ fn last_used_window() -> Option<Rc<Host>> {
 
 /// Close one window: its tabs are saved; if other windows stay open, they are
 /// not reopened next time (as in Chrome). The last window quits Sanaga.
-fn close_window(host: &Rc<Host>, gui: &RefCell<Gui>) {
+fn close_window(host: &Rc<Host>, gui: &Rc<RefCell<Gui>>) {
     let others = WINDOWS.with(|w| w.borrow().iter().filter(|x| !Rc::ptr_eq(&x.host, host)).count());
     if let Ok(mut g) = gui.try_borrow_mut() {
         g.app.on_close();
@@ -1264,6 +1296,43 @@ fn close_window(host: &Rc<Host>, gui: &RefCell<Gui>) {
     }
     if others == 0 {
         quit_main();
+        return;
+    }
+    // Sanaga goes on with its other windows: this one's pages end now
+    // (once GTK is done closing it)
+    let (host, gui) = (host.clone(), Rc::downgrade(gui));
+    glib::idle_add_local_once(move || release_window(host, gui));
+}
+
+/// A closed window lets go of everything: its pages end (their engine
+/// processes with them) and its parts are taken apart. GTK only frees a
+/// window nothing refers to any more, and this one's own handlers refer to
+/// it and to its interface, which holds the pages: left alone, they all
+/// stayed — a video went on playing with no window to stop it — until
+/// Sanaga quit.
+fn release_window(host: Rc<Host>, gui: std::rc::Weak<RefCell<Gui>>) {
+    if let Some(g) = gui.upgrade() {
+        match g.try_borrow_mut() {
+            Ok(mut g) => g.app.release_pages(),
+            // (its interface is busy: a file dialog it opened is still up)
+            Err(_) => {
+                glib::timeout_add_local_once(Duration::from_millis(200), move || release_window(host, gui));
+                return;
+            }
+        }
+    }
+    // Taking a part apart drops its handlers, and with them what they held
+    // (the interface, this very window).
+    // SAFETY: GTK takes a widget apart this way itself when it frees it;
+    // the only risk is using the widget afterwards, and nothing does: the
+    // window is closed, it is no longer in the list of windows, and its
+    // handlers, timers and frames all look it up there first.
+    unsafe {
+        // (from the outside in: each part lets go of the ones it holds)
+        host.window.run_dispose();
+        host.overlay.run_dispose();
+        host.top.run_dispose();
+        host.area.run_dispose();
     }
 }
 
@@ -1391,6 +1460,8 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         next: Rc::new(Cell::new(None)),
         wanted: Cell::new(false),
         ticking: Cell::new(false),
+        fallback: Cell::new(false),
+        frames: Cell::new(0),
         slot,
     });
     // (the window being made is the one the interface talks to while it starts)
