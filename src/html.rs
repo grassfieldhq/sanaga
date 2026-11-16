@@ -303,6 +303,9 @@ const BLOCKISH: &[&str] = &[
 ];
 
 struct Builder {
+    /// The page is a file of this computer (its own address, whatever its
+    /// `<base>` says): see `resolve`.
+    local: bool,
     base: Option<Url>,
     doc: Document,
     spans: Vec<Span>,
@@ -335,15 +338,29 @@ struct Builder {
 }
 
 impl Builder {
+    /// The whole address a page's `href`, `src` or `action` stands for.
+    /// None for what the page may not point to: a page that came from the
+    /// network never names a file of this computer — not as a link, not as
+    /// a form's target, not as its `<base>`, and above all not as a picture
+    /// (`<img src="file:///dev/zero">` was read, without end, into Sanaga's
+    /// own memory). Only a page that is itself a local file may.
     fn resolve(&self, href: &str) -> Option<String> {
         let href = href.trim();
         if href.is_empty() || href.starts_with("javascript:") {
             return None;
         }
-        match &self.base {
-            Some(b) => b.join(href).ok().map(|u| u.to_string()),
-            None => Url::parse(href).ok().map(|u| u.to_string()),
-        }
+        let u = match &self.base {
+            Some(b) => b.join(href).ok()?,
+            None => Url::parse(href).ok()?,
+        };
+        (self.local || u.scheme() != "file").then(|| u.to_string())
+    }
+
+    /// The address of something the page loads by itself, without the
+    /// person asking (a picture): the web, or a local file for a local page
+    /// (`resolve`); nothing else.
+    fn resolve_loaded(&self, src: &str) -> Option<String> {
+        self.resolve(src).filter(|u| u.starts_with("http://") || u.starts_with("https://") || u.starts_with("file://"))
     }
 
     fn cur_link(&self) -> Option<u32> {
@@ -614,7 +631,7 @@ impl Builder {
                 let src = Self::attr(&attrs, "src")
                     .filter(|s| !s.starts_with("data:"))
                     .or_else(|| Self::attr(&attrs, "data-src"))
-                    .and_then(|s| self.resolve(s));
+                    .and_then(|s| self.resolve_loaded(s));
                 let width = Self::attr(&attrs, "width").and_then(|w| w.trim_end_matches("px").parse::<f32>().ok());
                 let alt = Self::attr(&attrs, "alt").unwrap_or("").to_string();
                 if let Some(src) = src {
@@ -879,6 +896,7 @@ pub fn parse(src: &str, url: &str) -> Document {
 pub fn parse_page(src: &str, url: &str, main_only: bool) -> Document {
     let base = Url::parse(url).ok();
     let mut b = Builder {
+        local: base.as_ref().is_some_and(|u| u.scheme() == "file"),
         base,
         doc: Document { url: url.to_string(), bytes: src.len(), ..Default::default() },
         spans: Vec::new(),
@@ -1018,6 +1036,24 @@ mod more_tests {
         let d = parse("<table><tr><td>1.</td><td><center><a href=x></a></center></td><td><a href=/t>Titre</a></td></tr><tr><td colspan=2></td><td>12 points</td></tr></table>", "https://ex.com/");
         let texts: Vec<String> = d.blocks.iter().filter_map(|b| if let Block::Para(s) = b { Some(Document::plain_text(s)) } else { None }).collect();
         assert_eq!(texts, vec!["1.  ·  Titre".to_string(), "12 points".to_string()]);
+    }
+
+    #[test]
+    fn a_page_from_the_network_names_no_local_file() {
+        let pictures = |d: &Document| d.blocks.iter().filter_map(|b| if let Block::Image { src, .. } = b { Some(src.clone()) } else { None }).collect::<Vec<_>>();
+        let page = "<img src='file:///dev/zero'><img src='/logo.png'><img src='FILE:///etc/passwd'><img data-src='file:///dev/zero'><img src='sanaga://settings'><img src='ftp://a.example/x.png'>\
+                    <a href='file:///etc/passwd'>ici</a><a href='/suite'>suite</a><form action='file:///tmp/x'><input name=q></form>";
+        let d = parse(page, "https://a.example/page");
+        assert_eq!(pictures(&d), ["https://a.example/logo.png"]);
+        assert_eq!(d.links, ["https://a.example/suite"]);
+        assert_eq!(d.forms[0].action, "https://a.example/page");
+        // not through its <base> either
+        let d = parse("<base href='file:///dev/'><img src='zero'><a href='zero'>x</a>", "https://a.example/page");
+        assert_eq!((pictures(&d), d.links.clone()), (vec!["https://a.example/zero".to_string()], vec!["https://a.example/zero".to_string()]));
+        // a page that is a local file shows its own pictures and links, and the web's
+        let d = parse("<img src='photo.png'><img src='https://a.example/logo.png'><a href='autre.html'>x</a>", "file:///home/ada/page.html");
+        assert_eq!(pictures(&d), ["file:///home/ada/photo.png", "https://a.example/logo.png"]);
+        assert_eq!(d.links, ["file:///home/ada/autre.html"]);
     }
 
     #[test]

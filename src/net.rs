@@ -12,6 +12,99 @@ use std::time::Duration;
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Sanaga/0.1 (navigateur leger)";
 const MAX_IMAGE_SIDE: u32 = 1200;
+/// The most that is read of a picture, or of a local file shown as a page
+/// (the Light engine and the Reader keep what they read in memory).
+const MAX_BODY: u64 = 12 * 1024 * 1024;
+
+/// Read a file of this computer for the Light engine: an ordinary file
+/// only, and its first `MAX_BODY` bytes at most. A device such as
+/// `/dev/zero` never ends and a pipe never answers: read like a file, they
+/// filled Sanaga's memory or left the tab loading for ever.
+fn read_local(path: &Path) -> std::io::Result<Vec<u8>> {
+    use std::os::unix::fs::OpenOptionsExt;
+    // (opened without waiting — a pipe would — then looked at: the file that is read is the one that was checked)
+    let f = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(path)?;
+    let meta = f.metadata()?;
+    if meta.is_dir() {
+        return Err(std::io::Error::from_raw_os_error(libc::EISDIR));
+    }
+    if !meta.is_file() {
+        return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+    }
+    let mut bytes = Vec::new();
+    f.take(MAX_BODY).read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
+
+/// The file name a site gives a download in its `Content-Disposition`
+/// header, as the site wrote it (what it may hold — folders, `..`, encoded
+/// characters — is dealt with by `safe_download_name`, which every
+/// download name goes through). The header is read as browsers read it:
+/// parameters separated by `;`, values in quotes or not, names in any
+/// case, and `filename*=UTF-8''…` (any language, percent-encoded) rather
+/// than `filename=` when both are there. (It used to be cut at the first
+/// `filename=`: `filename="rapport.pdf"; filename*=UTF-8''rapport.pdf`
+/// gave a file called `rapport.pdf"; filename*=UTF-8''rapport.pdf`.)
+pub fn disposition_name(header: &str) -> Option<String> {
+    // the parts between `;` — a `;` inside quotes belongs to its value
+    let mut parts = vec![String::new()];
+    let (mut quoted, mut escaped) = (false, false);
+    for c in header.chars() {
+        if quoted {
+            quoted = escaped || c != '"';
+            escaped = !escaped && c == '\\';
+        } else if c == ';' {
+            parts.push(String::new());
+            continue;
+        } else {
+            quoted = c == '"';
+        }
+        parts.last_mut()?.push(c);
+    }
+    let (mut plain, mut extended) = (None::<String>, None::<String>);
+    for part in &parts {
+        let Some((name, value)) = part.split_once('=') else { continue };
+        let value = value.trim();
+        match name.trim().to_ascii_lowercase().as_str() {
+            "filename" if plain.is_none() => {
+                plain = Some(match value.strip_prefix('"') {
+                    // in quotes: up to the closing one, `\x` standing for x
+                    Some(inside) => {
+                        let mut text = String::new();
+                        let mut chars = inside.chars();
+                        while let Some(c) = chars.next() {
+                            match c {
+                                '"' => break,
+                                '\\' => text.extend(chars.next()),
+                                c => text.push(c),
+                            }
+                        }
+                        text
+                    }
+                    None => value.trim_matches('\'').to_string(),
+                });
+            }
+            // charset'language'percent-encoded bytes
+            "filename*" if extended.is_none() => {
+                let mut fields = value.splitn(3, '\'');
+                let (Some(charset), Some(_language), Some(encoded)) = (fields.next(), fields.next(), fields.next()) else { continue };
+                extended = match charset.trim().to_ascii_lowercase().as_str() {
+                    // (left encoded: `safe_download_name` decodes it, once)
+                    "utf-8" => Some(encoded.to_string()),
+                    // one byte, one character: written again the UTF-8 way
+                    "iso-8859-1" => {
+                        let text: String = percent_encoding::percent_decode_str(encoded).map(|b| b as char).collect();
+                        Some(percent_encoding::utf8_percent_encode(&text, percent_encoding::NON_ALPHANUMERIC).to_string())
+                    }
+                    _ => None,
+                };
+            }
+            _ => {}
+        }
+    }
+    let named = |n: &String| !n.trim().is_empty();
+    extended.filter(named).or(plain.filter(named))
+}
 
 pub enum NetMsg {
     Page { tab: u64, nav: u64, result: Result<Arc<Document>, String> },
@@ -183,19 +276,8 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
             };
             if let Some(path) = url.strip_prefix("file://") {
                 let path = url::Url::parse(&url).ok().and_then(|u| u.to_file_path().ok()).unwrap_or_else(|| PathBuf::from(path));
-                match std::fs::read(&path) {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        let lower = path.to_string_lossy().to_ascii_lowercase();
-                        let doc = if lower.ends_with(".html") || lower.ends_with(".htm") {
-                            html::parse_page(&text, &url, !full)
-                        } else if [".png", ".jpg", ".jpeg", ".gif", ".webp"].iter().any(|e| lower.ends_with(e)) {
-                            html::image_doc(&url, bytes.len())
-                        } else {
-                            html::plain(&text, &url)
-                        };
-                        send(Ok(Arc::new(doc)));
-                    }
+                match local_page(&path, &url, !full) {
+                    Ok(doc) => send(Ok(Arc::new(doc))),
                     Err(e) => send(Err(tf("Fichier introuvable : {}", &[&e]))),
                 }
                 return;
@@ -245,9 +327,7 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                 // Save to the downloads folder.
                 let name = resp
                     .header("Content-Disposition")
-                    .and_then(|d| d.split("filename=").nth(1))
-                    .map(|n| n.trim_matches(|c| c == '"' || c == '\'' || c == ';' || c == ' ').to_string())
-                    .filter(|n| !n.is_empty())
+                    .and_then(disposition_name)
                     .or_else(|| final_url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).filter(|s| !s.is_empty()).map(|s| s.to_string()))
                     .unwrap_or_else(|| "telechargement".into());
                 // (a safe name, a new file: never one that was already there)
@@ -287,6 +367,23 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
         .ok();
 }
 
+/// A file of this computer as a page of the Light engine: a web page, a
+/// picture, or plain text (see `read_local` for what is read of it).
+fn local_page(path: &Path, url: &str, main_only: bool) -> std::io::Result<Document> {
+    let lower = path.to_string_lossy().to_ascii_lowercase();
+    if [".png", ".jpg", ".jpeg", ".gif", ".webp"].iter().any(|e| lower.ends_with(e)) {
+        // (only its size is wanted here: the picture is read when it is shown)
+        let meta = std::fs::metadata(path)?;
+        if !meta.is_file() {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        }
+        return Ok(html::image_doc(url, meta.len() as usize));
+    }
+    let bytes = read_local(path)?;
+    let text = String::from_utf8_lossy(&bytes);
+    Ok(if lower.ends_with(".html") || lower.ends_with(".htm") { html::parse_page(&text, url, main_only) } else { html::plain(&text, url) })
+}
+
 fn describe_error(e: &ureq::Error) -> String {
     let s = e.to_string();
     let low = s.to_ascii_lowercase();
@@ -309,12 +406,15 @@ pub fn fetch_image(agent: ureq::Agent, url: String, tx: Sender<NetMsg>, ctx: egu
         .spawn(move || {
             let result = (|| -> Result<egui::ColorImage, String> {
                 let bytes = if url.starts_with("file://") {
+                    // (a local page's own picture — a page from the network
+                    // never names one: see html.rs — read as far as one from
+                    // the network is)
                     let p = url::Url::parse(&url).ok().and_then(|u| u.to_file_path().ok()).ok_or("chemin invalide")?;
-                    std::fs::read(p).map_err(|e| e.to_string())?
+                    read_local(&p).map_err(|e| e.to_string())?
                 } else {
                     let resp = agent.get(&url).set("Accept", "image/png,image/jpeg,image/gif,image/webp,*/*;q=0.5").call().map_err(|e| e.to_string())?;
                     let mut buf = Vec::new();
-                    resp.into_reader().take(12 * 1024 * 1024).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+                    resp.into_reader().take(MAX_BODY).read_to_end(&mut buf).map_err(|e| e.to_string())?;
                     buf
                 };
                 decode_image(&bytes)
@@ -540,6 +640,68 @@ pub fn human_bytes(b: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_downloads_name_is_read_from_its_header() {
+        let name = |header: &str| disposition_name(header).map(|n| safe_download_name(&n));
+        // both forms, as servers send them: one name, not the rest of the header
+        assert_eq!(name("attachment; filename=\"rapport.pdf\"; filename*=UTF-8''rapport.pdf").as_deref(), Some("rapport.pdf"));
+        assert_eq!(disposition_name("attachment; filename=\"rapport.pdf\"; size=3").as_deref(), Some("rapport.pdf"));
+        // the encoded form first, wherever it is, names in any case
+        assert_eq!(name("attachment; filename=\"Recu n1.pdf\"; filename*=UTF-8''Re%C3%A7u%20n%C2%B01.pdf").as_deref(), Some("Reçu n°1.pdf"));
+        assert_eq!(name("Attachment; FileName*=utf-8'fr'%C3%A9t%C3%A9.txt; FILENAME=ete.txt").as_deref(), Some("été.txt"));
+        assert_eq!(name("attachment; filename*=ISO-8859-1''Re%E7u%20100%25.pdf").as_deref(), Some("Reçu 100%.pdf"));
+        // a charset Sanaga does not read: the plain name
+        assert_eq!(name("attachment; filename*=koi8-r''%D2.txt; filename=r.txt").as_deref(), Some("r.txt"));
+        assert_eq!(name("attachment; filename*=UTF-8''; filename=r.txt").as_deref(), Some("r.txt"));
+        // quotes: a `;` and an escaped quote inside, spaces around
+        assert_eq!(disposition_name("attachment; filename = \"a;b \\\"c\\\".pdf\" ; x=y").as_deref(), Some("a;b \"c\".pdf"));
+        assert_eq!(disposition_name("attachment;filename=plain.txt").as_deref(), Some("plain.txt"));
+        assert_eq!(disposition_name("attachment; filename='quoted.txt'").as_deref(), Some("quoted.txt"));
+        assert_eq!(disposition_name("filename=\"sans-type.txt\"").as_deref(), Some("sans-type.txt"));
+        // no name
+        for none in ["attachment", "inline", "", "attachment; filename=", "attachment; filename=\"\"", "attachment; filename*=UTF-8''", "attachment; name=x"] {
+            assert_eq!(disposition_name(none), None, "{none}");
+        }
+        // whatever the name says, it stays a name in the Downloads folder
+        assert_eq!(name("attachment; filename=\"..%2F..%2F.config%2Fautostart%2Fevil.desktop\"").as_deref(), Some("evil.desktop.download"));
+        assert_eq!(name("attachment; filename*=UTF-8''..%2F..%2Fevil.desktop").as_deref(), Some("evil.desktop.download"));
+        assert_eq!(name("attachment; filename=\"/etc/passwd\"").as_deref(), Some("passwd"));
+        // odd headers never crash the reader
+        crate::mutate::run(&[b"attachment; filename=\"a;b.pdf\"; filename*=UTF-8''a%20b.pdf".as_slice()], 3000, |data| {
+            let _ = disposition_name(&String::from_utf8_lossy(data));
+        });
+    }
+
+    #[test]
+    fn local_files_are_read_as_far_as_the_networks() {
+        let dir = std::env::temp_dir().join(format!("sanaga-net-local-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // what never ends, what never answers, what is not a file: refused
+        assert!(read_local(Path::new("/dev/zero")).is_err());
+        let zero = dir.join("zero.png");
+        std::os::unix::fs::symlink("/dev/zero", &zero).unwrap();
+        assert!(read_local(&zero).is_err());
+        assert!(local_page(&zero, "file:///x/zero.png", true).is_err());
+        assert!(local_page(Path::new("/dev/zero"), "file:///dev/zero", true).is_err());
+        assert!(read_local(&dir).is_err());
+        if std::process::Command::new("mkfifo").arg(dir.join("pipe.txt")).status().is_ok_and(|s| s.success()) {
+            assert!(read_local(&dir.join("pipe.txt")).is_err());
+        }
+        // a file bigger than a page may be: its start
+        let big = dir.join("big.txt");
+        std::fs::File::create(&big).unwrap().set_len(MAX_BODY + 4096).unwrap();
+        assert_eq!(read_local(&big).unwrap().len() as u64, MAX_BODY);
+        // ordinary files, as before
+        std::fs::write(dir.join("a.html"), "<title>Local</title><p>Bonjour<img src=photo.png>").unwrap();
+        let doc = local_page(&dir.join("a.html"), "file:///x/a.html", false).unwrap();
+        assert_eq!(doc.title, "Local");
+        std::fs::write(dir.join("photo.png"), [0u8; 10]).unwrap();
+        assert_eq!(local_page(&dir.join("photo.png"), "file:///x/photo.png", false).unwrap().bytes, 10);
+        assert!(local_page(&dir.join("missing.txt"), "file:///x/missing.txt", false).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn requests_trust_the_systems_certificates() {
