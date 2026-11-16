@@ -194,6 +194,82 @@ All notable changes to Sanaga are listed here. The format follows
   it changes from page to page. Settings › Apparence › "Toujours afficher
   les URL en entier" shows the whole address.
 
+### Fixed (issues #4 and #5, and the audit of 16 November 2026)
+- **A page no longer shrinks when a menu opens (issue #4).** On a screen
+  with a scale of 2, the picture of the page shown under a menu was half
+  its size, in the top left corner. Every menu of 0.4.0 did this; since
+  menus open over the living page, the mobile simulator still did.
+- **"Sanaga ended without closing" says how (issue #5).** The report
+  kept after an abrupt end names the signal that ended Sanaga (a fault in
+  Sanaga or a system library, a stack that ran out), or says that the
+  computer was started again or the desktop session ended with Sanaga
+  open, and when the lost run had started.
+- **Shortcuts are read from the keyboard, not by a script in the page.**
+  Ctrl+A, B, I, Y… work again in text fields (select all, bold, italic,
+  redo); a web application that handles Ctrl+S, K, F… keeps it; Sanaga's
+  shortcuts work in a frame of another site, on a page that no longer
+  answers, and on a keyboard set to Russian, Greek, Arabic or Hebrew
+  (AZERTY: Ctrl+0 resets the zoom).
+- **Saved passwords: the list shows every account.** It was read from
+  the wrong output of the keyring tool and fell to a single account at
+  every start, the others no longer offered (they stayed in the keyring).
+- **Favourites are not replaced by the first ones when their file reads
+  badly** (one damaged byte was enough). A file that cannot be read is
+  left alone; the state before each run stays as `<file>.bak`; two
+  Sanagas on one profile can no longer put a half-written file in place.
+- **Sync:** changing the folder no longer removes this computer's
+  favourites; an encrypted folder refuses a plain file put there; a file
+  that cannot be read is not taken for an empty one; a round starts when
+  the folder's path is finished, not at each letter typed; the windows
+  no longer read the whole profile again every 30 seconds.
+- **The certificate error page's buttons work** ("Back to safety",
+  "Continue"): a site with an invalid certificate could not be opened.
+- **The padlock follows the certificate** of the page shown: none on an
+  error page, red and struck out after going on despite an invalid
+  certificate. It was drawn for any address starting with https://.
+- A site's settings (JavaScript off, video formats) apply when the site
+  is reached by a link, not only when its address is typed.
+- A guest window stays a guest: a window opened from it used the main
+  profile.
+- Private tabs: zoom, site settings, permission answers and download
+  marks are no longer written; the page is not sent to an online model
+  or translation service; the private session ends with its last tab.
+- Clear browsing data clears this window's data and every container's
+  (it cleared whatever the first tab used).
+- Closing one of several windows ends its pages (they went on running,
+  sound included, until Sanaga quit).
+- The interface no longer draws faster and faster while a page loads
+  (past 2000 frames a second after a quarter of a minute).
+- A tab showing one of Sanaga's pages or the Reader ends its web page
+  (it went on playing under it).
+- The history no longer lists loads that failed or downloads; a page
+  without a title no longer takes the title of the page before it.
+- The energy saver ignores the battery of a wireless mouse or keyboard.
+- Thousands of brackets pasted in the address bar no longer end Sanaga.
+- Editing a favourite after removing another no longer overwrites the
+  wrong one; the star's bubble no longer renames another tab's
+  favourite; a password shown stays on its own account's line and hides
+  after half a minute.
+- A protected site restored at the start no longer stops Sanaga (and
+  truncates the saved tabs) when "always open this way" is on.
+- Enter typed in the address field no longer answers a page's question.
+- Containers "A B" and "A-B" no longer share (and erase) their data;
+  deleting a profile removes its secrets from the keyring; "Close this
+  profile" quits it.
+- Vertical tabs can be dragged downwards; a button of the person's that
+  closes the tab no longer raises an error; a video recording stopped at
+  once no longer waits for ever; the simulator keeps the device's width
+  at any zoom; a page's source keeps working after its tab slept.
+- Links to the mail program, the phone or a torrent program (`mailto:`,
+  `tel:`, `sms:`, `magnet:`) are handed to the system instead of showing
+  an error page; an address on a port browsers refuse says so.
+- Chrome passwords of 32 characters or more are imported whole; user
+  scripts read their whole header and run on their own sites only
+  (`*://*.bank.example/*` no longer matches another site's address);
+  installing an unpacked extension reads ordinary files only, with
+  limits; the Light engine never reads a local file named by a page from
+  the network; a download's name is read properly from its header.
+
 ### Fixed
 - History: a title that arrived after its page had loaded was never
   written to the file (the visit showed its bare address after a
