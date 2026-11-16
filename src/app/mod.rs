@@ -624,7 +624,6 @@ pub struct Sanaga {
     sync_at: f64,
     perm_queue: plus::PermQueue,
     perm_current: Option<plus::PermAsk>,
-    pending_clear: Option<(u32, u64)>,
     tab_search_open: bool,
     tab_search_q: String,
     clear_period: u64,
@@ -817,8 +816,15 @@ impl Sanaga {
         crate::i18n::set_language(&store.settings.language);
         if screenshot.is_none() {
             let lang = crate::i18n::language();
-            unsafe {
-                std::env::set_var("LANGUAGE", lang);
+            // (only when it changes: the environment must not be written
+            // while other threads may read it, and every new window used
+            // to write it again)
+            if std::env::var("LANGUAGE").ok().as_deref() != Some(lang) {
+                // SAFETY: the first window sets it before the engine and
+                // its threads start; later windows find it set already.
+                unsafe {
+                    std::env::set_var("LANGUAGE", lang);
+                }
             }
         }
         // site icons (loaded by WebKit with their pages): kept in Sanaga's
@@ -977,7 +983,6 @@ impl Sanaga {
             sync_at: -100.0,
             perm_queue: Default::default(),
             perm_current: None,
-            pending_clear: None,
             tab_search_open: false,
             tab_search_q: String::new(),
             clear_period: 3600,
@@ -1521,6 +1526,7 @@ impl Sanaga {
             t.web_shown = false;
         }
         self.popups.borrow_mut().clear();
+        crate::page::note_private_tabs(self.slot, 0);
     }
 
     /// "profil:NAME" for windows of the same profile (nothing for the main one).
@@ -1555,6 +1561,15 @@ impl Sanaga {
     pub(super) fn new_window(&mut self, mut urls: Vec<String>) {
         if !self.store.profile.is_empty() {
             urls.push(format!("profil:{}", self.store.profile));
+        }
+        // (a window opened from a guest window is a guest window too: it
+        // used to open on the main profile — its cookies, favourites,
+        // history and passwords)
+        if self.guest {
+            urls.push("invite:".into());
+            if self.automation {
+                urls.push("automation:".into());
+            }
         }
         self.window_request = Some(urls);
     }
@@ -1710,6 +1725,11 @@ impl Sanaga {
             return;
         }
         self.store_seen = now;
+        // (a guest window has no saved data to read again: reading "the
+        // profile" here gave it the main profile's, to read and to write)
+        if self.guest {
+            return;
+        }
         let downloads = std::mem::take(&mut self.store.downloads);
         let profile = self.store.profile.clone();
         self.store.settle_history(true);
@@ -1984,6 +2004,8 @@ impl Sanaga {
         // test aids (debug builds only: not in a release build)
         self.test_hooks(ui, &ctx0, now);
         self.memory_saver_step(now);
+        // (the private session ends with the last private tab)
+        crate::page::note_private_tabs(self.slot, self.tabs.iter().filter(|t| t.private).count());
         if self.frame == 1 {
             crate::stage("f: before steps");
         }

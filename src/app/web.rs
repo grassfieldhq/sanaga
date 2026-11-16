@@ -196,7 +196,7 @@ impl PageMaker {
     /// The engine of a container: its own cookies, logins and site data.
     pub(super) fn container_engine(&self, name: &str) -> Option<crate::page::Engine> {
         let base = self.base.as_ref()?;
-        let safe: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
+        let safe = super::containers::folder_name(name);
         let e = crate::page::profile_context(&base.join("containers").join(safe));
         crate::page::follow_downloads(&e);
         Some(e)
@@ -839,7 +839,6 @@ impl Sanaga {
         }
         super::plus::watch_permissions(w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
         watch_page_input(w, self.tabs[i].id, self.web_tx.clone(), self.ctx.clone());
-        self.run_pending_clear(w);
         // (the keyboard goes to the tab in use, not to its companion in a split view)
         if show && i == self.active {
             use gtk::prelude::WidgetExt;

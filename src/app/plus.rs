@@ -476,22 +476,28 @@ impl Sanaga {
             types |= webkit6::WebsiteDataTypes::MEMORY_CACHE | webkit6::WebsiteDataTypes::DISK_CACHE;
         }
         if !types.is_empty() {
+            // This window's own data (the profile's, or a guest window's),
+            // and each container's. It used to be whatever the first tab
+            // with a page happened to use: with a private or a container
+            // tab first, the profile kept its cookies and cache while the
+            // message said they were gone; containers were never cleared.
+            self.ensure_engine();
+            let mut sessions: Vec<webkit6::NetworkSession> = self.web_context.iter().map(|e| e.session.clone()).collect();
+            if let Some(base) = &self.web_dir {
+                for c in &self.store.containers {
+                    let dir = base.join("containers").join(super::containers::folder_name(&c.name));
+                    // (a container never used has nothing, and no folder yet)
+                    if dir.is_dir() {
+                        sessions.push(crate::page::profile_context(&dir).session);
+                    }
+                }
+            }
             let span = glib_timespan(period);
-            match self.tabs.iter().find_map(|t| t.web.as_ref()).and_then(|w| w.webview().network_session()).and_then(|s| s.website_data_manager()) {
-                Some(dm) => dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {}),
-                None => self.pending_clear = Some((types.bits(), period)),
+            for dm in sessions.iter().filter_map(|s| s.website_data_manager()) {
+                dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {});
             }
         }
         self.notice = Some((tr("Données de navigation effacées.").into(), self.ctx.input(|i| i.time)));
-    }
-
-    /// Data clearing asked while no web page was open: done with the first one.
-    pub(super) fn run_pending_clear(&mut self, w: &crate::page::PageView) {
-        if let Some((bits, period)) = self.pending_clear.take() {
-            if let Some(dm) = w.webview().network_session().and_then(|s| s.website_data_manager()) {
-                dm.clear(webkit6::WebsiteDataTypes::from_bits_truncate(bits), glib_timespan(period), None::<&webkit6::gio::Cancellable>, |_| {});
-            }
-        }
     }
 
     pub(super) fn page_clear_data(&mut self, ui: &mut Ui, th: &Theme) {

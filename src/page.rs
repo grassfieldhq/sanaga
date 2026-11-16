@@ -1136,6 +1136,30 @@ pub fn private_engine(base: Option<&Engine>) -> Engine {
     Engine { ctx: base.map(|e| e.ctx.clone()).unwrap_or_default(), session: private_session() }
 }
 
+thread_local! {
+    /// How many private tabs each window has (see `note_private_tabs`).
+    static PRIVATE_TABS: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Each window says how many private tabs it has. When the last private
+/// tab of all windows is closed, the private session ends: its cookies and
+/// sign-ins are gone, as closing a private window does in other browsers.
+/// (It used to last until Sanaga quit: a private tab opened hours later
+/// was still signed in.)
+pub fn note_private_tabs(window: usize, count: usize) {
+    let none_left = PRIVATE_TABS.with(|t| {
+        let mut t = t.borrow_mut();
+        t.retain(|(w, _)| *w != window);
+        if count > 0 {
+            t.push((window, count));
+        }
+        t.is_empty()
+    });
+    if none_left {
+        PRIVATE.with(|p| p.borrow_mut().take());
+    }
+}
+
 /// The session shared by private tabs.
 fn private_session() -> NetworkSession {
     PRIVATE.with(|p| {
@@ -1174,7 +1198,10 @@ pub fn enable_spell_checking(ctx: &WebContext) {
 /// Where downloads go, and who is told when one ends.
 pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
     let done = Rc::new(done);
-    session.connect_download_started(move |_, download| {
+    session.connect_download_started(move |session, download| {
+        // (a private tab's, or a guest window's: nothing says where its
+        // downloads came from)
+        let keeps_nothing = session.is_ephemeral();
         if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
             eprintln!("download started {:?}", download.request().and_then(|r| r.uri()));
         }
@@ -1242,7 +1269,7 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                 return; // the person said no: nothing to show
             }
             let ok = !*failed.borrow();
-            if let (true, Some(p)) = (ok, &path) {
+            if let (true, Some(p), false) = (ok, &path, keeps_nothing) {
                 // where it came from (after redirections), for the file manager
                 let from = download.response().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_else(|| uri.clone());
                 if let Err(e) = crate::net::mark_download(p, &from, &referrer) {

@@ -102,7 +102,8 @@ impl Sanaga {
     pub(super) fn remember_zoom(&mut self) {
         let t = &self.tabs[self.active];
         let host = host_of(t.url());
-        if t.url().starts_with("http") {
+        // (a private tab's zoom is for that tab: the site's name is not kept)
+        if t.url().starts_with("http") && !t.private {
             let z = t.zoom;
             self.store.set_site_zoom(&host, z);
         }
