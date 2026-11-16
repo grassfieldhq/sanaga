@@ -501,16 +501,29 @@ impl Sanaga {
         // person wants it whole), centred, with a padlock
         if !focused {
             let font = FontId::proportional(14.0);
+            // The padlock says what the engine knows of the page shown: a
+            // closed one for a certificate the system trusts, a struck-out
+            // red one when the person went on despite an invalid
+            // certificate, none on Sanaga's error pages or while the page
+            // is on its way. (It used to be drawn for any address starting
+            // with https://.) The Light engine's pages are fetched by
+            // Sanaga, which refuses an invalid certificate.
+            let secure = match (&self.tabs[a].view, &self.tabs[a].web) {
+                _ if !url.starts_with("https://") => None,
+                (View::Web, Some(w)) => w.secure(),
+                (View::Web, None) => None,
+                _ => Some(true),
+            };
             let (job, col, lock) = if is_ntp || url.is_empty() {
-                (egui::text::LayoutJob::simple_singleline(tr("Rechercher ou saisir le nom d'un site").to_string(), font, th.sub), th.sub, false)
+                (egui::text::LayoutJob::simple_singleline(tr("Rechercher ou saisir le nom d'un site").to_string(), font, th.sub), th.sub, None)
             } else if url.starts_with("sanaga://") {
-                (egui::text::LayoutJob::simple_singleline(self.tabs[a].title(), font, th.text), th.text, false)
+                (egui::text::LayoutJob::simple_singleline(self.tabs[a].title(), font, th.text), th.text, None)
             } else {
                 let (site, rest) = display_url(&url, self.store.settings.full_urls);
                 let mut job = egui::text::LayoutJob::default();
                 job.append(&site, 0.0, egui::TextFormat::simple(font.clone(), th.text));
                 job.append(&rest, 0.0, egui::TextFormat::simple(font, th.sub));
-                (job, th.text, url.starts_with("https://"))
+                (job, th.text, secure)
             };
             // (too long for the pill: it ends with "…" instead of being cut
             // in the middle of a letter)
@@ -518,10 +531,17 @@ impl Sanaga {
             job.wrap = egui::text::TextWrapping { max_width: (text_right - star_r.right() - 30.0).max(0.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
             let g = ui.painter().layout_job(job);
             let gw = g.size().x.min(text_right - star_r.right() - 30.0).max(0.0);
-            let lock_w = if lock { 17.0 } else { 0.0 };
+            let lock_w = if lock.is_some() { 17.0 } else { 0.0 };
             let x0 = rect.center().x - (gw + lock_w) / 2.0;
-            if lock {
-                icons::paint(ui.painter(), Rect::from_center_size(pos2(x0 + 5.0, rect.center().y), vec2(11.0, 11.0)), Icon::Lock, th.sub);
+            if let Some(trusted) = lock {
+                let r = Rect::from_center_size(pos2(x0 + 5.0, rect.center().y), vec2(11.0, 11.0));
+                if trusted {
+                    icons::paint(ui.painter(), r, Icon::Lock, th.sub);
+                } else {
+                    let red = Color32::from_rgb(0xD9, 0x30, 0x25);
+                    icons::paint(ui.painter(), r, Icon::Lock, red);
+                    ui.painter().line_segment([r.left_bottom() + vec2(-1.0, 1.0), r.right_top() + vec2(1.0, -1.0)], Stroke::new(1.6, red));
+                }
             }
             let clip = Rect::from_min_max(pos2(x0 + lock_w, rect.top()), pos2(x0 + lock_w + gw, rect.bottom()));
             ui.painter().with_clip_rect(clip).galley(pos2(clip.left(), rect.center().y - g.size().y / 2.0), g, col);

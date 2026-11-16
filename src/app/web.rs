@@ -83,19 +83,17 @@ const LANG_JS: &str = r#"(function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tell); else tell();
 })();"#;
 
+/// Escape ends a tool of Sanaga's that is at work in the page (removing an
+/// element…). Every other shortcut is read by Sanaga from the keyboard
+/// itself (page.rs): this script used to cancel Ctrl+A, B, I, Y… for the
+/// page — select all, bold, italic, redo — although Sanaga has no use for
+/// them, and took Ctrl+S, K, F… from web applications that have their own.
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
-  if (!e.isTrusted) return;
-  var k = (e.key || '').toLowerCase();
-  var ctrl = e.ctrlKey || e.metaKey;
-  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','k','e','delete','m','y','pagedown','pageup'].indexOf(k) >= 0)
-    || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
-    || k === 'f5' || k === 'f6' || k === 'f9' || k === 'f11' || k === 'f12'
-    || (k === 'escape' && window.__sanagaTool);
-  if (!ours || !window.ipc) return;
+  if (!e.isTrusted || (e.key || '').toLowerCase() !== 'escape' || !window.__sanagaTool || !window.ipc) return;
   e.preventDefault();
   e.stopPropagation();
-  window.ipc.postMessage((ctrl ? 'c' : '') + (e.shiftKey ? 's' : '') + (e.altKey ? 'a' : '') + ':' + k);
+  window.ipc.postMessage(':escape');
 }, true);
 "#;
 
@@ -132,62 +130,12 @@ document.addEventListener('click', function (e) {
 /// others are only asked from Sanaga's menus). Each one is still checked
 /// against what the person started (see `page_tool`).
 fn page_may_answer(what: &str) -> bool {
-    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow") || (cfg!(debug_assertions) && what == "probe")
+    // ("no-webrtc": the engine has no video calls — it was filtered out
+    // here, so call sites were never handed to a browser that has them)
+    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow" | "no-webrtc") || (cfg!(debug_assertions) && what == "probe")
 }
 
-fn shortcut_name(msg: &str) -> Option<&'static str> {
-    let (mods, key) = msg.split_once(':')?;
-    let c = mods.contains('c');
-    let s = mods.contains('s');
-    let a = mods.contains('a');
-    Some(match (c, s, a, key) {
-        (true, true, _, "n") => "private",
-        (true, true, _, "t") => "reopen",
-        (true, true, _, "b") => "bmbar",
-        (true, true, _, "r") => "reader",
-        (true, true, _, "\\") | (true, true, _, "|") => "overview",
-        (true, true, _, "l") => "sidebar",
-        (true, true, _, "o") => "overview",
-        (true, true, _, "f") => "contacts",
-        (true, true, _, "a") => "tabsearch",
-        (true, false, false, "k") => "tabsearch",
-        (true, true, _, "e") => "split",
-        (true, true, _, "delete") => "cleardata",
-        (true, false, false, "s") => "savepage",
-        (true, false, true, "i") => "inspector",
-        (true, true, _, "i") => "inspector",
-        (_, _, _, "f12") => "inspector",
-        (true, true, _, "m") => "devices",
-        (_, _, _, "f9") => "focus",
-        (true, true, _, "y") => "summary",
-        (_, _, _, "escape") => "esc",
-        (true, false, false, "p") => "print",
-        (true, false, false, "u") => "source",
-        (_, _, _, "f11") => "fullscreen",
-        (true, true, _, "d") => "readinglist",
-        (true, true, _, "tab") => "prev",
-        (true, _, _, "pagedown") => "tabright",
-        (true, _, _, "pageup") => "tableft",
-        (true, false, _, "t") => "new",
-        (true, false, _, "n") => "window",
-        (true, _, _, "w") => "close",
-        (true, false, _, "tab") => "next",
-        (true, _, _, "l") | (_, _, _, "f6") => "addr",
-        (true, _, _, "r") | (_, _, _, "f5") => "reload",
-        (_, _, true, "arrowleft") => "back",
-        (_, _, true, "arrowright") => "fwd",
-        (_, _, true, "home") => "home",
-        (true, _, _, "d") => "bookmark",
-        (true, _, _, "h") => "history",
-        (true, _, _, "j") => "downloads",
-        (true, _, _, "f") => "find",
-        (true, _, _, "=") | (true, _, _, "+") => "zin",
-        (true, _, _, "-") => "zout",
-        (true, _, _, "0") => "zreset",
-        (true, _, _, "q") => "quit",
-        _ => return None,
-    })
-}
+use crate::page::shortcut_name;
 
 static PAGE_INPUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -248,7 +196,7 @@ impl PageMaker {
     /// The engine of a container: its own cookies, logins and site data.
     pub(super) fn container_engine(&self, name: &str) -> Option<crate::page::Engine> {
         let base = self.base.as_ref()?;
-        let safe: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
+        let safe = super::containers::folder_name(name);
         let e = crate::page::profile_context(&base.join("containers").join(safe));
         crate::page::follow_downloads(&e);
         Some(e)
@@ -378,7 +326,22 @@ impl Sanaga {
                     return;
                 }
                 t.loading = !finished;
+                // A load that ends with no address showed no page (it
+                // failed, or became a download): the tab keeps its address
+                // and its error page's mark, and nothing is a visit.
+                if finished && url.is_empty() {
+                    self.shown_tabs.remove(&tab);
+                    return;
+                }
                 if !finished {
+                    self.shown_tabs.insert(tab);
+                    // another page: the title of the one before is not its
+                    // title (a picture, a PDF or a text file has none, and
+                    // was listed in the history under the last page's)
+                    let (shown, new) = (super::chrome::same_page_key(&t.entries[t.idx].url), super::chrome::same_page_key(&url));
+                    if shown != new {
+                        t.entries[t.idx].title.clear();
+                    }
                     // a new page: nothing typed in it yet
                     t.form_dirty = false;
                     // its saved accounts may be offered again
@@ -441,7 +404,11 @@ impl Sanaga {
                     let private = t.private;
                     let title = t.entries[t.idx].title.clone();
                     let error_page = self.error_tabs.remove(&tab);
-                    if !private && !url.starts_with("about:") && !error_page {
+                    // (a page was really shown by this load: a download
+                    // started from a page ends a load of its own, under the
+                    // page's address, and is no second visit)
+                    let shown = self.shown_tabs.remove(&tab);
+                    if !private && !url.starts_with("about:") && !error_page && shown {
                         self.store.add_visit(&url, &title);
                         self.visited.insert(url);
                     }
@@ -761,6 +728,9 @@ impl Sanaga {
                 t.web_pending = Some(t.url().to_string());
             }
         }
+        // (addresses on a port browsers refuse: the engine shows a blank
+        // page and says nothing, so Sanaga says it — see below)
+        let mut blocked: Vec<(u64, String)> = Vec::new();
         for i in 0..self.tabs.len() {
             let show = (i == active || Some(i) == partner) && matches!(self.tabs[i].view, View::Web) && !overlay;
             if self.tabs[i].web.is_none() {
@@ -787,16 +757,35 @@ impl Sanaga {
                     }
                 }
                 self.prepare_view(i, &w, show);
-                load_into(&w, &url, by_person);
+                if crate::guard::restricted_port(&url) {
+                    blocked.push((self.tabs[i].id, url.clone()));
+                } else {
+                    load_into(&w, &url, by_person);
+                }
                 self.tabs[i].web = Some(w);
                 self.tabs[i].web_shown = show;
                 self.tabs[i].web_zoom = 1.0;
                 continue;
             }
             let tab = &mut self.tabs[i];
+            // A tab that now shows something else than its web page (one of
+            // Sanaga's own pages, the Reader, a protected site's notice):
+            // the page ends. Only hidden, it went on running under what is
+            // shown — its sound, its camera and microphone, its messages —
+            // with nothing on screen to stop it. Going back loads it again.
+            if tab.web.is_some() && tab.web_pending.is_none() && !matches!(tab.view, View::Web) {
+                tab.web = None;
+                tab.web_shown = false;
+                tab.audio = false;
+                continue;
+            }
             let Some(w) = &tab.web else { continue };
             if let Some(url) = tab.web_pending.take() {
-                load_into(w, &url, std::mem::take(&mut tab.web_by_person));
+                if crate::guard::restricted_port(&url) {
+                    blocked.push((tab.id, url));
+                } else {
+                    load_into(w, &url, std::mem::take(&mut tab.web_by_person));
+                }
             }
             if show != tab.web_shown {
                 let _ = w.set_visible(show);
@@ -815,6 +804,9 @@ impl Sanaga {
                 let _ = w.zoom(want as f64);
                 tab.web_zoom = want;
             }
+        }
+        for (tab, url) in blocked {
+            self.show_load_error(tab, &url, crate::page::LoadError::BlockedPort, "");
         }
     }
 
@@ -847,7 +839,6 @@ impl Sanaga {
         }
         super::plus::watch_permissions(w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
         watch_page_input(w, self.tabs[i].id, self.web_tx.clone(), self.ctx.clone());
-        self.run_pending_clear(w);
         // (the keyboard goes to the tab in use, not to its companion in a split view)
         if show && i == self.active {
             use gtk::prelude::WidgetExt;

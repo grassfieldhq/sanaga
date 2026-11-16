@@ -501,7 +501,13 @@ impl Sanaga {
         if !prefs.is_default() {
             list.push((host.clone(), prefs));
         }
-        self.store.save_site_prefs(&list);
+        // (changed from a private tab showing that site: it holds until
+        // Sanaga closes, and the site's name is not written)
+        if self.tabs.get(self.active).is_some_and(|t| t.private && crate::site_prefs::key(&host_of(t.url())) == host) {
+            crate::site_prefs::set_all(list);
+        } else {
+            self.store.save_site_prefs(&list);
+        }
         if reload {
             for t in &self.tabs {
                 if let Some(w) = &t.web {
@@ -530,7 +536,12 @@ fn on_battery() -> (bool, Option<u8>) {
         if kind.trim() == "Mains" && std::fs::read_to_string(p.join("online")).is_ok_and(|v| v.trim() == "1") {
             return (false, None);
         }
-        if kind.trim() == "Battery" {
+        // (the computer's own battery: a wireless mouse, a keyboard or a
+        // headset also show up as batteries, "Device" ones, and a desktop
+        // computer with such a mouse was taken for a laptop on battery —
+        // pages put to sleep after five minutes, for ever)
+        let of_a_device = std::fs::read_to_string(p.join("scope")).is_ok_and(|v| v.trim() == "Device");
+        if kind.trim() == "Battery" && !of_a_device {
             if std::fs::read_to_string(p.join("status")).is_ok_and(|v| v.trim() == "Discharging") {
                 battery_discharging = true;
             }

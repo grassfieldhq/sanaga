@@ -25,7 +25,24 @@ pub(super) struct PermAsk {
 
 pub(super) type PermQueue = Rc<RefCell<VecDeque<PermAsk>>>;
 
+impl PermAsk {
+    /// The name the answer is remembered under. A site's cookies inside
+    /// another page ("storage") are remembered for that site only: one
+    /// "always allow" for a comment box did not let every other site
+    /// embedded in the same page use its cookies there.
+    fn remembered_kind(&self) -> String {
+        if self.kind == "storage" {
+            let asking: String = self.asking.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-').collect();
+            format!("storage:{}", asking.to_ascii_lowercase())
+        } else {
+            self.kind.to_string()
+        }
+    }
+}
+
 pub(super) fn kind_label(kind: &str) -> &'static str {
+    // ("storage:site": the cookies of one site embedded in the page)
+    let kind = if kind.starts_with("storage:") { "storage" } else { kind };
     match kind {
         "camera" => tr("votre caméra"),
         "micro" => tr("votre micro"),
@@ -67,18 +84,19 @@ pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: Perm
                 req.allow();
                 return true;
             }
-            let site = wv.uri().map(|u| u.to_string()).and_then(|u| url::Url::parse(&u).ok()).map(|p| p.origin().ascii_serialization()).unwrap_or_default();
+            let site = url::Url::parse(&crate::page::shown_uri(wv)).ok().map(|p| p.origin().ascii_serialization()).unwrap_or_default();
             queue.borrow_mut().push_back(PermAsk { tab, site, kind: "storage", req: req.clone(), asking });
             ctx.request_repaint();
             return true;
         } else {
             return false; // anything else: WebKit's default (refused)
         };
-        let site = wv.uri().map(|u| {
-            let u = u.to_string();
-            url::Url::parse(&u).ok().map(|p| p.origin().ascii_serialization()).unwrap_or(u)
-        });
-        queue.borrow_mut().push_back(PermAsk { tab, site: site.unwrap_or_default(), kind, req: req.clone(), asking: String::new() });
+        // (the page that asks is the one shown: while another page is on
+        // its way, the view's address is already that one's, and its
+        // "always allow" would answer for the page being left)
+        let shown = crate::page::shown_uri(wv);
+        let site = url::Url::parse(&shown).ok().map(|p| p.origin().ascii_serialization()).unwrap_or(shown);
+        queue.borrow_mut().push_back(PermAsk { tab, site, kind, req: req.clone(), asking: String::new() });
         ctx.request_repaint();
         true
     });
@@ -126,10 +144,16 @@ fn translate_text() -> &'static str {
     }
 }
 
+/// The longest text the address bar's calculator reads.
+const MAX_SUM: usize = 256;
+
 /// A small calculator for the address bar: "12*(3+4)", "2^10", "15% * 80".
 pub fn calculate(q: &str) -> Option<f64> {
     let s: String = q.trim().trim_start_matches('=').replace(',', ".").replace('×', "*").replace('÷', "/").chars().filter(|c| !c.is_whitespace()).collect();
-    if s.is_empty() || !s.chars().any(|c| "+-*/^%".contains(c)) || !s.chars().all(|c| c.is_ascii_digit() || "+-*/^%.()".contains(c)) {
+    // (a sum someone types is short; brackets and minus signs are read one
+    // inside the other, so a pasted text of thousands of them would use up
+    // the stack and end Sanaga)
+    if s.is_empty() || s.len() > MAX_SUM || !s.chars().any(|c| "+-*/^%".contains(c)) || !s.chars().all(|c| c.is_ascii_digit() || "+-*/^%.()".contains(c)) {
         return None;
     }
     let b = s.as_bytes();
@@ -221,6 +245,7 @@ impl Sanaga {
             let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
             net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
         }
+        let mut source_again = None;
         if let Some(t) = self.tabs.get_mut(active) {
             // a tab shown again counts as a revisit (Chrome keeps often
             // revisited tabs awake: see MECHANICS.md)
@@ -233,11 +258,20 @@ impl Sanaga {
             t.last_active = now;
             if t.sleeping && matches!(t.view, View::Web) && t.web.is_none() && t.web_pending.is_none() {
                 t.sleeping = false;
-                t.loading = true;
-                t.web_pending = Some(t.url().to_string());
-                // (woken from sleep: not a new request of the person's)
-                t.web_by_person = false;
+                if t.url().starts_with("view-source:") {
+                    // (a page's source is made by Sanaga: asked for again
+                    // below, the engine cannot open that address itself)
+                    source_again = Some(t.url().to_string());
+                } else {
+                    t.loading = true;
+                    t.web_pending = Some(t.url().to_string());
+                    // (woken from sleep: not a new request of the person's)
+                    t.web_by_person = false;
+                }
             }
+        }
+        if let Some(url) = source_again {
+            self.navigate(active, url, None, false);
         }
         // (minutes before an inactive tab sleeps, most pages kept running at
         // once, revisits above which the timer leaves a tab awake). The three
@@ -293,7 +327,7 @@ impl Sanaga {
                 ask.req.deny();
                 continue;
             }
-            match self.store.permission(&ask.site, ask.kind) {
+            match self.store.permission(&ask.site, &ask.remembered_kind()) {
                 Some(true) => ask.req.allow(),
                 Some(false) => ask.req.deny(),
                 // notification requests: refused quietly unless the person
@@ -319,6 +353,8 @@ impl Sanaga {
         let mut answer: Option<(bool, bool)> = None; // (allow, remember)
         let text = if ask.kind == "storage" {
             tf("{} souhaite utiliser ses cookies sur {} (souvent pour vous connecter).", &[&ask.asking, &host_of(&ask.site)])
+        } else if ask.kind == "notifications" {
+            tf("{} souhaite vous envoyer des notifications.", &[&host_of(&ask.site)])
         } else {
             tf("{} souhaite accéder à {}.", &[&host_of(&ask.site), &kind_label(ask.kind)])
         };
@@ -349,8 +385,11 @@ impl Sanaga {
                 } else {
                     ask.req.deny();
                 }
-                if remember {
-                    self.store.set_permission(&ask.site, ask.kind, Some(allow));
+                // (a private tab's answers are for this time only: the
+                // site's name would stay on the disk)
+                let private = self.tabs.iter().any(|t| t.id == ask.tab && t.private);
+                if remember && !private {
+                    self.store.set_permission(&ask.site, &ask.remembered_kind(), Some(allow));
                 }
             }
         }
@@ -437,22 +476,28 @@ impl Sanaga {
             types |= webkit6::WebsiteDataTypes::MEMORY_CACHE | webkit6::WebsiteDataTypes::DISK_CACHE;
         }
         if !types.is_empty() {
+            // This window's own data (the profile's, or a guest window's),
+            // and each container's. It used to be whatever the first tab
+            // with a page happened to use: with a private or a container
+            // tab first, the profile kept its cookies and cache while the
+            // message said they were gone; containers were never cleared.
+            self.ensure_engine();
+            let mut sessions: Vec<webkit6::NetworkSession> = self.web_context.iter().map(|e| e.session.clone()).collect();
+            if let Some(base) = &self.web_dir {
+                for c in &self.store.containers {
+                    let dir = base.join("containers").join(super::containers::folder_name(&c.name));
+                    // (a container never used has nothing, and no folder yet)
+                    if dir.is_dir() {
+                        sessions.push(crate::page::profile_context(&dir).session);
+                    }
+                }
+            }
             let span = glib_timespan(period);
-            match self.tabs.iter().find_map(|t| t.web.as_ref()).and_then(|w| w.webview().network_session()).and_then(|s| s.website_data_manager()) {
-                Some(dm) => dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {}),
-                None => self.pending_clear = Some((types.bits(), period)),
+            for dm in sessions.iter().filter_map(|s| s.website_data_manager()) {
+                dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {});
             }
         }
         self.notice = Some((tr("Données de navigation effacées.").into(), self.ctx.input(|i| i.time)));
-    }
-
-    /// Data clearing asked while no web page was open: done with the first one.
-    pub(super) fn run_pending_clear(&mut self, w: &crate::page::PageView) {
-        if let Some((bits, period)) = self.pending_clear.take() {
-            if let Some(dm) = w.webview().network_session().and_then(|s| s.website_data_manager()) {
-                dm.clear(webkit6::WebsiteDataTypes::from_bits_truncate(bits), glib_timespan(period), None::<&webkit6::gio::Cancellable>, |_| {});
-            }
-        }
     }
 
     pub(super) fn page_clear_data(&mut self, ui: &mut Ui, th: &Theme) {
@@ -752,6 +797,10 @@ pub(super) fn put_to_sleep(t: &mut Tab) {
     }
     t.sleeping = true;
     t.web_shown = false;
+    // (a page that was still loading will never say it finished: without
+    // this the tab kept its spinner, and the whole interface kept
+    // redrawing for it, until the tab was shown again)
+    t.loading = false;
 }
 
 fn glib_timespan(period_secs: u64) -> webkit6::glib::TimeSpan {
@@ -781,6 +830,11 @@ mod tests {
         assert_eq!(calculate("1,5 + 1"), Some(2.5));
         assert_eq!(calculate("wikipedia.org"), None);
         assert_eq!(calculate("2024"), None);
+        // a pasted text of thousands of brackets or minus signs is not a sum
+        // (read one inside the other, they used up the stack)
+        assert_eq!(calculate(&format!("{}1+1", "(".repeat(60_000))), None);
+        assert_eq!(calculate(&format!("{}1", "-".repeat(400_000))), None);
+        assert_eq!(calculate(&format!("{}1+1{}", "(".repeat(100), ")".repeat(100))), Some(2.0));
         assert_eq!(format_number(2.5), "2,5");
     }
 

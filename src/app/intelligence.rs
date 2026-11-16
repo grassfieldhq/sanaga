@@ -189,6 +189,18 @@ impl Sanaga {
         }
     }
 
+    /// The model a page's text may go to: the one chosen in Settings, or —
+    /// for a private tab — only one that runs on this computer. (A private
+    /// tab's page was sent to the online service like any other.)
+    pub(super) fn page_text_provider(&self, tab: u64) -> Provider {
+        let provider = self.ai_provider();
+        let private = self.tabs.iter().any(|t| t.id == tab && t.private);
+        match provider {
+            Provider::Claude { .. } | Provider::Cli { .. } if private => Provider::Local,
+            p => p,
+        }
+    }
+
     /// The model chosen in Settings › Intelligence (with its key, for Claude).
     pub(super) fn ai_provider(&self) -> Provider {
         let st = &self.store.settings;
@@ -242,7 +254,7 @@ impl Sanaga {
         }
         let (title, body) = text.split_once('\n').map(|(a, b)| (a.to_string(), b.to_string())).unwrap_or_default();
         let fallback = ai::local_summary(&body, 6);
-        let provider = self.ai_provider();
+        let provider = self.page_text_provider(tab);
         if let Some(s) = self.summary.as_mut() {
             if !title.trim().is_empty() {
                 s.title = title.trim().to_string();

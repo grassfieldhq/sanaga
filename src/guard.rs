@@ -196,6 +196,20 @@ pub fn plausible_selector(s: &str) -> bool {
     !s.is_empty() && s.len() <= 512 && !s.chars().any(|c| c.is_control() || matches!(c, '{' | '}' | '<' | '@' | ';' | '\\'))
 }
 
+/// The ports no browser connects to over HTTP (the list of the Fetch
+/// standard, which the engine follows): mail, shells, printers… A page
+/// could otherwise make the browser speak to those services.
+const RESTRICTED_PORTS: &[u16] = &[
+    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532,
+    540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697, 10080,
+];
+
+/// Is this a web address on a port browsers refuse? The engine then shows
+/// an empty page without a word: Sanaga shows its own page that says why.
+pub fn restricted_port(address: &str) -> bool {
+    url::Url::parse(address).ok().filter(|u| matches!(u.scheme(), "http" | "https")).and_then(|u| u.port()).is_some_and(|p| RESTRICTED_PORTS.contains(&p))
+}
+
 /// May a link of a page be opened elsewhere by Sanaga (Ctrl+click, middle
 /// click, "open in a private tab")? Web addresses only, or a local file from
 /// a local page: never Sanaga's own pages, scripts or other schemes.
@@ -440,6 +454,19 @@ pub fn js_str(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ports_browsers_refuse() {
+        assert!(restricted_port("http://localhost:6000/"));
+        assert!(restricted_port("https://example.com:25/x"));
+        assert!(restricted_port("http://127.0.0.1:6697"));
+        // ordinary ports, the default ones, other schemes
+        assert!(!restricted_port("http://localhost:8080/"));
+        assert!(!restricted_port("https://example.com/"));
+        assert!(!restricted_port("http://example.com:80/"));
+        assert!(!restricted_port("file:///etc/hosts"));
+        assert!(!restricted_port("not an address"));
+    }
 
     #[test]
     fn download_names_stay_in_the_folder() {

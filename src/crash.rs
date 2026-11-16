@@ -267,22 +267,143 @@ fn alive(pid: u32) -> bool {
     pid != 0 && Path::new(&format!("/proc/{pid}")).exists()
 }
 
+/// What is known of a run that ended without closing, from its note.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Abrupt {
+    /// When that run had started.
+    pub started: std::time::SystemTime,
+    pub why: Ended,
+}
+
+/// How a run that left its note behind came to end, as far as the next
+/// start can tell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ended {
+    /// A signal ended it (a crash in Sanaga or in a system library, a
+    /// stack that ran out): its number was noted as it happened.
+    Signal(i32),
+    /// The computer has been started again since: shut down, restarted or
+    /// cut off with Sanaga open.
+    Restart,
+    /// The desktop session that run was shown in is gone: logging out (or
+    /// the desktop itself stopping) with Sanaga open ends it without a word.
+    Session,
+    /// The same session still runs: Sanaga was killed, or ended inside a
+    /// system library that leaves no trace.
+    Unknown,
+}
+
+impl Abrupt {
+    /// The lines of the report that say what is known ("Started: …").
+    pub fn detail(&self) -> String {
+        let secs = self.started.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let started = pretty_time(stamp(secs).replace('T', " ").trim_end_matches('Z'));
+        let why = match self.why {
+            Ended::Signal(n) => format!("Ended by: signal {n}{} (a crash in Sanaga or in a system library)", signal_name(n).map(|s| format!(" ({s})")).unwrap_or_default()),
+            Ended::Restart => "Since then: the computer was started again (shut down, restarted or cut off while Sanaga was open)".to_string(),
+            Ended::Session => "Since then: the desktop session Sanaga was in has ended (logging out with Sanaga open ends it this way)".to_string(),
+            Ended::Unknown => "Since then: the same desktop session still runs (Sanaga was killed, or ended inside a system library)".to_string(),
+        };
+        format!("That run started: {started} UTC\n{why}")
+    }
+}
+
+fn signal_name(n: i32) -> Option<&'static str> {
+    Some(match n {
+        libc::SIGSEGV => "SIGSEGV",
+        libc::SIGABRT => "SIGABRT",
+        libc::SIGBUS => "SIGBUS",
+        libc::SIGILL => "SIGILL",
+        libc::SIGFPE => "SIGFPE",
+        _ => return None,
+    })
+}
+
+/// This start of the computer (the kernel gives each one a random name).
+fn boot_id() -> String {
+    std::fs::read_to_string("/proc/sys/kernel/random/boot_id").map(|t| t.trim().to_string()).unwrap_or_default()
+}
+
+/// The desktop session Sanaga is shown in: the display server's socket and
+/// when it was made ("path inode seconds"). A session that ended, or
+/// started again, no longer has that socket. Empty when it can't be told.
+fn session_mark() -> String {
+    let socket = match (std::env::var("WAYLAND_DISPLAY").ok().filter(|v| !v.is_empty()), std::env::var("DISPLAY").ok()) {
+        (Some(w), _) if w.starts_with('/') => PathBuf::from(w),
+        (Some(w), _) => match std::env::var("XDG_RUNTIME_DIR") {
+            Ok(dir) if !dir.is_empty() => Path::new(&dir).join(w),
+            _ => return String::new(),
+        },
+        // ":0", ":1.0", "unix:0"
+        (None, Some(d)) => match d.rsplit(':').next().and_then(|n| n.split('.').next()).filter(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())) {
+            Some(n) => PathBuf::from(format!("/tmp/.X11-unix/X{n}")),
+            None => return String::new(),
+        },
+        _ => return String::new(),
+    };
+    socket_mark(&socket).unwrap_or_default()
+}
+
+fn socket_mark(socket: &Path) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+    let m = std::fs::metadata(socket).ok()?;
+    Some(format!("{} {} {}", socket.display(), m.ino(), m.ctime()))
+}
+
+/// Is the session of this mark still the one running?
+fn session_alive(mark: &str) -> bool {
+    // (the path may hold spaces: the two numbers are the last two words)
+    let mut words = mark.rsplitn(3, ' ');
+    let (Some(_), Some(_), Some(path)) = (words.next(), words.next(), words.next()) else { return true };
+    socket_mark(Path::new(path)).is_some_and(|now| now == mark)
+}
+
+/// What a note says of its run: the process, then "boot …", "session …"
+/// and, if a signal ended it, "signal N".
+fn read_note(text: &str, boot_now: &str) -> (u32, Ended) {
+    let mut lines = text.lines();
+    let pid = lines.next().and_then(|l| l.trim().parse::<u32>().ok()).unwrap_or(0);
+    let (mut boot, mut session, mut signal) = (None, None, None);
+    for l in lines {
+        if let Some(v) = l.strip_prefix("boot ") {
+            boot = Some(v.trim());
+        } else if let Some(v) = l.strip_prefix("session ") {
+            session = Some(v.trim());
+        } else if let Some(v) = l.strip_prefix("signal ") {
+            // (the first one noted is the cause: a stack that ran out is
+            // told as a fault, then ended by an abort)
+            signal = signal.or(v.trim().parse::<i32>().ok());
+        }
+    }
+    let why = match (signal, boot, session) {
+        (Some(n), _, _) => Ended::Signal(n),
+        (None, Some(b), _) if !boot_now.is_empty() && b != boot_now => Ended::Restart,
+        (None, _, Some(s)) if !s.is_empty() && !session_alive(s) => Ended::Session,
+        _ => Ended::Unknown,
+    };
+    (pid, why)
+}
+
 /// Note that Sanaga runs with this profile. When the note of an earlier run
 /// is still there and that run is gone, it ended abruptly: returns when it
-/// had started.
-pub fn mark_running(profile_dir: &Path) -> Option<std::time::SystemTime> {
+/// had started and what is known of its end.
+pub fn mark_running(profile_dir: &Path) -> Option<Abrupt> {
     let note = profile_dir.join("running");
     let started = std::fs::metadata(&note).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
-    let before = std::fs::read_to_string(&note).ok().map(|t| t.trim().parse::<u32>().unwrap_or(0));
-    let abrupt = before.is_some_and(|pid| pid != std::process::id() && (!alive(pid) || !Path::new("/proc").is_dir()));
+    let boot_now = boot_id();
+    let before = std::fs::read_to_string(&note).ok().map(|t| read_note(&t, &boot_now));
+    // (a note of this start of the computer whose process is still there is
+    // a Sanaga that runs; after a restart the same number is another program)
+    let abrupt = before.filter(|(pid, why)| *pid != std::process::id() && (*why == Ended::Restart || !alive(*pid) || !Path::new("/proc").is_dir()));
     // (another Sanaga still runs with this profile: its note stays)
-    if before.is_none() || abrupt {
-        let _ = std::fs::write(&note, std::process::id().to_string());
+    if before.is_none() || abrupt.is_some() {
+        let _ = std::fs::write(&note, format!("{}\nboot {boot_now}\nsession {}\n", std::process::id(), session_mark()));
+        note_fatal_signals(&note);
         if let Ok(mut notes) = NOTES.lock() {
             notes.push(note);
         }
     }
-    abrupt.then_some(started)
+    abrupt.map(|(_, why)| Abrupt { started, why })
 }
 
 /// The notes this process left (one per profile it opened).
@@ -295,6 +416,79 @@ pub fn mark_stopped() {
             let _ = std::fs::remove_file(n);
         }
     }
+}
+
+// ------------------------------------------------------- signals that end Sanaga
+
+/// The signals that end a program on the spot: a fault in Sanaga or in a
+/// system library, an abort (a stack that ran out ends that way).
+const FATAL: [libc::c_int; 5] = [libc::SIGSEGV, libc::SIGBUS, libc::SIGILL, libc::SIGFPE, libc::SIGABRT];
+
+/// The note, kept open for the handler below (-1: none).
+static NOTE_FD: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+
+/// What each of these signals did before Sanaga asked to be told (Rust's
+/// own handler for a stack that ran out, or the system's way).
+static mut BEFORE: [std::mem::MaybeUninit<libc::sigaction>; FATAL.len()] = [std::mem::MaybeUninit::uninit(); FATAL.len()];
+
+/// Runs inside the signal: writes its number at the end of the note, gives
+/// the signal back to whoever handled it before, and returns — the fault
+/// happens again (or the abort goes on) and ends Sanaga as it would have.
+/// `raise` is async-signal-safe too.
+extern "C" fn fatal_signal(signal: libc::c_int, info: *mut libc::siginfo_t, _: *mut libc::c_void) {
+    let fd = NOTE_FD.load(std::sync::atomic::Ordering::Relaxed);
+    // "signal NN\n", built without allocating
+    let mut line = *b"signal 00\n";
+    line[7] = b'0' + (signal / 10 % 10) as u8;
+    line[8] = b'0' + (signal % 10) as u8;
+    // SAFETY: `write` and `sigaction` may be called inside a signal
+    // handler; `BEFORE` was filled before this handler was set and is
+    // never written again.
+    unsafe {
+        if fd >= 0 {
+            libc::write(fd, line.as_ptr().cast(), line.len());
+        }
+        if let Some(k) = FATAL.iter().position(|s| *s == signal) {
+            libc::sigaction(signal, (*std::ptr::addr_of!(BEFORE))[k].as_ptr(), std::ptr::null_mut());
+        }
+        // (sent by a program — `kill`, an abort — rather than raised by a
+        // fault: nothing happens again by itself, so it is sent on to
+        // whoever handled it before)
+        if !info.is_null() && (*info).si_code <= 0 {
+            libc::raise(signal);
+        }
+    }
+}
+
+/// From now on, a signal that ends Sanaga leaves its number in the note:
+/// the next start can say "ended by SIGSEGV" instead of knowing nothing.
+/// (Once per process: the first profile's note.)
+fn note_fatal_signals(note: &Path) {
+    use std::os::unix::ffi::OsStrExt;
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    let Ok(path) = std::ffi::CString::new(note.as_os_str().as_bytes()) else { return };
+    ONCE.call_once(|| {
+        // SAFETY: a valid path; the descriptor stays open as long as Sanaga
+        // runs (appending, closed on exec so no other program inherits it).
+        let fd = unsafe { libc::open(path.as_ptr(), libc::O_WRONLY | libc::O_APPEND | libc::O_CLOEXEC | libc::O_NOFOLLOW) };
+        if fd < 0 {
+            return;
+        }
+        NOTE_FD.store(fd, std::sync::atomic::Ordering::Relaxed);
+        for (k, signal) in FATAL.iter().enumerate() {
+            // SAFETY: a handler that only calls async-signal-safe
+            // functions, run on the signal stack where the thread has one
+            // (a stack that ran out leaves no room on the normal one); the
+            // action it replaces is kept in `BEFORE` first.
+            unsafe {
+                let mut action: libc::sigaction = std::mem::zeroed();
+                action.sa_sigaction = fatal_signal as extern "C" fn(libc::c_int, *mut libc::siginfo_t, *mut libc::c_void) as libc::sighandler_t;
+                action.sa_flags = libc::SA_ONSTACK | libc::SA_SIGINFO;
+                libc::sigemptyset(&mut action.sa_mask);
+                libc::sigaction(*signal, &action, (*std::ptr::addr_of_mut!(BEFORE))[k].as_mut_ptr());
+            }
+        }
+    });
 }
 
 #[cfg(test)]
@@ -384,12 +578,15 @@ mod tests {
         let dir = temp("running");
         // a first start: nothing before
         assert!(mark_running(&dir).is_none());
+        // (the note says which start of the computer and which session)
+        let note = std::fs::read_to_string(dir.join("running")).unwrap();
+        assert!(note.starts_with(&format!("{}\nboot ", std::process::id())) && note.contains("\nsession "));
         // closing as it should removes the note
         mark_stopped();
         assert!(!dir.join("running").exists());
         // a note left by a process that is gone: the last run ended abruptly
         std::fs::write(dir.join("running"), "4194999").unwrap();
-        assert!(mark_running(&dir).is_some());
+        assert_eq!(mark_running(&dir).map(|a| a.why), Some(Ended::Unknown));
         // (the note is now this run's: said once)
         assert!(mark_running(&dir).is_none());
         mark_stopped();
@@ -398,5 +595,31 @@ mod tests {
         assert!(mark_running(&dir).is_none());
         assert_eq!(std::fs::read_to_string(dir.join("running")).unwrap(), "1");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_note_says_how_its_run_ended() {
+        // a signal was noted: that is the cause, whatever else changed
+        assert_eq!(read_note("4194999\nboot abc\nsession /nowhere/wayland-1 5 6\nsignal 11\nsignal 06\n", "abc"), (4194999, Ended::Signal(11)));
+        // the computer was started again since
+        assert_eq!(read_note("4194999\nboot abc\nsession \n", "def").1, Ended::Restart);
+        // the same start, but the session's socket is gone
+        assert_eq!(read_note("4194999\nboot abc\nsession /nowhere/sanaga test/wayland-1 5 6\n", "abc").1, Ended::Session);
+        // a session that is still there: nothing more is known
+        let here = temp("session");
+        let socket = here.join("wayland 1");
+        std::fs::write(&socket, "").unwrap();
+        let mark = socket_mark(&socket).unwrap();
+        assert!(session_alive(&mark));
+        assert_eq!(read_note(&format!("4194999\nboot abc\nsession {mark}\n"), "abc").1, Ended::Unknown);
+        // (the same path made again is another session)
+        std::fs::remove_file(&socket).unwrap();
+        assert!(!session_alive(&mark));
+        // a note of an older Sanaga (the process number alone)
+        assert_eq!(read_note("4194999", "abc"), (4194999, Ended::Unknown));
+        // the report's lines
+        let a = Abrupt { started: std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_794_422_402), why: Ended::Signal(11) };
+        assert_eq!(a.detail(), "That run started: 2026-11-11 18:40:02 UTC\nEnded by: signal 11 (SIGSEGV) (a crash in Sanaga or in a system library)");
+        let _ = std::fs::remove_dir_all(&here);
     }
 }

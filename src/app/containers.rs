@@ -10,6 +10,12 @@ use eframe::egui::{Align2, Color32, Margin, RichText, Sense};
 /// Containers offered when there are none yet.
 const SUGGESTED: [(&str, u8); 4] = [("Personnel", 1), ("Travail", 7), ("Achats", 5), ("Banque", 4)];
 
+/// The folder of a container's cookies and site data, inside the
+/// profile's (letters and digits of its name, the rest as dashes).
+pub(super) fn folder_name(name: &str) -> String {
+    name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect()
+}
+
 impl Sanaga {
     /// The colour of a container ("" = none).
     pub(super) fn container_color(&self, name: &str) -> Option<Color32> {
@@ -32,10 +38,13 @@ impl Sanaga {
         self.save_session();
     }
 
-    /// A new container; false when the name is empty or taken.
+    /// A new container; false when the name is empty or taken. A name
+    /// that would use the same folder as another container's ("A B" and
+    /// "A-B") is taken too: the two shared their cookies, and removing one
+    /// erased the other's data.
     pub(super) fn add_container(&mut self, name: &str) -> bool {
         let name = name.trim().replace(['\t', '\n'], " ");
-        if name.is_empty() || self.store.containers.iter().any(|c| c.name.eq_ignore_ascii_case(&name)) {
+        if name.is_empty() || self.store.containers.iter().any(|c| c.name.eq_ignore_ascii_case(&name) || folder_name(&c.name).eq_ignore_ascii_case(&folder_name(&name))) {
             return false;
         }
         let color = SUGGESTED.iter().find(|s| tr(s.0) == name).map(|s| s.1).unwrap_or(((self.store.containers.len() * 3 + 1) % GROUP_COLORS.len()) as u8);
@@ -54,8 +63,7 @@ impl Sanaga {
             }
         }
         if let Some(base) = &self.web_dir {
-            let safe: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
-            let dir = base.join("containers").join(safe);
+            let dir = base.join("containers").join(folder_name(name));
             if dir.starts_with(base) && dir != *base {
                 let _ = std::fs::remove_dir_all(dir);
             }
@@ -155,7 +163,14 @@ impl Sanaga {
             }
             self.new_container_name.clear();
             self.container_ask = None;
-            self.open_in_container(&url, &name);
+            // (a name that was refused because a listed container has it —
+            // in other letter case, or with the same folder — opens that
+            // one: the tab used to open in a container that was in no list
+            // and could never be removed)
+            let listed = self.store.containers.iter().find(|c| c.name == name || c.name.eq_ignore_ascii_case(&name) || folder_name(&c.name).eq_ignore_ascii_case(&folder_name(&name))).map(|c| c.name.clone());
+            if let Some(name) = listed {
+                self.open_in_container(&url, &name);
+            }
             return;
         }
         if close {

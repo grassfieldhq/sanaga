@@ -273,7 +273,10 @@ impl Sanaga {
                 self.profile_section = 0;
                 self.navigate(a, "sanaga://profiles".into(), None, true);
             }
-            "close" => self.run_shortcut("quit"),
+            // (each profile runs as its own Sanaga: closing it quits that
+            // one. The line used to ask for a shortcut that does not exist,
+            // and did nothing.)
+            "close" => self.quit_app(),
             _ => {}
         }
     }

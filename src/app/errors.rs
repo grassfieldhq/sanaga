@@ -5,7 +5,6 @@
 
 use super::*;
 use crate::page::LoadError;
-use webkit6::prelude::*;
 
 fn hex(c: egui::Color32) -> String {
     format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())
@@ -64,7 +63,7 @@ impl Sanaga {
         self.error_pages.insert(tab, ErrorPage { kind, url: url.to_string(), token: 0, shown: false });
         let html = self.error_html(url, kind, detail);
         if let Some(w) = &self.tabs[i].web {
-            w.webview().load_alternate_html(&html, url, None);
+            w.show_error_page(&html, url);
         }
     }
 

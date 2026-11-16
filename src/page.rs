@@ -443,6 +443,22 @@ struct ViewState {
     typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
+    /// How this page speaks to the interface (for a key the page left
+    /// unused, which comes back through the window).
+    tell: RefCell<Option<Rc<dyn Fn(PageSignal)>>>,
+    /// The page shown is Sanaga's own error page (set when it is shown,
+    /// from `error_next` set when it is asked for).
+    error_shown: Cell<bool>,
+    error_next: Cell<bool>,
+    /// The site whose settings the view has now (see `apply_site`).
+    site: RefCell<String>,
+    /// How the page shown was received: 0 not known or not over HTTPS,
+    /// 1 with a certificate the system trusts, 2 with one it does not
+    /// (the person chose to go on).
+    tls: Cell<u8>,
+    /// The address asked for again so that its site's settings count from
+    /// the start of its page (never twice for the same address).
+    asked_again: RefCell<String>,
     /// The engine process the page runs in, as it told Sanaga (see
     /// page-helper/): when it started, and its number as it sees it.
     process: Cell<Option<(u64, u32)>>,
@@ -726,6 +742,165 @@ fn apply_site(v: &WebView, host: &str) {
     }
 }
 
+/// Would `host`'s settings change something a page's process only takes
+/// when it starts (JavaScript on or off, the video formats)?
+fn starts_with_process(v: &WebView, host: &str) -> bool {
+    let prefs = crate::site_prefs::for_host(host);
+    WebViewExt::settings(v).is_some_and(|st| st.enables_javascript_markup() != prefs.js || st.media_content_types_requiring_hardware_support().map(|g| g.to_string()) != crate::codecs::hardware_only_types(is_video_site(host)))
+}
+
+/// The address of the page a view really shows (the one its scripts, its
+/// dialogs and its requests belong to). While another page is on its way,
+/// `uri()` already gives that one's address for a navigation Sanaga
+/// started, and the page still shown would speak under its name.
+pub fn shown_uri(v: &WebView) -> String {
+    let committed = view_state(v).map(|s| s.committed.borrow().clone()).unwrap_or_default();
+    if committed.is_empty() {
+        v.uri().map(|u| u.to_string()).unwrap_or_default()
+    } else {
+        committed
+    }
+}
+
+// ------------------------------------------------------------ keyboard shortcuts
+
+/// The key a shortcut is read from. Shortcuts are named after Latin
+/// letters: on a keyboard set to another alphabet (Russian, Greek, Arabic,
+/// Hebrew…) the key pressed gives another letter, and Ctrl+T, Ctrl+W or
+/// Ctrl+L did nothing. The key then counts as the Latin letter it gives in
+/// another layout of the same keyboard, or as the letter printed on that
+/// key of a QWERTY keyboard; a key whose digit needs Shift (French AZERTY)
+/// counts as that digit.
+pub fn shortcut_key(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, keycode: u32) -> gtk::gdk::Key {
+    let ascii = |k: gtk::gdk::Key| k.to_unicode().filter(|c| c.is_ascii() && !c.is_ascii_control());
+    // (arrows, F keys, Tab… and keys that already give a Latin character)
+    if keyval.to_unicode().is_none() || ascii(keyval).is_some() {
+        return keyval;
+    }
+    let others = display.and_then(|d| d.map_keycode(keycode)).unwrap_or_default();
+    if let Some((_, k)) = others.iter().find(|(at, k)| at.level() == 0 && ascii(*k).is_some_and(|c| c.is_ascii_alphabetic())) {
+        return *k;
+    }
+    if let Some((_, k)) = others.iter().find(|(_, k)| ascii(*k).is_some_and(|c| c.is_ascii_digit())) {
+        return *k;
+    }
+    qwerty_letter(keycode).and_then(|c| gtk::gdk::Key::from_name(c.to_string())).unwrap_or(keyval)
+}
+
+/// The letter printed on this key of a QWERTY keyboard (`keycode`: the
+/// key's number as GTK gives it, the kernel's plus 8).
+fn qwerty_letter(keycode: u32) -> Option<char> {
+    let rows: [(u32, &str); 3] = [(24, "qwertyuiop"), (38, "asdfghjkl"), (52, "zxcvbnm")];
+    rows.iter().find_map(|(first, letters)| keycode.checked_sub(*first).and_then(|k| letters.chars().nth(k as usize)))
+}
+
+/// A key press as a shortcut message ("cs:t" = Ctrl+Shift+T, ":f5").
+fn shortcut_message(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, keycode: u32, state: gtk::gdk::ModifierType) -> Option<String> {
+    use gtk::gdk::ModifierType as M;
+    let key = shortcut_key(display, keyval, keycode).to_lower();
+    let name = key.name()?;
+    let key: String = match name.as_str() {
+        "Tab" | "ISO_Left_Tab" | "KP_Tab" => "tab".into(),
+        "Delete" | "KP_Delete" => "delete".into(),
+        "Page_Down" | "KP_Page_Down" => "pagedown".into(),
+        "Page_Up" | "KP_Page_Up" => "pageup".into(),
+        "Left" | "KP_Left" => "arrowleft".into(),
+        "Right" | "KP_Right" => "arrowright".into(),
+        "Home" | "KP_Home" => "home".into(),
+        "KP_Add" => "+".into(),
+        "KP_Subtract" => "-".into(),
+        "KP_0" => "0".into(),
+        "F5" | "F6" | "F9" | "F11" | "F12" => name.to_lowercase(),
+        _ => key.to_unicode().filter(|c| c.is_ascii_graphic())?.to_ascii_lowercase().to_string(),
+    };
+    let flag = |m: M, c: &'static str| if state.contains(m) { c } else { "" };
+    Some(format!("{}{}{}:{key}", flag(M::CONTROL_MASK, "c"), flag(M::SHIFT_MASK, "s"), flag(M::ALT_MASK, "a")))
+}
+
+/// The shortcuts that are Sanaga's whatever the page does with the key
+/// (as in every browser: a page cannot keep its own tab from closing).
+/// The others go to the page first, and to Sanaga if the page leaves them.
+fn reserved_shortcut(name: &str) -> bool {
+    matches!(name, "new" | "window" | "private" | "reopen" | "close" | "next" | "prev" | "tabright" | "tableft" | "quit")
+}
+
+/// A key the page was given and did not use (the engine hands it back to
+/// the window): one of Sanaga's shortcuts? True when it was, and ran.
+/// This also holds when the key was pressed in a frame of another site
+/// inside the page, where Sanaga's own script never ran.
+pub fn key_left_by_page(view: &WebView, keyval: gtk::gdk::Key, keycode: u32, state: gtk::gdk::ModifierType) -> bool {
+    let Some(st) = view_state(view) else { return false };
+    let Some(msg) = shortcut_message(Some(&view.display()), keyval, keycode, state) else { return false };
+    // (Escape belongs to the page, except for a tool of Sanaga's at work
+    // in it: its script says so)
+    if msg.ends_with(":escape") || shortcut_name(&msg).is_none() {
+        return false;
+    }
+    let tell = st.tell.borrow().clone();
+    match tell {
+        Some(tell) => {
+            tell(PageSignal::Message(msg));
+            true
+        }
+        None => false,
+    }
+}
+
+/// Which of Sanaga's shortcuts a message names.
+pub fn shortcut_name(msg: &str) -> Option<&'static str> {
+    let (mods, key) = msg.split_once(':')?;
+    let c = mods.contains('c');
+    let s = mods.contains('s');
+    let a = mods.contains('a');
+    Some(match (c, s, a, key) {
+        (true, true, _, "n") => "private",
+        (true, true, _, "t") => "reopen",
+        (true, true, _, "b") => "bmbar",
+        (true, true, _, "r") => "reader",
+        (true, true, _, "\\") | (true, true, _, "|") => "overview",
+        (true, true, _, "l") => "sidebar",
+        (true, true, _, "o") => "overview",
+        (true, true, _, "f") => "contacts",
+        (true, true, _, "a") => "tabsearch",
+        (true, false, false, "k") => "tabsearch",
+        (true, true, _, "e") => "split",
+        (true, true, _, "delete") => "cleardata",
+        (true, false, false, "s") => "savepage",
+        (true, false, true, "i") => "inspector",
+        (true, true, _, "i") => "inspector",
+        (_, _, _, "f12") => "inspector",
+        (true, true, _, "m") => "devices",
+        (_, _, _, "f9") => "focus",
+        (true, true, _, "y") => "summary",
+        (_, _, _, "escape") => "esc",
+        (true, false, false, "p") => "print",
+        (true, false, false, "u") => "source",
+        (_, _, _, "f11") => "fullscreen",
+        (true, true, _, "d") => "readinglist",
+        (true, true, _, "tab") => "prev",
+        (true, _, _, "pagedown") => "tabright",
+        (true, _, _, "pageup") => "tableft",
+        (true, false, _, "t") => "new",
+        (true, false, _, "n") => "window",
+        (true, _, _, "w") => "close",
+        (true, false, _, "tab") => "next",
+        (true, _, _, "l") | (_, _, _, "f6") => "addr",
+        (true, _, _, "r") | (_, _, _, "f5") => "reload",
+        (_, _, true, "arrowleft") => "back",
+        (_, _, true, "arrowright") => "fwd",
+        (_, _, true, "home") => "home",
+        (true, _, _, "d") => "bookmark",
+        (true, _, _, "h") => "history",
+        (true, _, _, "j") => "downloads",
+        (true, _, _, "f") => "find",
+        (true, _, _, "=") | (true, _, _, "+") => "zin",
+        (true, _, _, "-") => "zout",
+        (true, _, _, "0") => "zreset",
+        (true, _, _, "q") => "quit",
+        _ => return None,
+    })
+}
+
 /// Sites that offer every video in H.264 as well (see codecs.rs).
 fn is_video_site(host: &str) -> bool {
     let h = host.trim_start_matches("www.").trim_start_matches("m.").trim_start_matches("music.");
@@ -961,6 +1136,30 @@ pub fn private_engine(base: Option<&Engine>) -> Engine {
     Engine { ctx: base.map(|e| e.ctx.clone()).unwrap_or_default(), session: private_session() }
 }
 
+thread_local! {
+    /// How many private tabs each window has (see `note_private_tabs`).
+    static PRIVATE_TABS: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Each window says how many private tabs it has. When the last private
+/// tab of all windows is closed, the private session ends: its cookies and
+/// sign-ins are gone, as closing a private window does in other browsers.
+/// (It used to last until Sanaga quit: a private tab opened hours later
+/// was still signed in.)
+pub fn note_private_tabs(window: usize, count: usize) {
+    let none_left = PRIVATE_TABS.with(|t| {
+        let mut t = t.borrow_mut();
+        t.retain(|(w, _)| *w != window);
+        if count > 0 {
+            t.push((window, count));
+        }
+        t.is_empty()
+    });
+    if none_left {
+        PRIVATE.with(|p| p.borrow_mut().take());
+    }
+}
+
 /// The session shared by private tabs.
 fn private_session() -> NetworkSession {
     PRIVATE.with(|p| {
@@ -999,7 +1198,10 @@ pub fn enable_spell_checking(ctx: &WebContext) {
 /// Where downloads go, and who is told when one ends.
 pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
     let done = Rc::new(done);
-    session.connect_download_started(move |_, download| {
+    session.connect_download_started(move |session, download| {
+        // (a private tab's, or a guest window's: nothing says where its
+        // downloads came from)
+        let keeps_nothing = session.is_ephemeral();
         if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
             eprintln!("download started {:?}", download.request().and_then(|r| r.uri()));
         }
@@ -1067,7 +1269,7 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                 return; // the person said no: nothing to show
             }
             let ok = !*failed.borrow();
-            if let (true, Some(p)) = (ok, &path) {
+            if let (true, Some(p), false) = (ok, &path, keeps_nothing) {
                 // where it came from (after redirections), for the file manager
                 let from = download.response().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_else(|| uri.clone());
                 if let Err(e) = crate::net::mark_download(p, &from, &referrer) {
@@ -1113,6 +1315,20 @@ pub struct PageView {
     find_fresh: std::rc::Rc<std::cell::Cell<bool>>,
     /// WebKit's own identity (user agent) for this page.
     default_ua: String,
+    state: Rc<ViewState>,
+}
+
+impl PageView {
+    /// Was the page shown received over HTTPS with a certificate the
+    /// system trusts (true), or with one it does not, after the person
+    /// chose to go on (false)? None: not over HTTPS, or not known yet.
+    pub fn secure(&self) -> Option<bool> {
+        match self.state.tls.get() {
+            1 => Some(true),
+            2 => Some(false),
+            _ => None,
+        }
+    }
 }
 
 impl PageView {
@@ -1132,10 +1348,14 @@ impl PageView {
             let text = value.to_str().to_string();
             let Some(view) = me2.borrow().as_ref().and_then(|w| w.upgrade()) else { return };
             let current = view.uri().map(|u| u.to_string()).unwrap_or_default();
-            let Some(body) = message_body(&text, &current) else { return };
+            // (Sanaga's own error page is shown under the address that
+            // failed, but is a blank document to itself: its buttons speak
+            // as "about:blank")
+            let own_error_page = text.starts_with("about:blank\n") && view_state(&view).is_some_and(|s| s.error_shown.get());
+            let Some(body) = message_body(&text, if own_error_page { "about:blank" } else { &current }) else { return };
             // a shortcut only follows a real key press in the page (seen by
             // GTK, not claimed by a script)
-            if is_shortcut_message(body) && !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW)) {
+            if is_shortcut_message(body) && (body != ":escape" || !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW))) {
                 return;
             }
             o(PageSignal::Message(body.to_string()));
@@ -1170,9 +1390,22 @@ impl PageView {
         // real key presses in the page (they vouch for forwarded shortcuts)
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let st = state.clone();
-        keys.connect_key_pressed(move |_, _, _, _| {
+        let (st, o) = (state.clone(), on.clone());
+        *state.tell.borrow_mut() = Some(on.clone() as Rc<dyn Fn(PageSignal)>);
+        keys.connect_key_pressed(move |c, keyval, keycode, mods| {
             st.key_at.set(Some(Instant::now()));
+            // Sanaga's own shortcuts (new tab, close tab, next tab…) are
+            // read here, from the keyboard, before the page sees the key:
+            // they work in a frame of another site, on a page that no
+            // longer answers, and on a keyboard set to another alphabet.
+            // Every other key goes to the page; the ones it leaves come
+            // back through the window (`key_left_by_page`).
+            if let Some(msg) = shortcut_message(c.widget().map(|w| w.display()).as_ref(), keyval, keycode, mods) {
+                if shortcut_name(&msg).is_some_and(reserved_shortcut) {
+                    o(PageSignal::Message(msg));
+                    return gtk::glib::Propagation::Stop;
+                }
+            }
             gtk::glib::Propagation::Proceed
         });
         view.add_controller(keys);
@@ -1204,10 +1437,30 @@ impl PageView {
         view.connect_load_changed(move |v, ev| {
             let uri = v.uri().map(|u| u.to_string()).unwrap_or_default();
             match ev {
-                // website settings: before the new page is made
-                LoadEvent::Started | LoadEvent::Redirected => apply_site(v, &host_of_uri(&uri)),
+                // website settings: before the new page is made. (Right
+                // for an address Sanaga opens itself, a reload, back and
+                // forward; for a link or a form of the page, the engine
+                // still gives the page being left here — see the response
+                // below, which knows where the page really comes from.)
+                LoadEvent::Started | LoadEvent::Redirected => {
+                    let host = host_of_uri(&uri);
+                    apply_site(v, &host);
+                    *st.site.borrow_mut() = host;
+                    st.tls.set(0);
+                }
                 LoadEvent::Committed => {
                     *st.committed.borrow_mut() = uri.clone();
+                    st.error_shown.set(st.error_next.replace(false));
+                    // the padlock: what the engine says of the certificate
+                    // this very page came with (never for Sanaga's own
+                    // error page, shown under the address that failed)
+                    st.tls.set(match v.tls_info() {
+                        _ if st.error_shown.get() => 0,
+                        Some((_, problems)) if problems.is_empty() => 1,
+                        Some(_) => 2,
+                        None => 0,
+                    });
+                    st.asked_again.borrow_mut().clear();
                     // a new page: its downloads need its own actions
                     st.gesture.set(None);
                     st.typed.set(None);
@@ -1331,6 +1584,38 @@ impl PageView {
                         if (200..300).contains(&status) {
                             decision.download();
                             return true;
+                        }
+                    }
+                    // The page about to be shown: its site's settings
+                    // (JavaScript off, blocker, dark, fonts) are set now if
+                    // the view still has another site's — a link clicked or
+                    // a form sent in a page starts under the address of the
+                    // page being left, which got its own settings again.
+                    if r.is_main_frame_main_resource() {
+                        if let (Some(uri), Some(st)) = (r.response().and_then(|x| x.uri()).map(|u| u.to_string()), view_state(v)) {
+                            let host = host_of_uri(&uri);
+                            if *st.site.borrow() != host {
+                                // (JavaScript on or off and the video
+                                // formats are given to a page's process
+                                // when it starts, and the engine has
+                                // started one for this site already)
+                                let too_late = starts_with_process(v, &host);
+                                apply_site(v, &host);
+                                *st.site.borrow_mut() = host;
+                                // so the page is asked for again, this time
+                                // by Sanaga and under its own address (a
+                                // form being sent goes on as it is)
+                                if too_late && r.request().and_then(|q| q.http_method()).is_none_or(|m| m == "GET") && *st.asked_again.borrow() != uri {
+                                    *st.asked_again.borrow_mut() = uri.clone();
+                                    decision.ignore();
+                                    // (once the engine has dropped this
+                                    // load: asked at once, the new one
+                                    // started under the old page's address)
+                                    let v = v.clone();
+                                    gtk::glib::idle_add_local_once(move || v.load_uri(&uri));
+                                    return true;
+                                }
+                            }
                         }
                     }
                 }
@@ -1479,7 +1764,8 @@ impl PageView {
                 webkit6::ScriptDialogType::Prompt => DialogKind::Prompt(d.prompt_get_default_text().map(|t| t.to_string()).unwrap_or_default()),
                 _ => DialogKind::Leave,
             };
-            let info = DialogInfo { kind, message: d.message().map(|m| m.to_string()).unwrap_or_default(), host: host_of_uri(&v.uri().map(|u| u.to_string()).unwrap_or_default()) };
+            // (the page that speaks is the one shown, not one on its way)
+            let info = DialogInfo { kind, message: d.message().map(|m| m.to_string()).unwrap_or_default(), host: host_of_uri(&shown_uri(v)) };
             let key = keep_dialog(Pending::Script(d.clone()), info);
             o(PageSignal::Dialog(key));
             true
@@ -1524,7 +1810,7 @@ impl PageView {
                 _ => {}
             }
         });
-        PageView { view, find_fresh, default_ua: default_ua_kept }
+        PageView { view, find_fresh, default_ua: default_ua_kept, state }
     }
 
     pub fn webview(&self) -> WebView {
@@ -1640,6 +1926,17 @@ impl PageView {
     pub fn set_visible(&self, v: bool) -> R<()> {
         self.view.set_visible(v);
         Ok(())
+    }
+}
+
+impl PageView {
+    /// Show Sanaga's own page for a load that failed, under the address
+    /// that failed. Its buttons may then ask Sanaga (see `error_shown`).
+    pub fn show_error_page(&self, html: &str, url: &str) {
+        if let Some(st) = view_state(&self.view) {
+            st.error_next.set(true);
+        }
+        self.view.load_alternate_html(html, url, None);
     }
 }
 

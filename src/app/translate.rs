@@ -226,6 +226,10 @@ impl Sanaga {
             return;
         }
         let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };
+        // (not offered in a private tab: translating sends the page away)
+        if t.private {
+            return;
+        }
         let host = host_of(t.url());
         // (a page already being translated, or a translation service's own page)
         if st.translate_skip.contains(&host) || self.translation.as_ref().is_some_and(|x| x.tab == tab) || host.starts_with("translate.google.") {
@@ -368,6 +372,11 @@ impl Sanaga {
     }
 
     fn translate_with_google(&mut self) {
+        // (a private tab's address is not handed to a translation service)
+        if self.tabs.get(self.active).is_some_and(|t| t.private) {
+            self.notice = Some((tr("Onglet privé : la page n'est pas envoyée à un service en ligne.").into(), self.ctx.input(|i| i.time)));
+            return;
+        }
         if let Some((u, _)) = self.current_page() {
             let enc: String = url::form_urlencoded::byte_serialize(u.as_bytes()).collect();
             let a = self.active;
@@ -376,6 +385,12 @@ impl Sanaga {
     }
 
     fn translate_with_ai(&mut self) {
+        let tab = self.tabs.get(self.active).map(|t| t.id).unwrap_or(0);
+        // (a private tab's text only goes to a model on this computer)
+        if self.ai_provider() != Provider::Local && self.page_text_provider(tab) == Provider::Local {
+            self.notice = Some((tr("Onglet privé : la page n'est pas envoyée à un service en ligne.").into(), self.ctx.input(|i| i.time)));
+            return;
+        }
         let provider = self.ai_provider();
         if provider == Provider::Local {
             self.notice = Some((tr("Choisissez d'abord une IA dans Paramètres › Intelligence.").into(), self.ctx.input(|i| i.time)));
