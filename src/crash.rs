@@ -213,9 +213,19 @@ pub fn list(root: &Path) -> Vec<Report> {
             // "2026-11-11T18-40-02Z-<kind>-<id>"
             let (date, rest) = name.split_once("Z-")?;
             let kind = Kind::from_word(rest.rsplit_once('-')?.0)?;
-            let mut text = String::new();
-            // (never more than a report can hold, whatever the file became)
-            std::fs::File::open(&path).ok()?.take(MAX_TEXT as u64 + 64).read_to_string(&mut text).ok()?;
+            // (never more than a report can hold, whatever the file became.
+            // Read as bytes: the limit may fall in the middle of a character,
+            // and a file changed by hand may not be text at all — read as
+            // text, such a report vanished from the list without a word.)
+            let mut bytes = Vec::new();
+            std::fs::File::open(&path).ok()?.take(MAX_TEXT as u64 + 64).read_to_end(&mut bytes).ok()?;
+            // (a character cut by the limit is left out rather than shown as "\u{fffd}")
+            if let Err(e) = std::str::from_utf8(&bytes) {
+                if e.error_len().is_none() {
+                    bytes.truncate(e.valid_up_to());
+                }
+            }
+            let text = String::from_utf8_lossy(&bytes).into_owned();
             Some(Report { path, when: pretty_time(&date.replace('T', " ")), kind, text })
         })
         .collect()
@@ -316,6 +326,26 @@ mod tests {
         // long texts are cut, on a character boundary
         let long = "é".repeat(MAX_TEXT);
         assert!(scrub(&long, None).len() <= MAX_TEXT + 8);
+    }
+
+    #[test]
+    fn a_long_or_damaged_report_is_still_listed() {
+        let root = temp("long");
+        let dir = folder(&root);
+        crate::guard::ensure_private_dir(&dir);
+        // longer than a report may be, and the limit falls inside an "é"
+        let long = format!("x{}", "é".repeat(MAX_TEXT));
+        assert!(!long.is_char_boundary(MAX_TEXT + 64));
+        std::fs::write(dir.join(format!("2026-11-11T18-40-02Z-{}-1_0.txt", Kind::Interface.word())), &long).unwrap();
+        // not text any more (changed by hand, a disk error)
+        std::fs::write(dir.join(format!("2026-11-11T18-40-03Z-{}-1_0.txt", Kind::Page.word())), b"page stopped \xff\xfe here").unwrap();
+        let all = list(&root);
+        assert_eq!(all.len(), 2);
+        let cut = all.iter().find(|r| r.kind == Kind::Interface).unwrap();
+        assert!(cut.text.len() >= MAX_TEXT && cut.text.len() <= MAX_TEXT + 64 && cut.text.ends_with('é') && !cut.text.contains('\u{fffd}'));
+        let odd = all.iter().find(|r| r.kind == Kind::Page).unwrap();
+        assert!(odd.text.starts_with("page stopped ") && odd.text.ends_with(" here"));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
