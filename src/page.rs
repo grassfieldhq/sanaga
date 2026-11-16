@@ -443,6 +443,9 @@ struct ViewState {
     typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
+    /// How this page speaks to the interface (for a key the page left
+    /// unused, which comes back through the window).
+    tell: RefCell<Option<Rc<dyn Fn(PageSignal)>>>,
     /// The page shown is Sanaga's own error page (set when it is shown,
     /// from `error_next` set when it is asked for).
     error_shown: Cell<bool>,
@@ -757,6 +760,145 @@ pub fn shown_uri(v: &WebView) -> String {
     } else {
         committed
     }
+}
+
+// ------------------------------------------------------------ keyboard shortcuts
+
+/// The key a shortcut is read from. Shortcuts are named after Latin
+/// letters: on a keyboard set to another alphabet (Russian, Greek, Arabic,
+/// Hebrew…) the key pressed gives another letter, and Ctrl+T, Ctrl+W or
+/// Ctrl+L did nothing. The key then counts as the Latin letter it gives in
+/// another layout of the same keyboard, or as the letter printed on that
+/// key of a QWERTY keyboard; a key whose digit needs Shift (French AZERTY)
+/// counts as that digit.
+pub fn shortcut_key(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, keycode: u32) -> gtk::gdk::Key {
+    let ascii = |k: gtk::gdk::Key| k.to_unicode().filter(|c| c.is_ascii() && !c.is_ascii_control());
+    // (arrows, F keys, Tab… and keys that already give a Latin character)
+    if keyval.to_unicode().is_none() || ascii(keyval).is_some() {
+        return keyval;
+    }
+    let others = display.and_then(|d| d.map_keycode(keycode)).unwrap_or_default();
+    if let Some((_, k)) = others.iter().find(|(at, k)| at.level() == 0 && ascii(*k).is_some_and(|c| c.is_ascii_alphabetic())) {
+        return *k;
+    }
+    if let Some((_, k)) = others.iter().find(|(_, k)| ascii(*k).is_some_and(|c| c.is_ascii_digit())) {
+        return *k;
+    }
+    qwerty_letter(keycode).and_then(|c| gtk::gdk::Key::from_name(c.to_string())).unwrap_or(keyval)
+}
+
+/// The letter printed on this key of a QWERTY keyboard (`keycode`: the
+/// key's number as GTK gives it, the kernel's plus 8).
+fn qwerty_letter(keycode: u32) -> Option<char> {
+    let rows: [(u32, &str); 3] = [(24, "qwertyuiop"), (38, "asdfghjkl"), (52, "zxcvbnm")];
+    rows.iter().find_map(|(first, letters)| keycode.checked_sub(*first).and_then(|k| letters.chars().nth(k as usize)))
+}
+
+/// A key press as a shortcut message ("cs:t" = Ctrl+Shift+T, ":f5").
+fn shortcut_message(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, keycode: u32, state: gtk::gdk::ModifierType) -> Option<String> {
+    use gtk::gdk::ModifierType as M;
+    let key = shortcut_key(display, keyval, keycode).to_lower();
+    let name = key.name()?;
+    let key: String = match name.as_str() {
+        "Tab" | "ISO_Left_Tab" | "KP_Tab" => "tab".into(),
+        "Delete" | "KP_Delete" => "delete".into(),
+        "Page_Down" | "KP_Page_Down" => "pagedown".into(),
+        "Page_Up" | "KP_Page_Up" => "pageup".into(),
+        "Left" | "KP_Left" => "arrowleft".into(),
+        "Right" | "KP_Right" => "arrowright".into(),
+        "Home" | "KP_Home" => "home".into(),
+        "KP_Add" => "+".into(),
+        "KP_Subtract" => "-".into(),
+        "KP_0" => "0".into(),
+        "F5" | "F6" | "F9" | "F11" | "F12" => name.to_lowercase(),
+        _ => key.to_unicode().filter(|c| c.is_ascii_graphic())?.to_ascii_lowercase().to_string(),
+    };
+    let flag = |m: M, c: &'static str| if state.contains(m) { c } else { "" };
+    Some(format!("{}{}{}:{key}", flag(M::CONTROL_MASK, "c"), flag(M::SHIFT_MASK, "s"), flag(M::ALT_MASK, "a")))
+}
+
+/// The shortcuts that are Sanaga's whatever the page does with the key
+/// (as in every browser: a page cannot keep its own tab from closing).
+/// The others go to the page first, and to Sanaga if the page leaves them.
+fn reserved_shortcut(name: &str) -> bool {
+    matches!(name, "new" | "window" | "private" | "reopen" | "close" | "next" | "prev" | "tabright" | "tableft" | "quit")
+}
+
+/// A key the page was given and did not use (the engine hands it back to
+/// the window): one of Sanaga's shortcuts? True when it was, and ran.
+/// This also holds when the key was pressed in a frame of another site
+/// inside the page, where Sanaga's own script never ran.
+pub fn key_left_by_page(view: &WebView, keyval: gtk::gdk::Key, keycode: u32, state: gtk::gdk::ModifierType) -> bool {
+    let Some(st) = view_state(view) else { return false };
+    let Some(msg) = shortcut_message(Some(&view.display()), keyval, keycode, state) else { return false };
+    // (Escape belongs to the page, except for a tool of Sanaga's at work
+    // in it: its script says so)
+    if msg.ends_with(":escape") || shortcut_name(&msg).is_none() {
+        return false;
+    }
+    let tell = st.tell.borrow().clone();
+    match tell {
+        Some(tell) => {
+            tell(PageSignal::Message(msg));
+            true
+        }
+        None => false,
+    }
+}
+
+/// Which of Sanaga's shortcuts a message names.
+pub fn shortcut_name(msg: &str) -> Option<&'static str> {
+    let (mods, key) = msg.split_once(':')?;
+    let c = mods.contains('c');
+    let s = mods.contains('s');
+    let a = mods.contains('a');
+    Some(match (c, s, a, key) {
+        (true, true, _, "n") => "private",
+        (true, true, _, "t") => "reopen",
+        (true, true, _, "b") => "bmbar",
+        (true, true, _, "r") => "reader",
+        (true, true, _, "\\") | (true, true, _, "|") => "overview",
+        (true, true, _, "l") => "sidebar",
+        (true, true, _, "o") => "overview",
+        (true, true, _, "f") => "contacts",
+        (true, true, _, "a") => "tabsearch",
+        (true, false, false, "k") => "tabsearch",
+        (true, true, _, "e") => "split",
+        (true, true, _, "delete") => "cleardata",
+        (true, false, false, "s") => "savepage",
+        (true, false, true, "i") => "inspector",
+        (true, true, _, "i") => "inspector",
+        (_, _, _, "f12") => "inspector",
+        (true, true, _, "m") => "devices",
+        (_, _, _, "f9") => "focus",
+        (true, true, _, "y") => "summary",
+        (_, _, _, "escape") => "esc",
+        (true, false, false, "p") => "print",
+        (true, false, false, "u") => "source",
+        (_, _, _, "f11") => "fullscreen",
+        (true, true, _, "d") => "readinglist",
+        (true, true, _, "tab") => "prev",
+        (true, _, _, "pagedown") => "tabright",
+        (true, _, _, "pageup") => "tableft",
+        (true, false, _, "t") => "new",
+        (true, false, _, "n") => "window",
+        (true, _, _, "w") => "close",
+        (true, false, _, "tab") => "next",
+        (true, _, _, "l") | (_, _, _, "f6") => "addr",
+        (true, _, _, "r") | (_, _, _, "f5") => "reload",
+        (_, _, true, "arrowleft") => "back",
+        (_, _, true, "arrowright") => "fwd",
+        (_, _, true, "home") => "home",
+        (true, _, _, "d") => "bookmark",
+        (true, _, _, "h") => "history",
+        (true, _, _, "j") => "downloads",
+        (true, _, _, "f") => "find",
+        (true, _, _, "=") | (true, _, _, "+") => "zin",
+        (true, _, _, "-") => "zout",
+        (true, _, _, "0") => "zreset",
+        (true, _, _, "q") => "quit",
+        _ => return None,
+    })
 }
 
 /// Sites that offer every video in H.264 as well (see codecs.rs).
@@ -1186,7 +1328,7 @@ impl PageView {
             let Some(body) = message_body(&text, if own_error_page { "about:blank" } else { &current }) else { return };
             // a shortcut only follows a real key press in the page (seen by
             // GTK, not claimed by a script)
-            if is_shortcut_message(body) && !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW)) {
+            if is_shortcut_message(body) && (body != ":escape" || !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW))) {
                 return;
             }
             o(PageSignal::Message(body.to_string()));
@@ -1221,9 +1363,22 @@ impl PageView {
         // real key presses in the page (they vouch for forwarded shortcuts)
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let st = state.clone();
-        keys.connect_key_pressed(move |_, _, _, _| {
+        let (st, o) = (state.clone(), on.clone());
+        *state.tell.borrow_mut() = Some(on.clone() as Rc<dyn Fn(PageSignal)>);
+        keys.connect_key_pressed(move |c, keyval, keycode, mods| {
             st.key_at.set(Some(Instant::now()));
+            // Sanaga's own shortcuts (new tab, close tab, next tab…) are
+            // read here, from the keyboard, before the page sees the key:
+            // they work in a frame of another site, on a page that no
+            // longer answers, and on a keyboard set to another alphabet.
+            // Every other key goes to the page; the ones it leaves come
+            // back through the window (`key_left_by_page`).
+            if let Some(msg) = shortcut_message(c.widget().map(|w| w.display()).as_ref(), keyval, keycode, mods) {
+                if shortcut_name(&msg).is_some_and(reserved_shortcut) {
+                    o(PageSignal::Message(msg));
+                    return gtk::glib::Propagation::Stop;
+                }
+            }
             gtk::glib::Propagation::Proceed
         });
         view.add_controller(keys);

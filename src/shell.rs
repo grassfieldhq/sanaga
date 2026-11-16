@@ -1693,8 +1693,12 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         let keys = gtk::EventControllerKey::new();
         keys.set_im_context(Some(&im));
         let (input, a) = (input0.clone(), waker.clone());
-        keys.connect_key_pressed(move |_, kv, _, state| {
+        keys.connect_key_pressed(move |c, kv, keycode, state| {
             let modifiers = modifiers_of(state);
+            // (a shortcut is named after a Latin letter, whatever alphabet
+            // the keyboard is set to: Ctrl+C, V, T, W, L… on a Russian or
+            // Greek keyboard; text itself comes through the input method)
+            let kv = if modifiers.ctrl || modifiers.alt { crate::page::shortcut_key(c.widget().map(|w| w.display()).as_ref(), kv, keycode) } else { kv };
             let key = key_of(kv);
             {
                 let mut i = input.borrow_mut();
@@ -1723,10 +1727,11 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             glib::Propagation::Stop
         });
         let (input, a) = (input0.clone(), waker.clone());
-        keys.connect_key_released(move |_, kv, _, state| {
+        keys.connect_key_released(move |c, kv, keycode, state| {
             // (GTK gives the state from before this key: a modifier let go
             // is still in it)
             let mut modifiers = modifiers_of(state);
+            let kv = if modifiers.ctrl || modifiers.alt { crate::page::shortcut_key(c.widget().map(|w| w.display()).as_ref(), kv, keycode) } else { kv };
             match kv.name().as_deref() {
                 Some("Control_L" | "Control_R") => {
                     modifiers.ctrl = false;
@@ -1744,6 +1749,25 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             a.queue_render();
         });
         area.add_controller(keys);
+    }
+    {
+        // A key pressed in a page that the page did not use comes back up
+        // to the window: Sanaga's shortcuts are read from it there (find,
+        // reload, zoom, the address field…). A web application that uses
+        // the key itself (Ctrl+S, Ctrl+K, Ctrl+F in an editor) keeps it.
+        let left = gtk::EventControllerKey::new();
+        left.set_propagation_phase(gtk::PropagationPhase::Bubble);
+        let win = window.downgrade();
+        left.connect_key_pressed(move |_, kv, keycode, state| {
+            use webkit6::prelude::*;
+            let focused = win.upgrade().and_then(|w| gtk::prelude::RootExt::focus(&w));
+            let page = focused.and_then(|w| if w.is::<webkit6::WebView>() { Some(w) } else { w.ancestor(webkit6::WebView::static_type()) }).and_then(|w| w.downcast::<webkit6::WebView>().ok());
+            match page {
+                Some(view) if crate::page::key_left_by_page(&view, kv, keycode, state) => glib::Propagation::Stop,
+                _ => glib::Propagation::Proceed,
+            }
+        });
+        window.add_controller(left);
     }
     {
         let focus = gtk::EventControllerFocus::new();

@@ -83,19 +83,17 @@ const LANG_JS: &str = r#"(function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tell); else tell();
 })();"#;
 
+/// Escape ends a tool of Sanaga's that is at work in the page (removing an
+/// element…). Every other shortcut is read by Sanaga from the keyboard
+/// itself (page.rs): this script used to cancel Ctrl+A, B, I, Y… for the
+/// page — select all, bold, italic, redo — although Sanaga has no use for
+/// them, and took Ctrl+S, K, F… from web applications that have their own.
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
-  if (!e.isTrusted) return;
-  var k = (e.key || '').toLowerCase();
-  var ctrl = e.ctrlKey || e.metaKey;
-  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','k','e','delete','m','y','pagedown','pageup'].indexOf(k) >= 0)
-    || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
-    || k === 'f5' || k === 'f6' || k === 'f9' || k === 'f11' || k === 'f12'
-    || (k === 'escape' && window.__sanagaTool);
-  if (!ours || !window.ipc) return;
+  if (!e.isTrusted || (e.key || '').toLowerCase() !== 'escape' || !window.__sanagaTool || !window.ipc) return;
   e.preventDefault();
   e.stopPropagation();
-  window.ipc.postMessage((ctrl ? 'c' : '') + (e.shiftKey ? 's' : '') + (e.altKey ? 'a' : '') + ':' + k);
+  window.ipc.postMessage(':escape');
 }, true);
 "#;
 
@@ -137,59 +135,7 @@ fn page_may_answer(what: &str) -> bool {
     matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow" | "no-webrtc") || (cfg!(debug_assertions) && what == "probe")
 }
 
-fn shortcut_name(msg: &str) -> Option<&'static str> {
-    let (mods, key) = msg.split_once(':')?;
-    let c = mods.contains('c');
-    let s = mods.contains('s');
-    let a = mods.contains('a');
-    Some(match (c, s, a, key) {
-        (true, true, _, "n") => "private",
-        (true, true, _, "t") => "reopen",
-        (true, true, _, "b") => "bmbar",
-        (true, true, _, "r") => "reader",
-        (true, true, _, "\\") | (true, true, _, "|") => "overview",
-        (true, true, _, "l") => "sidebar",
-        (true, true, _, "o") => "overview",
-        (true, true, _, "f") => "contacts",
-        (true, true, _, "a") => "tabsearch",
-        (true, false, false, "k") => "tabsearch",
-        (true, true, _, "e") => "split",
-        (true, true, _, "delete") => "cleardata",
-        (true, false, false, "s") => "savepage",
-        (true, false, true, "i") => "inspector",
-        (true, true, _, "i") => "inspector",
-        (_, _, _, "f12") => "inspector",
-        (true, true, _, "m") => "devices",
-        (_, _, _, "f9") => "focus",
-        (true, true, _, "y") => "summary",
-        (_, _, _, "escape") => "esc",
-        (true, false, false, "p") => "print",
-        (true, false, false, "u") => "source",
-        (_, _, _, "f11") => "fullscreen",
-        (true, true, _, "d") => "readinglist",
-        (true, true, _, "tab") => "prev",
-        (true, _, _, "pagedown") => "tabright",
-        (true, _, _, "pageup") => "tableft",
-        (true, false, _, "t") => "new",
-        (true, false, _, "n") => "window",
-        (true, _, _, "w") => "close",
-        (true, false, _, "tab") => "next",
-        (true, _, _, "l") | (_, _, _, "f6") => "addr",
-        (true, _, _, "r") | (_, _, _, "f5") => "reload",
-        (_, _, true, "arrowleft") => "back",
-        (_, _, true, "arrowright") => "fwd",
-        (_, _, true, "home") => "home",
-        (true, _, _, "d") => "bookmark",
-        (true, _, _, "h") => "history",
-        (true, _, _, "j") => "downloads",
-        (true, _, _, "f") => "find",
-        (true, _, _, "=") | (true, _, _, "+") => "zin",
-        (true, _, _, "-") => "zout",
-        (true, _, _, "0") => "zreset",
-        (true, _, _, "q") => "quit",
-        _ => return None,
-    })
-}
+use crate::page::shortcut_name;
 
 static PAGE_INPUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
