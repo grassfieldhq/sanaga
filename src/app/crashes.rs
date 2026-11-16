@@ -16,14 +16,17 @@ pub(super) struct CrashNotice {
 }
 
 impl Sanaga {
-    /// The last run of this profile ended without closing (`since`: when it
-    /// had started). Keep a word of it when no report says more, and tell
-    /// the person at the top of the window.
-    pub(super) fn note_abrupt_end(&mut self, since: std::time::SystemTime, lost_tabs: Vec<String>) {
+    /// The last run of this profile ended without closing (`ended`: when it
+    /// had started and what is known of its end). Keep a word of it when no
+    /// report says more, and tell the person at the top of the window.
+    pub(super) fn note_abrupt_end(&mut self, ended: crash::Abrupt, lost_tabs: Vec<String>) {
         let root = Store::root_dir();
+        let since = ended.started;
         let explained = crash::list(&root).iter().any(|r| r.kind == Kind::Interface && std::fs::metadata(&r.path).and_then(|m| m.modified()).is_ok_and(|t| t >= since));
         if !explained {
-            crash::write(&root, Kind::Abrupt, &crate::page::engine_version(), "");
+            // (what is known of that run's end: a signal, the computer or
+            // the session stopped with Sanaga open — or nothing more)
+            crash::write(&root, Kind::Abrupt, &crate::page::engine_version(), &ended.detail());
         }
         self.crash_notice = Some(CrashNotice { lost_tabs });
     }
