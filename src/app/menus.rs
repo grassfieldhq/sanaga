@@ -87,9 +87,8 @@ impl Sanaga {
         }
         if let Some(k) = edit {
             // on the favourites page, its line open for editing
-            if let Some(b) = self.store.bookmarks.get(k) {
-                self.bm_edit = (b.title.clone(), b.url.clone());
-                self.bm_editing = Some(k);
+            if self.store.bookmarks.get(k).is_some() {
+                self.edit_bookmark(k);
                 self.open_tab("sanaga://bookmarks", false);
             }
         }

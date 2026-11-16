@@ -148,17 +148,19 @@ impl Sanaga {
     pub(super) fn protected_site(&mut self, i: usize, url: &str) {
         let Some(service) = identity::protected_url(url) else { return };
         let now = self.ctx.input(|t| t.time);
-        if self.store.settings.drm_auto {
+        // (never for a tab brought back at the start: nobody asked for it
+        // now, and another browser was launched at every start of Sanaga)
+        if self.store.settings.drm_auto && !self.restoring {
             if let Some(w) = identity::handoffs(service).into_iter().next() {
                 identity::open_with(&w, url);
                 self.notice = Some((tf("{} s'ouvre dans {}…", &[&service, &w.name]), now));
-                // a tab opened only for it (no page in it yet) goes away
+                // a tab opened only for it (no page in it yet) goes away —
+                // once the step that opened it is over: closed here, the
+                // one that had just opened it went on with a tab that was
+                // no longer there (Sanaga stopped at its start, and the
+                // saved tabs after that one were lost)
                 if i < self.tabs.len() && self.tabs[i].entries.is_empty() {
-                    if self.tabs.len() > 1 {
-                        self.close_tab(i);
-                    } else {
-                        self.navigate(i, "sanaga://newtab".into(), None, true);
-                    }
+                    self.close_later.push(self.tabs[i].id);
                 } else if i < self.tabs.len() && self.tabs[i].url() == url {
                     // already shown here (a call site found unable to work
                     // once loaded): the tab goes back where it was

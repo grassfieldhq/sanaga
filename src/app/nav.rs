@@ -108,7 +108,9 @@ impl Sanaga {
     }
 
     pub(super) fn save_session(&self) {
-        if self.screenshot.is_some() || self.app_mode {
+        // (never while the saved tabs are being brought back: only part of
+        // them is there yet)
+        if self.screenshot.is_some() || self.app_mode || self.restoring {
             return;
         }
         // one line per tab: address, group name, pinned, title, container, and
@@ -221,8 +223,12 @@ impl Sanaga {
             tab.loading = true;
             tab.view = View::Loading;
             let (id, nav) = (tab.id, tab.nav);
+            // (an open page of the same kind only: the source of a page
+            // signed in in a private tab or a container is not shown in an
+            // ordinary tab, nor the other way round)
+            let (private, container) = (tab.private, tab.container.clone());
             use webkit6::prelude::*;
-            let open_page = self.tabs.iter().filter_map(|t| t.web.as_ref()).map(|w| w.webview()).find(|w| w.uri().map(|u| u.as_str() == inner).unwrap_or(false));
+            let open_page = self.tabs.iter().filter(|t| t.private == private && t.container == container).filter_map(|t| t.web.as_ref()).map(|w| w.webview()).find(|w| w.uri().map(|u| u.as_str() == inner).unwrap_or(false));
             if let Some(res) = open_page.and_then(|w| w.main_resource()) {
                 let (tx, ctx, u) = (self.tx.clone(), self.ctx.clone(), inner.to_string());
                 res.data(None::<&webkit6::gio::Cancellable>, move |r| {

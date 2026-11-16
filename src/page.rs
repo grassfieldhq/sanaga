@@ -1551,6 +1551,18 @@ impl PageView {
                             return true;
                         }
                     }
+                    // a link to the mail program, the phone, a torrent
+                    // program (mailto:, tel:, sms:, magnet:), clicked by the
+                    // person: the system opens it, the page stays. (The
+                    // engine cannot load such an address: the page was
+                    // replaced by an error page.)
+                    if a.is_user_gesture() {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::guard::system_link(u)) {
+                            decision.ignore();
+                            gtk::gio::AppInfo::launch_default_for_uri_async(&u, None::<&gtk::gio::AppLaunchContext>, None::<&gtk::gio::Cancellable>, |_| {});
+                            return true;
+                        }
+                    }
                     let m = a.modifiers();
                     let ctrl = m & gtk::gdk::ModifierType::CONTROL_MASK.bits() != 0;
                     let shift = m & gtk::gdk::ModifierType::SHIFT_MASK.bits() != 0;

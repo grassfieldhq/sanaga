@@ -514,6 +514,17 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32, password: bool
     ui.add(TextEdit::singleline(value).hint_text(hint).desired_width(width).password(password)).changed()
 }
 
+/// A text field that counts once it is finished: true when it is left, or
+/// Enter is pressed, after its text was changed.
+fn finished_field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> bool {
+    let r = ui.add(TextEdit::singleline(value).hint_text(hint).desired_width(width));
+    let unfinished = r.id.with("unfinished");
+    if r.changed() {
+        ui.data_mut(|d| d.insert_temp(unfinished, true));
+    }
+    r.lost_focus() && ui.data_mut(|d| d.remove_temp::<bool>(unfinished)).unwrap_or(false)
+}
+
 /// A choice drawn as a small picture of the window (where the tabs and the
 /// address bar go). `tabs`: 0 top, 1 bottom, 2 left, 3 right, 9 not shown;
 /// `bar`: 0 top, 1 bottom, 2 floating, 9 not shown.
@@ -876,6 +887,8 @@ impl Sanaga {
 
     fn settings_content(&mut self, ui: &mut Ui, th: &Theme, acts: &mut Vec<Act>) {
         let mut changed = false;
+        // (the sync folder's field was finished: Enter, or the field left)
+        let mut sync_dir_set = false;
         let web_ok = self.web_ok;
         let sync = self.sync_status.clone();
         let profile = if self.store.profile.is_empty() { tr("Personnel").to_string() } else { self.store.profile.clone() };
@@ -1390,7 +1403,11 @@ impl Sanaga {
             };
             group(ui, th, "", |ui, rows| {
                 rows.row(ui, tr("Dossier partagé"), "", false, |ui| {
-                    changed |= field(ui, &mut st.sync_dir, "/home/vous/Nextcloud", 260.0, false);
+                    // (the folder counts once its path is finished: at
+                    // every letter typed a round started with the path so
+                    // far — typing /home/me/Nextcloud synced into /home/me)
+                    sync_dir_set = finished_field(ui, &mut st.sync_dir, "/home/vous/Nextcloud", 260.0);
+                    changed |= sync_dir_set;
                 });
                 if rows.action(ui, tr("Synchroniser maintenant"), &state, tr("Synchroniser")) {
                     acts.push(Act::SyncNow);
@@ -1667,7 +1684,9 @@ impl Sanaga {
             // (switched on: the lists are loaded, or fetched if there are none yet)
             crate::page::prepare_lists();
             self.store.save_settings();
-            if !self.store.settings.sync_dir.trim().is_empty() {
+            // (a round right away for a folder just given; the other
+            // settings have nothing to do with it)
+            if sync_dir_set && !self.store.settings.sync_dir.trim().is_empty() {
                 acts.push(Act::SyncNow);
             }
         }

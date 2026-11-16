@@ -18,6 +18,8 @@ pub(super) struct DialogState {
     count: u32,
     /// "Don't let this site show more alerts" ticked.
     silence: bool,
+    /// When the question was first shown.
+    since: f64,
 }
 
 impl Sanaga {
@@ -54,7 +56,7 @@ impl Sanaga {
         let Some(info) = crate::page::dialog(key) else { return };
         if self.dialog_state.key != key {
             let same_site = self.last_dialog_host == info.host;
-            self.dialog_state = DialogState { key, text: if let DialogKind::Prompt(d) = &info.kind { d.clone() } else { String::new() }, password: String::new(), fresh: true, count: if same_site { self.dialog_state.count + 1 } else { 1 }, silence: false };
+            self.dialog_state = DialogState { key, text: if let DialogKind::Prompt(d) = &info.kind { d.clone() } else { String::new() }, password: String::new(), fresh: true, count: if same_site { self.dialog_state.count + 1 } else { 1 }, silence: false, since: ctx.input(|i| i.time) };
             self.last_dialog_host = info.host.clone();
         }
         let screen = ctx.content_rect();
@@ -143,7 +145,14 @@ impl Sanaga {
                     });
                 });
         });
-        let (enter, esc) = ctx.input(|i| (i.key_pressed(Key::Enter), i.key_pressed(Key::Escape)));
+        // Enter and Escape answer the question only when they are meant for
+        // it: not the Enter that sends an address being typed in the
+        // address field (it answered the page's question too — "leave this
+        // page?" included), nor a key held down since before the question
+        // was there. The key is then used up: nothing else reads it.
+        let typing_elsewhere = ctx.memory(|m| m.has_focus(egui::Id::new("address-bar")));
+        let just_shown = ctx.input(|i| i.time) - self.dialog_state.since < 0.4;
+        let (enter, esc) = if typing_elsewhere || just_shown { (false, false) } else { ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape))) };
         if enter {
             ok = true;
         }

@@ -210,6 +210,15 @@ pub fn restricted_port(address: &str) -> bool {
     url::Url::parse(address).ok().filter(|u| matches!(u.scheme(), "http" | "https")).and_then(|u| u.port()).is_some_and(|p| RESTRICTED_PORTS.contains(&p))
 }
 
+/// A link meant for another program of the computer (the mail program, the
+/// phone, a torrent program): handed to the system when the person clicks
+/// it. Only these few: any other scheme could start a program a page has
+/// no business starting.
+pub fn system_link(address: &str) -> bool {
+    let scheme = address.split_once(':').map(|(s, _)| s.to_ascii_lowercase()).unwrap_or_default();
+    matches!(scheme.as_str(), "mailto" | "tel" | "sms" | "magnet") && address.len() < 8192 && !address.chars().any(|c| c.is_control())
+}
+
 /// May a link of a page be opened elsewhere by Sanaga (Ctrl+click, middle
 /// click, "open in a private tab")? Web addresses only, or a local file from
 /// a local page: never Sanaga's own pages, scripts or other schemes.
@@ -454,6 +463,19 @@ pub fn js_str(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn links_for_other_programs() {
+        assert!(system_link("mailto:awa@example.org?subject=Bonjour"));
+        assert!(system_link("TEL:+237600000000"));
+        assert!(system_link("magnet:?xt=urn:btih:abc"));
+        assert!(!system_link("https://example.org/"));
+        assert!(!system_link("file:///etc/passwd"));
+        assert!(!system_link("javascript:alert(1)"));
+        assert!(!system_link("vscode://open?x"));
+        assert!(!system_link("mailto:a@b\nBcc: c@d"));
+        assert!(!system_link("mailto"));
+    }
 
     #[test]
     fn ports_browsers_refuse() {

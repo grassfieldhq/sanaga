@@ -24,6 +24,7 @@ impl Sanaga {
             self.store.toggle_bookmark(&u, &ti);
         }
         self.bm_pop_title = self.store.bookmarks.iter().find(|b| b.url == u).map(|b| b.title.clone()).unwrap_or(ti);
+        self.bm_pop_url = u;
         self.bm_popover = true;
         self.ctx.data_mut(|d| d.insert_temp(egui::Id::new("star-rect"), star));
     }
@@ -33,7 +34,14 @@ impl Sanaga {
         if !self.bm_popover {
             return;
         }
+        // (the bubble belongs to the page it was opened on: after Ctrl+W or
+        // a change of tab made with the keyboard it used to give its name
+        // to the favourite of the tab now shown, even on Escape)
         let url = self.tabs[self.active].url().to_string();
+        if url != self.bm_pop_url {
+            self.bm_popover = false;
+            return;
+        }
         let Some(i) = self.store.bookmarks.iter().position(|b| b.url == url) else {
             self.bm_popover = false;
             return;
@@ -295,10 +303,7 @@ impl Sanaga {
             self.save_bookmark_edit(i, t, u);
         }
         if let Some(i) = edit {
-            if let Some(b) = self.store.bookmarks.get(i) {
-                self.bm_edit = (b.title.clone(), b.url.clone());
-                self.bm_editing = Some(i);
-            }
+            self.edit_bookmark(i);
         }
         if let Some(i) = remove {
             self.remove_bookmark(i);

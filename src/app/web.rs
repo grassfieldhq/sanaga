@@ -799,7 +799,11 @@ impl Sanaga {
                 crate::shell::place_view(&w.webview(), place);
             }
             // in the simulator the page is scaled with the drawn device
-            let want = tab.zoom * if i == active { dev_scale } else { 1.0 };
+            // (there the tab's own zoom is left out: at 125 % a phone 393
+            // points wide was given 314 to the page, under a bar that
+            // still said 393)
+            let simulated = i == active && self.device.is_some();
+            let want = if simulated { dev_scale } else { tab.zoom };
             if (want - tab.web_zoom).abs() > 0.001 {
                 let _ = w.zoom(want as f64);
                 tab.web_zoom = want;

@@ -1981,6 +1981,8 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
                     if let (Some(top), Some(dev)) = (&toplevel, &i.device) {
                         top.begin_move(dev, b.max(1) as i32, x, y, t);
                     }
+                    drop(i);
+                    let_go(input, x, y);
                 }
                 ViewportCommand::BeginResize(dir) => {
                     use egui::ResizeDirection as D;
@@ -1999,6 +2001,8 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
                     if let Some(top) = &toplevel {
                         top.begin_resize(edge, i.device.as_ref(), b.max(1) as i32, x, y, t);
                     }
+                    drop(i);
+                    let_go(input, x, y);
                 }
                 ViewportCommand::Maximized(true) => win.maximize(),
                 ViewportCommand::Maximized(false) => win.unmaximize(),
@@ -2043,6 +2047,16 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
         let win = host.window.clone();
         glib::idle_add_local_once(move || save_shot(&win, &path));
     }
+}
+
+/// The desktop takes the mouse over to move or resize the window: the
+/// button's release never reaches Sanaga. The interface is told the button
+/// was let go, or it went on believing the bar was being dragged (no
+/// hover, no close buttons on the tabs) until the next click.
+fn let_go(input: &Rc<RefCell<Input>>, x: f64, y: f64) {
+    let mut i = input.borrow_mut();
+    let modifiers = i.modifiers;
+    i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button: PointerButton::Primary, pressed: false, modifiers });
 }
 
 /// The layer above the pages gets the pictures the interface made or let

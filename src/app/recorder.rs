@@ -26,6 +26,8 @@ pub(super) struct Recording {
     done: mpsc::Receiver<Result<std::path::PathBuf, String>>,
     path: std::path::PathBuf,
     pub stopping: bool,
+    /// The encoder was started (it will say when the file is done).
+    pub encoding: bool,
 }
 
 /// The video encoder, fed with raw pictures (runs in its own thread).
@@ -113,6 +115,7 @@ impl Sanaga {
             done,
             path,
             stopping: false,
+            encoding: false,
         });
         self.notice = Some((tr("Enregistrement vidéo commencé.").to_string(), now));
     }
@@ -135,8 +138,11 @@ impl Sanaga {
             return;
         }
         if r.stopping {
-            if r.frames.is_none() && r.size.borrow().is_none() {
-                // stopped before the first picture
+            if !r.encoding {
+                // stopped before the encoder started (before the first
+                // picture, or while it was being taken: its size was known
+                // by then, and Sanaga waited for ever for a file nobody
+                // was writing)
                 self.recording = None;
             } else {
                 self.ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -155,6 +161,7 @@ impl Sanaga {
                 let (done_tx, done) = mpsc::channel();
                 start_encoder(r.path.clone(), w, h, rx, done_tx);
                 r.frames = Some(tx);
+                r.encoding = true;
                 r.done = done;
                 r.next_tick = now;
             }

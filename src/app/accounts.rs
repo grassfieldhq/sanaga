@@ -293,6 +293,16 @@ impl Sanaga {
             if self.store.logins.is_empty() {
                 ui.label(RichText::new(tr("Aucun mot de passe enregistré pour l'instant.")).color(th.sub));
             }
+            // (a password shown hides again after half a minute: it stayed
+            // on screen for as long as the page did)
+            if let Some((_, _, at)) = &self.pw_shown {
+                let left = 30.0 - (ui.input(|i| i.time) - at);
+                if left <= 0.0 {
+                    self.pw_shown = None;
+                } else {
+                    ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(left));
+                }
+            }
             for (i, (site, user)) in self.store.logins.iter().enumerate() {
                 if !filter.is_empty() && !site.to_lowercase().contains(&filter) && !user.to_lowercase().contains(&filter) {
                     continue;
@@ -304,10 +314,12 @@ impl Sanaga {
                         ui.add_space(26.0);
                         ui.vertical(|ui| {
                             ui.label(RichText::new(host_of(site)).size(14.0).family(bold()).color(th.text));
-                            let shown = if self.pw_shown.as_ref().map(|(k, _)| *k == i).unwrap_or(false) {
-                                self.pw_shown.as_ref().map(|(_, p)| p.clone()).unwrap_or_default()
-                            } else {
-                                "••••••••".into()
+                            // (shown on its own account's line only — it was
+                            // tied to the line's number, and showed on
+                            // another account once the list changed)
+                            let shown = match &self.pw_shown {
+                                Some(((s, u), pass, _)) if s == site && u == user => pass.clone(),
+                                _ => "••••••••".into(),
                             };
                             ui.label(RichText::new(format!("{}   {}", if user.is_empty() { "(sans identifiant)" } else { user }, shown)).size(12.5).color(th.sub));
                         });
@@ -335,7 +347,10 @@ impl Sanaga {
             self.off_thread(
                 move || keyring::lookup(&p, &s2, &u2),
                 // (shown on the account's line, wherever it is by now)
-                move |app, pass| app.pw_shown = app.store.logins.iter().position(|(a, b)| *a == s && *b == u).zip(pass),
+                move |app, pass| {
+                    let now = app.ctx.input(|i| i.time);
+                    app.pw_shown = pass.map(|p| ((s, u), p, now));
+                },
             );
         }
         if let Some((s, u)) = copy.and_then(|i| self.store.logins.get(i).cloned()) {

@@ -382,6 +382,10 @@ impl Sanaga {
                             // (only a folder of the profiles directory)
                             if !key.is_empty() && dir.parent() == Some(Store::root_dir().join("profils").as_path()) {
                                 let _ = std::fs::remove_dir_all(&dir);
+                                // (what the keyring holds for it goes too, as
+                                // the question above says)
+                                let gone = key.clone();
+                                self.off_thread(move || crate::keyring::forget_profile(&gone), |_, ()| {});
                             }
                             self.profile_delete = None;
                         }

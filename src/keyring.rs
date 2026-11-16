@@ -102,6 +102,16 @@ fn parse_list(text: &str) -> Vec<(String, String)> {
     out
 }
 
+/// Everything Sanaga kept in the keyring for one profile (its passwords,
+/// its sync phrase, its AI key): removed with the profile. They used to
+/// stay, and a new profile given the same name found them all.
+pub fn forget_profile(profile: &str) {
+    // (never the main profile's, whose name is empty: it cannot be deleted)
+    if !profile.is_empty() {
+        let _ = tool(&["clear"], &["application", "sanaga", "profile", profile]).stderr(Stdio::null()).status();
+    }
+}
+
 pub fn delete(profile: &str, site: &str, user: &str) {
     let _ = tool(&["clear"], &attrs(profile, site, user)).stderr(Stdio::null()).status();
 }

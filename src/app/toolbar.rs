@@ -302,6 +302,10 @@ impl Sanaga {
                 self.run_button(k);
             }
         }
+        // (a button of the person's may have closed the tab in use — the
+        // mobile preview beside the page does: the rest of the bar is
+        // drawn for the tab in use now)
+        let a = self.active.min(self.tabs.len().saturating_sub(1));
         if self.tb("overview") {
             let ov_r = slot_r(&mut rx, 36.0);
             if tool_button(ui, ov_r, Icon::Grid, true, self.overview_open, th).tip(tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {

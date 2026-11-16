@@ -185,6 +185,8 @@ impl Sanaga {
             ui.spacing_mut().item_spacing.y = 2.0;
             let mut last_group = usize::MAX;
             let mut rows: Vec<(usize, Rect)> = Vec::new();
+            let rows_id = egui::Id::new("vtabs-rows");
+            let last_rows: Vec<(usize, Rect)> = ui.ctx().data(|d| d.get_temp(rows_id)).unwrap_or_default();
             for &(i, depth, has_kids) in &tree {
                 let g = self.tabs[i].group;
                 if g != last_group && g > 0 {
@@ -289,7 +291,10 @@ impl Sanaga {
                 }
                 if resp.dragged_by(egui::PointerButton::Primary) {
                     if let Some(p) = ui.ctx().pointer_interact_pos() {
-                        if let Some(&(t, _)) = rows.iter().find(|(_, rr)| p.y >= rr.top() && p.y < rr.bottom()) {
+                        // (the rows as they were drawn last time: the ones
+                        // of this frame stop at the tab being dragged, so a
+                        // tab could only be dragged upwards)
+                        if let Some(&(t, _)) = last_rows.iter().find(|(_, rr)| p.y >= rr.top() && p.y < rr.bottom()) {
                             if t != i {
                                 drop_at = Some((i, t));
                             }
@@ -312,6 +317,7 @@ impl Sanaga {
                     select = Some(i);
                 }
             }
+            ui.ctx().data_mut(|d| d.insert_temp(rows_id, rows));
             // the place below the tabs opens a new one (like a tab bar's empty end)
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click());
             let r = r.shrink2(vec2(8.0, 0.0));

@@ -576,12 +576,21 @@ pub struct Sanaga {
     /// of the Favourites page, the row being dragged.
     bm_editing: Option<usize>,
     bm_edit: (String, String),
+    /// The address of the favourite being edited when its editing began:
+    /// its line is found again by it after favourites were removed or moved.
+    bm_editing_url: String,
+    /// The address of the favourite the star's bubble was opened for.
+    bm_pop_url: String,
+    /// Tabs to close once the current step is over (by their number).
+    close_later: Vec<u64>,
     bm_undo: Option<(usize, crate::store::Bookmark, f64)>,
     bm_popover: bool,
     bm_pop_title: String,
     bm_filter: String,
     bm_drag: Option<usize>,
-    pw_shown: Option<(usize, String)>,
+    /// A password shown on the passwords page: its account (site, user),
+    /// the password, and when it was shown (it hides again by itself).
+    pw_shown: Option<((String, String), String, f64)>,
     new_profile_name: String,
     new_profile_color: u8,
     /// A guest window (`--guest`): nothing is kept.
@@ -949,6 +958,9 @@ impl Sanaga {
             group_renaming: None,
             bm_editing: None,
             bm_edit: (String::new(), String::new()),
+            bm_editing_url: String::new(),
+            bm_pop_url: String::new(),
+            close_later: Vec::new(),
             bm_undo: None,
             bm_popover: false,
             bm_pop_title: String::new(),
@@ -2004,6 +2016,18 @@ impl Sanaga {
         // test aids (debug builds only: not in a release build)
         self.test_hooks(ui, &ctx0, now);
         self.memory_saver_step(now);
+        self.follow_edited_bookmark();
+        // tabs whose closing was put off until the step that asked for it
+        // was over (see `protected_site`)
+        for id in std::mem::take(&mut self.close_later) {
+            if let Some(i) = self.tabs.iter().position(|t| t.id == id) {
+                if self.tabs.len() > 1 {
+                    self.close_tab(i);
+                } else {
+                    self.navigate(i, "sanaga://newtab".into(), None, true);
+                }
+            }
+        }
         // (the private session ends with the last private tab)
         crate::page::note_private_tabs(self.slot, self.tabs.iter().filter(|t| t.private).count());
         if self.frame == 1 {

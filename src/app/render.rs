@@ -132,9 +132,17 @@ impl Sanaga {
                 }
                 if let Some((id, tex)) = &self.freeze {
                     if *id == self.tabs[a].id {
-                        let r = match device {
-                            Some(d) => d.translate(vec2(0.0, -1.0)),
-                            None => area,
+                        // (in a split view, the half of the tab in use)
+                        let r = match (device, self.split_shown) {
+                            (Some(d), _) => d.translate(vec2(0.0, -1.0)),
+                            (None, Some((left, right, left_active))) => {
+                                if left_active {
+                                    left
+                                } else {
+                                    right
+                                }
+                            }
+                            (None, None) => area,
                         };
                         // the picture keeps its real size (the docked inspector, if
                         // open, is not in it: it is not stretched over it)

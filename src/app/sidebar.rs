@@ -394,7 +394,32 @@ impl Sanaga {
         }
     }
 
+    /// Open a favourite's line for editing (its name and address).
+    pub(super) fn edit_bookmark(&mut self, i: usize) {
+        if let Some(b) = self.store.bookmarks.get(i) {
+            self.bm_edit = (b.title.clone(), b.url.clone());
+            self.bm_editing_url = b.url.clone();
+            self.bm_editing = Some(i);
+        }
+    }
+
+    /// The favourite being edited is the one its editing began on, wherever
+    /// it is in the list by now: a favourite removed above it, the list put
+    /// in another order, a sync round or another window used to leave the
+    /// edit pointing at the next favourite, which "Save" then overwrote.
+    pub(super) fn follow_edited_bookmark(&mut self) {
+        let Some(i) = self.bm_editing else { return };
+        if self.store.bookmarks.get(i).is_none_or(|b| b.url != self.bm_editing_url) {
+            self.bm_editing = self.store.bookmarks.iter().position(|b| b.url == self.bm_editing_url);
+        }
+    }
+
     pub(super) fn save_bookmark_edit(&mut self, i: usize, title: String, url: String) {
+        // (only the favourite the editing began on)
+        if self.store.bookmarks.get(i).is_none_or(|b| b.url != self.bm_editing_url) {
+            self.bm_editing = None;
+            return;
+        }
         if let Some(b) = self.store.bookmarks.get_mut(i) {
             let url = url.trim();
             if !url.is_empty() {
