@@ -131,7 +131,12 @@ fn derive_key(secret: &[u8]) -> [u8; 16] {
 }
 
 /// Chrome's saved-password encryption on Linux ("v10" / "v11" + AES-128-CBC).
-pub fn decrypt_chrome(blob: &[u8], keys: &[[u8; 16]], strip_domain_hash: bool) -> Option<String> {
+/// What comes out is the password, whole. (Chrome's *cookies* carry a
+/// 32-byte hash of their site before the value since version 24 of the
+/// cookies database; saved passwords — the `Login Data` database, whose own
+/// version number passed 24 years ago — never did. Taking those 32 bytes
+/// off here cut the start of every password of 32 bytes or more.)
+pub fn decrypt_chrome(blob: &[u8], keys: &[[u8; 16]]) -> Option<String> {
     if blob.len() < 3 {
         return None;
     }
@@ -142,8 +147,6 @@ pub fn decrypt_chrome(blob: &[u8], keys: &[[u8; 16]], strip_domain_hash: bool) -
     for k in keys {
         let mut buf = data.to_vec();
         let Ok(plain) = Aes128CbcDec::new(k.into(), &[b' '; 16].into()).decrypt_padded_mut::<Pkcs7>(&mut buf) else { continue };
-        // recent Chrome puts a 32-byte hash of the site before the password
-        let plain = if strip_domain_hash && plain.len() >= 32 { &plain[32..] } else { plain };
         if let Ok(s) = std::str::from_utf8(plain) {
             return Some(s.to_string());
         }
@@ -199,7 +202,6 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
     if passwords {
         match open_copy(&profile.join("Login Data")) {
             Ok((db, tmp)) => {
-                let version: i64 = db.query_row("SELECT value FROM meta WHERE key = 'version'", [], |r| r.get::<_, String>(0)).ok().and_then(|v| v.parse().ok()).unwrap_or(0);
                 let keys = chromium_keys(apps);
                 let rows = db
                     .prepare("SELECT origin_url, username_value, password_value FROM logins WHERE blacklisted_by_user = 0")
@@ -212,7 +214,7 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
                         let mut failed = 0;
                         for (origin, user, blob) in rows {
                             let Some(site) = site_of(&origin) else { continue };
-                            match decrypt_chrome(&blob, &keys, version >= 24) {
+                            match decrypt_chrome(&blob, &keys) {
                                 Some(p) if !p.is_empty() => out.logins.push((site, user, p)),
                                 _ => failed += 1,
                             }
@@ -358,11 +360,17 @@ mod tests {
     #[test]
     fn chrome_passwords_round_trip() {
         let blob = chrome_encrypt(b"peanuts", b"motdepasse123");
-        assert_eq!(decrypt_chrome(&blob, &[derive_key(b"peanuts")], false).as_deref(), Some("motdepasse123"));
-        // newer format with the 32-byte site hash in front
-        let with_hash = [vec![7u8; 32], b"secret".to_vec()].concat();
-        let blob = chrome_encrypt(b"peanuts", &with_hash);
-        assert_eq!(decrypt_chrome(&blob, &[derive_key(b"wrong"), derive_key(b"peanuts")], true).as_deref(), Some("secret"));
+        assert_eq!(decrypt_chrome(&blob, &[derive_key(b"peanuts")]).as_deref(), Some("motdepasse123"));
+        // a long password (a phrase, a generated one) comes out whole, with
+        // the right key found among several
+        let just = "x".repeat(32);
+        for long in ["un mot de passe de trente-trois o", "une phrase de passe bien plus longue que trente-deux caractères !", just.as_str()] {
+            assert!(long.len() >= 32);
+            let blob = chrome_encrypt(b"peanuts", long.as_bytes());
+            assert_eq!(decrypt_chrome(&blob, &[derive_key(b"wrong"), derive_key(b"peanuts")]).as_deref(), Some(long));
+        }
+        // very old, never encrypted
+        assert_eq!(decrypt_chrome(b"en clair", &[]).as_deref(), Some("en clair"));
     }
 
     #[test]
@@ -376,13 +384,17 @@ mod tests {
         drop(h);
         let l = rusqlite::Connection::open(dir.join("Login Data")).unwrap();
         l.execute_batch("CREATE TABLE meta(key TEXT, value TEXT); INSERT INTO meta VALUES ('version', '40'); CREATE TABLE logins(origin_url TEXT, username_value TEXT, password_value BLOB, blacklisted_by_user INTEGER DEFAULT 0);").unwrap();
-        let blob = chrome_encrypt(b"peanuts", &[vec![1u8; 32], b"pa55".to_vec()].concat());
-        l.execute("INSERT INTO logins(origin_url, username_value, password_value) VALUES ('https://example.org/login', 'ana', ?1)", [blob]).unwrap();
+        // (the database says version 40, as today's Chrome: its passwords
+        // are stored as they are, short or long)
+        let long = "Une phrase de passe de plus de 32 octets, entière";
+        l.execute("INSERT INTO logins(origin_url, username_value, password_value) VALUES ('https://example.org/login', 'ana', ?1)", [chrome_encrypt(b"peanuts", b"pa55")]).unwrap();
+        l.execute("INSERT INTO logins(origin_url, username_value, password_value) VALUES ('https://long.example/', 'bo', ?1)", [chrome_encrypt(b"peanuts", long.as_bytes())]).unwrap();
         drop(l);
         let mut out = Imported::default();
         chromium_import(&dir, &[], false, true, true, &mut out);
         assert_eq!(out.history, vec![(1_704_067_200, "https://example.org/".into(), "Exemple".into())]);
-        assert_eq!(out.logins, vec![("https://example.org".into(), "ana".into(), "pa55".into())]);
+        assert_eq!(out.logins, vec![("https://example.org".into(), "ana".into(), "pa55".into()), ("https://long.example".into(), "bo".into(), long.into())]);
+        assert!(out.problems.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
