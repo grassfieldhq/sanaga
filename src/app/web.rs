@@ -132,7 +132,9 @@ document.addEventListener('click', function (e) {
 /// others are only asked from Sanaga's menus). Each one is still checked
 /// against what the person started (see `page_tool`).
 fn page_may_answer(what: &str) -> bool {
-    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow") || (cfg!(debug_assertions) && what == "probe")
+    // ("no-webrtc": the engine has no video calls — it was filtered out
+    // here, so call sites were never handed to a browser that has them)
+    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow" | "no-webrtc") || (cfg!(debug_assertions) && what == "probe")
 }
 
 fn shortcut_name(msg: &str) -> Option<&'static str> {
@@ -780,6 +782,9 @@ impl Sanaga {
                 t.web_pending = Some(t.url().to_string());
             }
         }
+        // (addresses on a port browsers refuse: the engine shows a blank
+        // page and says nothing, so Sanaga says it — see below)
+        let mut blocked: Vec<(u64, String)> = Vec::new();
         for i in 0..self.tabs.len() {
             let show = (i == active || Some(i) == partner) && matches!(self.tabs[i].view, View::Web) && !overlay;
             if self.tabs[i].web.is_none() {
@@ -806,7 +811,11 @@ impl Sanaga {
                     }
                 }
                 self.prepare_view(i, &w, show);
-                load_into(&w, &url, by_person);
+                if crate::guard::restricted_port(&url) {
+                    blocked.push((self.tabs[i].id, url.clone()));
+                } else {
+                    load_into(&w, &url, by_person);
+                }
                 self.tabs[i].web = Some(w);
                 self.tabs[i].web_shown = show;
                 self.tabs[i].web_zoom = 1.0;
@@ -826,7 +835,11 @@ impl Sanaga {
             }
             let Some(w) = &tab.web else { continue };
             if let Some(url) = tab.web_pending.take() {
-                load_into(w, &url, std::mem::take(&mut tab.web_by_person));
+                if crate::guard::restricted_port(&url) {
+                    blocked.push((tab.id, url));
+                } else {
+                    load_into(w, &url, std::mem::take(&mut tab.web_by_person));
+                }
             }
             if show != tab.web_shown {
                 let _ = w.set_visible(show);
@@ -845,6 +858,9 @@ impl Sanaga {
                 let _ = w.zoom(want as f64);
                 tab.web_zoom = want;
             }
+        }
+        for (tab, url) in blocked {
+            self.show_load_error(tab, &url, crate::page::LoadError::BlockedPort, "");
         }
     }
 

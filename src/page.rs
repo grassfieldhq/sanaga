@@ -449,6 +449,10 @@ struct ViewState {
     error_next: Cell<bool>,
     /// The site whose settings the view has now (see `apply_site`).
     site: RefCell<String>,
+    /// How the page shown was received: 0 not known or not over HTTPS,
+    /// 1 with a certificate the system trusts, 2 with one it does not
+    /// (the person chose to go on).
+    tls: Cell<u8>,
     /// The address asked for again so that its site's settings count from
     /// the start of its page (never twice for the same address).
     asked_again: RefCell<String>,
@@ -1142,6 +1146,20 @@ pub struct PageView {
     find_fresh: std::rc::Rc<std::cell::Cell<bool>>,
     /// WebKit's own identity (user agent) for this page.
     default_ua: String,
+    state: Rc<ViewState>,
+}
+
+impl PageView {
+    /// Was the page shown received over HTTPS with a certificate the
+    /// system trusts (true), or with one it does not, after the person
+    /// chose to go on (false)? None: not over HTTPS, or not known yet.
+    pub fn secure(&self) -> Option<bool> {
+        match self.state.tls.get() {
+            1 => Some(true),
+            2 => Some(false),
+            _ => None,
+        }
+    }
 }
 
 impl PageView {
@@ -1246,10 +1264,20 @@ impl PageView {
                     let host = host_of_uri(&uri);
                     apply_site(v, &host);
                     *st.site.borrow_mut() = host;
+                    st.tls.set(0);
                 }
                 LoadEvent::Committed => {
                     *st.committed.borrow_mut() = uri.clone();
                     st.error_shown.set(st.error_next.replace(false));
+                    // the padlock: what the engine says of the certificate
+                    // this very page came with (never for Sanaga's own
+                    // error page, shown under the address that failed)
+                    st.tls.set(match v.tls_info() {
+                        _ if st.error_shown.get() => 0,
+                        Some((_, problems)) if problems.is_empty() => 1,
+                        Some(_) => 2,
+                        None => 0,
+                    });
                     st.asked_again.borrow_mut().clear();
                     // a new page: its downloads need its own actions
                     st.gesture.set(None);
@@ -1600,7 +1628,7 @@ impl PageView {
                 _ => {}
             }
         });
-        PageView { view, find_fresh, default_ua: default_ua_kept }
+        PageView { view, find_fresh, default_ua: default_ua_kept, state }
     }
 
     pub fn webview(&self) -> WebView {

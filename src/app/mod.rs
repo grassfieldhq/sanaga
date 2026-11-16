@@ -1890,7 +1890,8 @@ impl Sanaga {
                         }
                         "address" => {
                             let focused = self.ctx.memory(|m| m.has_focus(egui::Id::new("address-bar")));
-                            eprintln!("live address {:?} focused={focused}", self.tabs[self.active].address);
+                            let secure = self.tabs[self.active].web.as_ref().map(|w| w.secure());
+                            eprintln!("live address {:?} focused={focused} secure={secure:?}", self.tabs[self.active].address);
                         }
                         a if a.starts_with("key:") => {
                             if let Some(key) = egui::Key::from_name(&a[4..]) {
