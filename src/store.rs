@@ -83,7 +83,7 @@ pub struct Settings {
     pub passwords: bool,
     /// Sync folder (shared by Syncthing, Nextcloud, a USB key...); empty = off.
     pub sync_dir: String,
-    /// Memory saver: 0 off, 1 moderate (60 min), 2 balanced (20 min), 3 maximum (5 min).
+    /// Memory saver: 0 off, 1 moderate (6 h), 2 balanced (4 h), 3 maximum (2 h).
     pub memory_saver: u8,
     /// Interface language ("fr", "en", "es", "pt", "de").
     pub language: String,

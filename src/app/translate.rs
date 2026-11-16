@@ -20,7 +20,11 @@ const TRANSLATE_JS: &str = r#"(function () {
       var p = n.parentElement;
       if (!p || skip.test(p.tagName) || p.isContentEditable || p.closest('[translate=no],.notranslate')) return NodeFilter.FILTER_REJECT;
       var t = n.nodeValue.trim();
-      if (t.length < 2 || !/[A-Za-zÀ-ÿЀ-ӿ؀-ۿ一-鿿]/.test(t)) return NodeFilter.FILTER_REJECT;
+      // (a text with letters of any alphabet — only Latin, Cyrillic, Arabic
+      // and Chinese characters used to count: a Korean, Hindi, Greek, Hebrew
+      // or Thai page had nothing to translate and was called translated;
+      // a single text longer than a whole batch is left as it is)
+      if (t.length < 2 || t.length > 5000 || !/\p{L}/u.test(t)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     }
   });
@@ -29,8 +33,12 @@ const TRANSLATE_JS: &str = r#"(function () {
   function next() {
     var s = window.__sanagaTr, out = [], size = 0, from = s.pos;
     if (s.stopped) return;
-    while (s.pos < s.nodes.length && out.length < 80 && size < 5000) {
+    // (a batch stays under 5000 characters: it used to stop only after
+    // passing them, and a batch ending on a long paragraph was refused as
+    // too large — the translation then waited for ever)
+    while (s.pos < s.nodes.length && out.length < 80) {
       var t = s.nodes[s.pos].nodeValue.trim();
+      if (out.length && size + t.length > 5000) break;
       out.push(t); size += t.length; s.pos++;
     }
     window.ipc.postMessage(out.length ? 'tr:' + from + '\n' + JSON.stringify(out) : 'tr:done');
@@ -435,7 +443,13 @@ impl Sanaga {
             self.translation_state(tab, TrState::Done);
             return;
         }
-        let Some((from, texts)) = read_batch(msg) else { return };
+        let Some((from, texts)) = read_batch(msg) else {
+            // (a batch that cannot be read ends the translation with a
+            // word, instead of leaving it "in progress" for ever)
+            self.stop_translation(tab);
+            self.translation_state(tab, TrState::Stopped(tr("La traduction s'arrête ici : la page est très longue.").into()));
+            return;
+        };
         if self.translate_batches >= MAX_BATCHES {
             self.stop_translation(tab);
             self.translation_state(tab, TrState::Stopped(tr("La traduction s'arrête ici : la page est très longue.").into()));

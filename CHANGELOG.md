@@ -263,6 +263,13 @@ All notable changes to Sanaga are listed here. The format follows
 - Links to the mail program, the phone or a torrent program (`mailto:`,
   `tel:`, `sms:`, `magnet:`) are handed to the system instead of showing
   an error page; an address on a port browsers refuse says so.
+- Translating a page with the AI works for every alphabet (a Korean,
+  Hindi, Greek, Hebrew or Thai page had "nothing to translate" and was
+  called translated) and no longer waits for ever after a long paragraph.
+- Contact AutoFill only fills fields the person can see (a page showing
+  a "name" field got the e-mail, phone and address in hidden ones).
+- An assistant run on the command line can no longer leave Sanaga and
+  itself waiting on each other with a long page.
 - Chrome passwords of 32 characters or more are imported whole; user
   scripts read their whole header and run on their own sites only
   (`*://*.bank.example/*` no longer matches another site's address);

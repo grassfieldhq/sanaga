@@ -178,8 +178,14 @@ pub fn ask_stoppable(tool: CliTool, model: &str, system: &str, prompt: &str, sto
         }
     }
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    // (written on a thread while the outputs are read: written first, a
+    // tool that answered before reading all of a long input left both
+    // sides waiting on a full pipe, beyond the reach of Stop and of the
+    // time limit)
     if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(input.as_bytes());
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(input.as_bytes());
+        });
     }
     // read the outputs on threads (a full pipe would block the tool)
     let mut so = child.stdout.take();

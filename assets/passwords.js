@@ -159,7 +159,11 @@
     var map = [['name', c.name, /name|nom/i], ['email', c.email, /mail/i], ['tel', c.phone, /tel|phone/i], ['street-address', c.address, /address|adresse|rue/i]];
     var n = 0;
     document.querySelectorAll('input,textarea').forEach(function (el) {
-      if (el.type === 'password' || el.type === 'hidden' || el.value) return;
+      if (el.type === 'password' || el.type === 'hidden' || el.value || el.disabled || el.readOnly) return;
+      // only a field the person can see: a page showing a "name" field
+      // got the e-mail, phone and address too, in fields kept out of sight
+      var box = el.getBoundingClientRect(), look = getComputedStyle(el);
+      if (box.width < 4 || box.height < 4 || box.right <= 0 || box.bottom <= 0 || look.visibility !== 'visible' || look.display === 'none' || parseFloat(look.opacity) < 0.1 || el.offsetParent === null && look.position !== 'fixed') return;
       var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
       var key = el.name + ' ' + el.id + ' ' + (el.placeholder || '') + ' ' + el.type;
       for (var i = 0; i < map.length; i++) {
