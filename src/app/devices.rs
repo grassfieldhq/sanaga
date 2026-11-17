@@ -288,6 +288,56 @@ fn surface_to_color_image(s: &mut gtk::cairo::ImageSurface) -> Option<egui::Colo
     Some(egui::ColorImage::from_rgba_premultiplied([w, h], &px))
 }
 
+/// A line of the device list: a brand's name, or a device (its place in `DEVICES`).
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum ListLine {
+    Brand(&'static str),
+    Device(usize),
+}
+
+/// Heights of the list's lines: a device's row is `DEVICE_ROW` high, with a
+/// little room under it.
+const BRAND_LINE: f32 = 35.0;
+const DEVICE_ROW: f32 = 50.0;
+const DEVICE_LINE: f32 = DEVICE_ROW + 3.0;
+
+impl ListLine {
+    fn height(&self) -> f32 {
+        match self {
+            ListLine::Brand(_) => BRAND_LINE,
+            ListLine::Device(_) => DEVICE_LINE,
+        }
+    }
+}
+
+/// The lines of the device list for a search (in lower case) and a
+/// category, each with where it starts from the top of the list.
+fn list_lines(q: &str, category: usize) -> Vec<(f32, ListLine)> {
+    let mut lines = Vec::new();
+    let mut y = 0.0;
+    let mut last_brand = "";
+    for (k, dev) in DEVICES.iter().enumerate() {
+        let in_cat = match category {
+            1 => dev.os == Ios && dev.kind == Phone,
+            2 => dev.os == Android && dev.kind == Phone,
+            3 => dev.kind == Tablet,
+            4 => dev.kind == Computer,
+            _ => true,
+        };
+        if !in_cat || (!q.is_empty() && !dev.name.to_lowercase().contains(q) && !dev.brand.to_lowercase().contains(q)) {
+            continue;
+        }
+        if dev.brand != last_brand {
+            last_brand = dev.brand;
+            lines.push((y, ListLine::Brand(dev.brand)));
+            y += BRAND_LINE;
+        }
+        lines.push((y, ListLine::Device(k)));
+        y += DEVICE_LINE;
+    }
+    lines
+}
+
 impl Sanaga {
     pub(super) fn toggle_devices(&mut self) {
         if self.device.is_some() {
@@ -523,29 +573,43 @@ impl Sanaga {
         ui.add_space(6.0);
         let q = d.search.trim().to_lowercase();
         let mut pick: Option<usize> = None;
-        ScrollArea::vertical().id_salt("device-list").auto_shrink(false).max_height(ui.available_height() - 126.0).show(ui, |ui| {
-            let mut last_brand = "";
-            for (k, dev) in DEVICES.iter().enumerate() {
-                let in_cat = match d.category {
-                    1 => dev.os == Ios && dev.kind == Phone,
-                    2 => dev.os == Android && dev.kind == Phone,
-                    3 => dev.kind == Tablet,
-                    4 => dev.kind == Computer,
-                    _ => true,
-                };
-                if !in_cat || (!q.is_empty() && !dev.name.to_lowercase().contains(&q) && !dev.brand.to_lowercase().contains(&q)) {
-                    continue;
-                }
-                if dev.brand != last_brand {
-                    last_brand = dev.brand;
-                    ui.add_space(6.0);
-                    ui.horizontal(|ui| {
-                        ui.add_space(14.0);
-                        ui.label(RichText::new(tr(dev.brand).to_uppercase()).size(11.0).family(bold()).color(th.sub));
-                    });
-                }
+        // The lines of the list — a brand's name, then its devices — and
+        // where each starts: worked out when the search or the category
+        // changes. Only the lines in view are then laid out and drawn (the
+        // list holds more than a hundred devices, each with its drawing).
+        let lines_id = egui::Id::new("device-lines");
+        let kept: Option<(String, usize, Arc<Vec<(f32, ListLine)>>)> = ui.data(|x| x.get_temp(lines_id));
+        let lines = match kept {
+            Some((for_q, category, lines)) if for_q == q && category == d.category => lines,
+            _ => {
+                let lines = Arc::new(list_lines(&q, d.category));
+                ui.data_mut(|x| x.insert_temp(lines_id, (q.clone(), d.category, lines.clone())));
+                lines
+            }
+        };
+        // (no room under the last device)
+        let total = lines.last().map_or(0.0, |(y, _)| y + DEVICE_ROW);
+        ScrollArea::vertical().id_salt("device-list").auto_shrink(false).max_height(ui.available_height() - 126.0).show_viewport(ui, |ui, view| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            let first = lines.partition_point(|(y, line)| y + line.height() <= view.top());
+            let end = lines.partition_point(|(y, _)| *y < view.bottom());
+            ui.add_space(lines.get(first).map_or(total, |(y, _)| *y));
+            for &(y, line) in &lines[first..end.max(first)] {
                 let w = ui.available_width();
-                let (r, resp) = ui.allocate_exact_size(vec2(w, 50.0), Sense::click());
+                let k = match line {
+                    ListLine::Brand(brand) => {
+                        let (r, _) = ui.allocate_exact_size(vec2(w, BRAND_LINE), Sense::hover());
+                        ui.painter().text(pos2(r.left() + 14.0, r.top() + 20.0), Align2::LEFT_CENTER, tr(brand).to_uppercase(), FontId::new(11.0, bold()), th.sub);
+                        continue;
+                    }
+                    ListLine::Device(k) => k,
+                };
+                let dev = &DEVICES[k];
+                let (r, resp) = ui.allocate_exact_size(vec2(w, DEVICE_ROW), Sense::click());
+                // (the room under it, but under the last one)
+                if y + DEVICE_ROW < total {
+                    ui.add_space(DEVICE_LINE - DEVICE_ROW);
+                }
                 let row = r.shrink2(vec2(8.0, 2.0));
                 let on = d.preset == Some(k);
                 if on {
@@ -561,6 +625,7 @@ impl Sanaga {
                     pick = Some(k);
                 }
             }
+            ui.add_space((total - lines.get(end.max(first)).map_or(total, |(y, _)| *y)).max(0.0));
         });
         if let Some(k) = pick {
             d.preset = Some(k);
@@ -778,6 +843,21 @@ mod tests {
     #[test]
     fn devices_are_sensible() {
         assert!(DEVICES.len() >= 100);
+        // the list's lines: every device once, under its brand, each line where the one before ends
+        let all = list_lines("", 0);
+        assert_eq!(all.iter().filter(|(_, l)| matches!(l, ListLine::Device(_))).count(), DEVICES.len());
+        assert_eq!(all[0], (0.0, ListLine::Brand(DEVICES[0].brand)));
+        assert!(all.windows(2).all(|w| w[1].0 == w[0].0 + w[0].1.height()));
+        let found = list_lines("iphone 16", 0);
+        assert!(!found.is_empty() && found.len() < all.len());
+        assert!(found.iter().all(|(_, l)| match l {
+            ListLine::Device(k) => DEVICES[*k].name.to_lowercase().contains("iphone 16"),
+            ListLine::Brand(b) => *b == "Apple",
+        }));
+        assert!(list_lines("", 3).iter().all(|(_, l)| match l {
+            ListLine::Device(k) => DEVICES[*k].kind == Tablet,
+            ListLine::Brand(_) => true,
+        }));
         assert!(DEVICES.iter().all(|d| d.w >= 300.0 && d.h >= 560.0 && d.w < 4000.0));
     }
 }
