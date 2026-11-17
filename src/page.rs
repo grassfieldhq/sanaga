@@ -982,6 +982,9 @@ fn shortcut_message(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, 
         "KP_Subtract" => "-".into(),
         "KP_0" => "0".into(),
         "F3" | "F5" | "F6" | "F9" | "F11" | "F12" => name.to_lowercase(),
+        // the keyboard's own play / pause keys
+        "AudioPlay" => "mediaplay".into(),
+        "AudioPause" | "AudioStop" => "mediapause".into(),
         _ => key.to_unicode().filter(|c| c.is_ascii_graphic())?.to_ascii_lowercase().to_string(),
     };
     let flag = |m: M, c: &'static str| if state.contains(m) { c } else { "" };
@@ -1019,6 +1022,24 @@ pub fn key_left_by_page(view: &WebView, keyval: gtk::gdk::Key, keycode: u32, sta
     }
 }
 
+/// The play / pause key of the keyboard, pressed while Sanaga's interface
+/// has the keyboard: the shortcut it names. (Pressed in a page, the page
+/// has it first, then it comes back like any other key: `key_left_by_page`.)
+pub fn media_key(keyval: gtk::gdk::Key) -> Option<&'static str> {
+    match keyval.name()?.as_str() {
+        "AudioPlay" => Some("mediaplay"),
+        "AudioPause" | "AudioStop" => Some("mediapause"),
+        _ => None,
+    }
+}
+
+/// What the play / pause key does in a page: the sound or video that plays
+/// is paused; with "play", the first one that can play starts when none
+/// does. (Next and previous are the desktop's: the engine publishes each
+/// page that plays as a media player — MPRIS — with the page's own
+/// commands.)
+pub const MEDIA_KEY_JS: &str = "(function(play){var m=Array.prototype.slice.call(document.querySelectorAll('video,audio'));var on=m.filter(function(x){return !x.paused&&!x.ended});if(on.length){on.forEach(function(x){x.pause()});return}if(play&&m.length){var p=m[0].play();if(p&&p.catch)p.catch(function(){})}})";
+
 /// Which of Sanaga's shortcuts a message names.
 pub fn shortcut_name(msg: &str) -> Option<&'static str> {
     let (mods, key) = msg.split_once(':')?;
@@ -1042,6 +1063,8 @@ pub fn shortcut_name(msg: &str) -> Option<&'static str> {
         (_, true, _, "f3") | (true, true, _, "g") => "findprev",
         (_, false, _, "f3") | (true, false, _, "g") => "findnext",
         (false, false, true, "d") => "addr",
+        (_, _, _, "mediaplay") => "mediaplay",
+        (_, _, _, "mediapause") => "mediapause",
         (true, true, _, "n") => "private",
         (true, true, _, "t") => "reopen",
         (true, true, _, "b") => "bmbar",

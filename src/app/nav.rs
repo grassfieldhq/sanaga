@@ -738,6 +738,8 @@ impl Sanaga {
                     self.open_tab("sanaga://newtab", false);
                 }
                 "window" => self.new_window(Vec::new()),
+                "mediaplay" => self.media_key(true),
+                "mediapause" => self.media_key(false),
                 "settings" => {
                     self.open_settings("sanaga://settings");
                 }

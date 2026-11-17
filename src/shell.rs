@@ -127,6 +127,10 @@ fn run_window(slot: usize) {
     if !dropped.is_empty() {
         g.app.open_dropped(dropped);
     }
+    let commands = std::mem::take(&mut input.borrow_mut().commands);
+    for name in commands {
+        g.app.run_command(name);
+    }
     let area = host.area.clone();
     update(&mut g, &area, &input, &host, &im);
     // Ctrl+N, a tab moved to a new window
@@ -742,6 +746,9 @@ struct Input {
     /// Links, files or words dropped on the interface (from a page, the file
     /// manager, another program), not opened yet.
     dropped: Vec<String>,
+    /// Shortcuts by name that only the window sees (the keyboard's play /
+    /// pause keys), not run yet.
+    commands: Vec<&'static str>,
 }
 
 /// Screen readers (Orca…) read Sanaga's interface through AT-SPI: egui
@@ -1867,6 +1874,13 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         keys.set_im_context(Some(&im));
         let (input, a) = (input0.clone(), waker.clone());
         keys.connect_key_pressed(move |c, kv, keycode, state| {
+            // (the keyboard's play / pause keys, when the desktop has not
+            // kept them for itself)
+            if let Some(name) = crate::page::media_key(kv) {
+                input.borrow_mut().commands.push(name);
+                a.queue_render();
+                return glib::Propagation::Stop;
+            }
             let modifiers = modifiers_of(state);
             // (a shortcut is named after a Latin letter, whatever alphabet
             // the keyboard is set to: Ctrl+C, V, T, W, L… on a Russian or

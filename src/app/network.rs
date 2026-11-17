@@ -34,6 +34,20 @@ impl Sanaga {
         }
     }
 
+    /// A shortcut named by the window itself (the keyboard's play / pause keys).
+    pub fn run_command(&mut self, name: &str) {
+        self.run_shortcut(name);
+    }
+
+    /// The keyboard's play / pause key: for the tab that is heard, else the
+    /// tab shown.
+    pub(super) fn media_key(&mut self, play: bool) {
+        let tab = self.tabs.iter().position(|t| t.audio && !t.muted).or(Some(self.active));
+        if let Some(w) = tab.and_then(|i| self.tabs.get(i)).and_then(|t| t.web.as_ref()) {
+            let _ = w.evaluate_script(&format!("{}({play})", crate::page::MEDIA_KEY_JS));
+        }
+    }
+
     /// Links, files or words dropped on the interface: each address or
     /// file opens in a new tab, words are searched for (once).
     pub fn open_dropped(&mut self, items: Vec<String>) {
