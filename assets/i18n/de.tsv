@@ -1282,3 +1282,32 @@ DNS chiffré	Verschlüsseltes DNS
 Adresse du résolveur	Resolver-Adresse
 Sanaga — barres et menus	Sanaga — Leisten und Menüs
 L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.	Der Verlauf konnte nicht geöffnet werden: Die diesmal besuchten Seiten werden nicht gespeichert.
+Sélection	Auswahl
+{} — texte trop long : {} % lus	{} — Text zu lang: {} % gelesen
+Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.	In einem privaten Tab kann nur ein Modell auf diesem Computer (Ollama) antworten: Der Text der Seite verlässt ihn nicht.
+Pour poser des questions, choisissez un modèle d'IA : Ollama sur cet ordinateur, ou Claude avec votre clé.	Um Fragen zu stellen, wählen Sie ein KI-Modell: Ollama auf diesem Computer oder Claude mit Ihrem Schlüssel.
+Réponse arrêtée avant la fin.	Antwort vor dem Ende angehalten.
+Assistant	Assistent
+Nouvelle conversation	Neue Unterhaltung
+Paramètres › Intelligence…	Einstellungen › Intelligenz…
+Avec cette page : {}	Mit dieser Seite: {}
+Sans la page	Ohne die Seite
+Le texte de la page part avec la question. Cliquer pour ne pas l'envoyer.	Der Text der Seite wird mit der Frage gesendet. Klicken, um ihn wegzulassen.
+La question part seule. Cliquer pour joindre le texte de la page.	Die Frage wird allein gesendet. Klicken, um den Text der Seite anzuhängen.
+Retirer	Entfernen
+Posez une question sur cette page…	Stellen Sie eine Frage zu dieser Seite…
+Poursuivre la conversation…	Unterhaltung fortsetzen…
+Question à l'assistant	Frage an den Assistenten
+Écriture de la réponse…	Antwort wird geschrieben…
+Envoyer	Senden
+Posez une question sur la page affichée, ou demandez-en le résumé. Le texte de la page part avec votre première question.	Stellen Sie eine Frage zur angezeigten Seite oder lassen Sie sie zusammenfassen. Der Text der Seite wird mit Ihrer ersten Frage gesendet.
+Poser une question à l'assistant	Dem Assistenten eine Frage stellen
+Ctrl+E	Strg+E
+Assistant : questions, résumé, traduction	Assistent: Fragen, Zusammenfassung, Übersetzung
+Poser une question	Eine Frage stellen
+Sur cette page, à côté d'elle	Zu dieser Seite, neben ihr
+Le modèle a refusé de répondre à cette demande.	Das Modell hat die Antwort auf diese Anfrage abgelehnt.
+La réponse du modèle a été coupée avant la fin.	Die Antwort des Modells wurde vor dem Ende abgeschnitten.
+{} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} kann keine Werkzeuge benutzen: Es antwortet mit dem, was Sie angehängt haben.
+Le modèle a demandé trop d'outils sans répondre.	Das Modell hat zu viele Werkzeuge angefordert, ohne zu antworten.
+Demander à l'assistant…	Den Assistenten fragen…

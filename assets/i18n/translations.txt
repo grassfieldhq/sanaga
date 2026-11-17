@@ -1286,3 +1286,32 @@ DNS chiffré⟂Encrypted DNS⟂DNS cifrado⟂DNS cifrado⟂Verschlüsseltes DNS
 Adresse du résolveur⟂Resolver address⟂Dirección del resolvedor⟂Endereço do resolvedor⟂Resolver-Adresse
 Sanaga — barres et menus⟂Sanaga — bars and menus⟂Sanaga — barras y menús⟂Sanaga — barras e menus⟂Sanaga — Leisten und Menüs
 L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.⟂The history could not be opened: the pages visited this time will not be kept.⟂No se pudo abrir el historial: las páginas visitadas esta vez no se guardarán.⟂Não foi possível abrir o histórico: as páginas visitadas desta vez não serão guardadas.⟂Der Verlauf konnte nicht geöffnet werden: Die diesmal besuchten Seiten werden nicht gespeichert.
+Sélection⟂Selection⟂Selección⟂Seleção⟂Auswahl
+{} — texte trop long : {} % lus⟂{} — text too long: {} % read⟂{} — texto demasiado largo: {} % leído⟂{} — texto demasiado longo: {} % lido⟂{} — Text zu lang: {} % gelesen
+Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.⟂In a private tab, only a model on this computer (Ollama) can answer: the page's text does not leave it.⟂En una pestaña privada, solo un modelo en este ordenador (Ollama) puede responder: el texto de la página no sale de él.⟂Num separador privado, só um modelo neste computador (Ollama) pode responder: o texto da página não sai dele.⟂In einem privaten Tab kann nur ein Modell auf diesem Computer (Ollama) antworten: Der Text der Seite verlässt ihn nicht.
+Pour poser des questions, choisissez un modèle d'IA : Ollama sur cet ordinateur, ou Claude avec votre clé.⟂To ask questions, choose an AI model: Ollama on this computer, or Claude with your key.⟂Para hacer preguntas, elija un modelo de IA: Ollama en este ordenador, o Claude con su clave.⟂Para fazer perguntas, escolha um modelo de IA: Ollama neste computador, ou Claude com a sua chave.⟂Um Fragen zu stellen, wählen Sie ein KI-Modell: Ollama auf diesem Computer oder Claude mit Ihrem Schlüssel.
+Réponse arrêtée avant la fin.⟂Answer stopped before the end.⟂Respuesta detenida antes del final.⟂Resposta interrompida antes do fim.⟂Antwort vor dem Ende angehalten.
+Assistant⟂Assistant⟂Asistente⟂Assistente⟂Assistent
+Nouvelle conversation⟂New conversation⟂Nueva conversación⟂Nova conversa⟂Neue Unterhaltung
+Paramètres › Intelligence…⟂Settings › Intelligence…⟂Ajustes › Inteligencia…⟂Definições › Inteligência…⟂Einstellungen › Intelligenz…
+Avec cette page : {}⟂With this page: {}⟂Con esta página: {}⟂Com esta página: {}⟂Mit dieser Seite: {}
+Sans la page⟂Without the page⟂Sin la página⟂Sem a página⟂Ohne die Seite
+Le texte de la page part avec la question. Cliquer pour ne pas l'envoyer.⟂The page's text goes with the question. Click to leave it out.⟂El texto de la página se envía con la pregunta. Haga clic para no enviarlo.⟂O texto da página segue com a pergunta. Clique para não o enviar.⟂Der Text der Seite wird mit der Frage gesendet. Klicken, um ihn wegzulassen.
+La question part seule. Cliquer pour joindre le texte de la page.⟂The question goes alone. Click to attach the page's text.⟂La pregunta se envía sola. Haga clic para adjuntar el texto de la página.⟂A pergunta segue sozinha. Clique para juntar o texto da página.⟂Die Frage wird allein gesendet. Klicken, um den Text der Seite anzuhängen.
+Retirer⟂Remove⟂Quitar⟂Retirar⟂Entfernen
+Posez une question sur cette page…⟂Ask a question about this page…⟂Haga una pregunta sobre esta página…⟂Faça uma pergunta sobre esta página…⟂Stellen Sie eine Frage zu dieser Seite…
+Poursuivre la conversation…⟂Continue the conversation…⟂Continuar la conversación…⟂Continuar a conversa…⟂Unterhaltung fortsetzen…
+Question à l'assistant⟂Question to the assistant⟂Pregunta al asistente⟂Pergunta ao assistente⟂Frage an den Assistenten
+Écriture de la réponse…⟂Writing the answer…⟂Escribiendo la respuesta…⟂A escrever a resposta…⟂Antwort wird geschrieben…
+Envoyer⟂Send⟂Enviar⟂Enviar⟂Senden
+Posez une question sur la page affichée, ou demandez-en le résumé. Le texte de la page part avec votre première question.⟂Ask a question about the page shown, or ask for its summary. The page's text goes with your first question.⟂Haga una pregunta sobre la página mostrada, o pida su resumen. El texto de la página se envía con su primera pregunta.⟂Faça uma pergunta sobre a página apresentada, ou peça o seu resumo. O texto da página segue com a sua primeira pergunta.⟂Stellen Sie eine Frage zur angezeigten Seite oder lassen Sie sie zusammenfassen. Der Text der Seite wird mit Ihrer ersten Frage gesendet.
+Poser une question à l'assistant⟂Ask the assistant a question⟂Hacer una pregunta al asistente⟂Fazer uma pergunta ao assistente⟂Dem Assistenten eine Frage stellen
+Ctrl+E⟂Ctrl+E⟂Ctrl+E⟂Ctrl+E⟂Strg+E
+Assistant : questions, résumé, traduction⟂Assistant: questions, summary, translation⟂Asistente: preguntas, resumen, traducción⟂Assistente: perguntas, resumo, tradução⟂Assistent: Fragen, Zusammenfassung, Übersetzung
+Poser une question⟂Ask a question⟂Hacer una pregunta⟂Fazer uma pergunta⟂Eine Frage stellen
+Sur cette page, à côté d'elle⟂About this page, beside it⟂Sobre esta página, a su lado⟂Sobre esta página, ao lado dela⟂Zu dieser Seite, neben ihr
+Le modèle a refusé de répondre à cette demande.⟂The model declined to answer this request.⟂El modelo se negó a responder a esta petición.⟂O modelo recusou-se a responder a este pedido.⟂Das Modell hat die Antwort auf diese Anfrage abgelehnt.
+La réponse du modèle a été coupée avant la fin.⟂The model's answer was cut before the end.⟂La respuesta del modelo se cortó antes del final.⟂A resposta do modelo foi cortada antes do fim.⟂Die Antwort des Modells wurde vor dem Ende abgeschnitten.
+{} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.⟂{} cannot use tools: it answers with what you attached.⟂{} no sabe usar herramientas: responde con lo que usted le adjuntó.⟂{} não sabe usar ferramentas: responde com o que lhe juntou.⟂{} kann keine Werkzeuge benutzen: Es antwortet mit dem, was Sie angehängt haben.
+Le modèle a demandé trop d'outils sans répondre.⟂The model asked for too many tools without answering.⟂El modelo pidió demasiadas herramientas sin responder.⟂O modelo pediu demasiadas ferramentas sem responder.⟂Das Modell hat zu viele Werkzeuge angefordert, ohne zu antworten.
+Demander à l'assistant…⟂Ask the assistant…⟂Preguntar al asistente…⟂Perguntar ao assistente…⟂Den Assistenten fragen…

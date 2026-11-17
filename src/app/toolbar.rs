@@ -444,13 +444,13 @@ impl Sanaga {
         }
         if self.tb("summary") {
             let r = slot_r(&mut rx, 36.0);
-            let on = self.summary.is_some();
+            let on = self.assistant.is_some();
             let can = matches!(self.tabs[a].view, View::Web);
-            let resp = tool(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th, tr("Résumer ou traduire la page"));
+            let resp = tool(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th, tr("Assistant : questions, résumé, traduction"));
             self.ai_menu_rect = resp.rect;
             if resp.clicked() {
-                if on && self.summary.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
-                    self.summary = None;
+                if on && self.assistant.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
+                    self.close_assistant();
                 } else {
                     self.ai_menu_open = !self.ai_menu_open;
                     self.menu_open = false;

@@ -1109,6 +1109,7 @@ pub fn shortcut_name(msg: &str) -> Option<&'static str> {
         (true, true, _, "a") => "tabsearch",
         (true, false, false, "k") => "tabsearch",
         (true, true, _, "e") => "split",
+        (true, false, false, "e") => "ask",
         (true, true, _, "delete") => "cleardata",
         (true, false, false, "s") => "savepage",
         (true, false, true, "i") => "inspector",
@@ -2178,6 +2179,20 @@ impl PageView {
                     });
                 });
                 menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Rechercher la sélection sur le Web"), None));
+                // the same words, to ask the assistant about
+                let action = gtk::gio::SimpleAction::new("sanaga-ask-selection", None);
+                let (tell, page) = (o.clone(), v.downgrade());
+                action.connect_activate(move |_, _| {
+                    let Some(page) = page.upgrade() else { return };
+                    let o = tell.clone();
+                    page.evaluate_javascript("String(window.getSelection())", Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| {
+                        let words = found.map(|w| w.to_str().to_string()).unwrap_or_default();
+                        if !words.trim().is_empty() {
+                            o(PageSignal::Tool("ask-selection", words.trim().chars().take(20_000).collect()));
+                        }
+                    });
+                });
+                menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Demander à l'assistant…"), None));
                 // a link that opens the page at these very words (a "text
                 // fragment": the first and last words when there are many)
                 if v.uri().is_some_and(|u| u.starts_with("http")) {
@@ -2374,6 +2389,12 @@ impl PageView {
     pub fn evaluate_own(&self, js: &str) -> R<()> {
         self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, |_| {});
         Ok(())
+    }
+    /// Ask one of Sanaga's scripts for an answer (a text), in Sanaga's
+    /// world. The answer comes straight from the engine: nothing the page
+    /// runs can give another in its place.
+    pub fn ask_own(&self, js: &str, then: impl FnOnce(Option<String>) + 'static) {
+        self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| then(found.ok().map(|v| v.to_str().to_string())));
     }
     /// Find in page with the engine's own search: every match is marked,
     /// the current one stands out, and the page tells how many there are

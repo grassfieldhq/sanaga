@@ -1282,3 +1282,32 @@ DNS chiffré	Encrypted DNS
 Adresse du résolveur	Resolver address
 Sanaga — barres et menus	Sanaga — bars and menus
 L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.	The history could not be opened: the pages visited this time will not be kept.
+Sélection	Selection
+{} — texte trop long : {} % lus	{} — text too long: {} % read
+Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.	In a private tab, only a model on this computer (Ollama) can answer: the page's text does not leave it.
+Pour poser des questions, choisissez un modèle d'IA : Ollama sur cet ordinateur, ou Claude avec votre clé.	To ask questions, choose an AI model: Ollama on this computer, or Claude with your key.
+Réponse arrêtée avant la fin.	Answer stopped before the end.
+Assistant	Assistant
+Nouvelle conversation	New conversation
+Paramètres › Intelligence…	Settings › Intelligence…
+Avec cette page : {}	With this page: {}
+Sans la page	Without the page
+Le texte de la page part avec la question. Cliquer pour ne pas l'envoyer.	The page's text goes with the question. Click to leave it out.
+La question part seule. Cliquer pour joindre le texte de la page.	The question goes alone. Click to attach the page's text.
+Retirer	Remove
+Posez une question sur cette page…	Ask a question about this page…
+Poursuivre la conversation…	Continue the conversation…
+Question à l'assistant	Question to the assistant
+Écriture de la réponse…	Writing the answer…
+Envoyer	Send
+Posez une question sur la page affichée, ou demandez-en le résumé. Le texte de la page part avec votre première question.	Ask a question about the page shown, or ask for its summary. The page's text goes with your first question.
+Poser une question à l'assistant	Ask the assistant a question
+Ctrl+E	Ctrl+E
+Assistant : questions, résumé, traduction	Assistant: questions, summary, translation
+Poser une question	Ask a question
+Sur cette page, à côté d'elle	About this page, beside it
+Le modèle a refusé de répondre à cette demande.	The model declined to answer this request.
+La réponse du modèle a été coupée avant la fin.	The model's answer was cut before the end.
+{} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} cannot use tools: it answers with what you attached.
+Le modèle a demandé trop d'outils sans répondre.	The model asked for too many tools without answering.
+Demander à l'assistant…	Ask the assistant…

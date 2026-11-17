@@ -565,6 +565,7 @@ impl Sanaga {
                             act = Some(key);
                         }
                     };
+                    row(ui, crate::icons::Icon::Search, tr("Poser une question"), tr("Sur cette page, à côté d'elle"), tr("Ctrl+E"), "ask");
                     row(ui, crate::icons::Icon::Sparkle, tr("Résumer la page"), tr("Les points essentiels, à côté de la page"), tr("Ctrl+Maj+Y"), "summary");
                     let name = lang_in_sentence(lang.0);
                     let sub = if engine.is_empty() { tf("En {}", &[&name]) } else { tf("En {} · avec {}", &[&name, &engine]) };
@@ -604,6 +605,7 @@ impl Sanaga {
                 self.ai_menu_open = false;
                 self.summarize_page();
             }
+            Some("ask") => self.open_assistant(),
             Some("translate") => {
                 self.ai_menu_open = false;
                 self.translate_page();

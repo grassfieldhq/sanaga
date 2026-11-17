@@ -109,6 +109,7 @@ impl Sanaga {
                         sep(ui, th, iw);
                         item(ui, Icon::Search, tr("Rechercher dans la page"), tr("Ctrl+F"), "find");
                         item(ui, Icon::Reader, if reading { tr("Quitter le Lecteur") } else { tr("Lecteur") }, tr("Ctrl+Maj+R"), "reader");
+                        item(ui, Icon::Sparkle, tr("Poser une question à l'assistant"), tr("Ctrl+E"), "ask");
                         item(ui, Icon::Sparkle, tr("Résumer la page"), tr("Ctrl+Maj+Y"), "summary");
                         item(ui, Icon::Translate, tr("Traduire la page"), "", "translate");
                         item(ui, Icon::Print, tr("Imprimer…"), tr("Ctrl+P"), "print");
@@ -197,6 +198,7 @@ impl Sanaga {
             "translate" => self.translate_page(),
             "print" => self.print_page(),
             "summary" => self.summarize_page(),
+            "ask" => self.open_assistant(),
             "make-extension" => {
                 self.open_tab("sanaga://create-extension", false);
             }

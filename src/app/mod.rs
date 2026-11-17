@@ -1,6 +1,7 @@
 //! The Sanaga window: shared state, the frame loop and the screenshot mode.
 
 mod accounts;
+mod assistant;
 mod bookmarks;
 mod buttons;
 mod chrome;
@@ -659,9 +660,10 @@ pub struct Sanaga {
     extra_sessions: Vec<Vec<String>>,
     /// Data changes seen (another window may change bookmarks, settings…).
     store_seen: u64,
-    /// Page summary at the side, answers of the AI models, the
-    /// create-an-extension form, the Ollama models found, the Claude key typed.
-    summary: Option<intelligence::Summary>,
+    /// The assistant at the side of the page (a conversation; a page's
+    /// summary is one), answers of the AI models, the create-an-extension
+    /// form, the Ollama models found, the Claude key typed.
+    assistant: Option<assistant::Assistant>,
     ai_tx: std::sync::mpsc::Sender<intelligence::AiDone>,
     ai_rx: Receiver<intelligence::AiDone>,
     ext_form: intelligence::ExtForm,
@@ -1042,7 +1044,7 @@ impl Sanaga {
             quit_all: false,
             extra_sessions: Vec::new(),
             store_seen: crate::store::CHANGES.load(Ordering::Relaxed),
-            summary: None,
+            assistant: None,
             ai_tx,
             ai_rx,
             ext_form: Default::default(),
@@ -2331,10 +2333,11 @@ impl Sanaga {
                 self.sidebar(&mut inner, &th);
             });
         }
-        if self.summary.is_some() && !self.focus_mode {
+        self.assistant_step();
+        if self.assistant.is_some() && !self.focus_mode {
             // (its left edge can be dragged: wider to read, narrower for the page)
             egui::Panel::right("summary").resizable(true).default_size(380.0).size_range(300.0..=640.0).frame(Frame::NONE.fill(th.sidebar)).show(ui, |ui| {
-                self.summary_panel(ui, &th);
+                self.assistant_panel(ui, &th);
             });
         }
         // (a menu over a living page: the page area is left clear, see sync_web)

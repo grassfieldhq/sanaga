@@ -11,7 +11,7 @@
 use std::time::Duration;
 
 pub const CLAUDE_MODEL: &str = "claude-sonnet-5-5";
-const OLLAMA: &str = "http://127.0.0.1:11434";
+pub(crate) const OLLAMA: &str = "http://127.0.0.1:11434";
 /// Where the Claude key is kept in the keyring (profile, site, user).
 pub const KEY_SITE: &str = "https://api.anthropic.com";
 
@@ -59,13 +59,13 @@ pub fn page_content_allowed(provider: &Provider) -> Result<(), String> {
     }
 }
 
-fn agent(read_secs: u64) -> ureq::Agent {
+pub(crate) fn agent(read_secs: u64) -> ureq::Agent {
     // (the system's certificate authorities: see net::builder)
     crate::net::builder().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
 }
 
 /// For the model on this computer (Ollama): never through a proxy.
-fn local_agent(read_secs: u64) -> ureq::Agent {
+pub(crate) fn local_agent(read_secs: u64) -> ureq::Agent {
     crate::net::local_builder().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
 }
 
@@ -238,7 +238,7 @@ fn error_message(body: &str) -> String {
     said.unwrap_or_default().to_string()
 }
 
-fn err_text(e: ureq::Error) -> String {
+pub(crate) fn err_text(e: ureq::Error) -> String {
     match e {
         ureq::Error::Status(code, r) => {
             let body = r.into_string().unwrap_or_default();
@@ -254,23 +254,6 @@ fn err_text(e: ureq::Error) -> String {
 }
 
 // ---------------------------------------------------------------- summaries
-
-/// Instructions for a summary in the person's language.
-pub fn summary_prompt(title: &str, text: &str) -> (String, String) {
-    let lang = match crate::i18n::language() {
-        "fr" => "French",
-        "es" => "Spanish",
-        "pt" => "Portuguese",
-        "de" => "German",
-        _ => "English",
-    };
-    let system = format!(
-        "You summarise web pages for a browser's reader. Write in {lang}. Start with one sentence that says what the page is about, \
-         then 3 to 6 short bullet points with the key facts (use \"• \" for bullets). No preamble, no markdown headings."
-    );
-    let cut: String = text.chars().take(24_000).collect();
-    (system, format!("Title: {title}\n\nPage text:\n{cut}"))
-}
 
 /// Sanaga's own summary, without a model: the sentences that carry the
 /// page's most frequent meaningful words, in the order of the page.
@@ -611,7 +594,6 @@ mod answer_tests {
             for n in [0, 1, 6] {
                 let _ = local_summary(&t, n);
             }
-            let _ = summary_prompt(&t, &t);
         });
     }
 

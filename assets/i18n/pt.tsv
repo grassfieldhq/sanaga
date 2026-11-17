@@ -1282,3 +1282,32 @@ DNS chiffré	DNS cifrado
 Adresse du résolveur	Endereço do resolvedor
 Sanaga — barres et menus	Sanaga — barras e menus
 L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.	Não foi possível abrir o histórico: as páginas visitadas desta vez não serão guardadas.
+Sélection	Seleção
+{} — texte trop long : {} % lus	{} — texto demasiado longo: {} % lido
+Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.	Num separador privado, só um modelo neste computador (Ollama) pode responder: o texto da página não sai dele.
+Pour poser des questions, choisissez un modèle d'IA : Ollama sur cet ordinateur, ou Claude avec votre clé.	Para fazer perguntas, escolha um modelo de IA: Ollama neste computador, ou Claude com a sua chave.
+Réponse arrêtée avant la fin.	Resposta interrompida antes do fim.
+Assistant	Assistente
+Nouvelle conversation	Nova conversa
+Paramètres › Intelligence…	Definições › Inteligência…
+Avec cette page : {}	Com esta página: {}
+Sans la page	Sem a página
+Le texte de la page part avec la question. Cliquer pour ne pas l'envoyer.	O texto da página segue com a pergunta. Clique para não o enviar.
+La question part seule. Cliquer pour joindre le texte de la page.	A pergunta segue sozinha. Clique para juntar o texto da página.
+Retirer	Retirar
+Posez une question sur cette page…	Faça uma pergunta sobre esta página…
+Poursuivre la conversation…	Continuar a conversa…
+Question à l'assistant	Pergunta ao assistente
+Écriture de la réponse…	A escrever a resposta…
+Envoyer	Enviar
+Posez une question sur la page affichée, ou demandez-en le résumé. Le texte de la page part avec votre première question.	Faça uma pergunta sobre a página apresentada, ou peça o seu resumo. O texto da página segue com a sua primeira pergunta.
+Poser une question à l'assistant	Fazer uma pergunta ao assistente
+Ctrl+E	Ctrl+E
+Assistant : questions, résumé, traduction	Assistente: perguntas, resumo, tradução
+Poser une question	Fazer uma pergunta
+Sur cette page, à côté d'elle	Sobre esta página, ao lado dela
+Le modèle a refusé de répondre à cette demande.	O modelo recusou-se a responder a este pedido.
+La réponse du modèle a été coupée avant la fin.	A resposta do modelo foi cortada antes do fim.
+{} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} não sabe usar ferramentas: responde com o que lhe juntou.
+Le modèle a demandé trop d'outils sans répondre.	O modelo pediu demasiadas ferramentas sem responder.
+Demander à l'assistant…	Perguntar ao assistente…

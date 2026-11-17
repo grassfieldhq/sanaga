@@ -70,11 +70,6 @@ pub(super) enum WebEvent {
     },
     /// Privacy report: trackers kept from following the person.
     Privacy(Vec<(String, usize)>),
-    /// The text of a page, for its summary.
-    PageText {
-        tab: u64,
-        text: String,
-    },
     /// A page tool (right-click menu, or an answer of a tool's script).
     Tool {
         tab: u64,
@@ -332,8 +327,6 @@ impl PageMaker {
                         WebEvent::Translate { tab: id, msg: rest.to_string() }
                     } else if body == "form:dirty" || body == "form:clean" {
                         WebEvent::FormDirty { tab: id, dirty: body == "form:dirty" }
-                    } else if let Some(text) = body.strip_prefix("sum:") {
-                        WebEvent::PageText { tab: id, text: text.to_string() }
                     } else if let Some(share) = body.strip_prefix("scr:").and_then(|s| s.parse::<f32>().ok()) {
                         WebEvent::Scrolled { tab: id, share }
                     } else if body.starts_with("pw:") {
@@ -648,7 +641,6 @@ impl Sanaga {
                 }
             }
             WebEvent::Notice(msg) => self.notice = Some((msg, self.ctx.input(|i| i.time))),
-            WebEvent::PageText { tab, text } => self.summary_text_arrived(tab, text),
             WebEvent::ViewSource { tab, url } => {
                 if !(url.starts_with("http://") || url.starts_with("https://")) {
                     return;

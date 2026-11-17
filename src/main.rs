@@ -19,6 +19,7 @@ mod ai_cli;
 mod app;
 mod bidi;
 mod blocklist;
+mod chat;
 mod codecs;
 mod crash;
 mod danger;

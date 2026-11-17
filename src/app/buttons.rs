@@ -27,6 +27,7 @@ pub(super) fn commands() -> Vec<(&'static str, &'static str)> {
         ("downloads", tr("Téléchargements")),
         ("settings", tr("Paramètres")),
         ("reader", tr("Lecteur")),
+        ("ask", tr("Poser une question à l'assistant")),
         ("summary", tr("Résumer la page")),
         ("translate", tr("Traduire la page")),
         ("overview", tr("Aperçu des onglets")),
@@ -133,6 +134,7 @@ impl Sanaga {
             "overview" => self.toggle_overview(),
             "mobile" => self.toggle_devices(),
             "summary" => self.summarize_page(),
+            "ask" => self.open_assistant(),
             _ => {}
         }
     }
