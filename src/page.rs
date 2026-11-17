@@ -1808,6 +1808,12 @@ impl PageView {
                 if std::env::var_os("SANAGA_TEST_POPUPS").is_some() {
                     st.set_javascript_can_open_windows_automatically(true);
                 }
+                // (a camera, a microphone and a screen made up by the engine:
+                // to try the questions and the capture sign on a machine
+                // that has none)
+                if std::env::var_os("SANAGA_MOCK_CAPTURE").is_some() {
+                    st.set_enable_mock_capture_devices(true);
+                }
             }
             // (clipboard: WebKit's default, a page reads it only on a user gesture)
             st.set_enable_page_cache(true);

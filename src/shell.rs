@@ -2043,6 +2043,13 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
     if g.painter.is_none() {
         return;
     }
+    // (the window has not been given its size yet — on Wayland the first
+    // frames come before it, one pixel wide: nothing is laid out in that;
+    // looked at again shortly, the size comes with the window's first show)
+    if area.width() < 32 || area.height() < 32 {
+        schedule(host, Duration::from_millis(100));
+        return;
+    }
     let scale = area.scale_factor().max(1) as f32;
     let (w, h) = (area.width().max(1), area.height().max(1));
     let zoom = g.ctx.zoom_factor();
@@ -2133,8 +2140,15 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
                 std::process::abort();
             }
             // (the frame the error cut short is closed, so that the
-            // interface can start the next one; what it had drawn is dropped)
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(ctx.end_pass())));
+            // interface can start the next one; what it had drawn is
+            // dropped — but not the pictures it made: the next frames
+            // count on them, and they are sent with the next one)
+            if let Ok(mut cut) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ctx.end_pass())) {
+                if g.painter_top.is_some() {
+                    g.delta_top.append(cut.textures_delta.clone());
+                }
+                g.delta.append(std::mem::take(&mut cut.textures_delta));
+            }
             g.app.after_error(g.failed_frames);
             schedule(host, Duration::from_millis(50));
             return;

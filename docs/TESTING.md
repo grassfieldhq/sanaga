@@ -153,6 +153,7 @@ control; the picture must show a ring around it.
 | `SANAGA_HWACCEL=never\|always` | force WebKit's hardware acceleration policy |
 | `SANAGA_BENCH_CYCLE=n` | show the next tab every 3 s, n times (memory tests) |
 | `SANAGA_SHOT_STATE=dark,menu,sidebar,…` | states shown by `--screenshot` |
+| `SANAGA_MOCK_CAPTURE=1` | a camera, a microphone and a screen made up by the engine: the questions and the capture sign can be tried on a machine without any |
 | `SANAGA_TEST_POPUPS=1` | let pages open windows without a click (to test sign-in windows) |
 | `SANAGA_DANGER_LIST=/a/file` | the list of sites reported as dangerous, one name per line, instead of the lists fetched (to see the warning without going near a real one) |
 | `SANAGA_DEBUG_DNS=1` | encrypted DNS: prints each name that could not be resolved, and why |

@@ -1285,3 +1285,4 @@ Le nom des sites visités est demandé par https à ce résolveur, plus en clair
 DNS chiffré⟂Encrypted DNS⟂DNS cifrado⟂DNS cifrado⟂Verschlüsseltes DNS
 Adresse du résolveur⟂Resolver address⟂Dirección del resolvedor⟂Endereço do resolvedor⟂Resolver-Adresse
 Sanaga — barres et menus⟂Sanaga — bars and menus⟂Sanaga — barras y menús⟂Sanaga — barras e menus⟂Sanaga — Leisten und Menüs
+L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.⟂The history could not be opened: the pages visited this time will not be kept.⟂No se pudo abrir el historial: las páginas visitadas esta vez no se guardarán.⟂Não foi possível abrir o histórico: as páginas visitadas desta vez não serão guardadas.⟂Der Verlauf konnte nicht geöffnet werden: Die diesmal besuchten Seiten werden nicht gespeichert.

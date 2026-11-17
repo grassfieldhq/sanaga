@@ -21,7 +21,8 @@ impl Sanaga {
         let mut finish = false;
         let mut import = false;
         let mut make_default = false;
-        let card_w = (full.width() - 48.0).min(620.0);
+        // (never less than nothing: a window still without its size)
+        let card_w = (full.width() - 48.0).clamp(0.0, 620.0);
         let found_ai = crate::ai_cli::installed();
         let sources = crate::import::chrome_family_sources();
         ui.vertical_centered(|ui| {

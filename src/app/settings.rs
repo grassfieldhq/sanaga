@@ -521,7 +521,8 @@ fn switch_with(ui: &mut Ui, th: &Theme, on: &mut bool, tab_stop: bool) -> bool {
     let (r, resp) = ui.allocate_exact_size(vec2(38.0, 22.0), if tab_stop { Sense::click() } else { Sense::CLICK });
     focus_ring(ui, &resp, r.expand(2.0), 13.0, th);
     resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::CheckBox, true, *on, ""));
-    let t = ui.ctx().animate_bool_with_time(resp.id, *on, 0.14);
+    // (no slide when the system asks for no animations: see `power_step`)
+    let t = ui.ctx().animate_bool_with_time(resp.id, *on, if ui.style().animation_time == 0.0 { 0.0 } else { 0.14 });
     // (off: a grey that shows on the card in the light and the dark look —
     // the track's own colour is the card's in the dark, and left the knob
     // floating alone)

@@ -51,7 +51,7 @@ impl Sanaga {
     pub(super) fn page_area(&mut self, ui: &mut Ui, th: &Theme) {
         let a = self.active;
         // (followed every frame, so that it starts from nothing each time the overview opens)
-        self.overview_rise = ui.ctx().animate_bool_with_time(egui::Id::new("overview-rise"), self.overview_open, 0.18);
+        self.overview_rise = ui.ctx().animate_bool_with_time(egui::Id::new("overview-rise"), self.overview_open, if ui.style().animation_time == 0.0 { 0.0 } else { 0.18 });
         if self.overview_open {
             self.hover_url = None;
             self.tab_overview(ui, th);
@@ -60,7 +60,11 @@ impl Sanaga {
         // Where Tab starts in one of Sanaga's own pages (see `frame_body`):
         // an unseen stop just before the page's first control.
         if matches!(self.tabs[a].view, View::Internal(_)) {
-            ui.interact(Rect::from_min_size(ui.max_rect().min, vec2(1.0, 1.0)), egui::Id::new("page-start"), Sense::focusable_noninteractive());
+            let start = ui.interact(Rect::from_min_size(ui.max_rect().min, vec2(1.0, 1.0)), egui::Id::new("page-start"), Sense::focusable_noninteractive());
+            // (for a screen reader it has a name: it was a stop of the
+            // keyboard with nothing said)
+            let title = self.tabs[a].title();
+            start.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &title));
         }
         if let View::Internal(Internal::Onboarding) = self.tabs[a].view {
             self.page_onboarding(ui, th);

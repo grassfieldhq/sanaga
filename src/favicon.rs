@@ -44,11 +44,41 @@ static KEEP: AtomicBool = AtomicBool::new(true);
 /// seen, without taking the lock.
 static ARRIVALS: AtomicU64 = AtomicU64::new(0);
 
+/// The most icons kept on disk: one per site visited, the folder grew for
+/// ever. Past it, the ones not used for the longest go (a site visited
+/// again gets its icon again).
+const MAX_ON_DISK: usize = 3000;
+
 /// Where icons are kept, and whether new ones may be written there.
 pub fn setup(dir: PathBuf, keep: bool) {
     let _ = std::fs::create_dir_all(&dir);
+    if keep && DIR.get().is_none() {
+        // (once, at the start, away from the window: a folder to read)
+        let folder = dir.clone();
+        let _ = std::thread::Builder::new().name("sanaga-icons-tidy".into()).spawn(move || tidy(&folder, MAX_ON_DISK));
+    }
     let _ = DIR.set(dir);
     KEEP.store(keep, Ordering::Relaxed);
+}
+
+/// Keep the `most` icons used last in `dir`; how many were removed.
+fn tidy(dir: &std::path::Path, most: usize) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    // (icons only: nothing else in the folder is touched)
+    let mut icons: Vec<(std::time::SystemTime, PathBuf)> = entries
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "png"))
+        .filter_map(|e| {
+            let m = e.metadata().ok()?;
+            m.is_file().then(|| (m.accessed().or_else(|_| m.modified()).unwrap_or(std::time::UNIX_EPOCH), e.path()))
+        })
+        .collect();
+    if icons.len() <= most {
+        return 0;
+    }
+    icons.sort();
+    let extra = icons.len() - most;
+    icons.into_iter().take(extra).filter(|(_, p)| std::fs::remove_file(p).is_ok()).count()
 }
 
 /// "https://www.site.com/page" → ("https", "www.site.com").
@@ -404,6 +434,26 @@ pub fn learn(page_url: &str, png: Vec<u8>, private: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_icons_folder_keeps_the_ones_used_last() {
+        let dir = std::env::temp_dir().join(format!("sanaga-icons-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for k in 0..8u64 {
+            let p = dir.join(format!("site{k}.png"));
+            std::fs::write(&p, b"x").unwrap();
+            let when = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000 + k * 60);
+            std::fs::File::options().write(true).open(&p).unwrap().set_times(std::fs::FileTimes::new().set_accessed(when).set_modified(when)).unwrap();
+        }
+        std::fs::write(dir.join("notes.txt"), b"not an icon").unwrap();
+        assert_eq!(tidy(&dir, 5), 3);
+        let mut left: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        left.sort();
+        assert_eq!(left, ["notes.txt", "site3.png", "site4.png", "site5.png", "site6.png", "site7.png"]);
+        assert_eq!(tidy(&dir, 5), 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn icons_are_kept_per_site() {

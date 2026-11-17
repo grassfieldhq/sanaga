@@ -173,6 +173,12 @@ impl Sanaga {
 
     /// Check from time to time whether the computer runs on its battery.
     pub(super) fn power_step(&mut self, now: f64) {
+        // "Reduce animations" of the system: the interface's own slides and
+        // fades too (menus that unfold, the switches, the overview).
+        let still = self.reduce_motion();
+        if (self.ctx.global_style().animation_time == 0.0) != still {
+            self.ctx.all_styles_mut(|s| s.animation_time = if still { 0.0 } else { egui::Style::default().animation_time });
+        }
         if now - self.on_battery.0 < 30.0 {
             return;
         }

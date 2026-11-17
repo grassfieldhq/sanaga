@@ -472,6 +472,9 @@ pub struct Sanaga {
     /// `net::proxy_generation`), and when a new version was last looked for.
     proxy_seen: u64,
     update_looked_at: f64,
+    /// Whether the history's file could be opened, once known (said once
+    /// when it could not).
+    history_checked: Option<bool>,
     /// The tab the person asked to close while its page held typed text,
     /// and when (see `ask_close_tab`).
     close_asked: Option<(u64, f64)>,
@@ -927,6 +930,7 @@ impl Sanaga {
             update_check: None,
             proxy_seen: 0,
             update_looked_at: f64::NEG_INFINITY,
+            history_checked: None,
             close_asked: None,
             typing_at_frame_start: None,
             downloads_seen: 0,

@@ -398,6 +398,16 @@ All notable changes to Sanaga are listed here. The format follows
 - Text typed with an input method (Chinese, Japanese, Korean, dead keys)
   shows in the field while it is being composed; it appeared only once
   finished.
+- On Wayland the first frames come before the window has its size: they
+  are no longer laid out in a window one pixel wide (a debug build
+  reported errors of its own there, and three in a row stopped it).
+- The history's file could not be opened: said in the window, once (it
+  was only printed on the terminal).
+- "Reduce animations" is followed by the switches, the tab overview and
+  the menus that unfold; the window's three buttons take the click 20 by
+  24; the site icons kept on disk are bounded (the 3,000 used last); the
+  side panel shows the first 200 favourites instead of laying out all of
+  them at every frame.
 - A guest window reaches the network the way its owner set it: it went
   round the proxy of the settings.
 - The proxy and the other network settings count from the very first

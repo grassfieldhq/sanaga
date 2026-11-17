@@ -2,7 +2,7 @@
 //! downloads go, and the daily look for a new version.
 
 use super::Sanaga;
-use crate::i18n::tf;
+use crate::i18n::{tf, tr};
 use std::path::Path;
 
 /// A day, in seconds: how often a new version is looked for.
@@ -83,6 +83,16 @@ impl Sanaga {
             self.agent = crate::net::Clients::new();
             self.private_agent = crate::net::Clients::new();
             self.apply_dns_relay();
+        }
+        // The history's file could not be opened: said once, in the window
+        // (it was only said where nobody looks, on the terminal).
+        if self.history_checked.is_none() {
+            if let Some(lost) = self.store.history.not_kept() {
+                self.history_checked = Some(lost);
+                if lost {
+                    self.say(tr("L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées."));
+                }
+            }
         }
         // (asked again every hour while Sanaga stays open: the file says
         // whether a day has passed)

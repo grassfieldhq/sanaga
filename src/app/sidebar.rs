@@ -192,7 +192,14 @@ impl Sanaga {
                 }
             }
             // ---------------- favourites ----------------
-            let favs: Vec<(usize, String, String)> = self.store.bookmarks.iter().enumerate().filter(|(_, b)| matches(&b.url, &b.title)).map(|(i, b)| (i, b.url.clone(), b.title.clone())).collect();
+            // (the side panel shows the first ones: thousands of favourites
+            // were copied and laid out at every frame while it was open —
+            // the Favourites page has them all, and its search)
+            const SHOWN: usize = 200;
+            let mut favs: Vec<(usize, String, String)> =
+                self.store.bookmarks.iter().enumerate().filter(|(_, b)| matches(&b.url, &b.title)).take(SHOWN + 1).map(|(i, b)| (i, b.url.clone(), b.title.clone())).collect();
+            let more_favs = favs.len() > SHOWN;
+            favs.truncate(SHOWN);
             if self.section_header(ui, th, "sb-favs", tr("Favoris"), None) {
                 if favs.is_empty() {
                     hint(ui, th, if q.is_empty() { tr("Cliquez sur l'étoile de la barre d'adresse pour ajouter une page.") } else { tr("Aucun résultat") });
@@ -230,7 +237,7 @@ impl Sanaga {
                         }
                     });
                 }
-                if q.is_empty() && link_row(ui, th, dark, Icon::StarFilled, tr("Gérer les favoris")) {
+                if (q.is_empty() || more_favs) && link_row(ui, th, dark, Icon::StarFilled, tr("Gérer les favoris")) {
                     acts.push(Do::Page("sanaga://bookmarks"));
                 }
                 ui.add_space(8.0);

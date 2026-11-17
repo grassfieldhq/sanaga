@@ -769,6 +769,15 @@ impl History {
         History(db)
     }
 
+    /// Is this profile's history not kept this time — its file could not be
+    /// opened (the disk, a refusal, a file written by a later Sanaga), so
+    /// this run's visits live in memory only? `None` until the file has
+    /// been tried (read at a frame: no lock, no disk).
+    pub fn not_kept(&self) -> Option<bool> {
+        self.0.dir.as_ref()?;
+        self.0.conns.get().map(|c| c.as_ref().is_none_or(|c| !c.on_disk))
+    }
+
     /// A number that changes whenever the history does (read at every
     /// frame: no lock, no disk).
     pub fn version(&self) -> u64 {

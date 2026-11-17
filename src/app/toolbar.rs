@@ -196,7 +196,8 @@ pub(super) fn window_buttons(ui: &mut Ui, x: f32, cy: f32) -> f32 {
     let lights = [Color32::from_rgb(0xFF, 0x5F, 0x57), Color32::from_rgb(0xFE, 0xBC, 0x2E), Color32::from_rgb(0x28, 0xC8, 0x40)];
     for (k, col) in lights.into_iter().enumerate() {
         let c = pos2(x + k as f32 * 20.0, cy);
-        let resp = ui.interact(Rect::from_center_size(c, vec2(16.0, 16.0)), egui::Id::new(("winbtn", k)), Sense::click());
+        // (20 across, 24 high: the three are 20 apart, the bar has the height)
+        let resp = ui.interact(Rect::from_center_size(c, vec2(20.0, 24.0)), egui::Id::new(("winbtn", k)), Sense::click());
         ui.painter().circle_filled(c, 6.5, col);
         ui.painter().circle_stroke(c, 6.5, Stroke::new(0.6, Color32::from_black_alpha(40)));
         if hover_lights {
