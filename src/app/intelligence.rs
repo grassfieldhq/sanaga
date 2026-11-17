@@ -362,6 +362,7 @@ impl Sanaga {
                             }
                             match crate::store::write_atomic(&path, &text) {
                                 Ok(()) => {
+                                    super::settings::extensions_changed();
                                     // installed switched off: the person reads it first
                                     let id = format!("fichier:{}", path.file_name().unwrap_or_default().to_string_lossy());
                                     self.ext_form.status =

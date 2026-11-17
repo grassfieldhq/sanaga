@@ -8,6 +8,11 @@ use crate::crash::{self, Kind};
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Color32, Label, Layout, Margin, RichText, Sense};
 
+thread_local! {
+    /// The reports kept on this computer, as last read (see `Kept`).
+    static REPORTS: std::cell::RefCell<super::settings::Kept<Vec<crash::Report>>> = const { std::cell::RefCell::new(super::settings::Kept::new()) };
+}
+
 /// What the bar after an abrupt end offers.
 pub(super) struct CrashNotice {
     /// The tabs of the last run, when they were not reopened by themselves
@@ -102,7 +107,12 @@ impl Sanaga {
     /// `sanaga://crashes`: the reports kept on this computer.
     pub(super) fn page_crashes(&mut self, ui: &mut Ui, th: &Theme) {
         let root = Store::root_dir();
-        let reports = crash::list(&root);
+        // (read when the page opens and after a report is deleted, on a
+        // thread — not at every frame: each of the twenty files kept was
+        // opened and read sixty times a second)
+        let read = self.kept(&REPORTS, || crash::list(&Store::root_dir()));
+        let known = read.is_some();
+        let reports = read.unwrap_or_default();
         let now = ui.input(|i| i.time);
         let mut remove: Option<std::path::PathBuf> = None;
         let mut remove_all = false;
@@ -120,13 +130,13 @@ impl Sanaga {
             });
             ui.add(Label::new(RichText::new(tr("Quand Sanaga ou une page s'arrête sans prévenir, un court rapport est gardé ici, sur cet ordinateur. Rien n'est envoyé tout seul : vous le lisez, puis vous choisissez de l'envoyer ou non. Il ne contient ni l'adresse des pages, ni votre nom.")).color(th.sub)).wrap());
             ui.add_space(16.0);
-            if reports.is_empty() {
+            if known && reports.is_empty() {
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(RichText::new(tr("Aucun rapport : rien ne s'est arrêté.")).color(th.sub));
                 });
             }
-            for r in &reports {
+            for r in reports.iter() {
                 let what = match r.kind {
                     Kind::Interface => tr("Sanaga s'est arrêté"),
                     Kind::Page => tr("Une page a cessé de fonctionner"),
@@ -175,9 +185,11 @@ impl Sanaga {
         }
         if let Some(p) = remove {
             crash::remove(&root, &p);
+            REPORTS.with(|k| k.borrow_mut().changed());
         }
         if remove_all {
             crash::remove_all(&root);
+            REPORTS.with(|k| k.borrow_mut().changed());
         }
         if let Some(u) = send {
             self.open_tab(&u, false);

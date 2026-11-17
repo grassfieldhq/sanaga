@@ -302,11 +302,45 @@ impl Sanaga {
                     ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(left));
                 }
             }
-            for (i, (site, user)) in self.store.logins.iter().enumerate() {
-                if !filter.is_empty() && !site.to_lowercase().contains(&filter) && !user.to_lowercase().contains(&filter) {
-                    continue;
-                }
-                Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+            // The accounts found by the search (their places in the list):
+            // worked out when the search or the list changes, not at every frame.
+            let found_id = egui::Id::new("pw-found");
+            let found: Option<Arc<Vec<usize>>> = if filter.is_empty() {
+                None
+            } else {
+                let kept: Option<(String, usize, Arc<Vec<usize>>)> = ui.data(|d| d.get_temp(found_id));
+                Some(match kept {
+                    Some((for_q, among, places)) if for_q == filter && among == self.store.logins.len() => places,
+                    _ => {
+                        let places: Arc<Vec<usize>> = Arc::new(
+                            self.store.logins.iter().enumerate().filter(|(_, (site, user))| site.to_lowercase().contains(&filter) || user.to_lowercase().contains(&filter)).map(|(i, _)| i).collect(),
+                        );
+                        ui.data_mut(|d| d.insert_temp(found_id, (filter.clone(), self.store.logins.len(), places.clone())));
+                        places
+                    }
+                })
+            };
+            let count = found.as_ref().map_or(self.store.logins.len(), |f| f.len());
+            // Only the accounts in view are laid out and drawn. They are all
+            // as high as the first one drawn at the last frame; the ones
+            // above and below the view are left as empty room.
+            let gap = ui.spacing().item_spacing.y;
+            let height_id = egui::Id::new("pw-row-height");
+            let row_height: f32 = ui.data(|d| d.get_temp(height_id)).unwrap_or(52.0);
+            let pitch = row_height + gap + 6.0;
+            let list_top = ui.cursor().top();
+            let view = ui.clip_rect();
+            let first = (((view.top() - list_top) / pitch).floor().max(0.0) as usize).min(count);
+            let end = (((view.bottom() - list_top) / pitch).ceil().max(0.0) as usize).clamp(first, count);
+            let mut measured: Option<f32> = None;
+            let before = ui.spacing().item_spacing.y;
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.add_space(first as f32 * pitch);
+            for n in first..end {
+                let i = found.as_ref().map_or(n, |f| f[n]);
+                let Some((site, user)) = self.store.logins.get(i) else { continue };
+                let row = Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = gap;
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         super::chrome::site_badge(ui.painter(), pos2(ui.cursor().left() + 10.0, ui.cursor().center().y + 6.0), 9.0, site, &host_of(site));
@@ -335,7 +369,15 @@ impl Sanaga {
                         });
                     });
                 });
-                ui.add_space(6.0);
+                measured.get_or_insert(row.response.rect.height());
+                ui.add_space(gap + 6.0);
+            }
+            ui.add_space((count - end) as f32 * pitch);
+            ui.spacing_mut().item_spacing.y = before;
+            // (the height was guessed at the very first frame: drawn again with the real one)
+            if let Some(h) = measured.filter(|h| (h - row_height).abs() > 0.25) {
+                ui.data_mut(|d| d.insert_temp(height_id, h));
+                ui.ctx().request_repaint();
             }
         });
         let profile = self.store.profile.clone();
@@ -364,7 +406,7 @@ impl Sanaga {
     }
 
     pub(super) fn page_extensions(&mut self, ui: &mut Ui, th: &Theme) {
-        let list = crate::extensions::all();
+        let list = self.extensions_kept();
         let mut toggle: Option<String> = None;
         let mut delete: Option<String> = None;
         let mut toggle_mobile = false;
@@ -450,7 +492,7 @@ impl Sanaga {
             let devices = crate::app::devices::DEVICES.len();
             let (flip, _) = row(ui, true, tr("Simulateur mobile"), &[tf("Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.", &[&devices]), tr("Intégrée à Sanaga").to_string()], None, self.tb("mobile"));
             toggle_mobile |= flip;
-            for e in &list {
+            for e in list.iter() {
                 let place = if e.builtin {
                     String::new()
                 } else if e.matches.is_empty() {

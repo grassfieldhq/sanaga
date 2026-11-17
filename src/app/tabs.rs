@@ -103,6 +103,28 @@ pub(super) const GROUP_COLORS: [(&str, Color32); 9] = [
     ("Orange", Color32::from_rgb(0xFA, 0x90, 0x3E)),
 ];
 
+/// The ink for a text written on a group's colour: white, or a dark ink on
+/// the light colours (yellow, orange) — whichever stands out more. White
+/// on the yellow was 3.1:1, on the orange 2.3:1: hard to read.
+pub(super) fn ink_on(colour: Color32) -> Color32 {
+    let dark = Color32::from_rgb(0x1D, 0x1B, 0x18);
+    if crate::theme::contrast(Color32::WHITE, colour) >= crate::theme::contrast(dark, colour) {
+        Color32::WHITE
+    } else {
+        dark
+    }
+}
+
+/// A group's colour under the pointer: a little further from its ink
+/// (darker under white ink, lighter under dark ink), so that the name
+/// stands out more there, never less. (It was made paler, which took the
+/// white names under 4.5:1.)
+pub(super) fn group_hover(colour: Color32) -> Color32 {
+    let to = if ink_on(colour) == Color32::WHITE { 0.0 } else { 255.0 };
+    let mix = |v: u8| (v as f32 * 0.85 + to * 0.15).round() as u8;
+    Color32::from_rgb(mix(colour.r()), mix(colour.g()), mix(colour.b()))
+}
+
 impl Sanaga {
     /// May this tab leave for a window of its own (the menu's line, or the
     /// tab dragged out of the tab bar)? Not the only tab, not a private one
@@ -730,6 +752,22 @@ impl Sanaga {
 #[cfg(test)]
 mod tests {
     use super::{pack_states, unpack_states};
+
+    /// A group's name can be read on its colour, under the pointer too.
+    #[test]
+    fn group_names_stand_out_from_their_colour() {
+        use super::{group_hover, ink_on, GROUP_COLORS};
+        use crate::theme::contrast;
+        for (name, colour) in GROUP_COLORS {
+            let ink = ink_on(colour);
+            assert!(contrast(ink, colour) >= 4.5, "{name}: {:.2}", contrast(ink, colour));
+            let hover = group_hover(colour);
+            assert!(contrast(ink, hover) > contrast(ink, colour), "{name} under the pointer");
+        }
+        // (dark ink on the light colours, white on the others)
+        assert_eq!(ink_on(GROUP_COLORS[3].1), ink_on(GROUP_COLORS[8].1));
+        assert_ne!(ink_on(GROUP_COLORS[3].1), ink_on(GROUP_COLORS[1].1));
+    }
 
     #[test]
     fn tab_states_are_read_back_as_written() {

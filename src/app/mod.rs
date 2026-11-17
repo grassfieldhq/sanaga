@@ -2304,7 +2304,8 @@ impl Sanaga {
         }
         // the sidebar slides in and out (its content keeps its width and
         // is uncovered, instead of being squeezed)
-        let slide = ctx.animate_bool_with_time(egui::Id::new("sidebar-slide"), self.sidebar_open && !self.focus_mode, 0.16);
+        // (in place at once when the system asks for no animations)
+        let slide = ctx.animate_bool_with_time(egui::Id::new("sidebar-slide"), self.sidebar_open && !self.focus_mode, if self.reduce_motion() { 0.0 } else { 0.16 });
         if slide > 0.0 {
             let eased = slide * slide * (3.0 - 2.0 * slide);
             egui::Panel::left("sidebar").exact_size((264.0 * eased).max(1.0)).show_separator_line(false).frame(Frame::NONE.fill(th.page)).show(ui, |ui| {
@@ -2399,9 +2400,15 @@ impl Sanaga {
                 // window waits for that page. Drawn at every refresh, the
                 // window did nothing else — closing it never got its turn.
                 ctx.request_repaint_after(std::time::Duration::from_millis(250));
-            } else {
+            } else if self.tabs[self.active].loading || self.split_partner().is_some_and(|i| self.tabs[i].loading) {
                 // (with the screen's own refresh: the loading bar moves smoothly)
                 ctx.request_repaint();
+            } else {
+                // Only tabs behind are loading: all that shows it is the
+                // small wheel in their tab, which turns well enough ten
+                // times a second. Drawn at every refresh, a tab that never
+                // finishes loading kept the whole window busy for nothing.
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
         }
         if !ctx.input(|i| i.pointer.primary_down()) {

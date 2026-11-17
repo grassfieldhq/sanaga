@@ -1115,6 +1115,7 @@ impl Sanaga {
             let path = crate::extensions::folder().join(name);
             if path.parent() == Some(crate::extensions::folder().as_path()) {
                 let _ = std::fs::remove_file(path);
+                super::settings::extensions_changed();
             }
         }
         self.store.extensions_on.retain(|x| x != id);

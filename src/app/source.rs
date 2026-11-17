@@ -33,6 +33,20 @@ fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
+/// Where `needle` (plain letters, in lower case) starts in `hay`, whatever
+/// the case of its letters there. Each byte is looked at once: the end of a
+/// script used to be searched in a lower-case copy of all the rest of the
+/// page, made again at every `<script>` — a page with a few thousand of
+/// them took seconds, a large one minutes.
+fn find_ignoring_case(hay: &str, needle: &str) -> Option<usize> {
+    let (h, n) = (hay.as_bytes(), needle.as_bytes());
+    let first = n.first()?;
+    if h.len() < n.len() {
+        return None;
+    }
+    (0..=h.len() - n.len()).find(|&i| h[i].eq_ignore_ascii_case(first) && h[i..i + n.len()].eq_ignore_ascii_case(n))
+}
+
 /// Cut HTML source into coloured pieces (kind, text, link target).
 fn tokens(src: &str, base: &str) -> Vec<(K, String, Option<String>)> {
     let mut out: Vec<(K, String, Option<String>)> = Vec::new();
@@ -50,12 +64,14 @@ fn tokens(src: &str, base: &str) -> Vec<(K, String, Option<String>)> {
         }
         out.push((k, s.to_string(), link));
     };
+    // (the page's own address, read once — not at every link)
+    let base = url::Url::parse(base).ok();
     let resolve = |v: &str| -> Option<String> {
         let v = v.trim();
         if v.is_empty() || v.starts_with('#') || v.starts_with("javascript:") || v.starts_with("data:") || v.starts_with("mailto:") {
             return None;
         }
-        url::Url::parse(base).ok()?.join(v).ok().map(|u| u.to_string()).filter(|u| u.starts_with("http"))
+        base.as_ref()?.join(v).ok().map(|u| u.to_string()).filter(|u| u.starts_with("http"))
     };
     let b = src.as_bytes();
     let mut i = 0;
@@ -63,7 +79,7 @@ fn tokens(src: &str, base: &str) -> Vec<(K, String, Option<String>)> {
     while i < b.len() {
         if let Some(end) = raw_until {
             let rest = &src[i..];
-            let stop = rest.to_ascii_lowercase().find(end).unwrap_or(rest.len());
+            let stop = find_ignoring_case(rest, end).unwrap_or(rest.len());
             push(&mut out, K::Text, &rest[..stop], None);
             i += stop;
             raw_until = None;
@@ -261,6 +277,32 @@ mod tests {
         assert!(p.contains("<span class=\"e\">&amp;amp;</span>"));
         assert!(p.contains("<span class=\"c\">&lt;!-- note --&gt;</span>"));
         assert_eq!(p.matches("<span class=\"l\">").count(), 3);
+    }
+
+    #[test]
+    fn the_end_of_a_script_is_found_whatever_its_case() {
+        use super::find_ignoring_case as find;
+        assert_eq!(find("a<b</SCRIPT>", "</script"), Some(3));
+        assert_eq!(find("x</ScRiPt >", "</script"), Some(1));
+        assert_eq!(find("é</style>", "</style"), Some(2));
+        assert_eq!(find("</scrip", "</script"), None);
+        assert_eq!(find("", "</script"), None);
+        assert_eq!(find("abc", ""), None);
+        // the same pieces as before, upper case or not
+        let p = super::page("https://ex.com/", "<SCRIPT>if (a<b) x();</SCRIPT><p>after</p>");
+        assert!(p.contains("if (a&lt;b) x();"));
+        assert!(p.contains("<span class=\"t\">&lt;/SCRIPT&gt;&lt;p&gt;</span>after"));
+    }
+
+    /// Thousands of scripts: the time grows with the page, not with its square.
+    #[test]
+    fn a_page_with_many_scripts_is_read_once() {
+        let doc = "<script>var a = 1 < 2;</script>\n<style>p{color:red}</style>\n".repeat(20_000);
+        let start = std::time::Instant::now();
+        let p = super::page("https://ex.com/", &doc);
+        // (1.2 MB of source; it took minutes when each script re-read the rest)
+        assert!(start.elapsed() < std::time::Duration::from_secs(20), "{:?}", start.elapsed());
+        assert_eq!(p.matches("<span class=\"l\">").count(), 40_001);
     }
 
     #[test]

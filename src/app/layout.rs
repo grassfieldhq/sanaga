@@ -4,9 +4,9 @@
 //! floating. Also the tab list drawn down the side, the slim title bar used
 //! when nothing else holds the window buttons, and the floating address bar.
 
-use super::chrome::site_badge;
 use super::chrome::Fit as _;
-use super::toolbar::{spinner, window_buttons, window_drag};
+use super::chrome::{focus_ring, site_badge};
+use super::toolbar::{click_area, named, named_tab, spinner, window_buttons, window_drag};
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, Margin, ScrollArea, Sense};
@@ -87,7 +87,7 @@ impl Sanaga {
     /// tabs and address bar are both elsewhere).
     pub(super) fn title_bar(&mut self, ui: &mut Ui, th: &Theme) {
         let full = ui.max_rect();
-        let bg = ui.interact(full, egui::Id::new("titlebar-bg"), Sense::click_and_drag());
+        let bg = ui.interact(full, egui::Id::new("titlebar-bg"), super::toolbar::bar_sense());
         window_drag(ui, &bg);
         window_buttons(ui, full.left() + 18.0, full.center().y);
         let title = self.tabs[self.active].title();
@@ -122,7 +122,7 @@ impl Sanaga {
 
         // header: window buttons (left side only) and the new-tab button
         let head = Rect::from_min_size(full.min, vec2(full.width(), 46.0));
-        let hb = ui.interact(head, egui::Id::new("vtabs-head"), Sense::click_and_drag());
+        let hb = ui.interact(head, egui::Id::new("vtabs-head"), super::toolbar::bar_sense());
         window_drag(ui, &hb);
         let mut x = head.left() + 14.0;
         if self.window_buttons_in() == WindowButtonsIn::SideTabs {
@@ -137,6 +137,7 @@ impl Sanaga {
         if presp.hovered() {
             ui.painter().rect_filled(plus, CornerRadius::same(7), th.omnibox_hover);
         }
+        focus_ring(ui, &presp, plus, 7.0, th);
         icons::paint(ui.painter(), plus.shrink(7.0), Icon::Plus, th.text);
         if presp.tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
             new_tab = true;
@@ -160,9 +161,11 @@ impl Sanaga {
                     th.omnibox
                 };
                 ui.painter().rect_filled(r, CornerRadius::same(10), fill);
+                focus_ring(ui, &resp, r, 10.0, th);
                 site_badge(ui.painter(), r.center(), 9.0, self.tabs[i].url(), &self.tabs[i].title());
                 let title = self.tabs[i].title();
                 let resp = resp.tip(&title);
+                named_tab(&resp, &title, i == self.active);
                 resp.menu_on_press(|ui| {
                     if self.tab_menu(ui, i) {
                         menu_done = true;
@@ -204,13 +207,21 @@ impl Sanaga {
                     if resp.hovered() {
                         ui.painter().rect_filled(r, CornerRadius::same(7), th.omnibox_hover);
                     }
+                    focus_ring(ui, &resp, r, 7.0, th);
                     ui.painter().circle_filled(pos2(r.left() + 12.0, r.center().y), 5.0, col);
                     let name = if self.groups[g].is_empty() { tf("Groupe {}", &[&g]) } else { self.groups[g].clone() };
-                    ui.painter().text(pos2(r.left() + 24.0, r.center().y), Align2::LEFT_CENTER, &name, FontId::new(12.5, bold()), col);
+                    // (the name in the text's colour: written in the group's
+                    // own colour it could not be read — the yellow at 2.8:1
+                    // on the light list, seven of the nine under 3.6:1 on the
+                    // dark one. The dot beside it says the colour.)
+                    ui.painter().text(pos2(r.left() + 24.0, r.center().y), Align2::LEFT_CENTER, &name, FontId::new(12.5, bold()), th.text);
                     let n = self.tabs.iter().filter(|t| t.group == g).count();
                     let folded = self.group_folded(g);
                     ui.painter().text(pos2(r.right() - 8.0, r.center().y), Align2::RIGHT_CENTER, format!("{n} {}", if folded { "▸" } else { "▾" }), FontId::proportional(11.5), th.sub);
                     let resp = resp.tip(tr("Cliquer pour replier le groupe ; clic droit pour le gérer"));
+                    // (for screen readers: the group's name, and whether its tabs are unfolded)
+                    named(&resp, egui::accesskit::Role::Button, &name);
+                    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_expanded(!folded));
                     resp.menu_on_press(|ui| {
                         if self.group_menu(ui, g) {
                             menu_done = true;
@@ -246,13 +257,18 @@ impl Sanaga {
                 } else if resp.hovered() {
                     ui.painter().rect_filled(r, CornerRadius::same(9), th.omnibox_hover);
                 }
+                // (the keyboard is on this tab: Enter or Space shows it)
+                focus_ring(ui, &resp, r.shrink(1.0), 9.0, th);
                 if g > 0 {
                     ui.painter().rect_filled(Rect::from_min_size(pos2(r.left() - 6.0, r.top() + 8.0), vec2(2.5, r.height() - 16.0)), 1.0, self.group_color(g));
                 }
                 if has_kids {
                     // the branch's fold arrow, just left of the icon
                     let fr = Rect::from_center_size(pos2(r.left() + 2.0, r.center().y), vec2(12.0, 16.0));
-                    let fresp = ui.interact(fr, egui::Id::new(("vtree", tab.id)), Sense::click());
+                    // (the arrow is 12 by 16; the click is taken 24 high, and
+                    // as wide as there is room between the list's edge and
+                    // the tab's icon — 16 — without covering either)
+                    let fresp = ui.interact(Rect::from_center_size(pos2(r.left() - 4.0, r.center().y), vec2(16.0, 24.0)), egui::Id::new(("vtree", tab.id)), Sense::click());
                     let c = fr.center();
                     let col = if fresp.hovered() { th.text } else { th.sub };
                     let pts = if tab.tree_folded {
@@ -274,7 +290,8 @@ impl Sanaga {
                 let close_left = !self.store.settings.close_right && ui.rect_contains_pointer(r);
                 if close_left {
                     let cr = Rect::from_center_size(ic, vec2(20.0, 20.0));
-                    let cresp = ui.interact(cr, egui::Id::new(("vclose-left", tab.id)), Sense::click());
+                    // (the cross's square is 20 across; the place that takes the click, 24)
+                    let cresp = ui.interact(click_area(ic), egui::Id::new(("vclose-left", tab.id)), Sense::click());
                     ui.painter().rect_filled(cr, CornerRadius::same(6), if cresp.hovered() { th.border } else { th.omnibox_hover });
                     icons::paint(ui.painter(), cr.shrink(5.0), Icon::Close, th.sub);
                     if cresp.tip(tr("Fermer l'onglet (Ctrl+W)")).clicked() {
@@ -304,7 +321,7 @@ impl Sanaga {
                 }
                 if show_close {
                     let cr = Rect::from_center_size(pos2(r.right() - 16.0, r.center().y), vec2(20.0, 20.0));
-                    let cresp = ui.interact(cr, egui::Id::new(("vclose", tab.id)), Sense::click());
+                    let cresp = ui.interact(click_area(cr.center()), egui::Id::new(("vclose", tab.id)), Sense::click());
                     if cresp.hovered() {
                         ui.painter().rect_filled(cr, CornerRadius::same(6), th.border);
                     }
@@ -332,6 +349,7 @@ impl Sanaga {
                     }
                 }
                 let resp = resp.tip(&title).on_hover_cursor(CursorIcon::PointingHand);
+                named_tab(&resp, &title, active);
                 resp.menu_on_press(|ui| {
                     if self.tab_menu(ui, i) {
                         menu_done = true;
@@ -354,6 +372,8 @@ impl Sanaga {
             if resp.hovered() {
                 ui.painter().rect_filled(r, CornerRadius::same(9), th.omnibox_hover);
             }
+            focus_ring(ui, &resp, r.shrink(1.0), 9.0, th);
+            named(&resp, egui::accesskit::Role::Button, tr("Nouvel onglet"));
             icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(13.0, 13.0)), Icon::Plus, th.sub);
             ui.painter().text(pos2(r.left() + 30.0, r.center().y), Align2::LEFT_CENTER, tr("Nouvel onglet"), FontId::proportional(13.0), th.sub);
             if resp.clicked() {
@@ -379,6 +399,7 @@ impl Sanaga {
         if oresp.hovered() {
             ui.painter().rect_filled(ov, CornerRadius::same(7), th.omnibox_hover);
         }
+        focus_ring(ui, &oresp, ov, 7.0, th);
         icons::paint(ui.painter(), ov.shrink(7.0), Icon::Grid, th.text);
         if oresp.tip(tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {
             self.toggle_overview();
@@ -388,6 +409,7 @@ impl Sanaga {
         if sresp.hovered() {
             ui.painter().rect_filled(sr, CornerRadius::same(7), th.omnibox_hover);
         }
+        focus_ring(ui, &sresp, sr, 7.0, th);
         icons::paint(ui.painter(), sr.shrink(7.0), Icon::Search, th.text);
         if sresp.tip(tr("Rechercher dans les onglets (Ctrl+Maj+A)")).clicked() {
             self.tab_search_open = true;

@@ -147,6 +147,7 @@ pub fn status() -> Option<Status> {
 }
 
 /// The system's package manager and the packages that bring the decoders.
+#[derive(Clone)]
 pub struct Install {
     /// The exact command: shown to the person, and what runs (in a
     /// terminal, where the package manager asks for confirmation).
@@ -163,12 +164,20 @@ fn os_release() -> (String, String) {
 /// How to install the missing decoders on this system: None on an unknown
 /// system, and always None when the distribution ships them with Sanaga.
 pub fn install() -> Option<Install> {
-    // (a distribution or a Flatpak that ships the decoders: never)
-    if distribution().is_some() || in_flatpak() {
-        return None;
-    }
-    let (id, like) = os_release();
-    install_for(&id, &like)
+    // (asked at every frame by the Settings row and by the bar over a video
+    // site: the system is looked at once — it does not become another
+    // while Sanaga runs)
+    static KNOWN: std::sync::OnceLock<Option<Install>> = std::sync::OnceLock::new();
+    KNOWN
+        .get_or_init(|| {
+            // (a distribution or a Flatpak that ships the decoders: never)
+            if distribution().is_some() || in_flatpak() {
+                return None;
+            }
+            let (id, like) = os_release();
+            install_for(&id, &like)
+        })
+        .clone()
 }
 
 /// The install command for a system (its os-release ID and ID_LIKE): the
@@ -196,14 +205,21 @@ fn install_for(id: &str, like: &str) -> Option<Install> {
 /// (xdg-terminal-exec), else the Debian-style alternative. None: the
 /// command can only be copied.
 pub fn terminal() -> Option<Vec<String>> {
-    let on_path = |p: &str| std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|d| d.join(p).is_file()));
-    if on_path("xdg-terminal-exec") {
-        Some(vec!["xdg-terminal-exec".into()])
-    } else if on_path("x-terminal-emulator") {
-        Some(vec!["x-terminal-emulator".into(), "-e".into()])
-    } else {
-        None
-    }
+    // (looked for once: every folder of PATH was asked, twice, at every
+    // frame of the Settings page)
+    static KNOWN: std::sync::OnceLock<Option<Vec<String>>> = std::sync::OnceLock::new();
+    KNOWN
+        .get_or_init(|| {
+            let on_path = |p: &str| std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|d| d.join(p).is_file()));
+            if on_path("xdg-terminal-exec") {
+                Some(vec!["xdg-terminal-exec".into()])
+            } else if on_path("x-terminal-emulator") {
+                Some(vec!["x-terminal-emulator".into(), "-e".into()])
+            } else {
+                None
+            }
+        })
+        .clone()
 }
 
 /// Sites whose videos need the formats above (a bar is offered there).

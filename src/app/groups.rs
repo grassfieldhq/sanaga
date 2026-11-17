@@ -64,7 +64,7 @@ impl Sanaga {
         if name.is_empty() && !folded {
             ui.painter().circle_filled(chip.center(), 6.5, col);
         } else {
-            let fill = if resp.hovered() { col.gamma_multiply(0.85) } else { col };
+            let fill = if resp.hovered() { super::tabs::group_hover(col) } else { col };
             ui.painter().rect_filled(chip, CornerRadius::same(7), fill);
             let text = if folded {
                 if name.is_empty() {
@@ -75,7 +75,7 @@ impl Sanaga {
             } else {
                 name.clone()
             };
-            ui.painter().with_clip_rect(chip.shrink2(vec2(6.0, 0.0))).fit(chip.center(), Align2::CENTER_CENTER, text, FontId::new(12.0, bold()), Color32::WHITE);
+            ui.painter().with_clip_rect(chip.shrink2(vec2(6.0, 0.0))).fit(chip.center(), Align2::CENTER_CENTER, text, FontId::new(12.0, bold()), super::tabs::ink_on(col));
         }
         self.group_label_rects.push((g, r));
         let tip = if folded { tr("Déplier le groupe — clic droit : nom, couleur…") } else { tr("Replier le groupe — clic droit : nom, couleur…") };

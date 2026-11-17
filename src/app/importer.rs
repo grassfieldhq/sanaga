@@ -7,6 +7,11 @@ use super::*;
 use crate::migrate::{self, Source};
 use eframe::egui::{Align, Color32, Layout, Margin, RichText};
 
+thread_local! {
+    /// The other browsers found on this computer (see `Kept`).
+    static SOURCES: std::cell::RefCell<super::settings::Kept<Vec<Source>>> = const { std::cell::RefCell::new(super::settings::Kept::new()) };
+}
+
 pub(super) struct ImportDone {
     pub source: String,
     pub bookmarks: Vec<(String, String)>,
@@ -116,7 +121,11 @@ impl Sanaga {
     }
 
     pub(super) fn page_import(&mut self, ui: &mut Ui, th: &Theme) {
-        let sources = migrate::detect();
+        // (looked for once when the page opens, on a thread — not at every
+        // frame: a dozen folders of other browsers were asked for each time)
+        let found = self.kept(&SOURCES, migrate::detect);
+        let looked = found.is_some();
+        let sources = found.unwrap_or_default();
         let busy = self.import_rx.is_some();
         let mut go: Option<Source> = None;
         let mut csv = false;
@@ -137,10 +146,10 @@ impl Sanaga {
                 ui.checkbox(&mut self.import_passwords, tr("Mots de passe"));
             });
             ui.add_space(10.0);
-            if sources.is_empty() {
+            if looked && sources.is_empty() {
                 ui.label(RichText::new(tr("Aucun autre navigateur trouvé sur cet ordinateur.")).color(th.sub));
             }
-            for s in &sources {
+            for s in sources.iter() {
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {

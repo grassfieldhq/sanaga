@@ -109,11 +109,26 @@ More scripted actions for it: `go:ADDRESS` (in this tab), `opentab:ADDRESS`,
 `section:N` (the Nth Settings category), `syncnow`, and `panic` (a panic
 inside a frame: Sanaga must go on).
 
+## Without a mouse, without the screen
+
+```sh
+SANAGA_DEBUG_A11Y=1 SANAGA_LIVE_TEST="5:key:Tab,6:key:Tab,7:shot,8:quit" ./target/debug/sanaga
+python3 tools/contrast.py     # the tab bar's texts against what is behind them (4.5:1 at least)
+```
+
+`SANAGA_DEBUG_A11Y=1` (debug builds) prints what a screen reader is told,
+each time it changes: one line per named control — `a11y Tab "Wikipédia"
+selected`, `a11y MenuItem "History"`, `a11y Status "Address copied."
+live=Polite` — with `FOCUS` on the one the keyboard is on (and `(no name)`
+if it has none: a defect). Each `key:Tab` moves the keyboard to the next
+control; the picture must show a ring around it.
+
 ## Other switches
 
 | Variable | Effect |
 |---|---|
 | `SANAGA_DEBUG_FRAMES=1` | print each frame's duration |
+| `SANAGA_DEBUG_A11Y=1` | print what screen readers are told, and where the keyboard is (see above); debug builds |
 | `SANAGA_DEBUG_STALLS=30` | print every time the window did not answer for 30 ms or more (`stall … ms after <last command> (layout … ms, painting … ms)`), and each frame whose own work took 4 ms or more (`frame … ms after …`); all builds |
 | `SANAGA_DEBUG_STALL_STACKS=200` | with it: where the window's thread is during a stall of 200 ms or more |
 | `SANAGA_DEBUG_TICK=1` | print the web engine ticks |

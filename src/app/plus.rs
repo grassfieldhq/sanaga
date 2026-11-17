@@ -785,6 +785,10 @@ impl Sanaga {
                     egui::ScrollArea::vertical().max_height(400.0).min_scrolled_height(400.0).show(ui, |ui| {
                         for (k, (what, icon, title, sub)) in lines.iter().enumerate() {
                             let (r, rr) = ui.allocate_exact_size(vec2(w - 20.0, 38.0), Sense::click());
+                            // (for screen readers: a line of the list, with its
+                            // words, and whether it is the one Enter would take)
+                            super::toolbar::named(&rr, egui::accesskit::Role::ListBoxOption, &if sub.is_empty() { title.clone() } else { format!("{title} — {sub}") });
+                            ui.ctx().accesskit_node_builder(rr.id, |node| node.set_selected(k == sel));
                             if k == sel {
                                 ui.painter().rect_filled(r, CornerRadius::same(6), th.accent.gamma_multiply(0.16));
                                 if down || up {

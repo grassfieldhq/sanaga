@@ -47,7 +47,9 @@ impl Sanaga {
                         for (k, (icon, label, id)) in [(Icon::Plus, tr("Onglet"), "new"), (Icon::Grid, tr("Fenêtre"), "window"), (Icon::Private, tr("Privé"), "private")].into_iter().enumerate() {
                             let r = Rect::from_min_size(pos2(row.left() + k as f32 * (bw + 6.0), row.top() + 2.0), vec2(bw, 54.0));
                             let resp = ui.interact(r, egui::Id::new(("menu-quick", k)), Sense::click());
+                            super::toolbar::named(&resp, egui::accesskit::Role::MenuItem, label);
                             ui.painter().rect_filled(r, CornerRadius::same(10), if resp.hovered() { th.track.gamma_multiply(1.5) } else { th.card });
+                            super::chrome::focus_ring(ui, &resp, r, 10.0, th);
                             icons::paint(ui.painter(), Rect::from_center_size(pos2(r.center().x, r.top() + 20.0), vec2(16.0, 16.0)), icon, th.accent);
                             ui.painter().text(pos2(r.center().x, r.bottom() - 13.0), Align2::CENTER_CENTER, label, FontId::proportional(12.0), th.text);
                             if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
@@ -63,6 +65,7 @@ impl Sanaga {
                         let minus = Rect::from_center_size(pos2(r.right() - 142.0, r.center().y), vec2(30.0, 28.0));
                         let pct = Rect::from_center_size(pos2(r.right() - 100.0, r.center().y), vec2(50.0, 28.0));
                         let presp = ui.interact(pct, egui::Id::new("menu-zoom-reset"), Sense::click());
+                        super::chrome::focus_ring(ui, &presp, pct, 8.0, th);
                         ui.painter().text(pct.center(), Align2::CENTER_CENTER, format!("{:.0} %", zoom * 100.0), FontId::proportional(13.0), if presp.hovered() { th.accent } else { th.text });
                         if presp.tip(tr("Réinitialiser le zoom")).clicked() {
                             act.set(Some("z0"));
@@ -72,6 +75,7 @@ impl Sanaga {
                         {
                             let resp = ui.interact(rr, egui::Id::new(("menu-z", id)), Sense::click());
                             ui.painter().rect_filled(rr, CornerRadius::same(8), if resp.hovered() { th.track.gamma_multiply(1.5) } else { th.card });
+                            super::chrome::focus_ring(ui, &resp, rr, 8.0, th);
                             match (icon, id) {
                                 (_, "fullscreen") => {
                                     // four corners: full screen
@@ -114,6 +118,10 @@ impl Sanaga {
                         if resp.hovered() {
                             ui.painter().rect_filled(r, CornerRadius::same(7), th.track.gamma_multiply(0.9));
                         }
+                        // (for screen readers: a line that opens more lines, open or not)
+                        super::toolbar::named(&resp, egui::accesskit::Role::MenuItem, tr("Plus d'outils"));
+                        ui.ctx().accesskit_node_builder(resp.id, |node| node.set_expanded(more));
+                        super::chrome::focus_ring(ui, &resp, r, 7.0, th);
                         icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(14.0, 14.0)), Icon::More, th.text);
                         ui.painter().text(pos2(r.left() + 34.0, r.center().y), Align2::LEFT_CENTER, tr("Plus d'outils"), FontId::proportional(13.5), th.text);
                         icons::paint(ui.painter(), Rect::from_center_size(pos2(r.right() - 14.0, r.center().y), vec2(10.0, 10.0)), if more { Icon::Down } else { Icon::Forward }, th.sub);
@@ -254,6 +262,8 @@ fn sep(ui: &mut Ui, th: &Theme, w: f32) {
 /// One line of the menu: symbol, words, shortcut; the accent behind it on hover.
 fn menu_row(ui: &mut Ui, th: &Theme, w: f32, icon: Icon, label: &str, key: &str) -> bool {
     let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), Sense::click());
+    // (its words, for screen readers: the line was a button with no name)
+    super::toolbar::named(&resp, egui::accesskit::Role::MenuItem, label);
     let hovered = resp.hovered();
     if hovered {
         ui.painter().rect_filled(r, CornerRadius::same(7), th.accent);
