@@ -749,7 +749,15 @@ impl Sanaga {
             self.inline_typed.clear();
         }
         if resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+            // Shift+Enter: what is typed is asked of the assistant, not searched
+            let ask = ui.input(|i| i.modifiers.shift) && !self.store.settings.ai.is_empty() && !self.tabs[a].address.trim().is_empty();
             match picked {
+                _ if ask => {
+                    let question = if self.suggest_sel.is_some() { self.suggest_typed.clone() } else { self.tabs[a].address.clone() };
+                    self.suggest_open = false;
+                    self.suggest_sel = None;
+                    self.ask_assistant(&question);
+                }
                 Some(u) => self.activate_suggestion(&u),
                 None => {
                     // (a site's name completed while typing leads where the site

@@ -462,6 +462,25 @@ impl Sanaga {
         }
     }
 
+    /// A question typed in the address bar: a new conversation that begins
+    /// with it. The page shown does not go with it (it was not asked
+    /// about); the address field shows the page's address again.
+    pub(super) fn ask_assistant(&mut self, question: &str) {
+        let question = question.trim().to_string();
+        if question.is_empty() {
+            return;
+        }
+        let a = self.active;
+        self.tabs[a].address = self.tabs[a].url().to_string();
+        self.focus_address = false;
+        self.new_conversation();
+        self.ensure_skills();
+        if let Some(a) = self.assistant.as_mut() {
+            a.with_page = false;
+        }
+        self.assistant_call(&question);
+    }
+
     /// Words selected in a page, to ask about (the page's right-click menu).
     pub(super) fn ask_about_selection(&mut self, tab: u64, words: String) {
         let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };

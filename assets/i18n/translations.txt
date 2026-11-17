@@ -1385,3 +1385,4 @@ comparer⟂compare⟂comparar⟂comparar⟂vergleichen
 Les pages jointes : ce qui les rapproche, ce qui les sépare⟂The attached pages: what they share, what sets them apart⟂Las páginas adjuntas: lo que las acerca, lo que las separa⟂As páginas juntas: o que as aproxima, o que as separa⟂Die angehängten Seiten: was sie verbindet, was sie trennt
 à-faire⟂to-do⟂tareas⟂tarefas⟂aufgaben
 Ce que la page demande de faire : étapes, dates, montants⟂What the page asks you to do: steps, dates, amounts⟂Lo que la página pide hacer: pasos, fechas, importes⟂O que a página pede para fazer: passos, datas, montantes⟂Was die Seite von Ihnen verlangt: Schritte, Termine, Beträge
+{} — Demander à l'assistant (Maj+Entrée)⟂{} — Ask the assistant (Shift+Enter)⟂{} — Preguntar al asistente (Mayús+Intro)⟂{} — Perguntar ao assistente (Shift+Enter)⟂{} — Den Assistenten fragen (Umschalt+Eingabe)
