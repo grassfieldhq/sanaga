@@ -6,6 +6,8 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-17
+
 What the comparison with the Dia browser asked for
 ([docs/DIA-AUDIT-2026-11-17.md](docs/DIA-AUDIT-2026-11-17.md)): the ✦
 button was a summary, it is now an assistant.
