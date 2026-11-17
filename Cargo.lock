@@ -3357,7 +3357,7 @@ dependencies = [
 
 [[package]]
 name = "sanaga"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -3393,7 +3393,7 @@ dependencies = [
 
 [[package]]
 name = "sanaga-page-helper"
-version = "0.4.0"
+version = "0.5.0"
 
 [[package]]
 name = "scoped-tls"

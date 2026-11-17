@@ -6,6 +6,8 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-17
+
 ### Changed
 - Keyboard: the place where the keyboard is shows everywhere — tabs,
   the star, favourites, the side panel's rows, the new tab's tiles, the
