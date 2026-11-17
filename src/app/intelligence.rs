@@ -189,6 +189,10 @@ impl Sanaga {
     /// tab's page was sent to the online service like any other.)
     pub(super) fn page_text_provider(&self, tab: u64) -> Provider {
         let provider = self.ai_provider();
+        // (a site the administrator keeps from every model)
+        if self.tabs.iter().any(|t| t.id == tab && !crate::policy::get().ai_allowed_on(t.url())) {
+            return Provider::Local;
+        }
         let private = self.tabs.iter().any(|t| t.id == tab && t.private);
         match provider {
             Provider::Claude { .. } | Provider::Cli { .. } if private => Provider::Local,
@@ -198,6 +202,10 @@ impl Sanaga {
 
     /// The model chosen in Settings › Intelligence (with its key, for Claude).
     pub(super) fn ai_provider(&self) -> Provider {
+        // (no AI at all, by the administrator's choice)
+        if crate::policy::get().ai_off {
+            return Provider::Local;
+        }
         let st = &self.store.settings;
         if let Some(tool) = crate::ai_cli::CliTool::from_key(&st.ai) {
             return Provider::Cli { tool, model: st.ai_model.clone() };

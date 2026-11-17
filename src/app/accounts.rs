@@ -246,6 +246,9 @@ impl Sanaga {
                     app.store.reading = settle(&reading_before, &app.store.reading, list);
                     app.store.save_reading();
                 }
+                if synced.skills {
+                    app.reload_skills();
+                }
             },
         );
     }

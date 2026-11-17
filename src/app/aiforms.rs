@@ -164,6 +164,9 @@ impl Sanaga {
         if t.private && !private {
             return answer(ask, "This tab is private: its page is not given.", true);
         }
+        if !crate::policy::get().ai_allowed_on(t.url()) {
+            return answer(ask, "The administrator of this computer does not let this site's pages be given.", true);
+        }
         let Some((tab, address)) = self.form_page() else { return answer(ask, "The tab shown has no web page.", true) };
         let Some(w) = self.tabs[self.active].web.as_ref() else { return };
         let (tx, repaint) = (self.ai_tx.clone(), self.ctx.clone());

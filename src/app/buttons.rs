@@ -29,6 +29,7 @@ pub(super) fn commands() -> Vec<(&'static str, &'static str)> {
         ("reader", tr("Lecteur")),
         ("ask", tr("Poser une question à l'assistant")),
         ("notes", tr("Notes")),
+        ("copymd", tr("Copier le lien en Markdown")),
         ("summary", tr("Résumer la page")),
         ("translate", tr("Traduire la page")),
         ("overview", tr("Aperçu des onglets")),

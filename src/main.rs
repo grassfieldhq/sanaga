@@ -46,6 +46,7 @@ mod mutate;
 mod net;
 mod notes;
 mod page;
+mod policy;
 mod shell;
 mod site_prefs;
 mod skills;

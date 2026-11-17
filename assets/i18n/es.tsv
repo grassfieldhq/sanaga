@@ -1429,3 +1429,11 @@ Les réponses de l'assistant que vous avez gardées. Ce sont des fichiers texte 
 Aucune note. Sous une réponse de l'assistant : « Garder comme note ».	Ninguna nota. Bajo una respuesta del asistente: «Guardar como nota».
 Note copiée.	Nota copiada.
 Les réponses que vous avez gardées	Las respuestas que ha guardado
+Le moteur web de ce système (WebKitGTK {}) a {} mois : sa série ne reçoit plus de correctifs de sécurité. Mettez votre système à jour pour obtenir un moteur récent.	El motor web de este sistema (WebKitGTK {}) tiene {} meses: su serie ya no recibe correcciones de seguridad. Actualice su sistema para obtener un motor reciente.
+L'assistant est désactivé par l'administrateur de cet ordinateur.	El asistente está desactivado por el administrador de este ordenador.
+L'administrateur de cet ordinateur ne laisse pas l'assistant lire ce site.	El administrador de este ordenador no permite que el asistente lea este sitio.
+Non lu, par réglage de l'administrateur : {}	No leído, por ajuste del administrador: {}
+L'administrateur de cet ordinateur a désactivé l'intelligence artificielle : les réglages ci-dessous sont sans effet, et les résumés sont ceux de Sanaga seul.	El administrador de este ordenador ha desactivado la inteligencia artificial: los ajustes de abajo no tienen efecto, y los resúmenes son los de Sanaga solo.
+L'administrateur de cet ordinateur ne laisse aucun modèle lire ces sites : {}	El administrador de este ordenador no deja que ningún modelo lea estos sitios: {}
+Copier le lien en Markdown	Copiar el enlace en Markdown
+Lien copié en Markdown.	Enlace copiado en Markdown.

@@ -552,9 +552,56 @@ pub fn js_str(s: &str) -> String {
     out
 }
 
+// ---------------------------------------------------------------- the engine's age
+
+/// How many months old a WebKitGTK series is at `now` (seconds since
+/// 1970): its stable series come out every March and September (2.44 in
+/// March 2024, 2.46 in September 2024, and so on), and only the latest one
+/// gets security fixes. `None` for a development series (odd numbers) and
+/// for those before 2.44.
+pub fn engine_series_age(minor: u32, now: u64) -> Option<i64> {
+    if minor % 2 == 1 || minor < 44 {
+        return None;
+    }
+    // (months counted from year 0; March is month 2)
+    let series = (2024 * 12 + 2) + ((minor as i64 - 44) / 2) * 6;
+    // the year and month of `now` (the civil calendar from a count of days)
+    let z = (now / 86_400) as i64 + 719_468;
+    let (era, doe) = (z.div_euclid(146_097), z.rem_euclid(146_097));
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    Some(year * 12 + (month - 1) - series)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_engine_series_has_an_age() {
+        // (the 15th of a month, in seconds since 1970)
+        let at = |y: i64, m: i64| -> u64 {
+            let before = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334][(m - 1) as usize];
+            let leaps = (y - 1969) / 4 + i64::from(m > 2 && y % 4 == 0);
+            ((y - 1970) * 365 + leaps + before + 14) as u64 * 86_400
+        };
+        // 2.48 came out in March 2025
+        assert_eq!(engine_series_age(48, at(2025, 3)), Some(0));
+        assert_eq!(engine_series_age(48, at(2025, 9)), Some(6));
+        assert_eq!(engine_series_age(48, at(2026, 11)), Some(20));
+        assert_eq!(engine_series_age(52, at(2026, 11)), Some(8));
+        assert_eq!(engine_series_age(54, at(2026, 11)), Some(2));
+        assert_eq!(engine_series_age(44, at(2024, 3)), Some(0));
+        assert_eq!(engine_series_age(46, at(2024, 12)), Some(3));
+        assert_eq!(engine_series_age(46, at(2025, 1)), Some(4));
+        // a series from the future (the clock is wrong), a development series, an old one
+        assert_eq!(engine_series_age(60, at(2026, 11)), Some(-16));
+        assert_eq!(engine_series_age(53, at(2026, 11)), None);
+        assert_eq!(engine_series_age(40, at(2026, 11)), None);
+    }
 
     #[test]
     fn what_is_dropped_is_an_address_a_file_or_words() {

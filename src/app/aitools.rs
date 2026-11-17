@@ -331,6 +331,7 @@ impl Sanaga {
                 match self.tabs.iter().find(|t| t.id == id) {
                     None => answer(ask, "No such tab: use the numbers list_tabs gives.", true),
                     Some(t) if t.private && !private => answer(ask, "This tab is private: its page is not given.", true),
+                    Some(t) if !crate::policy::get().ai_allowed_on(t.url()) => answer(ask, "The administrator of this computer does not let this site's pages be given.", true),
                     Some(_) => self.read_tab_for_tool(id, ask),
                 }
             }

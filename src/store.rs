@@ -157,6 +157,9 @@ pub struct Settings {
     /// conversations are kept on this computer.
     pub ai_tools: bool,
     pub keep_chats: bool,
+    /// The engine version the person was last told is too old (told once
+    /// per version, not at every start).
+    pub engine_warned: String,
     /// Where downloads go ("" = the system's Downloads folder), and whether
     /// each download asks where to save it.
     pub download_dir: String,
@@ -356,6 +359,7 @@ impl Default for Settings {
             translate_skip: Vec::new(),
             ai_tools: true,
             keep_chats: true,
+            engine_warned: String::new(),
             download_dir: String::new(),
             download_ask: false,
             https_first: true,
@@ -787,6 +791,7 @@ impl Store {
                         "translate_offer" => st.translate_offer = v == "1",
                         "ai_tools" => st.ai_tools = v == "1",
                         "keep_chats" => st.keep_chats = v == "1",
+                        "engine_warned" => st.engine_warned = v.to_string(),
                         "translate_skip" => st.translate_skip = v.split(',').map(str::trim).filter(|h| !h.is_empty()).map(str::to_string).collect(),
                         "close_right" => st.close_right = v == "1",
                         "download_dir" => st.download_dir = v.to_string(),
@@ -853,12 +858,13 @@ impl Store {
             st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right), clean(&st.profile_name), st.profile_color, b(st.full_urls)
         );
         let extra = format!(
-            "block_lists={}\ntranslate_offer={}\ntranslate_skip={}\nai_tools={}\nkeep_chats={}\n",
+            "block_lists={}\ntranslate_offer={}\ntranslate_skip={}\nai_tools={}\nkeep_chats={}\nengine_warned={}\n",
             b(st.block_lists),
             b(st.translate_offer),
             clean(&st.translate_skip.join(",")),
             b(st.ai_tools),
-            b(st.keep_chats)
+            b(st.keep_chats),
+            clean(&st.engine_warned)
         );
         let network = format!(
             "download_dir={}\ndownload_ask={}\nhttps_first={}\nproxy={}\nupdate_check={}\nsafe_sites={}\ndoh={}\n",

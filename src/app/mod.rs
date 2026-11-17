@@ -1317,6 +1317,16 @@ impl Sanaga {
         if app.store.settings.ai == "claude" {
             app.check_ai_key();
         }
+        // an engine too old to be safe: said once for each version of it
+        // (and always on the About page)
+        if crate::shell::active() && app.slot == 0 && !app.guest {
+            let version = crate::page::engine_version();
+            if let Some(months) = crate::page::engine_is_old(crate::store::now()).filter(|_| app.store.settings.engine_warned != version) {
+                app.notice = Some((pages::engine_old_text(months), app.ctx.input(|i| i.time) + 8.0));
+                app.store.settings.engine_warned = version;
+                app.store.save_settings();
+            }
+        }
         app
     }
 

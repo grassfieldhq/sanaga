@@ -391,6 +391,14 @@ impl Sanaga {
             p => p,
         };
         if provider == Provider::Local {
+            let policy = crate::policy::get();
+            let here = self.tabs.iter().find(|t| t.id == tab).map(|t| t.url().to_string()).unwrap_or_default();
+            if policy.ai_off {
+                return Err(tr("L'assistant est désactivé par l'administrateur de cet ordinateur.").to_string());
+            }
+            if !policy.ai_allowed_on(&here) {
+                return Err(tr("L'administrateur de cet ordinateur ne laisse pas l'assistant lire ce site.").to_string());
+            }
             return Err(if chosen != Provider::Local {
                 tr("Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.").to_string()
             } else {
@@ -617,8 +625,16 @@ impl Sanaga {
         });
         let mut pages = Vec::new();
         let mut private = false;
+        let mut kept_out: Vec<String> = Vec::new();
         for id in tabs {
             let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) else { continue };
+            // (a site the administrator keeps from every model is not read —
+            // except for its summary, which is then Sanaga's own extract,
+            // made on this computer: see assistant_step)
+            if !crate::policy::get().ai_allowed_on(t.url()) && !(summary && id == active) {
+                kept_out.push(host_of(t.url()));
+                continue;
+            }
             private |= t.private;
             let address = t.url().to_string();
             let got = match &t.view {
@@ -645,6 +661,9 @@ impl Sanaga {
         let now = self.ctx.input(|i| i.time);
         if let Some(a) = self.assistant.as_mut() {
             a.private |= private;
+            if !kept_out.is_empty() {
+                a.note = tf("Non lu, par réglage de l'administrateur : {}", &[&kept_out.join(", ")]);
+            }
             a.pending = Some(Pending { text, label, summary, pages, extra, since: now });
         }
     }

@@ -1383,6 +1383,13 @@ fn pressure_settings() -> webkit6::MemoryPressureSettings {
 }
 
 /// The web engine's version ("2.52.6"), for crash reports.
+/// The engine in use belongs to a series that no longer gets security
+/// fixes: its age in months, when it is well past the next series' coming
+/// (a year and a month: a distribution is given time to bring the new one).
+pub fn engine_is_old(now: u64) -> Option<i64> {
+    crate::guard::engine_series_age(webkit6::functions::minor_version(), now).filter(|months| *months >= 13)
+}
+
 pub fn engine_version() -> String {
     format!("{}.{}.{}", webkit6::functions::major_version(), webkit6::functions::minor_version(), webkit6::functions::micro_version())
 }

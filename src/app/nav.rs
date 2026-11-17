@@ -834,6 +834,13 @@ impl Sanaga {
                 "notes" => {
                     self.open_tab("sanaga://notes", false);
                 }
+                // "[title](address)", for notes and messages written in Markdown
+                "copymd" => {
+                    if let Some((address, title)) = self.current_page() {
+                        self.ctx.copy_text(super::extras::markdown_link(&title, &address));
+                        self.say(tr("Lien copié en Markdown."));
+                    }
+                }
                 "devices" => self.toggle_devices(),
                 "print" => self.print_page(),
                 "source" => self.view_source(),

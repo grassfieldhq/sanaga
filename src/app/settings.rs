@@ -1402,6 +1402,13 @@ impl Sanaga {
                 }
                 _ => {}
             }
+            // what the administrator of the computer fixed is said first
+            let policy = crate::policy::get();
+            if policy.ai_off {
+                footnote(ui, th, tr("L'administrateur de cet ordinateur a désactivé l'intelligence artificielle : les réglages ci-dessous sont sans effet, et les résumés sont ceux de Sanaga seul."));
+            } else if !policy.ai_no_sites.is_empty() {
+                footnote(ui, th, &tf("L'administrateur de cet ordinateur ne laisse aucun modèle lire ces sites : {}", &[&policy.ai_no_sites.join(", ")]));
+            }
             group(ui, th, tr("Assistant"), |ui, rows| {
                 changed |= rows.switch(
                     ui,
