@@ -61,6 +61,7 @@ impl Sanaga {
             parent: None,
             tree_folded: false,
             companion: false,
+            load_behind: false,
         });
         let i = self.tabs.len() - 1;
         self.active = i;
@@ -74,7 +75,13 @@ impl Sanaga {
     /// Open in a background tab (the current tab stays in front).
     pub(super) fn open_background(&mut self, url: &str, private: bool) {
         let cur = self.active;
-        self.open_tab(url, private);
+        let i = self.open_tab(url, private);
+        // (asked for by the person, now: it loads behind, as in other
+        // browsers — it used to show no title and no icon, and to start
+        // loading only once looked at)
+        if let Some(t) = self.tabs.get_mut(i) {
+            t.load_behind = true;
+        }
         self.active = cur;
         self.focus_address = false;
     }
@@ -581,6 +588,22 @@ impl Sanaga {
                 (sc(cs, Key::B), "bmbar"),
                 (sc(cs, Key::R), "reader"),
                 (sc(cs, Key::Backslash), "overview"),
+                (sc(c, Key::Num1), "tab1"),
+                (sc(c, Key::Num2), "tab2"),
+                (sc(c, Key::Num3), "tab3"),
+                (sc(c, Key::Num4), "tab4"),
+                (sc(c, Key::Num5), "tab5"),
+                (sc(c, Key::Num6), "tab6"),
+                (sc(c, Key::Num7), "tab7"),
+                (sc(c, Key::Num8), "tab8"),
+                (sc(c, Key::Num9), "tablast"),
+                (sc(c, Key::F5), "hardreload"),
+                (sc(Modifiers::SHIFT, Key::F5), "hardreload"),
+                (sc(Modifiers::SHIFT, Key::F3), "findprev"),
+                (sc(cs, Key::G), "findprev"),
+                (sc(Modifiers::NONE, Key::F3), "findnext"),
+                (sc(c, Key::G), "findnext"),
+                (sc(Modifiers::ALT, Key::D), "addr"),
                 (sc(cs, Key::O), "overview"),
                 (sc(cs, Key::F), "contacts"),
                 (sc(cs, Key::A), "tabsearch"),
@@ -669,6 +692,32 @@ impl Sanaga {
                 "prev" | "tableft" => self.tab_bar_step(false),
                 "addr" => self.focus_address = true,
                 "reload" => self.reload(a),
+                "hardreload" => {
+                    match self.tabs.get(a).filter(|t| matches!(t.view, View::Web)).and_then(|t| t.web.as_ref()) {
+                        Some(w) => w.reload_fresh(),
+                        None => self.reload(a),
+                    }
+                }
+                // Ctrl+1…8: that tab of the bar; Ctrl+9: the last one
+                "tab1" | "tab2" | "tab3" | "tab4" | "tab5" | "tab6" | "tab7" | "tab8" | "tablast" => {
+                    let order = self.visible_tabs();
+                    let place = t[3..].parse::<usize>().ok().map(|n| n - 1).unwrap_or(order.len().saturating_sub(1));
+                    if let Some(&i) = order.get(place) {
+                        self.active = i;
+                        self.current_group = self.tabs[i].group;
+                    }
+                }
+                // F3, Ctrl+G: the next match of the words searched (the
+                // search opens if nothing was searched yet)
+                "findnext" | "findprev" => {
+                    if self.find_query.is_empty() {
+                        self.find_open = true;
+                        self.focus_find = true;
+                    } else if self.tabs.get(a).is_some_and(|x| matches!(x.view, View::Web)) {
+                        self.find_open = true;
+                        self.web_find(t == "findprev", false);
+                    }
+                }
                 "back" => self.go_history(a, -1),
                 "fwd" => self.go_history(a, 1),
                 "home" => self.go_home(a),

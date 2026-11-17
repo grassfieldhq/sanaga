@@ -655,10 +655,19 @@ impl Sanaga {
         }
         // progress along the bottom of the field
         if loading {
-            let t = ui.input(|i| i.time) as f32;
-            let w = rect.width() * 0.3;
-            let x = rect.left() + (t * 0.8).fract() * (rect.width() + w) - w;
-            let bar = Rect::from_min_max(pos2(x.max(rect.left() + 8.0), rect.bottom() - 2.5), pos2((x + w).min(rect.right() - 8.0), rect.bottom() - 0.5));
+            // (how far the engine says the page has come; a moving bar for
+            // a page it has not started on yet, and for the Light engine,
+            // which gives no measure)
+            let progress = self.tabs[a].web.as_ref().filter(|_| matches!(self.tabs[a].view, View::Web)).map(|w| w.load_progress()).filter(|p| *p > 0.0 && *p < 1.0);
+            let bar = match progress {
+                Some(p) => Rect::from_min_max(pos2(rect.left() + 8.0, rect.bottom() - 2.5), pos2(rect.left() + 8.0 + (rect.width() - 16.0) * p.max(0.06), rect.bottom() - 0.5)),
+                None => {
+                    let t = ui.input(|i| i.time) as f32;
+                    let w = rect.width() * 0.3;
+                    let x = rect.left() + (t * 0.8).fract() * (rect.width() + w) - w;
+                    Rect::from_min_max(pos2(x.max(rect.left() + 8.0), rect.bottom() - 2.5), pos2((x + w).min(rect.right() - 8.0), rect.bottom() - 0.5))
+                }
+            };
             if bar.width() > 0.0 {
                 ui.painter().rect_filled(bar, 1.0, th.accent);
             }

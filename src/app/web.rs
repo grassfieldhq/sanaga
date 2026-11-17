@@ -52,6 +52,10 @@ pub(super) enum WebEvent {
     Scrolled { tab: u64, share: f32 },
     /// The language a page says it is written in ("en", "pt-br"…).
     PageLanguage { tab: u64, lang: String },
+    /// The link under the mouse in this tab's page.
+    Hover { tab: u64, url: Option<String> },
+    /// This tab's page fills the screen (a video), or no longer does.
+    PageFullscreen { tab: u64, on: bool },
     /// Find in page: how many matches the engine found in this tab.
     Found { tab: u64, count: u32 },
     /// Find in page: the place of the match shown, and Sanaga's own count
@@ -238,6 +242,8 @@ impl PageMaker {
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
                 PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
+                PageSignal::Hover(url) => WebEvent::Hover { tab: id, url },
+                PageSignal::Fullscreen(on) => WebEvent::PageFullscreen { tab: id, on },
                 PageSignal::Found(count) => WebEvent::Found { tab: id, count },
                 PageSignal::FoundAt(at, of) => WebEvent::FoundAt { tab: id, at, of },
                 PageSignal::Message(body) => {
@@ -490,6 +496,24 @@ impl Sanaga {
                 }
             }
             WebEvent::PageLanguage { tab, lang } => self.page_language(tab, &lang),
+            WebEvent::Hover { tab, url } => {
+                if self.tabs.get(self.active).is_some_and(|t| t.id == tab) {
+                    self.web_hover = url;
+                }
+            }
+            WebEvent::PageFullscreen { tab, on } => {
+                if on {
+                    // Sanaga's bars go while the page fills the screen
+                    // (what they were is remembered for the way back)
+                    if self.page_fullscreen.is_none() {
+                        self.page_fullscreen = Some((tab, self.focus_mode));
+                        self.focus_mode = true;
+                        self.menu_open = false;
+                    }
+                } else if let Some((_, before)) = self.page_fullscreen.take_if(|(t, _)| *t == tab) {
+                    self.focus_mode = before;
+                }
+            }
             WebEvent::Found { tab, count } => {
                 // (only a new search counts the matches: going to the next
                 // one, the engine answers "1" — the one it went to)
@@ -694,9 +718,12 @@ impl Sanaga {
         };
         let zf = self.ctx.zoom_factor();
         let win = self.ctx.content_rect();
+        // (a page that fills the screen starts at the very top: no line
+        // of the interface is left above it)
+        let line = if self.page_fullscreen.is_some() { 0.0 } else { 1.0 };
         let insets = [
             (content.left() - win.left()) * zf,
-            (content.top() + 1.0 - win.top()) * zf,
+            (content.top() + line - win.top()) * zf,
             (win.right() - content.right()) * zf,
             (win.bottom() - content.bottom()) * zf,
         ]
@@ -736,7 +763,7 @@ impl Sanaga {
             if self.tabs[i].web.is_none() {
                 // A tab's page only starts when the tab is shown (100 open tabs
                 // don't mean 100 running pages).
-                if i != active && Some(i) != partner {
+                if i != active && Some(i) != partner && !std::mem::take(&mut self.tabs[i].load_behind) {
                     if self.tabs[i].web_pending.is_some() {
                         self.tabs[i].loading = false;
                     }

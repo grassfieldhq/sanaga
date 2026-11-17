@@ -206,6 +206,9 @@ struct Tab {
     /// Show the whole page (menus, sidebars) instead of the main content.
     full: bool,
     web: Option<crate::page::PageView>,
+    /// Opened behind the tab in use by the person (middle click, Ctrl+click):
+    /// its page loads at once, without waiting to be shown.
+    load_behind: bool,
     web_pending: Option<String>,
     /// The person asked for `web_pending` now (not a restored or woken tab).
     web_by_person: bool,
@@ -446,6 +449,11 @@ pub struct Sanaga {
     suggest_open: bool,
     suggest_rect: Rect,
     hover_url: Option<String>,
+    /// The link under the mouse in the web page shown.
+    web_hover: Option<String>,
+    /// The tab whose page fills the screen (a video's full-screen button),
+    /// and whether the focus mode was on before.
+    page_fullscreen: Option<(u64, bool)>,
     history_filter: String,
     closed: Vec<String>,
     mem: (f64, u64),
@@ -876,6 +884,8 @@ impl Sanaga {
             suggest_open: false,
             suggest_rect: Rect::NOTHING,
             hover_url: None,
+            web_hover: None,
+            page_fullscreen: None,
             history_filter: String::new(),
             closed: Vec::new(),
             mem: (-10.0, 0),
@@ -2235,6 +2245,24 @@ impl Sanaga {
             crate::stage("f: pages placed");
         }
 
+        // a page that fills the screen leaves it when its tab is no longer
+        // the one shown (closed, another tab chosen with the keyboard)
+        if let Some((tab, before)) = self.page_fullscreen {
+            if self.tabs.get(self.active).is_none_or(|t| t.id != tab) {
+                self.page_fullscreen = None;
+                self.focus_mode = before;
+                if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+                    w.leave_fullscreen();
+                }
+            }
+        }
+        // where the link under the mouse goes: shown above the web page,
+        // at its bottom left (the page covers what the interface draws)
+        let shown_web = self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Web) && t.web_shown);
+        if !shown_web {
+            self.web_hover = None;
+        }
+        crate::shell::status(self.web_hover.as_deref().filter(|_| self.page_fullscreen.is_none()));
         // link preview bubble, bottom-left
         if let Some(u) = &self.hover_url {
             let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("status")));

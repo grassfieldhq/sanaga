@@ -43,6 +43,11 @@ pub enum PageSignal {
     /// A link to a site whose videos need a DRM WebKit doesn't have
     /// (Netflix…): not loaded here; Sanaga opens it where it plays.
     Protected(String),
+    /// The link under the mouse (None: none any more).
+    Hover(Option<String>),
+    /// The page asked to fill the screen (a video's full-screen button),
+    /// or left it.
+    Fullscreen(bool),
     /// Find in page: how many times the words are in the page (0: nowhere).
     Found(u32),
     /// Find in page: which match is shown (1 is the first of the page), and
@@ -810,7 +815,7 @@ fn shortcut_message(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, 
         "KP_Add" => "+".into(),
         "KP_Subtract" => "-".into(),
         "KP_0" => "0".into(),
-        "F5" | "F6" | "F9" | "F11" | "F12" => name.to_lowercase(),
+        "F3" | "F5" | "F6" | "F9" | "F11" | "F12" => name.to_lowercase(),
         _ => key.to_unicode().filter(|c| c.is_ascii_graphic())?.to_ascii_lowercase().to_string(),
     };
     let flag = |m: M, c: &'static str| if state.contains(m) { c } else { "" };
@@ -821,7 +826,7 @@ fn shortcut_message(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, 
 /// (as in every browser: a page cannot keep its own tab from closing).
 /// The others go to the page first, and to Sanaga if the page leaves them.
 fn reserved_shortcut(name: &str) -> bool {
-    matches!(name, "new" | "window" | "private" | "reopen" | "close" | "next" | "prev" | "tabright" | "tableft" | "quit")
+    matches!(name, "new" | "window" | "private" | "reopen" | "close" | "next" | "prev" | "tabright" | "tableft" | "quit") || name.starts_with("tab")
 }
 
 /// A key the page was given and did not use (the engine hands it back to
@@ -853,6 +858,22 @@ pub fn shortcut_name(msg: &str) -> Option<&'static str> {
     let s = mods.contains('s');
     let a = mods.contains('a');
     Some(match (c, s, a, key) {
+        // Ctrl+1…8: that tab; Ctrl+9: the last one
+        (true, false, false, "1") => "tab1",
+        (true, false, false, "2") => "tab2",
+        (true, false, false, "3") => "tab3",
+        (true, false, false, "4") => "tab4",
+        (true, false, false, "5") => "tab5",
+        (true, false, false, "6") => "tab6",
+        (true, false, false, "7") => "tab7",
+        (true, false, false, "8") => "tab8",
+        (true, false, false, "9") => "tablast",
+        // Ctrl+F5, Shift+F5: load again without the cache
+        (true, _, _, "f5") | (false, true, _, "f5") => "hardreload",
+        // F3, Ctrl+G: the next match of the search; with Shift: the one before
+        (_, true, _, "f3") | (true, true, _, "g") => "findprev",
+        (_, false, _, "f3") | (true, false, _, "g") => "findnext",
+        (false, false, true, "d") => "addr",
         (true, true, _, "n") => "private",
         (true, true, _, "t") => "reopen",
         (true, true, _, "b") => "bmbar",
@@ -1319,6 +1340,18 @@ pub struct PageView {
 }
 
 impl PageView {
+    /// How far the page being loaded has come (0 to 1), as the engine
+    /// estimates it.
+    pub fn load_progress(&self) -> f32 {
+        self.view.estimated_load_progress() as f32
+    }
+
+    /// Leave the full screen a page asked for (the page is asked to: the
+    /// engine gives the browser no call of its own for it).
+    pub fn leave_fullscreen(&self) {
+        let _ = self.evaluate_own("if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();");
+    }
+
     /// Was the page shown received over HTTPS with a certificate the
     /// system trusts (true), or with one it does not, after the person
     /// chose to go on (false)? None: not over HTTPS, or not known yet.
@@ -1499,6 +1532,29 @@ impl PageView {
             let o = on.clone();
             find.connect_failed_to_find_text(move |_| o(PageSignal::Found(0)));
         }
+        // where the link under the mouse goes (told when it changes)
+        let o = on.clone();
+        let over: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+        view.connect_mouse_target_changed(move |_, hit, _| {
+            let link = if hit.context_is_link() { hit.link_uri().map(|u| u.to_string()) } else { None };
+            if *over.borrow() != link {
+                *over.borrow_mut() = link.clone();
+                o(PageSignal::Hover(link));
+            }
+        });
+        // a video's full-screen button: the engine makes the window fill
+        // the screen; Sanaga takes its own bars away (they used to stay,
+        // the video filling only the page's place under them)
+        let o = on.clone();
+        view.connect_enter_fullscreen(move |_| {
+            o(PageSignal::Fullscreen(true));
+            false
+        });
+        let o = on.clone();
+        view.connect_leave_fullscreen(move |_| {
+            o(PageSignal::Fullscreen(false));
+            false
+        });
         // the page's icon, as WebKit loaded it
         let o = on.clone();
         view.connect_favicon_notify(move |v| {
@@ -1909,6 +1965,10 @@ impl PageView {
     pub fn reload(&self) -> R<()> {
         self.view.reload();
         Ok(())
+    }
+    /// Load the page again from the network, nothing taken from the cache.
+    pub fn reload_fresh(&self) {
+        self.view.reload_bypass_cache();
     }
     pub fn go_back(&self) -> R<()> {
         self.view.go_back();

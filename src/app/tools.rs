@@ -294,6 +294,9 @@ impl Sanaga {
         self.tabs[i].parent = Some(tab);
         self.tabs[i].container = container;
         self.tabs[i].group = group;
+        // (a tab behind, asked for now by the person: its page loads at
+        // once — it showed no title and no icon until it was looked at)
+        self.tabs[i].load_behind = how == 0;
         // next to the page it came from, after the links already opened from it
         let mut to = from + 1;
         while to < self.tabs.len() - 1 && self.tabs[to].parent == Some(tab) && to != i {

@@ -35,6 +35,9 @@ struct Host {
     /// Sanaga's short messages ("Link copied"…), above the page: drawn by
     /// the interface they would be hidden under it.
     toast: gtk::Label,
+    /// The address of the link under the mouse, at the bottom left of the
+    /// page, above it.
+    status: gtk::Label,
     /// The mobile simulator's drawn device, above the page (clicks go through).
     device_frame: gtk::DrawingArea,
     device_pic: Rc<RefCell<Option<gtk::cairo::ImageSurface>>>,
@@ -410,6 +413,35 @@ pub fn toast(text: Option<&str>) -> bool {
     true
 }
 
+/// Show where the link under the mouse goes, at the bottom left of the page
+/// and above it (None hides it). False when there is no GTK window.
+pub fn status(text: Option<&str>) -> bool {
+    let Some(h) = host() else { return false };
+    let l = &h.status;
+    match text {
+        Some(t) => {
+            let [left, _, _, bottom] = h.insets.get();
+            if l.margin_bottom() != bottom || l.margin_start() != left {
+                l.set_margin_bottom(bottom);
+                l.set_margin_start(left);
+            }
+            if l.text() != t {
+                l.set_text(t);
+            }
+            if !l.is_visible() {
+                l.set_visible(true);
+                raise_overlays(&h);
+            }
+        }
+        None => {
+            if l.is_visible() {
+                l.set_visible(false);
+            }
+        }
+    }
+    true
+}
+
 /// The arrow at the page's edge while swiping (`dir` 0 hides it).
 fn show_swipe(h: &Host, dir: i32, progress: f64) {
     let l = &h.swipe_hint;
@@ -449,7 +481,7 @@ pub fn set_page_area(insets: [i32; 4]) {
     }
     h.insets.set(insets);
     for c in children(&h.overlay) {
-        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.top.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() && c != *h.toast.upcast_ref::<gtk::Widget>() {
+        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.top.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() && c != *h.toast.upcast_ref::<gtk::Widget>() && c != *h.status.upcast_ref::<gtk::Widget>() {
             apply_insets(&c, insets);
         }
     }
@@ -1033,6 +1065,7 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
         css.load_from_string(
             "#sanaga-swipe { background: rgba(255,255,255,0.97); color: #1a73e8; border-radius: 999px; padding: 6px 15px 9px 15px; font-size: 24px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
              #sanaga-swipe.ready { background: #1a73e8; color: white; }
+             #sanaga-status { background: rgba(245,245,246,0.97); color: #303034; border-top-right-radius: 8px; padding: 3px 10px; font-size: 12px; box-shadow: 0 0 0 1px rgba(0,0,0,0.12); }
              #sanaga-toast { background: rgba(30,30,32,0.92); color: white; border-radius: 999px; padding: 8px 18px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.28); }",
         );
         gtk::style_context_add_provider_for_display(&display, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -1438,8 +1471,18 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     toast.set_can_target(false);
     toast.set_wrap(true);
     toast.set_max_width_chars(70);
+    // where a link goes, at the bottom left of the page (clicks go through)
+    let status = gtk::Label::new(None);
+    status.set_widget_name("sanaga-status");
+    status.set_halign(gtk::Align::Start);
+    status.set_valign(gtk::Align::End);
+    status.set_visible(false);
+    status.set_can_target(false);
+    status.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+    status.set_max_width_chars(90);
     overlay.add_overlay(&device_frame);
     overlay.add_overlay(&swipe_hint);
+    overlay.add_overlay(&status);
     overlay.add_overlay(&top);
     overlay.add_overlay(&toast);
     let host_rc = Rc::new(Host {
@@ -1452,6 +1495,7 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         insets: Cell::new([0, 88, 0, 0]),
         swipe_hint,
         toast,
+        status,
         device_frame,
         device_pic,
         nav: Cell::new(0),
