@@ -189,6 +189,39 @@ pub fn builder() -> ureq::AgentBuilder {
     }
 }
 
+/// Where the releases of Sanaga are listed (what "Look for a new version"
+/// asks, and only when the person clicks: Sanaga asks nothing by itself).
+const RELEASES_API: &str = "https://api.github.com/repos/grassfieldhq/sanaga/releases/latest";
+pub const RELEASES_PAGE: &str = "https://github.com/grassfieldhq/sanaga/releases/latest";
+
+/// The newest released version ("0.5.0"), as GitHub gives it.
+pub fn latest_release() -> Result<String, String> {
+    // (test aid, debug builds only: another address to ask)
+    let address = if cfg!(debug_assertions) { std::env::var("SANAGA_UPDATE_URL").unwrap_or_else(|_| RELEASES_API.to_string()) } else { RELEASES_API.to_string() };
+    let body = agent().get(&address).set("Accept", "application/vnd.github+json").call().map_err(|e| e.to_string())?.into_string().map_err(|e| e.to_string())?;
+    let tag = crate::ai::json_string(&body, "tag_name").ok_or("no version in the answer")?;
+    let version = tag.trim().trim_start_matches('v').to_string();
+    // (a version is numbers and dots: nothing else is shown to the person)
+    if version.is_empty() || version.len() > 32 || !version.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return Err("not a version".into());
+    }
+    Ok(version)
+}
+
+/// Is version `latest` newer than `current`? ("0.10.0" is newer than
+/// "0.9.2": numbers are compared, not letters.)
+pub fn is_newer(latest: &str, current: &str) -> bool {
+    let parts = |v: &str| -> Vec<u64> { v.split('.').map(|p| p.trim().parse().unwrap_or(0)).collect() };
+    let (a, b) = (parts(latest), parts(current));
+    for k in 0..a.len().max(b.len()) {
+        let (x, y) = (a.get(k).copied().unwrap_or(0), b.get(k).copied().unwrap_or(0));
+        if x != y {
+            return x > y;
+        }
+    }
+    false
+}
+
 pub fn agent() -> ureq::Agent {
     builder()
         .user_agent(USER_AGENT)
@@ -640,6 +673,17 @@ pub fn human_bytes(b: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn versions_are_compared_as_numbers() {
+        assert!(super::is_newer("0.5.0", "0.4.0"));
+        assert!(super::is_newer("0.10.0", "0.9.2"));
+        assert!(super::is_newer("1.0", "0.99.99"));
+        assert!(super::is_newer("0.4.1", "0.4"));
+        assert!(!super::is_newer("0.4.0", "0.4.0"));
+        assert!(!super::is_newer("0.3.9", "0.4.0"));
+        assert!(!super::is_newer("", "0.4.0"));
+    }
 
     #[test]
     fn a_downloads_name_is_read_from_its_header() {

@@ -362,6 +362,7 @@ impl Sanaga {
         ];
         let mut open_welcome = false;
         let mut open_crashes = false;
+        let (mut check_update, mut open_release) = (false, false);
         let mut open_activity = false;
         centered_column(ui, |ui| {
             ui.add_space(30.0);
@@ -374,6 +375,34 @@ impl Sanaga {
                     ui.label(RichText::new("Sanaga").size(30.0).family(bold()).color(th.text));
                     ui.label(RichText::new(tf("Version {} · navigateur léger", &[&env!("CARGO_PKG_VERSION")])).color(th.sub));
                 });
+            });
+            // A new version: asked on GitHub when the person clicks, never
+            // by itself (Sanaga makes no request of its own). Until now
+            // nothing told that a newer Sanaga existed.
+            ui.add_space(12.0);
+            ui.horizontal(|ui| {
+                let asking = matches!(self.update_check, Some(None));
+                if ui.add_enabled(!asking, egui::Button::new(tr("Rechercher une nouvelle version"))).clicked() {
+                    check_update = true;
+                }
+                match &self.update_check {
+                    Some(None) => {
+                        ui.add(egui::Spinner::new().size(14.0));
+                    }
+                    Some(Some(Ok(v))) if net::is_newer(v, env!("CARGO_PKG_VERSION")) => {
+                        ui.label(RichText::new(tf("Sanaga {} est disponible.", &[v])).color(th.text));
+                        if ui.link(tr("Voir la nouvelle version")).clicked() {
+                            open_release = true;
+                        }
+                    }
+                    Some(Some(Ok(_))) => {
+                        ui.label(RichText::new(tr("Sanaga est à jour.")).color(th.sub));
+                    }
+                    Some(Some(Err(_))) => {
+                        ui.label(RichText::new(tr("Vérification impossible (pas de connexion ?).")).color(th.sub));
+                    }
+                    None => {}
+                }
             });
             ui.add_space(20.0);
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
@@ -402,6 +431,13 @@ impl Sanaga {
         });
         if open_welcome {
             self.navigate(self.active, "sanaga://welcome".into(), None, true);
+        }
+        if check_update {
+            self.update_check = Some(None);
+            self.off_thread(net::latest_release, |app, found| app.update_check = Some(Some(found)));
+        }
+        if open_release {
+            self.open_tab(net::RELEASES_PAGE, false);
         }
         if open_crashes {
             self.open_tab("sanaga://crashes", false);

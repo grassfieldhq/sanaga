@@ -456,6 +456,9 @@ pub struct Sanaga {
     hover_url: Option<String>,
     /// The link under the mouse in the web page shown.
     web_hover: Option<String>,
+    /// "Look for a new version" (About page): None not asked, Some(None)
+    /// being asked, then the newest version or what went wrong.
+    update_check: Option<Option<Result<String, String>>>,
     /// The tab the person asked to close while its page held typed text,
     /// and when (see `ask_close_tab`).
     close_asked: Option<(u64, f64)>,
@@ -901,6 +904,7 @@ impl Sanaga {
             suggest_rect: Rect::NOTHING,
             hover_url: None,
             web_hover: None,
+            update_check: None,
             close_asked: None,
             typing_at_frame_start: None,
             downloads_seen: 0,
