@@ -40,10 +40,48 @@ fn two_ints(s: &str) -> Option<(i64, i64)> {
     Some((it.next()?.ok()?, it.next()?.ok()?))
 }
 
-/// Position of this process's window, from the compositor's window list.
-fn window_pos(sock: &PathBuf, pid: u32) -> Option<(i64, i64)> {
+/// How Hyprland is told which window is meant: the window in use, by its
+/// address, when it is one of this Sanaga's — the person has just clicked
+/// in it — and this process otherwise. Naming the process alone, a second
+/// window's green button, F11 or drag acted on whichever window of Sanaga
+/// Hyprland found first.
+fn this_window(sock: &PathBuf) -> String {
+    let pid = std::process::id();
+    hypr(sock, "j/activewindow").and_then(|w| own_window(&w, pid)).unwrap_or_else(|| format!("pid:{pid}"))
+}
+
+/// "address:0x…" of the window described (Hyprland's `activewindow`), when
+/// it belongs to process `pid`.
+fn own_window(described: &str, pid: u32) -> Option<String> {
+    if !described.contains(&format!("\"pid\": {pid},")) {
+        return None;
+    }
+    let address = described.split("\"address\":").nth(1)?.split('"').nth(1)?;
+    (address.starts_with("0x") && address[2..].chars().all(|c| c.is_ascii_hexdigit())).then(|| format!("address:{address}"))
+}
+
+/// Every window of process `pid` in Hyprland's list of windows, each as
+/// "address:0x…".
+fn own_windows(list: &str, pid: u32) -> Vec<String> {
+    list.split("\"address\":").filter(|o| o.contains(&format!("\"pid\": {pid},"))).filter_map(|o| o.split('"').nth(1)).filter(|a| a.starts_with("0x")).map(|a| format!("address:{a}")).collect()
+}
+
+/// The description of one window in Hyprland's list of windows: the one
+/// with this address ("address:0x…"), or the first of this process ("pid:N").
+fn window_in<'a>(list: &'a str, window: &str) -> Option<&'a str> {
+    match window.strip_prefix("address:") {
+        Some(address) => list.split("\"address\":").find(|o| o.trim_start().starts_with(&format!("\"{address}\""))),
+        None => {
+            let pid = window.strip_prefix("pid:")?;
+            list.split("\"address\":").find(|o| o.contains(&format!("\"pid\": {pid},")))
+        }
+    }
+}
+
+/// Position of a window, from the compositor's window list.
+fn window_pos(sock: &PathBuf, window: &str) -> Option<(i64, i64)> {
     let list = hypr(sock, "j/clients")?;
-    let obj = list.split("\"address\":").find(|o| o.contains(&format!("\"pid\": {pid},")))?;
+    let obj = window_in(&list, window)?;
     let at = obj.split("\"at\":").nth(1)?;
     two_ints(at.split(']').next()?)
 }
@@ -59,12 +97,12 @@ pub fn begin_move() -> bool {
     if MOVING.swap(true, Ordering::SeqCst) {
         return true;
     }
-    let pid = std::process::id();
+    let window = this_window(&sock);
     std::thread::Builder::new()
         .name("sanaga-move".into())
         .spawn(move || {
             let start_cursor = hypr(&sock, "cursorpos").and_then(|c| two_ints(&c));
-            let start_win = window_pos(&sock, pid);
+            let start_win = window_pos(&sock, &window);
             let (Some((cx0, cy0)), Some((wx0, wy0))) = (start_cursor, start_win) else {
                 MOVING.store(false, Ordering::SeqCst);
                 return;
@@ -74,9 +112,9 @@ pub fn begin_move() -> bool {
                 if let Some((cx, cy)) = hypr(&sock, "cursorpos").and_then(|c| two_ints(&c)) {
                     let target = (wx0 + cx - cx0, wy0 + cy - cy0);
                     if target != last {
-                        let lua = format!("dispatch hl.dsp.window.move({{ x = {}, y = {}, window = 'pid:{pid}' }})", target.0, target.1);
+                        let lua = format!("dispatch hl.dsp.window.move({{ x = {}, y = {}, window = '{window}' }})", target.0, target.1);
                         if hypr(&sock, &lua).map(|r| r.trim() != "ok").unwrap_or(true) {
-                            let _ = hypr(&sock, &format!("dispatch movewindowpixel exact {} {},pid:{pid}", target.0, target.1));
+                            let _ = hypr(&sock, &format!("dispatch movewindowpixel exact {} {},{window}", target.0, target.1));
                         }
                         last = target;
                     }
@@ -105,21 +143,31 @@ pub fn hide_desktop_titlebar() {
     std::thread::Builder::new()
         .name("sanaga-titlebar".into())
         .spawn(move || {
-            // wait for the window to appear, then tag it (a few tries)
+            // wait for the window to appear, then tag every window of this
+            // Sanaga (a few passes: a window just opened is listed a moment
+            // later). Naming the process alone tagged its first window
+            // only: the desktop drew its title bar over the others.
+            let mut passes = 0;
             for _ in 0..25 {
                 std::thread::sleep(Duration::from_millis(300));
                 let Ok(out) = Command::new("hyprctl").args(["clients", "-j"]).output() else { return };
                 let text = String::from_utf8_lossy(&out.stdout);
-                if !text.contains(&format!("\"pid\": {pid},")) {
+                let mine = own_windows(&text, pid);
+                if mine.is_empty() {
                     continue;
                 }
-                let lua = format!("hl.dsp.window.tag({{ tag = '+grassfield-client-chrome', window = 'pid:{pid}' }})");
-                let ok = Command::new("hyprctl").args(["dispatch", &lua]).output().map(|o| String::from_utf8_lossy(&o.stdout).trim() == "ok").unwrap_or(false);
-                if !ok {
-                    // older, non-Lua Hyprland configurations
-                    let _ = Command::new("hyprctl").args(["dispatch", "tagwindow", "+grassfield-client-chrome", &format!("pid:{pid}")]).output();
+                for window in mine {
+                    let lua = format!("hl.dsp.window.tag({{ tag = '+grassfield-client-chrome', window = '{window}' }})");
+                    let ok = Command::new("hyprctl").args(["dispatch", &lua]).output().map(|o| String::from_utf8_lossy(&o.stdout).trim() == "ok").unwrap_or(false);
+                    if !ok {
+                        // older, non-Lua Hyprland configurations
+                        let _ = Command::new("hyprctl").args(["dispatch", "tagwindow", "+grassfield-client-chrome", &window]).output();
+                    }
                 }
-                return;
+                passes += 1;
+                if passes >= 4 {
+                    return;
+                }
             }
         })
         .ok();
@@ -218,9 +266,9 @@ const MIN_W: i64 = 560;
 const MIN_H: i64 = 380;
 
 /// Position and size of this process's window.
-fn window_geom(sock: &PathBuf, pid: u32) -> Option<((i64, i64), (i64, i64))> {
+fn window_geom(sock: &PathBuf, window: &str) -> Option<((i64, i64), (i64, i64))> {
     let list = hypr(sock, "j/clients")?;
-    let obj = list.split("\"address\":").find(|o| o.contains(&format!("\"pid\": {pid},")))?;
+    let obj = window_in(&list, window)?;
     let at = two_ints(obj.split("\"at\":").nth(1)?.split(']').next()?)?;
     let size = two_ints(obj.split("\"size\":").nth(1)?.split(']').next()?)?;
     Some((at, size))
@@ -230,8 +278,8 @@ fn window_geom(sock: &PathBuf, pid: u32) -> Option<((i64, i64), (i64, i64))> {
 /// Full screen (F11): the page takes the whole screen.
 pub fn toggle_fullscreen(ctx: &egui::Context, on: bool) {
     if let Some(sock) = hypr_socket() {
-        let pid = std::process::id();
-        let lua = format!("dispatch hl.dsp.window.fullscreen({{ mode = 'fullscreen', window = 'pid:{pid}' }})");
+        let window = this_window(&sock);
+        let lua = format!("dispatch hl.dsp.window.fullscreen({{ mode = 'fullscreen', window = '{window}' }})");
         if hypr(&sock, &lua).map(|r| r.trim() == "ok").unwrap_or(false) {
             return;
         }
@@ -243,8 +291,8 @@ pub fn toggle_maximize(ctx: &egui::Context) {
     let now = !MAXIMIZED.load(Ordering::SeqCst);
     MAXIMIZED.store(now, Ordering::SeqCst);
     if let Some(sock) = hypr_socket() {
-        let pid = std::process::id();
-        let lua = format!("dispatch hl.dsp.window.fullscreen({{ mode = 'maximized', window = 'pid:{pid}' }})");
+        let window = this_window(&sock);
+        let lua = format!("dispatch hl.dsp.window.fullscreen({{ mode = 'maximized', window = '{window}' }})");
         if hypr(&sock, &lua).map(|r| r.trim() == "ok").unwrap_or(false) {
             return;
         }
@@ -279,12 +327,12 @@ fn begin_resize(sx: i64, sy: i64) -> bool {
     if RESIZING.swap(true, Ordering::SeqCst) {
         return true;
     }
-    let pid = std::process::id();
+    let window = this_window(&sock);
     std::thread::Builder::new()
         .name("sanaga-resize".into())
         .spawn(move || {
             let start_cursor = hypr(&sock, "cursorpos").and_then(|c| two_ints(&c));
-            let (Some((cx0, cy0)), Some(((x0, y0), (w0, h0)))) = (start_cursor, window_geom(&sock, pid)) else {
+            let (Some((cx0, cy0)), Some(((x0, y0), (w0, h0)))) = (start_cursor, window_geom(&sock, &window)) else {
                 RESIZING.store(false, Ordering::SeqCst);
                 return;
             };
@@ -298,9 +346,9 @@ fn begin_resize(sx: i64, sy: i64) -> bool {
                     let next = (x, y, w, h);
                     if next != last {
                         if (w, h) != (last.2, last.3) {
-                            let _ = hypr(&sock, &format!("dispatch hl.dsp.window.resize({{ x = {w}, y = {h}, exact = true, window = 'pid:{pid}' }})"));
+                            let _ = hypr(&sock, &format!("dispatch hl.dsp.window.resize({{ x = {w}, y = {h}, exact = true, window = '{window}' }})"));
                         }
-                        let _ = hypr(&sock, &format!("dispatch hl.dsp.window.move({{ x = {x}, y = {y}, window = 'pid:{pid}' }})"));
+                        let _ = hypr(&sock, &format!("dispatch hl.dsp.window.move({{ x = {x}, y = {y}, window = '{window}' }})"));
                         last = next;
                     }
                 }
@@ -366,6 +414,51 @@ pub use crate::guard::{desktop_value, exec_arg};
 
 #[cfg(test)]
 mod tests {
+    /// Two windows of one Sanaga (process 4242) and one of another program,
+    /// as `hyprctl clients -j` lists them.
+    const CLIENTS: &str = r#"[{
+    "address": "0x55d0aa10",
+    "mapped": true,
+    "at": [10, 20],
+    "size": [1280, 800],
+    "class": "sanaga",
+    "pid": 4242,
+    "fullscreen": 0
+},{
+    "address": "0x55d0bb20",
+    "at": [300, 40],
+    "size": [900, 700],
+    "class": "kitty",
+    "pid": 777,
+    "fullscreen": 0
+},{
+    "address": "0x55d0cc30",
+    "at": [1400, 60],
+    "size": [1000, 600],
+    "class": "sanaga",
+    "pid": 4242,
+    "fullscreen": 0
+}]"#;
+
+    #[test]
+    fn the_window_in_use_is_named_by_its_address() {
+        // the window in use is one of this Sanaga's: its address
+        let active = "{\n    \"address\": \"0x55d0cc30\",\n    \"at\": [1400, 60],\n    \"pid\": 4242,\n    \"fullscreen\": 0\n}";
+        assert_eq!(super::own_window(active, 4242).as_deref(), Some("address:0x55d0cc30"));
+        // another program's window, or nothing readable: not ours
+        assert_eq!(super::own_window(active, 777), None);
+        assert_eq!(super::own_window("{}", 4242), None);
+        assert_eq!(super::own_window("{\"address\": \"; rm -rf\", \"pid\": 4242,}", 4242), None);
+        // each window of the process is found, and the right one described
+        assert_eq!(super::own_windows(CLIENTS, 4242), ["address:0x55d0aa10", "address:0x55d0cc30"]);
+        assert!(super::own_windows(CLIENTS, 1).is_empty());
+        let second = super::window_in(CLIENTS, "address:0x55d0cc30").unwrap();
+        assert!(second.contains("[1400, 60]") && !second.contains("[10, 20]"));
+        // by process alone: the first one (as before)
+        assert!(super::window_in(CLIENTS, "pid:4242").unwrap().contains("[10, 20]"));
+        assert!(super::window_in(CLIENTS, "address:0xdead").is_none());
+    }
+
     use super::*;
 
     #[test]

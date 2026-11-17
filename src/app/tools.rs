@@ -530,7 +530,12 @@ pub(super) const LOW_BATTERY_PERCENT: u8 = 20;
 
 /// Whether the computer runs on its battery, and the battery's level (%).
 fn on_battery() -> (bool, Option<u8>) {
-    let Ok(rd) = std::fs::read_dir("/sys/class/power_supply") else { return (false, None) };
+    battery_state(std::path::Path::new("/sys/class/power_supply"))
+}
+
+/// The same, read from a folder laid out as the system's `power_supply`.
+fn battery_state(supplies: &std::path::Path) -> (bool, Option<u8>) {
+    let Ok(rd) = std::fs::read_dir(supplies) else { return (false, None) };
     let mut battery_discharging = false;
     let mut level: Option<u8> = None;
     for e in rd.flatten() {
@@ -631,6 +636,41 @@ impl Sanaga {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder laid out as /sys/class/power_supply: (name, files).
+    fn supplies(name: &str, list: &[(&str, &[(&str, &str)])]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("sanaga-power-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for (supply, files) in list {
+            std::fs::create_dir_all(dir.join(supply)).unwrap();
+            for (file, text) in *files {
+                std::fs::write(dir.join(supply).join(file), format!("{text}\n")).unwrap();
+            }
+        }
+        dir
+    }
+
+    #[test]
+    fn only_the_computers_own_battery_counts() {
+        // a desktop computer with a wireless mouse at 15 %: not on battery
+        let d = supplies("desktop", &[("hidpp_battery_0", &[("type", "Battery"), ("scope", "Device"), ("status", "Discharging"), ("capacity", "15")])]);
+        assert_eq!(battery_state(&d), (false, None));
+        // a laptop unplugged, with that same mouse: its own battery's level
+        let d = supplies(
+            "laptop",
+            &[
+                ("BAT0", &[("type", "Battery"), ("status", "Discharging"), ("capacity", "64")]),
+                ("hidpp_battery_0", &[("type", "Battery"), ("scope", "Device"), ("status", "Discharging"), ("capacity", "15")]),
+                ("AC", &[("type", "Mains"), ("online", "0")]),
+            ],
+        );
+        assert_eq!(battery_state(&d), (true, Some(64)));
+        // plugged in: never "on battery"
+        let d = supplies("plugged", &[("BAT0", &[("type", "Battery"), ("scope", "System"), ("status", "Discharging"), ("capacity", "64")]), ("AC", &[("type", "Mains"), ("online", "1")])]);
+        assert_eq!(battery_state(&d), (false, None));
+        // no such folder at all
+        assert_eq!(battery_state(std::path::Path::new("/nonexistent/power")), (false, None));
+    }
 
     #[test]
     fn finds_youtube_ids() {

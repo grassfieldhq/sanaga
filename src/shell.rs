@@ -1905,6 +1905,10 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
 
     crate::stage("before present");
     window.present();
+    // (a window opened later gets what the first one got from the desktop)
+    if slot > 0 {
+        crate::desktop::hide_desktop_titlebar();
+    }
     crate::stage("presented");
     area.grab_focus();
     waker.queue_render();
