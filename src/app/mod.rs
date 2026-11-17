@@ -206,6 +206,9 @@ struct Tab {
     /// Show the whole page (menus, sidebars) instead of the main content.
     full: bool,
     web: Option<crate::page::PageView>,
+    /// The state its page gets when it is made (a tab brought back at the
+    /// start, or reopened after being closed): its back and forward pages.
+    saved_state: Option<Vec<u8>>,
     /// Opened behind the tab in use by the person (middle click, Ctrl+click):
     /// its page loads at once, without waiting to be shown.
     load_behind: bool,
@@ -466,6 +469,9 @@ pub struct Sanaga {
     page_fullscreen: Option<(u64, bool)>,
     history_filter: String,
     closed: Vec<String>,
+    /// The state of the last tabs closed (address, state): a tab reopened
+    /// gets its back and forward pages again.
+    closed_states: Vec<(String, Vec<u8>)>,
     mem: (f64, u64),
     downloads_bar: bool,
     pages_loaded: u64,
@@ -901,6 +907,7 @@ impl Sanaga {
             page_fullscreen: None,
             history_filter: String::new(),
             closed: Vec::new(),
+            closed_states: Vec::new(),
             mem: (-10.0, 0),
             downloads_bar: false,
             pages_loaded: 0,
@@ -1160,6 +1167,7 @@ impl Sanaga {
         // the tab that was shown when Sanaga closed
         let mut shown_at: Option<usize> = None;
         let first_tab = app.tabs.len();
+        let mut kept_states: Vec<(String, Vec<u8>)> = app.tab_states_file().and_then(|f| std::fs::read(f).ok()).map(|b| tabs::unpack_states(&b)).unwrap_or_default();
         for line in start {
             let mut parts = line.split('\t');
             let u = parts.next().unwrap_or("").to_string();
@@ -1193,6 +1201,13 @@ impl Sanaga {
             };
             let u = input_to_url(&u, app.store.settings.engine, &app.store.settings.home);
             let i = app.open_tab(&u, false);
+            // (the state kept for this address at the last close, if any)
+            if let Some(k) = kept_states.iter().position(|(address, _)| *address == u) {
+                let (_, state) = kept_states.remove(k);
+                if let Some(t) = app.tabs.get_mut(i) {
+                    t.saved_state = Some(state);
+                }
+            }
             app.tabs[i].pinned = pinned;
             if app.store.containers.iter().any(|c| c.name == container) {
                 app.tabs[i].container = container;
@@ -1538,6 +1553,39 @@ impl Sanaga {
     pub fn on_close(&mut self) {
         self.store.settle_history(true);
         self.save_session();
+        self.save_tab_states();
+    }
+
+    /// Where the tabs' states of this window are kept between two runs.
+    fn tab_states_file(&self) -> Option<std::path::PathBuf> {
+        let dir = self.store.data_dir()?;
+        Some(if self.slot == 0 { dir.join("session-state.bin") } else { dir.join(format!("session-state-{}.bin", self.slot)) })
+    }
+
+    /// Sanaga closes: what each tab's page held — the pages before and
+    /// after it, where they were scrolled to — is kept for the next start.
+    /// (A tab used to come back as one address: no way back, the page at
+    /// its top.) Never a private tab's; a tab that slept through the whole
+    /// run keeps the state it was given.
+    fn save_tab_states(&self) {
+        if self.screenshot.is_some() || self.app_mode {
+            return;
+        }
+        let Some(file) = self.tab_states_file() else { return };
+        let states: Vec<(String, Vec<u8>)> = self
+            .tabs
+            .iter()
+            .filter(|t| !t.private && !t.entries.is_empty())
+            .filter_map(|t| {
+                let state = t.web.as_ref().filter(|_| matches!(t.view, View::Web)).and_then(|w| w.session_state()).or_else(|| t.saved_state.clone())?;
+                Some((t.url().to_string(), state))
+            })
+            .collect();
+        if states.is_empty() {
+            let _ = std::fs::remove_file(&file);
+        } else {
+            let _ = crate::store::write_quietly(&file, tabs::pack_states(&states));
+        }
     }
 
     /// This window closes while others stay open: its tabs are not reopened

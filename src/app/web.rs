@@ -787,7 +787,12 @@ impl Sanaga {
                 if crate::guard::restricted_port(&url) {
                     blocked.push((self.tabs[i].id, url.clone()));
                 } else {
-                    load_into(&w, &url, by_person);
+                    // (a tab brought back or reopened: its page comes with
+                    // the pages it had before and after it)
+                    let restored = self.tabs[i].saved_state.take().is_some_and(|state| !url.starts_with(super::source::HTML_MARK) && w.restore_state(&state));
+                    if !restored {
+                        load_into(&w, &url, by_person);
+                    }
                 }
                 self.tabs[i].web = Some(w);
                 self.tabs[i].web_shown = show;

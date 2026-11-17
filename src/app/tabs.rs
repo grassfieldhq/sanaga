@@ -47,6 +47,44 @@ pub(super) fn surface_to_full_image(s: gtk::gdk::Texture) -> Option<egui::ColorI
     Some(egui::ColorImage::from_rgba_unmultiplied([w, h], &px))
 }
 
+/// The states of a window's tabs as one file: a first line, then for each
+/// tab its address and its state, each after its length (4 bytes).
+pub(super) fn pack_states(states: &[(String, Vec<u8>)]) -> Vec<u8> {
+    let mut out = STATES_MARK.to_vec();
+    for (address, state) in states {
+        for part in [address.as_bytes(), state.as_slice()] {
+            out.extend_from_slice(&(part.len() as u32).to_le_bytes());
+            out.extend_from_slice(part);
+        }
+    }
+    out
+}
+
+const STATES_MARK: &[u8] = b"sanaga tab states 1\n";
+
+/// Reads such a file. Whatever does not fit the format ends the reading:
+/// the tabs after it come back as their address alone.
+pub(super) fn unpack_states(file: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let mut out = Vec::new();
+    let Some(mut rest) = file.strip_prefix(STATES_MARK) else { return out };
+    let mut part = |limit: usize| -> Option<Vec<u8>> {
+        let (len, after) = rest.split_first_chunk::<4>()?;
+        let len = u32::from_le_bytes(*len) as usize;
+        if len > limit || len > after.len() {
+            return None;
+        }
+        let (bytes, after) = after.split_at(len);
+        rest = after;
+        Some(bytes.to_vec())
+    };
+    while out.len() < 500 {
+        let Some(address) = part(8192).and_then(|a| String::from_utf8(a).ok()) else { break };
+        let Some(state) = part(crate::page::MAX_STATE) else { break };
+        out.push((address, state));
+    }
+    out
+}
+
 fn ow_limit(w: usize) -> usize {
     // keep a card-like ratio: no taller than 3/4 of the width
     (w * 3 / 4).max(1)
@@ -194,6 +232,7 @@ impl Sanaga {
                 let t = self.tabs.remove(i);
                 if !t.private && !t.entries.is_empty() {
                     self.closed.push(t.url().to_string());
+                    self.keep_closed_state(&t);
                 }
             } else {
                 if self.tabs[i].group > g {
@@ -668,5 +707,26 @@ impl Sanaga {
             self.overview_open = false;
             self.open_tab("sanaga://newtab", false);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{pack_states, unpack_states};
+
+    #[test]
+    fn tab_states_are_read_back_as_written() {
+        let states = vec![("https://a.example/".to_string(), vec![1u8, 2, 3]), ("https://b.example/é".to_string(), vec![0u8; 5000])];
+        assert_eq!(unpack_states(&pack_states(&states)), states);
+        assert!(unpack_states(&pack_states(&[])).is_empty());
+        // another file, or one cut short: what was whole is kept, never more
+        assert!(unpack_states(b"something else").is_empty());
+        let mut cut = pack_states(&states);
+        cut.truncate(cut.len() - 10);
+        assert_eq!(unpack_states(&cut), states[..1]);
+        // a length that lies about what follows
+        let mut lie = pack_states(&states[..1]);
+        lie.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(unpack_states(&lie), states[..1]);
     }
 }

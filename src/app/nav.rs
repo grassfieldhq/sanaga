@@ -63,6 +63,7 @@ impl Sanaga {
             companion: false,
             load_behind: false,
             capturing: false,
+            saved_state: None,
         });
         let i = self.tabs.len() - 1;
         self.active = i;
@@ -85,6 +86,16 @@ impl Sanaga {
         }
         self.active = cur;
         self.focus_address = false;
+    }
+
+    /// Keep what a closed tab's page held (the last ten): see "reopen".
+    pub(super) fn keep_closed_state(&mut self, t: &Tab) {
+        if let Some(state) = t.web.as_ref().filter(|_| matches!(t.view, View::Web)).and_then(|w| w.session_state()).or_else(|| t.saved_state.clone()) {
+            self.closed_states.push((t.url().to_string(), state));
+            if self.closed_states.len() > 10 {
+                self.closed_states.remove(0);
+            }
+        }
     }
 
     /// The person closes a tab. When something was typed in its page, the
@@ -126,6 +137,7 @@ impl Sanaga {
         let t = self.tabs.remove(i);
         if !t.private && !t.entries.is_empty() {
             self.closed.push(t.url().to_string());
+            self.keep_closed_state(&t);
         }
         let want = if closing_active { neighbour } else { active_id };
         match want.and_then(|id| self.tabs.iter().position(|t| t.id == id)) {
@@ -694,7 +706,15 @@ impl Sanaga {
                 }
                 "reopen" => {
                     if let Some(u) = self.closed.pop() {
-                        self.open_tab(&u, false);
+                        let i = self.open_tab(&u, false);
+                        // (with the pages it had before and after: it used
+                        // to come back as its last address alone)
+                        if let Some(k) = self.closed_states.iter().rposition(|(x, _)| *x == u) {
+                            let (_, state) = self.closed_states.remove(k);
+                            if let Some(t) = self.tabs.get_mut(i) {
+                                t.saved_state = Some(state);
+                            }
+                        }
                     }
                 }
                 "bmbar" => {

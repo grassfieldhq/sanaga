@@ -840,7 +840,9 @@ fn shortcut_message(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, 
 /// (as in every browser: a page cannot keep its own tab from closing).
 /// The others go to the page first, and to Sanaga if the page leaves them.
 fn reserved_shortcut(name: &str) -> bool {
-    matches!(name, "new" | "window" | "private" | "reopen" | "close" | "next" | "prev" | "tabright" | "tableft" | "quit") || name.starts_with("tab")
+    // (back, forward and home too: the engine takes Alt+arrow for a
+    // sideways scroll of the page and never hands the key back)
+    matches!(name, "new" | "window" | "private" | "reopen" | "close" | "next" | "prev" | "tabright" | "tableft" | "quit" | "back" | "fwd" | "home") || name.starts_with("tab")
 }
 
 /// A key the page was given and did not use (the engine hands it back to
@@ -1025,6 +1027,9 @@ fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str) 
     download.set_destination(&path.to_string_lossy());
     path
 }
+
+/// The most a page's kept state may weigh.
+pub const MAX_STATE: usize = 1 << 20;
 
 /// A download under way.
 struct Running {
@@ -2059,6 +2064,26 @@ impl PageView {
         self.view.reload();
         Ok(())
     }
+    /// What the engine keeps of this page: the pages before and after it
+    /// (back, forward), where each was scrolled to, what was typed in them.
+    pub fn session_state(&self) -> Option<Vec<u8>> {
+        self.view.session_state().and_then(|s| s.serialize()).map(|b| b.to_vec()).filter(|b| !b.is_empty() && b.len() <= MAX_STATE)
+    }
+
+    /// Put back a state taken with `session_state` and show its page. False
+    /// when it holds nothing to show (the address is then loaded as usual).
+    pub fn restore_state(&self, state: &[u8]) -> bool {
+        let state = webkit6::WebViewSessionState::new(&gtk::glib::Bytes::from(state));
+        self.view.restore_session_state(&state);
+        match self.view.back_forward_list().and_then(|l| l.current_item()) {
+            Some(item) => {
+                self.view.go_to_back_forward_list_item(&item);
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Ask the page to close: its "leave this page?" question is asked if
     /// it has one; the page then closes itself (`PageSignal::Close`) unless
     /// the person chooses to stay.
