@@ -20,6 +20,7 @@ mod app;
 mod bidi;
 mod blocklist;
 mod chat;
+mod chats;
 mod codecs;
 mod crash;
 mod danger;

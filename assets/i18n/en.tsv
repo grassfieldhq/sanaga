@@ -1323,3 +1323,30 @@ Ce n'est pas un fichier.	This is not a file.
 Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	Sanaga cannot read “{}”: attach a text, a picture or a PDF (a Word or Excel document can be saved as PDF).
 Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	A model on this computer does not read PDFs: only Claude does.
 Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	This model reads neither pictures nor PDFs: remove them, or choose Claude or Ollama in Settings › Intelligence.
+Recherche dans l'historique	Searching the history
+Recherche dans l'historique : « {} »	Searching the history: “{}”
+Liste des onglets ouverts	Listing the open tabs
+Lecture de l'onglet « {} »	Reading the tab “{}”
+Recherche dans les favoris : « {} »	Searching the favourites: “{}”
+Recherche dans les conversations : « {} »	Searching the conversations: “{}”
+Ouvrir {}	Open {}
+Fermer : {}	Close: {}
+Grouper sous « {} » : {}	Group as “{}”: {}
+Commande : {}	Command: {}
+Conversations précédentes	Earlier conversations
+L'assistant veut consulter votre navigateur	The assistant wants to look into your browser
+L'assistant veut agir	The assistant wants to act
+Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.	What it finds there is sent to the model, outside this computer.
+Autoriser pour cette conversation	Allow for this conversation
+Accepter	Accept
+Refuser	Refuse
+En attente de votre réponse…	Waiting for your answer…
+Rechercher dans les conversations…	Search the conversations…
+Aucune conversation gardée.	No conversation is kept.
+Aucune conversation ne contient ces mots.	No conversation holds these words.
+Conversation	Conversation
+Laisser l'assistant consulter votre navigateur et agir	Let the assistant look into your browser and act
+Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite	History, tabs, favourites, conversations; each action is shown to you before it is done
+Garder les conversations sur cet ordinateur	Keep the conversations on this computer
+Pour les reprendre et les retrouver ; jamais celles des onglets privés	To go on with them and find them again; never those of private tabs
+Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	A model on this computer looks freely; with Claude, you are asked the first time it wants to search your history, your tabs or your favourites, since what it finds there is sent to it. Opening, closing, grouping, running a command: always after you agree.

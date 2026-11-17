@@ -1323,3 +1323,30 @@ Ce n'est pas un fichier.	No es un archivo.
 Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	Sanaga no sabe leer «{}»: adjunte un texto, una imagen o un PDF (un documento de Word o Excel puede guardarse como PDF).
 Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	Un modelo en este ordenador no lee los PDF: solo Claude los lee.
 Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	Este modelo no lee ni imágenes ni PDF: quítelos, o elija Claude u Ollama en Ajustes › Inteligencia.
+Recherche dans l'historique	Búsqueda en el historial
+Recherche dans l'historique : « {} »	Búsqueda en el historial: «{}»
+Liste des onglets ouverts	Lista de las pestañas abiertas
+Lecture de l'onglet « {} »	Lectura de la pestaña «{}»
+Recherche dans les favoris : « {} »	Búsqueda en los favoritos: «{}»
+Recherche dans les conversations : « {} »	Búsqueda en las conversaciones: «{}»
+Ouvrir {}	Abrir {}
+Fermer : {}	Cerrar: {}
+Grouper sous « {} » : {}	Agrupar como «{}»: {}
+Commande : {}	Comando: {}
+Conversations précédentes	Conversaciones anteriores
+L'assistant veut consulter votre navigateur	El asistente quiere consultar su navegador
+L'assistant veut agir	El asistente quiere actuar
+Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.	Lo que encuentre allí se envía al modelo, fuera de este ordenador.
+Autoriser pour cette conversation	Permitir para esta conversación
+Accepter	Aceptar
+Refuser	Rechazar
+En attente de votre réponse…	Esperando su respuesta…
+Rechercher dans les conversations…	Buscar en las conversaciones…
+Aucune conversation gardée.	No hay ninguna conversación guardada.
+Aucune conversation ne contient ces mots.	Ninguna conversación contiene estas palabras.
+Conversation	Conversación
+Laisser l'assistant consulter votre navigateur et agir	Permitir que el asistente consulte su navegador y actúe
+Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite	Historial, pestañas, favoritos, conversaciones; cada acción se le muestra antes de hacerse
+Garder les conversations sur cet ordinateur	Guardar las conversaciones en este ordenador
+Pour les reprendre et les retrouver ; jamais celles des onglets privés	Para retomarlas y encontrarlas; nunca las de las pestañas privadas
+Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	Un modelo en este ordenador consulta libremente; con Claude, se le pregunta la primera vez que quiere buscar en su historial, sus pestañas o sus favoritos, ya que lo que encuentra allí se le envía. Abrir, cerrar, agrupar, ejecutar un comando: siempre con su acuerdo.

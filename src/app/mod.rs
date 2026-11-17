@@ -1,6 +1,7 @@
 //! The Sanaga window: shared state, the frame loop and the screenshot mode.
 
 mod accounts;
+mod aitools;
 mod assistant;
 mod bookmarks;
 mod buttons;
@@ -664,6 +665,9 @@ pub struct Sanaga {
     /// summary is one), answers of the AI models, the create-an-extension
     /// form, the Ollama models found, the Claude key typed.
     assistant: Option<assistant::Assistant>,
+    /// The assistant's conversations kept on this computer (opened when
+    /// the assistant is first used).
+    chats: Option<crate::chats::Chats>,
     ai_tx: std::sync::mpsc::Sender<intelligence::AiDone>,
     ai_rx: Receiver<intelligence::AiDone>,
     ext_form: intelligence::ExtForm,
@@ -1045,6 +1049,7 @@ impl Sanaga {
             extra_sessions: Vec::new(),
             store_seen: crate::store::CHANGES.load(Ordering::Relaxed),
             assistant: None,
+            chats: None,
             ai_tx,
             ai_rx,
             ext_form: Default::default(),
@@ -1985,6 +1990,9 @@ impl Sanaga {
                             self.tabs[i].parent = Some(parent);
                         }
                         a if a.starts_with("previewlink:") => self.preview_link(&a[12..]),
+                        // (the person's answer to a tool the assistant's model asks for)
+                        "toolyes" => self.tool_answered(true),
+                        "toolno" => self.tool_answered(false),
                         // (a file attached to the assistant's question, without the file window)
                         a if a.starts_with("attach:") => self.attach_path(std::path::PathBuf::from(&a[7..])),
                         a if a.starts_with("installext:") => match crate::webext::install(std::path::Path::new(&a[11..])) {

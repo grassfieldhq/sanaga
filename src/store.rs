@@ -152,6 +152,11 @@ pub struct Settings {
     /// pages are translated into; the sites where the person said no.
     pub translate_offer: bool,
     pub translate_skip: Vec<String>,
+    /// The assistant may be given tools (to look into the history, the
+    /// tabs, the favourites, and to act when the person accepts), and its
+    /// conversations are kept on this computer.
+    pub ai_tools: bool,
+    pub keep_chats: bool,
     /// Where downloads go ("" = the system's Downloads folder), and whether
     /// each download asks where to save it.
     pub download_dir: String,
@@ -219,6 +224,8 @@ impl Settings {
                 self.translate_to = d.translate_to;
                 self.translate_offer = d.translate_offer;
                 self.translate_skip = d.translate_skip;
+                self.ai_tools = d.ai_tools;
+                self.keep_chats = d.keep_chats;
             }
             "privacy" => {
                 self.blocker = d.blocker;
@@ -347,6 +354,8 @@ impl Default for Settings {
             full_urls: false,
             translate_offer: true,
             translate_skip: Vec::new(),
+            ai_tools: true,
+            keep_chats: true,
             download_dir: String::new(),
             download_ask: false,
             https_first: true,
@@ -776,6 +785,8 @@ impl Store {
                         "tab_switcher" => st.tab_switcher = v == "1",
                         "translate_to" => st.translate_to = v.to_string(),
                         "translate_offer" => st.translate_offer = v == "1",
+                        "ai_tools" => st.ai_tools = v == "1",
+                        "keep_chats" => st.keep_chats = v == "1",
                         "translate_skip" => st.translate_skip = v.split(',').map(str::trim).filter(|h| !h.is_empty()).map(str::to_string).collect(),
                         "close_right" => st.close_right = v == "1",
                         "download_dir" => st.download_dir = v.to_string(),
@@ -841,7 +852,14 @@ impl Store {
             "border={}\nborder_size={}\nborder_alpha={}\ncompact={}\nblocker={}\nlow_power={}\ntree_tabs={}\napp_icon={}\nprofile_emoji={}\ndrm_auto={}\ntab_switcher={}\ntranslate_to={}\nclose_right={}\nprofile_name={}\nprofile_color={}\nfull_urls={}\n",
             st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right), clean(&st.profile_name), st.profile_color, b(st.full_urls)
         );
-        let extra = format!("block_lists={}\ntranslate_offer={}\ntranslate_skip={}\n", b(st.block_lists), b(st.translate_offer), clean(&st.translate_skip.join(",")));
+        let extra = format!(
+            "block_lists={}\ntranslate_offer={}\ntranslate_skip={}\nai_tools={}\nkeep_chats={}\n",
+            b(st.block_lists),
+            b(st.translate_offer),
+            clean(&st.translate_skip.join(",")),
+            b(st.ai_tools),
+            b(st.keep_chats)
+        );
         let network = format!(
             "download_dir={}\ndownload_ask={}\nhttps_first={}\nproxy={}\nupdate_check={}\nsafe_sites={}\ndoh={}\n",
             clean(&st.download_dir),

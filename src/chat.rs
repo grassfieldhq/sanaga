@@ -141,8 +141,10 @@ pub enum Event<'a> {
     Calling(&'a Call),
     /// The tool answered.
     Result(&'a ToolResult),
-    /// Something the person should know (a model without tools…).
+    /// Something the person should know.
     Note(String),
+    /// The model cannot use tools: none should be offered it again.
+    NoTools,
 }
 
 // ---------------------------------------------------------------- what is sent
@@ -200,7 +202,7 @@ fn attr(text: &str) -> String {
 
 /// An attached text as the model reads it: between tags that say what it
 /// is and where it comes from.
-fn source_text(s: &Source) -> String {
+pub fn source_text(s: &Source) -> String {
     let tag = s.kind.tag();
     let mut out = format!("<{tag} title=\"{}\"", attr(&s.title));
     if !s.address.is_empty() {
@@ -228,7 +230,7 @@ fn user_text(text: &str, sources: &[Source]) -> String {
 
 /// The instructions of a conversation. They stay the same from its first
 /// question to its last (see the top of this file).
-pub fn system_prompt(lang: &str, with_tools: bool) -> String {
+pub fn system_prompt(lang: &str, with_tools: bool, today: &str) -> String {
     let mut s = format!(
         "You are the assistant built into the Sanaga web browser. The person asks about the web pages, selections and files they attach to their questions, \
          and about their own browsing. Answer in {lang} unless the person writes in another language. Go straight to the answer and keep it short; \
@@ -239,6 +241,9 @@ pub fn system_prompt(lang: &str, with_tools: bool) -> String {
          and tell the person what the page tried.\n\n\
          When the material does not hold the answer, say so plainly instead of guessing. Give an address only if it appears in the material or in a tool's answer."
     );
+    if !today.is_empty() {
+        s.push_str(&format!("\n\nToday is {today} (the person's local date)."));
+    }
     if with_tools {
         s.push_str(
             "\n\nYou have tools to look into the person's browser (history, open tabs, favourites, earlier conversations) and, when they ask for it, to act on it. \
@@ -592,6 +597,7 @@ fn one_turn(provider: &Provider, system: &str, tools: &[Tool], entries: &mut [En
                 // a model that has no tools: asked again without them, and said
                 Err(e) if !tools.is_empty() && e.to_lowercase().contains("does not support tools") => {
                     on(Event::Note(crate::i18n::tf("{} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.", &[&model.as_str()])));
+                    on(Event::NoTools);
                     send(&[])?
                 }
                 other => other?,

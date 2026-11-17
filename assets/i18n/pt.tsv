@@ -1323,3 +1323,30 @@ Ce n'est pas un fichier.	Não é um ficheiro.
 Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	O Sanaga não sabe ler «{}»: junte um texto, uma imagem ou um PDF (um documento Word ou Excel pode ser guardado em PDF).
 Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	Um modelo neste computador não lê PDF: só o Claude os lê.
 Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	Este modelo não lê imagens nem PDF: retire-os, ou escolha Claude ou Ollama em Definições › Inteligência.
+Recherche dans l'historique	Pesquisa no histórico
+Recherche dans l'historique : « {} »	Pesquisa no histórico: «{}»
+Liste des onglets ouverts	Lista dos separadores abertos
+Lecture de l'onglet « {} »	Leitura do separador «{}»
+Recherche dans les favoris : « {} »	Pesquisa nos favoritos: «{}»
+Recherche dans les conversations : « {} »	Pesquisa nas conversas: «{}»
+Ouvrir {}	Abrir {}
+Fermer : {}	Fechar: {}
+Grouper sous « {} » : {}	Agrupar como «{}»: {}
+Commande : {}	Comando: {}
+Conversations précédentes	Conversas anteriores
+L'assistant veut consulter votre navigateur	O assistente quer consultar o seu navegador
+L'assistant veut agir	O assistente quer agir
+Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.	O que lá encontrar é enviado ao modelo, fora deste computador.
+Autoriser pour cette conversation	Permitir para esta conversa
+Accepter	Aceitar
+Refuser	Recusar
+En attente de votre réponse…	À espera da sua resposta…
+Rechercher dans les conversations…	Pesquisar nas conversas…
+Aucune conversation gardée.	Nenhuma conversa guardada.
+Aucune conversation ne contient ces mots.	Nenhuma conversa contém estas palavras.
+Conversation	Conversa
+Laisser l'assistant consulter votre navigateur et agir	Permitir que o assistente consulte o seu navegador e aja
+Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite	Histórico, separadores, favoritos, conversas; cada ação é-lhe mostrada antes de ser feita
+Garder les conversations sur cet ordinateur	Guardar as conversas neste computador
+Pour les reprendre et les retrouver ; jamais celles des onglets privés	Para as retomar e reencontrar; nunca as dos separadores privados
+Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	Um modelo neste computador consulta livremente; com o Claude, é-lhe perguntado da primeira vez que ele quer procurar no seu histórico, nos seus separadores ou nos seus favoritos, pois o que lá encontra é-lhe enviado. Abrir, fechar, agrupar, executar um comando: sempre com o seu acordo.

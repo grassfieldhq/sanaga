@@ -1402,6 +1402,20 @@ impl Sanaga {
                 }
                 _ => {}
             }
+            group(ui, th, tr("Assistant"), |ui, rows| {
+                changed |= rows.switch(
+                    ui,
+                    tr("Laisser l'assistant consulter votre navigateur et agir"),
+                    tr("Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite"),
+                    &mut st.ai_tools,
+                );
+                changed |= rows.switch(ui, tr("Garder les conversations sur cet ordinateur"), tr("Pour les reprendre et les retrouver ; jamais celles des onglets privés"), &mut st.keep_chats);
+            });
+            footnote(
+                ui,
+                th,
+                tr("Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord."),
+            );
             group(ui, th, tr("Traduction des pages"), |ui, rows| {
                 for (key, label, sub) in [
                     ("ai", tr("Avec l'intelligence choisie ci-dessus"), tr("La page est traduite sur place ; seul son texte est envoyé")),

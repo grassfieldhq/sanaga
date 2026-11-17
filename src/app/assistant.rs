@@ -94,6 +94,8 @@ pub(super) enum ChatEvent {
     Called(bool),
     /// Something the person should know.
     Note(String),
+    /// The model has no tools after all: the conversation goes on without.
+    NoTools,
     /// The answer is over: the conversation as it is now.
     Done { result: Result<(), String>, entries: Vec<chat::Entry> },
     /// A tool the window must run (or ask the person about).
@@ -104,6 +106,16 @@ pub(super) enum ChatEvent {
 pub(super) struct ToolAsk {
     pub call: chat::Call,
     pub reply: Sender<chat::ToolResult>,
+}
+
+/// A tool call the person is asked about.
+pub(super) struct Confirm {
+    pub ask: ToolAsk,
+    /// What it would do, in words.
+    pub what: String,
+    /// A tool that only reads, wanted by a model outside this computer:
+    /// asked once per conversation. Otherwise a tool that acts: every time.
+    pub once: bool,
 }
 
 /// One thing shown in the conversation.
@@ -188,6 +200,10 @@ fn doc_text(d: &Document) -> String {
 }
 
 pub(super) struct Assistant {
+    /// Its number among the conversations kept (none yet, or never kept).
+    pub(super) id: Option<i64>,
+    /// It has changed since it was last kept.
+    unsaved: bool,
     /// The steps settled so far.
     entries: Vec<chat::Entry>,
     /// What the person sees for the questions whose text is not what they
@@ -195,10 +211,22 @@ pub(super) struct Assistant {
     labels: HashMap<usize, String>,
     /// The conversation's instructions and tools: those it began with.
     system: String,
-    tools: Vec<chat::Tool>,
+    pub(super) tools: Vec<chat::Tool>,
+    /// The model answering is outside this computer; the tools that read
+    /// which the person allowed it in this conversation; the tool call
+    /// they are being asked about.
+    pub(super) outside: bool,
+    pub(super) allowed: HashSet<String>,
+    pub(super) confirm: Option<Confirm>,
+    /// Tabs a tool is reading: answered when their page has.
+    reads: Vec<(PageWait, ToolAsk, f64)>,
+    /// The list of earlier conversations is shown (None: the conversation
+    /// is), with its search.
+    earlier: Option<Vec<crate::chats::Kept>>,
+    earlier_filter: String,
     /// Something of a private tab is in it: only a model on this computer
     /// may answer from then on, and nothing is kept.
-    private: bool,
+    pub(super) private: bool,
     /// The list of tabs and files to attach is open.
     picker: bool,
     /// The question being typed, and what is attached to it.
@@ -230,6 +258,14 @@ pub(super) struct Assistant {
 impl Assistant {
     fn new(tab: u64, private: bool) -> Assistant {
         Assistant {
+            id: None,
+            unsaved: false,
+            outside: false,
+            allowed: HashSet::new(),
+            confirm: None,
+            reads: Vec::new(),
+            earlier: None,
+            earlier_filter: String::new(),
             entries: Vec::new(),
             labels: HashMap::new(),
             system: String::new(),
@@ -360,11 +396,23 @@ impl Sanaga {
             Some(a) => a.focus = true,
             None => self.assistant = Some(Assistant::new(id, private)),
         }
+        self.open_chats();
         self.ai_menu_open = false;
+    }
+
+    /// Open the profile's kept conversations, once (on a thread).
+    fn open_chats(&mut self) {
+        let Some(dir) = self.store.data_dir().cloned().filter(|_| !self.guest) else { return };
+        if !self.first_time("chats") {
+            return;
+        }
+        self.off_thread(move || crate::chats::Chats::open(&dir), |app, chats| app.chats = chats);
     }
 
     /// Close the panel; a model still answering is stopped.
     pub(super) fn close_assistant(&mut self) {
+        // (kept as it is before it goes)
+        self.keep_conversation();
         if let Some(a) = self.assistant.take() {
             a.stop.store(true, Ordering::Relaxed);
         }
@@ -372,9 +420,11 @@ impl Sanaga {
 
     /// Start a new conversation in the panel.
     fn new_conversation(&mut self) {
+        self.keep_conversation();
         if let Some(old) = &self.assistant {
             old.stop.store(true, Ordering::Relaxed);
         }
+        self.open_chats();
         let t = &self.tabs[self.active];
         self.assistant = Some(Assistant::new(t.id, t.private));
     }
@@ -523,8 +573,9 @@ impl Sanaga {
 
     /// A page's text arrived.
     pub(super) fn page_text_arrived(&mut self, ticket: u64, text: Option<PageText>) {
-        let Some(p) = self.assistant.as_mut().and_then(|a| a.pending.as_mut()) else { return };
-        let Some(slot) = p.pages.iter_mut().find(|x| x.ticket == Some(ticket)) else { return };
+        let Some(a) = self.assistant.as_mut() else { return };
+        let asked = a.pending.as_mut().and_then(|p| p.pages.iter_mut().find(|x| x.ticket == Some(ticket)));
+        let Some(slot) = asked.or_else(|| a.reads.iter_mut().map(|r| &mut r.0).find(|x| x.ticket == Some(ticket))) else { return };
         let got = text.unwrap_or(PageText { title: String::new(), text: String::new(), whole: 0, selection: String::new() });
         let shown = got.text.chars().count();
         slot.got = Some(Source {
@@ -539,8 +590,9 @@ impl Sanaga {
 
     /// A tab asked for its text shows a PDF: the document came instead.
     pub(super) fn page_file_arrived(&mut self, ticket: u64, file: Attachment) {
-        let Some(p) = self.assistant.as_mut().and_then(|a| a.pending.as_mut()) else { return };
-        let Some(slot) = p.pages.iter_mut().find(|x| x.ticket == Some(ticket)) else { return };
+        let Some(a) = self.assistant.as_mut() else { return };
+        let asked = a.pending.as_mut().and_then(|p| p.pages.iter_mut().find(|x| x.ticket == Some(ticket)));
+        let Some(slot) = asked.or_else(|| a.reads.iter_mut().map(|r| &mut r.0).find(|x| x.ticket == Some(ticket))) else { return };
         slot.got = Some(Source { kind: SourceKind::Page, title: String::new(), address: slot.address.clone(), text: String::new(), cut: None });
         slot.file = Some(file);
     }
@@ -549,6 +601,8 @@ impl Sanaga {
     /// enough), the question goes to the model.
     pub(super) fn assistant_step(&mut self) {
         let now = self.ctx.input(|i| i.time);
+        self.tool_reads_step(now);
+        self.keep_conversation();
         // the pages that can answer now are asked (a tab whose page had to
         // start answers once it has loaded)
         let waiting: Vec<u64> =
@@ -651,10 +705,14 @@ impl Sanaga {
                 return;
             }
         };
-        // the conversation's instructions are those of its first question
+        // the conversation's instructions and tools are those of its first question
         if a.system.is_empty() {
-            a.system = chat::system_prompt(Self::answer_language(), !a.tools.is_empty() && chat::tools_possible(&provider));
+            if self.store.settings.ai_tools && chat::tools_possible(&provider) {
+                a.tools = super::aitools::all();
+            }
+            a.system = chat::system_prompt(Self::answer_language(), !a.tools.is_empty(), &super::aitools::today());
         }
+        a.outside = matches!(provider, Provider::Claude { .. });
         chat::fit_sources(&mut sources, chat::source_budget(&provider));
         a.given.extend(given);
         a.with_page = false;
@@ -701,6 +759,7 @@ impl Sanaga {
                     chat::Event::Calling(c) => send(ChatEvent::Calling(lines(c))),
                     chat::Event::Result(r) => send(ChatEvent::Called(!r.error)),
                     chat::Event::Note(n) => send(ChatEvent::Note(n)),
+                    chat::Event::NoTools => send(ChatEvent::NoTools),
                 };
                 let result = chat::converse(&provider, &system, &tools, &mut entries, &stop, &mut call_tool, &mut on);
                 send(ChatEvent::Done { result, entries });
@@ -710,7 +769,154 @@ impl Sanaga {
 
     /// How a tool call is said to the person (a function a thread can keep).
     fn tool_lines(&self) -> impl Fn(&chat::Call) -> String + Send + 'static {
-        |c: &chat::Call| c.name.clone()
+        let titles = self.tab_titles();
+        move |c: &chat::Call| super::aitools::line(c, &titles)
+    }
+
+    /// A tool reads a tab's page: its page starts if it must, and the
+    /// tool is answered once the text has come (see `assistant_step`).
+    pub(super) fn read_tab_for_tool(&mut self, id: u64, ask: ToolAsk) {
+        let now = self.ctx.input(|i| i.time);
+        let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) else { return };
+        let address = t.url().to_string();
+        let got = match &t.view {
+            View::Doc(d) => Some(Source { kind: SourceKind::Page, title: t.title(), address: address.clone(), text: doc_text(d), cut: None }),
+            View::Web => {
+                if t.web.is_none() {
+                    if t.web_pending.is_none() {
+                        t.sleeping = false;
+                        t.web_pending = Some(address.clone());
+                    }
+                    t.loading = true;
+                    t.load_behind = true;
+                }
+                None
+            }
+            _ => Some(Source { kind: SourceKind::Page, title: t.title(), address: address.clone(), text: String::new(), cut: None }),
+        };
+        if let Some(a) = self.assistant.as_mut() {
+            a.reads.push((PageWait { tab: id, address, ticket: None, got, file: None }, ask, now));
+        }
+    }
+
+    /// The tabs tools are reading: asked when their page can answer,
+    /// answered when it has (or after a while).
+    fn tool_reads_step(&mut self, now: f64) {
+        let waiting: Vec<u64> = self.assistant.as_ref().map(|a| a.reads.iter().filter(|r| r.0.got.is_none() && r.0.ticket.is_none()).map(|r| r.0.tab).collect()).unwrap_or_default();
+        for tab in waiting {
+            let state = self.tabs.iter().find(|t| t.id == tab).map(|t| t.web.is_some() && !t.loading);
+            let ticket = match state {
+                Some(true) => self.request_page_text(tab),
+                Some(false) => continue,
+                None => None,
+            };
+            if let Some(r) = self.assistant.as_mut().and_then(|a| a.reads.iter_mut().find(|r| r.0.tab == tab && r.0.ticket.is_none() && r.0.got.is_none())) {
+                match ticket {
+                    Some(t) => r.0.ticket = Some(t),
+                    None => r.0.got = Some(Source { kind: SourceKind::Page, title: String::new(), address: r.0.address.clone(), text: String::new(), cut: None }),
+                }
+            }
+        }
+        let budget = self.assistant.as_ref().map(|a| if a.outside { 120_000 } else { 12_000 }).unwrap_or(12_000);
+        let Some(a) = self.assistant.as_mut() else { return };
+        let mut k = 0;
+        while k < a.reads.len() {
+            if a.reads[k].0.got.is_none() && now - a.reads[k].2 < 25.0 {
+                k += 1;
+                continue;
+            }
+            let (wait, ask, _) = a.reads.remove(k);
+            let result = match wait.got {
+                Some(s) if !s.text.trim().is_empty() => {
+                    let mut one = [s];
+                    chat::fit_sources(&mut one, budget);
+                    a.given.insert((wait.tab, wait.address));
+                    chat::ToolResult { id: ask.call.id.clone(), name: ask.call.name.clone(), text: chat::source_text(&one[0]), error: false }
+                }
+                _ if wait.file.is_some() => chat::ToolResult {
+                    id: ask.call.id.clone(),
+                    name: ask.call.name.clone(),
+                    text: "This tab shows a PDF: its text cannot be read by this tool. The person can attach the tab to a question instead.".into(),
+                    error: true,
+                },
+                _ => chat::ToolResult { id: ask.call.id.clone(), name: ask.call.name.clone(), text: "The page gave no text (it is empty, or took too long to load).".into(), error: true },
+            };
+            let _ = ask.reply.send(result);
+        }
+        if !a.reads.is_empty() {
+            self.ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        }
+    }
+
+    /// Keep the conversation shown (on a thread), unless it must not be.
+    fn keep_conversation(&mut self) {
+        let keep = self.store.settings.keep_chats;
+        let Some(chats) = self.chats.clone() else { return };
+        let Some(a) = self.assistant.as_mut().filter(|a| a.unsaved && !a.busy) else { return };
+        a.unsaved = false;
+        // (nothing of a private tab is kept, nor anything when the person
+        // said not to keep conversations)
+        if a.private || !keep || a.questions() == 0 {
+            return;
+        }
+        let title = a.labels.get(&0).cloned().or_else(|| a.entries.iter().find_map(|e| if let chat::Entry::User { text, .. } = e { Some(text.clone()) } else { None })).unwrap_or_default();
+        let conv = crate::chats::Conversation {
+            title: title.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(80).collect(),
+            system: a.system.clone(),
+            tools: a.tools.clone(),
+            labels: a.labels.clone(),
+            entries: a.entries.clone(),
+        };
+        let (id, run) = (a.id, a.run);
+        self.off_thread(
+            move || chats.save(id, &conv, crate::store::now()),
+            move |app, kept| {
+                // (the conversation shown may be another one by now)
+                if let Some(a) = app.assistant.as_mut().filter(|a| a.run == run && a.id == id) {
+                    a.id = kept;
+                }
+            },
+        );
+    }
+
+    /// Show the earlier conversations (asked of the database on a thread).
+    fn list_conversations(&mut self) {
+        let Some(chats) = self.chats.clone() else { return };
+        let Some(a) = self.assistant.as_mut() else { return };
+        let words = a.earlier_filter.clone();
+        if a.earlier.is_none() {
+            a.earlier = Some(Vec::new());
+        }
+        self.off_thread(
+            move || (chats.list(&words, 80), words),
+            |app, (list, words)| {
+                // (the answer to what is typed now, not to an earlier search)
+                if let Some(a) = app.assistant.as_mut().filter(|a| a.earlier.is_some() && a.earlier_filter == words) {
+                    a.earlier = Some(list);
+                }
+            },
+        );
+    }
+
+    /// Open a conversation kept, to read it or go on with it.
+    fn open_conversation(&mut self, id: i64) {
+        let Some(chats) = self.chats.clone() else { return };
+        self.off_thread(
+            move || chats.load(id),
+            move |app, conv| {
+                let Some(conv) = conv else { return };
+                app.new_conversation();
+                let Some(a) = app.assistant.as_mut() else { return };
+                a.id = Some(id);
+                a.system = conv.system;
+                a.tools = conv.tools;
+                a.labels = conv.labels;
+                a.entries = conv.entries;
+                // (its pages were given long ago: the page shown is not
+                // sent again unless the person asks)
+                a.with_page = false;
+            },
+        );
     }
 
     /// What a model's thread says about the conversation it answers.
@@ -735,11 +941,15 @@ impl Sanaga {
                 }
             }
             ChatEvent::Note(n) => a.note = n,
+            // (a model on this computer without tools: none are offered again)
+            ChatEvent::NoTools => a.tools.clear(),
             ChatEvent::Ask(ask) => self.run_tool(ask),
             ChatEvent::Done { result, entries } => {
                 a.busy = false;
                 a.live.clear();
                 a.entries = entries;
+                a.unsaved = true;
+                a.confirm = None;
                 match result {
                     Ok(()) => {}
                     // (stopped by the person: what was written stays)
@@ -758,12 +968,6 @@ impl Sanaga {
                 a.focus = true;
             }
         }
-    }
-
-    /// Run a tool the model asked for. (No tool is given to models yet:
-    /// whatever is asked for is refused.)
-    fn run_tool(&mut self, ask: ToolAsk) {
-        let _ = ask.reply.send(chat::ToolResult { id: ask.call.id.clone(), name: ask.call.name.clone(), text: "There is no such tool.".into(), error: true });
     }
 
     /// The assistant, at the side of the page.
@@ -789,6 +993,9 @@ impl Sanaga {
         let (mut close, mut renew, mut choose, mut stop, mut send, mut again, mut summarise, mut edit, mut copy) = (false, false, false, false, false, false, false, false, None::<String>);
         let mut drop_attach: Option<usize> = None;
         let (mut pick_file, mut pick_tab) = (false, None::<(u64, String)>);
+        let (mut allow, mut toggle_earlier, mut search_earlier, mut open_conv, mut delete_conv) = (None::<bool>, false, false, None::<i64>, None::<i64>);
+        let kept_possible = self.chats.is_some();
+        let titles: HashMap<u64, String> = self.tabs.iter().map(|t| (t.id, t.title())).collect();
         // "@" at the end of what is typed: the tabs whose name holds what follows it
         let mention = mention_of(&a.input).map(|m| m.to_lowercase());
         let offered: Vec<&(u64, String, String)> = others
@@ -799,7 +1006,7 @@ impl Sanaga {
             })
             .take(7)
             .collect();
-        let lines = |c: &chat::Call| c.name.clone();
+        let lines = |c: &chat::Call| super::aitools::line(c, &titles);
         let mut steps = steps_of(&a.entries, &a.labels, &lines);
         if let Some(p) = &a.pending {
             steps.push(Step::Asked { text: if p.label.is_empty() { p.text.clone() } else { p.label.clone() }, attached: Vec::new() });
@@ -818,11 +1025,42 @@ impl Sanaga {
                     if !steps.is_empty() && super::chrome::icon_button_small(ui, Icon::Plus, th).tip(tr("Nouvelle conversation")).clicked() {
                         renew = true;
                     }
+                    if kept_possible && super::chrome::icon_button_small(ui, Icon::Rotate, th).tip(tr("Conversations précédentes")).clicked() {
+                        toggle_earlier = true;
+                    }
                 });
             });
         });
 
         egui::Panel::bottom("assistant-foot").show_separator_line(false).frame(Frame::NONE.inner_margin(Margin { left: 14, right: 14, top: 6, bottom: 12 })).show(ui, |ui| {
+            // a tool the model wants, which the person decides
+            if let Some(c) = &a.confirm {
+                Frame::new()
+                    .fill(th.accent.gamma_multiply(0.12))
+                    .stroke(Stroke::new(1.0, th.accent.gamma_multiply(0.5)))
+                    .corner_radius(CornerRadius::same(10))
+                    .inner_margin(Margin::symmetric(12, 9))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        let title = if c.once { tr("L'assistant veut consulter votre navigateur") } else { tr("L'assistant veut agir") };
+                        ui.label(RichText::new(title).size(12.5).family(bold()).color(th.text));
+                        ui.add(egui::Label::new(RichText::new(&c.what).size(13.0).color(th.text)).wrap());
+                        if c.once {
+                            ui.add(egui::Label::new(RichText::new(tr("Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.")).size(11.5).color(th.sub)).wrap());
+                        }
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            let yes = if c.once { tr("Autoriser pour cette conversation") } else { tr("Accepter") };
+                            if ui.add(egui::Button::new(RichText::new(yes).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(9))).clicked() {
+                                allow = Some(true);
+                            }
+                            if ui.add(egui::Button::new(tr("Refuser")).corner_radius(CornerRadius::same(9))).clicked() {
+                                allow = Some(false);
+                            }
+                        });
+                    });
+                ui.add_space(6.0);
+            }
             if !a.note.is_empty() {
                 ui.add(egui::Label::new(RichText::new(&a.note).size(12.0).color(Color32::from_rgb(0xD0, 0x60, 0x30))).wrap());
                 ui.add_space(4.0);
@@ -927,7 +1165,13 @@ impl Sanaga {
             ui.horizontal(|ui| {
                 if working {
                     ui.spinner();
-                    let what = if a.pending.is_some() { tr("Lecture de la page…") } else { tr("Écriture de la réponse…") };
+                    let what = if a.confirm.is_some() {
+                        tr("En attente de votre réponse…")
+                    } else if a.pending.is_some() {
+                        tr("Lecture de la page…")
+                    } else {
+                        tr("Écriture de la réponse…")
+                    };
                     ui.label(RichText::new(what).size(12.5).color(th.sub));
                     if a.busy && ui.button(tr("Arrêter")).clicked() {
                         stop = true;
@@ -946,6 +1190,45 @@ impl Sanaga {
         });
 
         egui::CentralPanel::no_frame().frame(Frame::NONE.inner_margin(Margin { left: 18, right: 14, top: 4, bottom: 4 })).show(ui, |ui| {
+            if let Some(list) = &a.earlier {
+                // the conversations kept on this computer
+                let search = ui.add(TextEdit::singleline(&mut a.earlier_filter).hint_text(tr("Rechercher dans les conversations…")).desired_width(f32::INFINITY));
+                if search.changed() {
+                    search_earlier = true;
+                }
+                ui.add_space(6.0);
+                if list.is_empty() {
+                    ui.label(
+                        RichText::new(if a.earlier_filter.trim().is_empty() { tr("Aucune conversation gardée.") } else { tr("Aucune conversation ne contient ces mots.") }).size(13.0).color(th.sub),
+                    );
+                }
+                egui::ScrollArea::vertical().id_salt("assistant-earlier").auto_shrink([false, false]).show(ui, |ui| {
+                    for k in list {
+                        ui.horizontal(|ui| {
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if super::chrome::confirm_button(ui, ("chat", k.id), tr("Supprimer")) {
+                                    delete_conv = Some(k.id);
+                                }
+                                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                                    ui.vertical(|ui| {
+                                        let title = if k.title.is_empty() { tr("Conversation") } else { k.title.as_str() };
+                                        if ui
+                                            .add(egui::Label::new(RichText::new(title).size(13.5).color(th.text)).truncate().sense(Sense::click()))
+                                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                            .clicked()
+                                        {
+                                            open_conv = Some(k.id);
+                                        }
+                                        ui.label(RichText::new(super::aitools::when(k.updated)).size(11.0).color(th.sub));
+                                    });
+                                });
+                            });
+                        });
+                        ui.add_space(4.0);
+                    }
+                });
+                return;
+            }
             if steps.is_empty() && a.live.is_empty() {
                 // nothing asked yet: what can be done from here
                 ui.add_space(8.0);
@@ -1078,6 +1361,30 @@ impl Sanaga {
         }
         if pick_file {
             self.attach_file();
+        }
+        if let Some(yes) = allow {
+            self.tool_answered(yes);
+        }
+        if toggle_earlier {
+            match self.assistant.as_mut() {
+                Some(a) if a.earlier.is_some() => a.earlier = None,
+                _ => self.list_conversations(),
+            }
+        }
+        if search_earlier {
+            self.list_conversations();
+        }
+        if let Some(id) = delete_conv {
+            if let Some(chats) = self.chats.clone() {
+                self.off_thread(move || chats.delete(id), |app, ()| app.list_conversations());
+            }
+            // (the one shown, deleted: it is no longer a kept one)
+            if let Some(a) = self.assistant.as_mut().filter(|a| a.id == Some(id)) {
+                a.id = None;
+            }
+        }
+        if let Some(id) = open_conv {
+            self.open_conversation(id);
         }
         if close {
             self.close_assistant();

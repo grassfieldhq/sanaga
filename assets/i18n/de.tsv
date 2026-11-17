@@ -1323,3 +1323,30 @@ Ce n'est pas un fichier.	Das ist keine Datei.
 Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	Sanaga kann „{}“ nicht lesen: Hängen Sie einen Text, ein Bild oder ein PDF an (ein Word- oder Excel-Dokument lässt sich als PDF speichern).
 Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	Ein Modell auf diesem Computer liest keine PDFs: Nur Claude liest sie.
 Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	Dieses Modell liest weder Bilder noch PDFs: Entfernen Sie sie, oder wählen Sie Claude oder Ollama unter Einstellungen › Intelligenz.
+Recherche dans l'historique	Suche im Verlauf
+Recherche dans l'historique : « {} »	Suche im Verlauf: „{}“
+Liste des onglets ouverts	Liste der geöffneten Tabs
+Lecture de l'onglet « {} »	Tab „{}“ wird gelesen
+Recherche dans les favoris : « {} »	Suche in den Favoriten: „{}“
+Recherche dans les conversations : « {} »	Suche in den Unterhaltungen: „{}“
+Ouvrir {}	{} öffnen
+Fermer : {}	Schließen: {}
+Grouper sous « {} » : {}	Als „{}“ gruppieren: {}
+Commande : {}	Befehl: {}
+Conversations précédentes	Frühere Unterhaltungen
+L'assistant veut consulter votre navigateur	Der Assistent möchte in Ihren Browser schauen
+L'assistant veut agir	Der Assistent möchte handeln
+Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.	Was er dort findet, wird an das Modell gesendet, außerhalb dieses Computers.
+Autoriser pour cette conversation	Für diese Unterhaltung erlauben
+Accepter	Annehmen
+Refuser	Ablehnen
+En attente de votre réponse…	Warten auf Ihre Antwort…
+Rechercher dans les conversations…	Unterhaltungen durchsuchen…
+Aucune conversation gardée.	Keine Unterhaltung gespeichert.
+Aucune conversation ne contient ces mots.	Keine Unterhaltung enthält diese Wörter.
+Conversation	Unterhaltung
+Laisser l'assistant consulter votre navigateur et agir	Dem Assistenten erlauben, in Ihren Browser zu schauen und zu handeln
+Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite	Verlauf, Tabs, Favoriten, Unterhaltungen; jede Aktion wird Ihnen gezeigt, bevor sie ausgeführt wird
+Garder les conversations sur cet ordinateur	Unterhaltungen auf diesem Computer speichern
+Pour les reprendre et les retrouver ; jamais celles des onglets privés	Um sie fortzusetzen und wiederzufinden; nie die von privaten Tabs
+Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	Ein Modell auf diesem Computer schaut frei nach; bei Claude werden Sie gefragt, wenn es zum ersten Mal in Ihrem Verlauf, Ihren Tabs oder Ihren Favoriten suchen möchte, da ihm das Gefundene gesendet wird. Öffnen, Schließen, Gruppieren, einen Befehl ausführen: immer erst nach Ihrer Zustimmung.
