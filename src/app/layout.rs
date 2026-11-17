@@ -116,6 +116,7 @@ impl Sanaga {
         let mut close: Option<usize> = None;
         let mut fold: Option<usize> = None;
         let mut drop_at: Option<(usize, usize)> = None;
+        let mut tear_off: Option<usize> = None;
         let mut new_tab = false;
         let mut menu_done = false;
 
@@ -312,8 +313,14 @@ impl Sanaga {
                         close = Some(i);
                     }
                 }
+                // dragged well out of the tabs' panel (sideways) and let
+                // go there: the tab leaves for a window of its own
+                let far = |p: egui::Pos2| p.x < full.left() - Self::TEAR_OFF || p.x > full.right() + Self::TEAR_OFF;
+                if resp.drag_stopped() && ui.ctx().pointer_interact_pos().is_some_and(far) && !tab.pinned && self.can_move_to_window(i) {
+                    tear_off = Some(i);
+                }
                 if resp.dragged_by(egui::PointerButton::Primary) {
-                    if let Some(p) = ui.ctx().pointer_interact_pos() {
+                    if let Some(p) = ui.ctx().pointer_interact_pos().filter(|p| !far(*p)) {
                         // (the rows as they were drawn last time: the ones
                         // of this frame stop at the tab being dragged, so a
                         // tab could only be dragged upwards)
@@ -396,6 +403,10 @@ impl Sanaga {
             self.active = i;
             self.current_group = self.tabs[i].group;
             self.suggest_open = false;
+        }
+        if let Some(i) = tear_off {
+            self.move_tab_to_window(i);
+            return;
         }
         if let Some((from, to)) = drop_at {
             self.move_tab(from, to);

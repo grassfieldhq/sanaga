@@ -123,6 +123,10 @@ fn run_window(slot: usize) {
             g.app.open_from_outside(arrived);
         }
     }
+    let dropped = std::mem::take(&mut input.borrow_mut().dropped);
+    if !dropped.is_empty() {
+        g.app.open_dropped(dropped);
+    }
     let area = host.area.clone();
     update(&mut g, &area, &input, &host, &im);
     // Ctrl+N, a tab moved to a new window
@@ -735,6 +739,9 @@ struct Input {
     device: Option<gdk::Device>,
     /// The keyboard went from Sanaga's interface to a page.
     chrome_lost_focus: bool,
+    /// Links, files or words dropped on the interface (from a page, the file
+    /// manager, another program), not opened yet.
+    dropped: Vec<String>,
 }
 
 /// Screen readers (Orca…) read Sanaga's interface through AT-SPI: egui
@@ -1915,6 +1922,30 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             a.queue_render();
         });
         area.add_controller(keys);
+    }
+    {
+        // A link, a file or words dropped on the interface (the tab bar, the
+        // toolbar, the side panel) open in new tabs. (Dropped on a page,
+        // they are the page's: the engine handles them.)
+        let drop = gtk::DropTarget::new(glib::Type::INVALID, gdk::DragAction::COPY | gdk::DragAction::LINK);
+        drop.set_types(&[gdk::FileList::static_type(), String::static_type()]);
+        let (input, a) = (input.clone(), area.clone());
+        drop.connect_drop(move |_, value, _, _| {
+            let items: Vec<String> = if let Ok(files) = value.get::<gdk::FileList>() {
+                files.files().iter().map(|f| f.uri().to_string()).collect()
+            } else if let Ok(text) = value.get::<String>() {
+                vec![text]
+            } else {
+                Vec::new()
+            };
+            if items.is_empty() {
+                return false;
+            }
+            input.borrow_mut().dropped.extend(items);
+            a.queue_render();
+            true
+        });
+        area.add_controller(drop);
     }
     {
         // A key pressed in a page that the page did not use comes back up

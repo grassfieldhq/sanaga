@@ -151,6 +151,7 @@ impl Sanaga {
         let mut mute: Option<usize> = None;
         let mut stop_capture: Option<usize> = None;
         let mut drop_at: Option<(usize, usize)> = None;
+        let mut tear_off: Option<usize> = None;
         let mut menu_done = false;
         let active_pos = order.iter().position(|&i| i == self.active);
         let hovered_pos = rects.iter().position(|r| ui.rect_contains_pointer(*r));
@@ -286,9 +287,15 @@ impl Sanaga {
                     close = Some(i);
                 }
             }
+            // dragged well out of the tab bar and let go there: the tab
+            // leaves for a window of its own
+            let far = |p: egui::Pos2| p.y < full.top() - Self::TEAR_OFF || p.y > full.bottom() + Self::TEAR_OFF;
+            if resp.drag_stopped() && ui.ctx().pointer_interact_pos().is_some_and(far) && !self.tabs[i].pinned && self.can_move_to_window(i) {
+                tear_off = Some(i);
+            }
             // drag a tab to another place (pinned and normal tabs stay apart)
             if resp.dragged_by(egui::PointerButton::Primary) {
-                if let Some(px) = ui.ctx().pointer_interact_pos() {
+                if let Some(px) = ui.ctx().pointer_interact_pos().filter(|p| !far(*p)) {
                     if let Some(t) = rects.iter().position(|r| px.x >= r.left() && px.x < r.right()) {
                         if t != k && self.tabs[order[t]].pinned == self.tabs[i].pinned {
                             drop_at = Some((i, order[t]));
@@ -338,6 +345,10 @@ impl Sanaga {
             self.active = i;
             self.current_group = self.tabs[i].group;
             self.suggest_open = false;
+        }
+        if let Some(i) = tear_off {
+            self.move_tab_to_window(i);
+            return;
         }
         if let Some((from, to)) = drop_at {
             if !self.tabs[from].pinned {

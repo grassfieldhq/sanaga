@@ -281,6 +281,29 @@ pub fn proxy_choice(setting: &str) -> Option<ProxyChoice> {
     Some(ProxyChoice::Custom(format!("{scheme}://{login}{host}:{port}")))
 }
 
+/// What was dropped on Sanaga's interface, as what to open: a web address
+/// or a local file as it is, anything else as words to search for (`Err`).
+/// Never one of Sanaga's own pages or commands: a page can start a drag
+/// with any text, and the person only sees a link being moved.
+pub fn dropped_item(text: &str) -> Option<Result<String, String>> {
+    // (several addresses dropped as one text: one per line, comments with #)
+    let t = text.trim();
+    if t.is_empty() || t.len() > 8192 || t.starts_with('#') {
+        return None;
+    }
+    if let Ok(u) = url::Url::parse(t) {
+        if matches!(u.scheme(), "http" | "https" | "file") && !t.chars().any(|c| c.is_control()) {
+            return Some(Ok(u.to_string()));
+        }
+    }
+    // (a path of this computer)
+    if t.starts_with('/') && !t.contains(['\n', '\r']) && Path::new(t).exists() {
+        return Some(Ok(format!("file://{t}")));
+    }
+    let words: String = t.chars().map(|c| if c.is_control() { ' ' } else { c }).take(300).collect();
+    Some(Err(words.trim().to_string()))
+}
+
 /// A link meant for another program of the computer (the mail program, the
 /// phone, a torrent program): handed to the system when the person clicks
 /// it. Only these few: any other scheme could start a program a page has
@@ -532,6 +555,21 @@ pub fn js_str(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_is_dropped_is_an_address_a_file_or_words() {
+        assert_eq!(dropped_item(" https://example.org/a b "), Some(Ok("https://example.org/a%20b".to_string())));
+        assert_eq!(dropped_item("file:///tmp/x.html"), Some(Ok("file:///tmp/x.html".to_string())));
+        assert_eq!(dropped_item("/"), Some(Ok("file:///".to_string())));
+        // words: searched for, whatever they look like
+        assert_eq!(dropped_item("hello  world"), Some(Err("hello  world".to_string())));
+        for own in ["sanaga://settings", "javascript:alert(1)", "data:text/html,<p>x", "preview:https://example.org", "apercu:", "profil:other", "about:blank"] {
+            assert!(matches!(dropped_item(own), Some(Err(_))), "{own}");
+        }
+        assert_eq!(dropped_item("line one\nline two"), Some(Err("line one line two".to_string())));
+        assert_eq!(dropped_item("   "), None);
+        assert_eq!(dropped_item("# a comment of a list of addresses"), None);
+    }
 
     #[test]
     fn https_is_tried_first_for_sites_of_the_internet_only() {

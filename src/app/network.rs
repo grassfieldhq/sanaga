@@ -34,6 +34,28 @@ impl Sanaga {
         }
     }
 
+    /// Links, files or words dropped on the interface: each address or
+    /// file opens in a new tab, words are searched for (once).
+    pub fn open_dropped(&mut self, items: Vec<String>) {
+        // (a text dropped may hold several addresses, one per line)
+        let lines = items.iter().flat_map(|i| if i.lines().all(|l| l.trim().is_empty() || l.contains("://")) { i.lines().map(str::to_string).collect() } else { vec![i.clone()] });
+        let mut searched = false;
+        // (a whole folder of files dropped by mistake does not open a hundred tabs)
+        for item in lines.filter_map(|l| crate::guard::dropped_item(&l)).take(20) {
+            match item {
+                Ok(address) => {
+                    self.open_tab(&address, false);
+                }
+                Err(words) if !searched && !words.is_empty() => {
+                    searched = true;
+                    let search = self.store.settings.engine.search_url(&words);
+                    self.open_tab(&search, false);
+                }
+                Err(_) => {}
+            }
+        }
+    }
+
     /// Every frame (two numbers compared): Sanaga's own network clients are
     /// made again when the proxy changed, and a new version is looked for
     /// once a day when the settings say so.

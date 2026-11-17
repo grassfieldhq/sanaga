@@ -104,6 +104,27 @@ pub(super) const GROUP_COLORS: [(&str, Color32); 9] = [
 ];
 
 impl Sanaga {
+    /// May this tab leave for a window of its own (the menu's line, or the
+    /// tab dragged out of the tab bar)? Not the only tab, not a private one
+    /// (its session stays in this window).
+    pub(super) fn can_move_to_window(&self, i: usize) -> bool {
+        self.tabs.len() > 1 && self.tabs.get(i).is_some_and(|t| !t.private)
+    }
+
+    /// The tab's page opens again in a new window, and leaves this one.
+    pub(super) fn move_tab_to_window(&mut self, i: usize) {
+        if !self.can_move_to_window(i) {
+            return;
+        }
+        let url = self.tabs[i].url().to_string();
+        self.new_window(vec![url]);
+        self.close_tab(i);
+    }
+
+    /// A tab dragged this far (points) out of the tab bar leaves for a
+    /// window of its own when it is let go.
+    pub(super) const TEAR_OFF: f32 = 60.0;
+
     /// Tabs of the current group, pinned first (indices into `self.tabs`).
     /// All tabs in tab-bar order: pinned first, then each group's tabs kept
     /// together where its first tab is (like Chrome).
@@ -425,11 +446,8 @@ impl Sanaga {
             self.duplicate_tab(i);
             done = true;
         }
-        if self.tabs.len() > 1 && !self.tabs[i].private && menu_item(ui, Icon::Share, tr("Déplacer vers une nouvelle fenêtre")) {
-            // the page opens again in the new window, and leaves this one
-            let url = self.tabs[i].url().to_string();
-            self.new_window(vec![url]);
-            self.close_tab(i);
+        if self.can_move_to_window(i) && menu_item(ui, Icon::Share, tr("Déplacer vers une nouvelle fenêtre")) {
+            self.move_tab_to_window(i);
             return true;
         }
         if menu_item(ui, Icon::Touch, if pinned { tr("Désépingler") } else { tr("Épingler") }) {
