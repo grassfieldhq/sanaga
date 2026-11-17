@@ -39,6 +39,7 @@ mod icons;
 mod identity;
 mod import;
 mod keyring;
+mod mcp;
 mod migrate;
 #[cfg(test)]
 mod mutate;

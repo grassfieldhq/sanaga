@@ -1381,3 +1381,30 @@ Les pages jointes : ce qui les rapproche, ce qui les sépare	As páginas juntas:
 à-faire	tarefas
 Ce que la page demande de faire : étapes, dates, montants	O que a página pede para fazer: passos, datas, montantes
 {} — Demander à l'assistant (Maj+Entrée)	{} — Perguntar ao assistente (Shift+Enter)
+{} › {} — envoyé : {}	{} › {} — enviado: {}
+Outils extérieurs de l'assistant	Ferramentas externas do assistente
+Ajoutez vos propres serveurs d'outils (protocole MCP) : un programme sur cet ordinateur, ou une adresse. L'assistant peut alors utiliser leurs outils dans une conversation ; chaque utilisation vous est montrée avant d'être faite, sauf pour les outils que vous laissez libres.	Adicione os seus próprios servidores de ferramentas (protocolo MCP): um programa neste computador, ou um endereço. O assistente pode então usar as ferramentas deles numa conversa; cada utilização é-lhe mostrada antes de ser feita, exceto para as ferramentas que deixar livres.
+Programme	Programa
+Relire ses outils	Voltar a ler as ferramentas
+Lecture de ses outils…	A ler as ferramentas…
+Injoignable : {}	Não é possível contactar: {}
+Ce serveur n'offre aucun outil.	Este servidor não oferece nenhuma ferramenta.
+Interrupteur allumé : l'outil s'utilise sans vous demander. À réserver aux outils qui ne font que lire.	Interruptor ligado: a ferramenta é usada sem lhe perguntar. Reserve-o para as ferramentas que só leem.
+Aucun serveur ajouté.	Nenhum servidor adicionado.
+Une fenêtre d'invité ne garde pas d'outils.	Uma janela de convidado não guarda ferramentas.
+Ajouter un serveur	Adicionar um servidor
+Ex. : Notes	Ex.: Notas
+Un programme sur cet ordinateur	Um programa neste computador
+Sa ligne de commande, ex. : npx -y @exemple/serveur-notes	A sua linha de comandos, ex.: npx -y @exemplo/servidor-notas
+Ce programme est lancé avec vos droits, comme si vous le lanciez vous-même : n'ajoutez que ceux en qui vous avez confiance.	Este programa é iniciado com os seus direitos, como se o iniciasse você mesmo: adicione apenas aqueles em que confia.
+Jeton d'accès (facultatif)	Token de acesso (opcional)
+Gardé dans le trousseau du système. Les services qui demandent une fenêtre de connexion (OAuth) ne sont pas encore pris en charge.	Guardado no porta-chaves do sistema. Os serviços que pedem uma janela de início de sessão (OAuth) ainda não são suportados.
+Un serveur porte déjà ce nom.	Já existe um servidor com este nome.
+Adresse refusée : https, ou un serveur sur cet ordinateur.	Endereço recusado: https, ou um servidor neste computador.
+« {} » est ajouté.	«{}» foi adicionado.
+Le jeton n'a pas pu être gardé dans le trousseau du système.	Não foi possível guardar o token no porta-chaves do sistema.
+Outils extérieurs	Ferramentas externas
+Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Os seus próprios servidores de ferramentas (MCP); cada utilização é-lhe mostrada
+Ce n'est pas un serveur MCP (réponse inattendue).	Não é um servidor MCP (resposta inesperada).
+Accès refusé : vérifiez le jeton d'accès.	Acesso recusado: verifique o token de acesso.
+Le serveur ne répond pas.	O servidor não responde.

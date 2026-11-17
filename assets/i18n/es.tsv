@@ -1381,3 +1381,30 @@ Les pages jointes : ce qui les rapproche, ce qui les sépare	Las páginas adjunt
 à-faire	tareas
 Ce que la page demande de faire : étapes, dates, montants	Lo que la página pide hacer: pasos, fechas, importes
 {} — Demander à l'assistant (Maj+Entrée)	{} — Preguntar al asistente (Mayús+Intro)
+{} › {} — envoyé : {}	{} › {} — enviado: {}
+Outils extérieurs de l'assistant	Herramientas externas del asistente
+Ajoutez vos propres serveurs d'outils (protocole MCP) : un programme sur cet ordinateur, ou une adresse. L'assistant peut alors utiliser leurs outils dans une conversation ; chaque utilisation vous est montrée avant d'être faite, sauf pour les outils que vous laissez libres.	Añada sus propios servidores de herramientas (protocolo MCP): un programa en este ordenador, o una dirección. El asistente puede entonces usar sus herramientas en una conversación; cada uso se le muestra antes de hacerse, salvo para las herramientas que deje libres.
+Programme	Programa
+Relire ses outils	Volver a leer sus herramientas
+Lecture de ses outils…	Leyendo sus herramientas…
+Injoignable : {}	No se puede contactar: {}
+Ce serveur n'offre aucun outil.	Este servidor no ofrece ninguna herramienta.
+Interrupteur allumé : l'outil s'utilise sans vous demander. À réserver aux outils qui ne font que lire.	Interruptor encendido: la herramienta se usa sin preguntarle. Resérvelo a las herramientas que solo leen.
+Aucun serveur ajouté.	Ningún servidor añadido.
+Une fenêtre d'invité ne garde pas d'outils.	Una ventana de invitado no guarda herramientas.
+Ajouter un serveur	Añadir un servidor
+Ex. : Notes	Ej.: Notas
+Un programme sur cet ordinateur	Un programa en este ordenador
+Sa ligne de commande, ex. : npx -y @exemple/serveur-notes	Su línea de comandos, ej.: npx -y @ejemplo/servidor-notas
+Ce programme est lancé avec vos droits, comme si vous le lanciez vous-même : n'ajoutez que ceux en qui vous avez confiance.	Este programa se inicia con sus permisos, como si lo iniciara usted: añada solo aquellos en los que confía.
+Jeton d'accès (facultatif)	Token de acceso (opcional)
+Gardé dans le trousseau du système. Les services qui demandent une fenêtre de connexion (OAuth) ne sont pas encore pris en charge.	Guardado en el llavero del sistema. Los servicios que piden una ventana de inicio de sesión (OAuth) aún no son compatibles.
+Un serveur porte déjà ce nom.	Ya hay un servidor con este nombre.
+Adresse refusée : https, ou un serveur sur cet ordinateur.	Dirección rechazada: https, o un servidor en este ordenador.
+« {} » est ajouté.	«{}» se ha añadido.
+Le jeton n'a pas pu être gardé dans le trousseau du système.	No se pudo guardar el token en el llavero del sistema.
+Outils extérieurs	Herramientas externas
+Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Sus propios servidores de herramientas (MCP); cada uso se le muestra
+Ce n'est pas un serveur MCP (réponse inattendue).	No es un servidor MCP (respuesta inesperada).
+Accès refusé : vérifiez le jeton d'accès.	Acceso denegado: compruebe el token de acceso.
+Le serveur ne répond pas.	El servidor no responde.

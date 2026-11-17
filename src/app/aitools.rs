@@ -154,6 +154,13 @@ pub(super) fn line(call: &Call, tab_titles: &HashMap<u64, String>) -> String {
     }
 }
 
+/// How a call of an outside tool is said: its server, its name, and
+/// exactly what is sent to it.
+pub(super) fn outside_line(server: &str, tool: &str, input: &Value) -> String {
+    let sent: String = input.to_string().chars().take(600).collect();
+    tf("{} › {} — envoyé : {}", &[&server, &tool, &sent])
+}
+
 fn answer(ask: ToolAsk, text: impl Into<String>, error: bool) {
     let _ = ask.reply.send(ToolResult { id: ask.call.id.clone(), name: ask.call.name.clone(), text: text.into(), error });
 }
@@ -169,8 +176,21 @@ impl Sanaga {
     /// been asked (see the top of this file).
     pub(super) fn run_tool(&mut self, ask: ToolAsk) {
         let titles = self.tab_titles();
+        let outside = self.mcp.names.get(&ask.call.name).cloned();
+        let free = self.mcp_tool_free(&ask.call.name);
         let Some(a) = self.assistant.as_mut() else { return answer(ask, "Stopped by the person.", true) };
         let Some(tool) = a.tools.iter().find(|t| t.name == ask.call.name).cloned() else { return answer(ask, "There is no such tool.", true) };
+        // an outside tool of the person's: shown with what is sent to it,
+        // unless they let that tool run without asking
+        if tool.name.starts_with("mcp__") {
+            let Some((server, name)) = outside else { return answer(ask, "This outside tool is no longer there.", true) };
+            if free {
+                return self.call_mcp_tool(ask);
+            }
+            let what = outside_line(&server, &name, &ask.call.input);
+            a.confirm = Some(Confirm { ask, what, once: false });
+            return;
+        }
         let what = line(&ask.call, &titles);
         if tool.acts {
             // what it would do, checked before the person is asked
@@ -199,6 +219,9 @@ impl Sanaga {
             if let Some(a) = self.assistant.as_mut() {
                 a.allowed.insert(c.ask.call.name.clone());
             }
+        }
+        if c.ask.call.name.starts_with("mcp__") {
+            return self.call_mcp_tool(c.ask);
         }
         self.do_tool(c.ask);
     }

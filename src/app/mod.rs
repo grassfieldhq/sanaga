@@ -18,6 +18,7 @@ mod importer;
 mod intelligence;
 mod layout;
 mod mainmenu;
+mod mcppage;
 mod media;
 mod menus;
 mod myframes;
@@ -94,6 +95,8 @@ enum Internal {
     CreateExtension,
     /// The assistant's saved requests (`sanaga://skills`).
     Skills,
+    /// The assistant's outside tools (`sanaga://tools`).
+    Tools,
     Onboarding,
     /// A protected site (Netflix…) opened where it plays: `sanaga://protected?u=…`.
     Protected,
@@ -147,6 +150,7 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://import" => Internal::Import,
         "sanaga://create-extension" => Internal::CreateExtension,
         "sanaga://skills" => Internal::Skills,
+        "sanaga://tools" => Internal::Tools,
         "sanaga://start" => Internal::Onboarding,
         p if p.starts_with("sanaga://protected") => Internal::Protected,
         _ => return None,
@@ -171,6 +175,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Import => tr("Importer depuis un autre navigateur"),
         Internal::CreateExtension => tr("Créer une extension"),
         Internal::Skills => tr("Demandes enregistrées"),
+        Internal::Tools => tr("Outils extérieurs de l'assistant"),
         Internal::Onboarding => tr("Bienvenue dans Sanaga"),
         Internal::Protected => tr("Contenu protégé"),
     }
@@ -677,6 +682,9 @@ pub struct Sanaga {
     /// the form of their page.
     skills: Vec<crate::skills::Skill>,
     skill_form: skillspage::SkillForm,
+    /// The assistant's outside tools (MCP servers) and the form of their page.
+    mcp: mcppage::McpState,
+    mcp_form: mcppage::McpForm,
     ai_tx: std::sync::mpsc::Sender<intelligence::AiDone>,
     ai_rx: Receiver<intelligence::AiDone>,
     ext_form: intelligence::ExtForm,
@@ -1061,6 +1069,8 @@ impl Sanaga {
             chats: None,
             skills: Vec::new(),
             skill_form: Default::default(),
+            mcp: Default::default(),
+            mcp_form: Default::default(),
             ai_tx,
             ai_rx,
             ext_form: Default::default(),
@@ -2004,6 +2014,16 @@ impl Sanaga {
                         // (the person's answer to a tool the assistant's model asks for)
                         "toolyes" => self.tool_answered(true),
                         "toolno" => self.tool_answered(false),
+                        // (an outside tools' server added without the form: "mcpadd:name|program or address")
+                        a if a.starts_with("mcpadd:") => {
+                            if let Some((name, target)) = a[7..].split_once('|') {
+                                self.ensure_mcp();
+                                self.add_mcp_server(
+                                    crate::mcp::Server { name: name.to_string(), program: !target.starts_with("http"), target: target.to_string(), on: true, free: Vec::new() },
+                                    String::new(),
+                                );
+                            }
+                        }
                         // (a file attached to the assistant's question, without the file window)
                         a if a.starts_with("attach:") => self.attach_path(std::path::PathBuf::from(&a[7..])),
                         a if a.starts_with("installext:") => match crate::webext::install(std::path::Path::new(&a[11..])) {

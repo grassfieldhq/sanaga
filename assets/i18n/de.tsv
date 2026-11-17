@@ -1381,3 +1381,30 @@ Les pages jointes : ce qui les rapproche, ce qui les sépare	Die angehängten Se
 à-faire	aufgaben
 Ce que la page demande de faire : étapes, dates, montants	Was die Seite von Ihnen verlangt: Schritte, Termine, Beträge
 {} — Demander à l'assistant (Maj+Entrée)	{} — Den Assistenten fragen (Umschalt+Eingabe)
+{} › {} — envoyé : {}	{} › {} — gesendet: {}
+Outils extérieurs de l'assistant	Externe Werkzeuge des Assistenten
+Ajoutez vos propres serveurs d'outils (protocole MCP) : un programme sur cet ordinateur, ou une adresse. L'assistant peut alors utiliser leurs outils dans une conversation ; chaque utilisation vous est montrée avant d'être faite, sauf pour les outils que vous laissez libres.	Fügen Sie Ihre eigenen Werkzeug-Server hinzu (MCP-Protokoll): ein Programm auf diesem Computer oder eine Adresse. Der Assistent kann deren Werkzeuge dann in einer Unterhaltung benutzen; jede Benutzung wird Ihnen vorher gezeigt, außer bei den Werkzeugen, die Sie freigeben.
+Programme	Programm
+Relire ses outils	Werkzeuge neu lesen
+Lecture de ses outils…	Werkzeuge werden gelesen…
+Injoignable : {}	Nicht erreichbar: {}
+Ce serveur n'offre aucun outil.	Dieser Server bietet kein Werkzeug an.
+Interrupteur allumé : l'outil s'utilise sans vous demander. À réserver aux outils qui ne font que lire.	Schalter an: Das Werkzeug wird benutzt, ohne Sie zu fragen. Nur für Werkzeuge, die bloß lesen.
+Aucun serveur ajouté.	Kein Server hinzugefügt.
+Une fenêtre d'invité ne garde pas d'outils.	Ein Gastfenster speichert keine Werkzeuge.
+Ajouter un serveur	Server hinzufügen
+Ex. : Notes	Z. B.: Notizen
+Un programme sur cet ordinateur	Ein Programm auf diesem Computer
+Sa ligne de commande, ex. : npx -y @exemple/serveur-notes	Seine Befehlszeile, z. B.: npx -y @beispiel/notizen-server
+Ce programme est lancé avec vos droits, comme si vous le lanciez vous-même : n'ajoutez que ceux en qui vous avez confiance.	Dieses Programm wird mit Ihren Rechten gestartet, als würden Sie es selbst starten: Fügen Sie nur solche hinzu, denen Sie vertrauen.
+Jeton d'accès (facultatif)	Zugriffstoken (optional)
+Gardé dans le trousseau du système. Les services qui demandent une fenêtre de connexion (OAuth) ne sont pas encore pris en charge.	Im Schlüsselbund des Systems gespeichert. Dienste, die ein Anmeldefenster verlangen (OAuth), werden noch nicht unterstützt.
+Un serveur porte déjà ce nom.	Ein Server trägt diesen Namen bereits.
+Adresse refusée : https, ou un serveur sur cet ordinateur.	Adresse abgelehnt: https oder ein Server auf diesem Computer.
+« {} » est ajouté.	„{}“ wurde hinzugefügt.
+Le jeton n'a pas pu être gardé dans le trousseau du système.	Das Token konnte nicht im Schlüsselbund des Systems gespeichert werden.
+Outils extérieurs	Externe Werkzeuge
+Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Ihre eigenen Werkzeug-Server (MCP); jede Benutzung wird Ihnen gezeigt
+Ce n'est pas un serveur MCP (réponse inattendue).	Das ist kein MCP-Server (unerwartete Antwort).
+Accès refusé : vérifiez le jeton d'accès.	Zugriff verweigert: Prüfen Sie das Zugriffstoken.
+Le serveur ne répond pas.	Der Server antwortet nicht.

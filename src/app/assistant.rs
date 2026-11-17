@@ -397,6 +397,7 @@ impl Sanaga {
         }
         self.open_chats();
         self.ensure_skills();
+        self.ensure_mcp();
         self.ai_menu_open = false;
     }
 
@@ -706,6 +707,7 @@ impl Sanaga {
         let own_summary = sources.iter().find(|s| s.kind == SourceKind::Page).map(|s| ai::local_summary(&s.text, 6)).unwrap_or_default();
         let private = self.assistant.as_ref().is_some_and(|a| a.private);
         let provider = self.chat_provider(active, private).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
+        let outside_tools = self.mcp_tools();
         let Some(a) = self.assistant.as_mut() else { return };
         if !unread.is_empty() && !p.summary {
             a.note = tf("Non lu (page vide ou trop lente à charger) : {}", &[&unread.join(", ")]);
@@ -749,6 +751,7 @@ impl Sanaga {
         if a.system.is_empty() {
             if self.store.settings.ai_tools && chat::tools_possible(&provider) {
                 a.tools = super::aitools::all();
+                a.tools.extend(outside_tools);
             }
             a.system = chat::system_prompt(Self::answer_language(), !a.tools.is_empty(), &super::aitools::today());
         }
@@ -810,7 +813,11 @@ impl Sanaga {
     /// How a tool call is said to the person (a function a thread can keep).
     fn tool_lines(&self) -> impl Fn(&chat::Call) -> String + Send + 'static {
         let titles = self.tab_titles();
-        move |c: &chat::Call| super::aitools::line(c, &titles)
+        let names = self.mcp.names.clone();
+        move |c: &chat::Call| match names.get(&c.name) {
+            Some((server, tool)) => super::aitools::outside_line(server, tool, &c.input),
+            None => super::aitools::line(c, &titles),
+        }
     }
 
     /// A tool reads a tab's page: its page starts if it must, and the
@@ -1051,7 +1058,11 @@ impl Sanaga {
         let slash = a.input.strip_prefix('/').filter(|rest| !rest.contains(char::is_whitespace)).map(crate::skills::slug);
         let skills_offered: Vec<&crate::skills::Skill> = slash.as_ref().map(|typed| all_skills.iter().filter(|s| s.name.starts_with(typed.as_str())).take(8).collect()).unwrap_or_default();
         let (mut pick_skill, mut manage_skills) = (None::<String>, false);
-        let lines = |c: &chat::Call| super::aitools::line(c, &titles);
+        let outside_names = self.mcp.names.clone();
+        let lines = |c: &chat::Call| match outside_names.get(&c.name) {
+            Some((server, tool)) => super::aitools::outside_line(server, tool, &c.input),
+            None => super::aitools::line(c, &titles),
+        };
         let mut steps = steps_of(&a.entries, &a.labels, &lines);
         if let Some(p) = &a.pending {
             steps.push(Step::Asked { text: if p.label.is_empty() { p.text.clone() } else { p.label.clone() }, attached: Vec::new() });

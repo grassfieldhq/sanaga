@@ -1413,6 +1413,9 @@ impl Sanaga {
                 if rows.link(ui, tr("Demandes enregistrées"), tr("Vos demandes fréquentes, appelées par « / » et leur nom"), "") {
                     acts.push(Act::Go("sanaga://skills"));
                 }
+                if rows.link(ui, tr("Outils extérieurs"), tr("Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée"), "") {
+                    acts.push(Act::Go("sanaga://tools"));
+                }
             });
             footnote(
                 ui,

@@ -1381,3 +1381,30 @@ Les pages jointes : ce qui les rapproche, ce qui les sépare	The attached pages:
 à-faire	to-do
 Ce que la page demande de faire : étapes, dates, montants	What the page asks you to do: steps, dates, amounts
 {} — Demander à l'assistant (Maj+Entrée)	{} — Ask the assistant (Shift+Enter)
+{} › {} — envoyé : {}	{} › {} — sent: {}
+Outils extérieurs de l'assistant	The assistant's outside tools
+Ajoutez vos propres serveurs d'outils (protocole MCP) : un programme sur cet ordinateur, ou une adresse. L'assistant peut alors utiliser leurs outils dans une conversation ; chaque utilisation vous est montrée avant d'être faite, sauf pour les outils que vous laissez libres.	Add your own tool servers (the MCP protocol): a program on this computer, or an address. The assistant can then use their tools in a conversation; each use is shown to you before it is made, except for the tools you let free.
+Programme	Program
+Relire ses outils	Read its tools again
+Lecture de ses outils…	Reading its tools…
+Injoignable : {}	Cannot be reached: {}
+Ce serveur n'offre aucun outil.	This server offers no tool.
+Interrupteur allumé : l'outil s'utilise sans vous demander. À réserver aux outils qui ne font que lire.	Switch on: the tool is used without asking you. Keep it for tools that only read.
+Aucun serveur ajouté.	No server added.
+Une fenêtre d'invité ne garde pas d'outils.	A guest window keeps no tools.
+Ajouter un serveur	Add a server
+Ex. : Notes	E.g.: Notes
+Un programme sur cet ordinateur	A program on this computer
+Sa ligne de commande, ex. : npx -y @exemple/serveur-notes	Its command line, e.g.: npx -y @example/notes-server
+Ce programme est lancé avec vos droits, comme si vous le lanciez vous-même : n'ajoutez que ceux en qui vous avez confiance.	This program is started with your rights, as if you started it yourself: only add those you trust.
+Jeton d'accès (facultatif)	Access token (optional)
+Gardé dans le trousseau du système. Les services qui demandent une fenêtre de connexion (OAuth) ne sont pas encore pris en charge.	Kept in the system keyring. Services that ask for a sign-in window (OAuth) are not supported yet.
+Un serveur porte déjà ce nom.	A server already has this name.
+Adresse refusée : https, ou un serveur sur cet ordinateur.	Address refused: https, or a server on this computer.
+« {} » est ajouté.	“{}” is added.
+Le jeton n'a pas pu être gardé dans le trousseau du système.	The token could not be kept in the system keyring.
+Outils extérieurs	Outside tools
+Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Your own tool servers (MCP); each use is shown to you
+Ce n'est pas un serveur MCP (réponse inattendue).	This is not an MCP server (unexpected answer).
+Accès refusé : vérifiez le jeton d'accès.	Access refused: check the access token.
+Le serveur ne répond pas.	The server does not answer.
