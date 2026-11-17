@@ -105,6 +105,19 @@ pub(super) enum AiDone {
         ticket: u64,
         text: Option<super::assistant::PageText>,
     },
+    /// The fields of a page's form, listed for a tool of the assistant.
+    FormRead {
+        tab: u64,
+        address: String,
+        listed: Option<String>,
+        ask: super::assistant::ToolAsk,
+    },
+    /// How many fields a tool of the assistant filled, of how many.
+    FormFilled {
+        filled: usize,
+        wanted: usize,
+        ask: super::assistant::ToolAsk,
+    },
     /// The page asked for is a PDF: the document itself.
     PageFile {
         ticket: u64,
@@ -212,6 +225,8 @@ impl Sanaga {
                 AiDone::Chat { run, ev } => self.chat_event(run, ev),
                 AiDone::PageText { ticket, text } => self.page_text_arrived(ticket, text),
                 AiDone::PageFile { ticket, file } => self.page_file_arrived(ticket, file),
+                AiDone::FormRead { tab, address, listed, ask } => self.form_read(tab, address, listed, ask),
+                AiDone::FormFilled { filled, wanted, ask } => self.form_filled(filled, wanted, ask),
                 AiDone::ExtensionPiece(run, text) => {
                     if self.ext_form.busy && self.ext_form.run == run {
                         self.ext_form.code.push_str(&text);

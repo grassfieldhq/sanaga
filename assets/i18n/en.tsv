@@ -1408,3 +1408,8 @@ Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Your 
 Ce n'est pas un serveur MCP (réponse inattendue).	This is not an MCP server (unexpected answer).
 Accès refusé : vérifiez le jeton d'accès.	Access refused: check the access token.
 Le serveur ne répond pas.	The server does not answer.
+Lecture des champs du formulaire	Reading the form's fields
+Remplissage du formulaire	Filling the form
+Remplir ces champs de la page (rien n'est envoyé) :	Fill these fields of the page (nothing is sent):
+champ n° {}	field no. {}
+Une fois remplis, la page peut lire ces champs.	Once filled, the page can read these fields.

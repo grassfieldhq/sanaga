@@ -1408,3 +1408,8 @@ Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Os se
 Ce n'est pas un serveur MCP (réponse inattendue).	Não é um servidor MCP (resposta inesperada).
 Accès refusé : vérifiez le jeton d'accès.	Acesso recusado: verifique o token de acesso.
 Le serveur ne répond pas.	O servidor não responde.
+Lecture des champs du formulaire	Leitura dos campos do formulário
+Remplissage du formulaire	Preenchimento do formulário
+Remplir ces champs de la page (rien n'est envoyé) :	Preencher estes campos da página (nada é enviado):
+champ n° {}	campo n.º {}
+Une fois remplis, la page peut lire ces champs.	Depois de preenchidos, a página pode ler estes campos.

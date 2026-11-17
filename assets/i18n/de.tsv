@@ -1408,3 +1408,8 @@ Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Ihre 
 Ce n'est pas un serveur MCP (réponse inattendue).	Das ist kein MCP-Server (unerwartete Antwort).
 Accès refusé : vérifiez le jeton d'accès.	Zugriff verweigert: Prüfen Sie das Zugriffstoken.
 Le serveur ne répond pas.	Der Server antwortet nicht.
+Lecture des champs du formulaire	Felder des Formulars werden gelesen
+Remplissage du formulaire	Formular wird ausgefüllt
+Remplir ces champs de la page (rien n'est envoyé) :	Diese Felder der Seite ausfüllen (nichts wird gesendet):
+champ n° {}	Feld Nr. {}
+Une fois remplis, la page peut lire ces champs.	Nach dem Ausfüllen kann die Seite diese Felder lesen.

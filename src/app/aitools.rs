@@ -60,6 +60,18 @@ pub(super) fn all() -> Vec<Tool> {
             false,
         ),
         tool(
+            "read_form",
+            "List the fields of the form on the page shown that can be filled: each one's number, label, kind, choices and present value. Password, payment and hidden fields are never listed. Use it before fill_form.",
+            json!({"type": "object", "properties": {}}),
+            false,
+        ),
+        tool(
+            "fill_form",
+            "Propose values for fields of the page shown, by their numbers from read_form. The person is shown each value next to its field's name and accepts or refuses; nothing is ever sent — they send the form themselves.              For a choice (select) give one of its choices; for a checkbox \"yes\" or \"no\"; for a radio button \"yes\" on the one to choose. Only fill what the person asked for, with what they gave you.",
+            json!({"type": "object", "properties": {"fields": {"type": "array", "items": {"type": "object", "properties": {"n": {"type": "integer", "description": "The field's number."}, "value": {"type": "string"}}, "required": ["n", "value"]}}}, "required": ["fields"]}),
+            true,
+        ),
+        tool(
             "open_tab",
             "Open an http or https address in a new tab, behind the one shown. The person is shown the address and accepts or refuses.",
             json!({"type": "object", "properties": {"address": {"type": "string"}}, "required": ["address"]}),
@@ -139,6 +151,8 @@ pub(super) fn line(call: &Call, tab_titles: &HashMap<u64, String>) -> String {
             s
         }
         "list_tabs" => tr("Liste des onglets ouverts").to_string(),
+        "read_form" => tr("Lecture des champs du formulaire").to_string(),
+        "fill_form" => tr("Remplissage du formulaire").to_string(),
         "read_tab" => tf("Lecture de l'onglet « {} »", &[&titles(&[call.input["tab"].as_u64().unwrap_or(0)])]),
         "search_favourites" => tf("Recherche dans les favoris : « {} »", &[&words_of(call)]),
         "search_conversations" => tf("Recherche dans les conversations : « {} »", &[&words_of(call)]),
@@ -191,11 +205,18 @@ impl Sanaga {
             a.confirm = Some(Confirm { ask, what, once: false });
             return;
         }
-        let what = line(&ask.call, &titles);
+        let mut what = line(&ask.call, &titles);
         if tool.acts {
             // what it would do, checked before the person is asked
             if let Err(why) = self.check_action(&ask.call) {
                 return answer(ask, why, true);
+            }
+            // (a form: each value next to its field's name)
+            if ask.call.name == "fill_form" {
+                match self.fill_summary(&ask.call) {
+                    Ok(lines) => what = lines,
+                    Err(why) => return answer(ask, why, true),
+                }
             }
             if let Some(a) = self.assistant.as_mut() {
                 a.confirm = Some(Confirm { ask, what, once: false });
@@ -303,6 +324,8 @@ impl Sanaga {
                     },
                 );
             }
+            "read_form" => self.read_form_for_tool(ask),
+            "fill_form" => self.fill_form_for_tool(ask),
             "read_tab" => {
                 let id = ask.call.input["tab"].as_u64().unwrap_or(0);
                 match self.tabs.iter().find(|t| t.id == id) {
@@ -377,7 +400,7 @@ mod tests {
     fn tools_are_well_formed_and_only_some_act() {
         let tools = all();
         let acts: Vec<&str> = tools.iter().filter(|t| t.acts).map(|t| t.name.as_str()).collect();
-        assert_eq!(acts, ["open_tab", "close_tabs", "group_tabs", "run_command"]);
+        assert_eq!(acts, ["fill_form", "open_tab", "close_tabs", "group_tabs", "run_command"]);
         for t in &tools {
             assert_eq!(t.schema["type"], "object", "{}", t.name);
             assert!(t.schema["properties"].is_object(), "{}", t.name);

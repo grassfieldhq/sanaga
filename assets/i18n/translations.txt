@@ -1413,3 +1413,8 @@ Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée⟂You
 Ce n'est pas un serveur MCP (réponse inattendue).⟂This is not an MCP server (unexpected answer).⟂No es un servidor MCP (respuesta inesperada).⟂Não é um servidor MCP (resposta inesperada).⟂Das ist kein MCP-Server (unerwartete Antwort).
 Accès refusé : vérifiez le jeton d'accès.⟂Access refused: check the access token.⟂Acceso denegado: compruebe el token de acceso.⟂Acesso recusado: verifique o token de acesso.⟂Zugriff verweigert: Prüfen Sie das Zugriffstoken.
 Le serveur ne répond pas.⟂The server does not answer.⟂El servidor no responde.⟂O servidor não responde.⟂Der Server antwortet nicht.
+Lecture des champs du formulaire⟂Reading the form's fields⟂Lectura de los campos del formulario⟂Leitura dos campos do formulário⟂Felder des Formulars werden gelesen
+Remplissage du formulaire⟂Filling the form⟂Rellenado del formulario⟂Preenchimento do formulário⟂Formular wird ausgefüllt
+Remplir ces champs de la page (rien n'est envoyé) :⟂Fill these fields of the page (nothing is sent):⟂Rellenar estos campos de la página (no se envía nada):⟂Preencher estes campos da página (nada é enviado):⟂Diese Felder der Seite ausfüllen (nichts wird gesendet):
+champ n° {}⟂field no. {}⟂campo n.º {}⟂campo n.º {}⟂Feld Nr. {}
+Une fois remplis, la page peut lire ces champs.⟂Once filled, the page can read these fields.⟂Una vez rellenados, la página puede leer estos campos.⟂Depois de preenchidos, a página pode ler estes campos.⟂Nach dem Ausfüllen kann die Seite diese Felder lesen.

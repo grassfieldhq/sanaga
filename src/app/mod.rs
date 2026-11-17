@@ -1,6 +1,7 @@
 //! The Sanaga window: shared state, the frame loop and the screenshot mode.
 
 mod accounts;
+mod aiforms;
 mod aitools;
 mod assistant;
 mod bookmarks;

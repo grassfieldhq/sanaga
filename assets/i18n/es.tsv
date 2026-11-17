@@ -1408,3 +1408,8 @@ Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Sus p
 Ce n'est pas un serveur MCP (réponse inattendue).	No es un servidor MCP (respuesta inesperada).
 Accès refusé : vérifiez le jeton d'accès.	Acceso denegado: compruebe el token de acceso.
 Le serveur ne répond pas.	El servidor no responde.
+Lecture des champs du formulaire	Lectura de los campos del formulario
+Remplissage du formulaire	Rellenado del formulario
+Remplir ces champs de la page (rien n'est envoyé) :	Rellenar estos campos de la página (no se envía nada):
+champ n° {}	campo n.º {}
+Une fois remplis, la page peut lire ces champs.	Una vez rellenados, la página puede leer estos campos.

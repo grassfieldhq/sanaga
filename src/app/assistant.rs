@@ -217,6 +217,8 @@ pub(super) struct Assistant {
     pub(super) outside: bool,
     pub(super) allowed: HashSet<String>,
     pub(super) confirm: Option<Confirm>,
+    /// The fields of the page last listed for the model (see aiforms.rs).
+    pub(super) form: Option<super::aiforms::FormSeen>,
     /// Tabs a tool is reading: answered when their page has.
     reads: Vec<(PageWait, ToolAsk, f64)>,
     /// The list of earlier conversations is shown (None: the conversation
@@ -263,6 +265,7 @@ impl Assistant {
             allowed: HashSet::new(),
             confirm: None,
             reads: Vec::new(),
+            form: None,
             earlier: None,
             earlier_filter: String::new(),
             entries: Vec::new(),
@@ -1100,7 +1103,9 @@ impl Sanaga {
                         ui.set_width(ui.available_width());
                         let title = if c.once { tr("L'assistant veut consulter votre navigateur") } else { tr("L'assistant veut agir") };
                         ui.label(RichText::new(title).size(12.5).family(bold()).color(th.text));
-                        ui.add(egui::Label::new(RichText::new(&c.what).size(13.0).color(th.text)).wrap());
+                        for line in c.what.lines() {
+                            ui.add(egui::Label::new(RichText::new(line).size(13.0).color(th.text)).wrap());
+                        }
                         if c.once {
                             ui.add(egui::Label::new(RichText::new(tr("Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.")).size(11.5).color(th.sub)).wrap());
                         }
@@ -1233,10 +1238,11 @@ impl Sanaga {
                 a.focus = false;
             }
             let mut enter = (resp.has_focus() || resp.lost_focus()) && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift);
-            // (Enter while a tab's name is being typed after "@" takes the first one)
+            // (Enter while a tab's name is being typed after "@" takes the first one
+            // — when one answers it: otherwise the "@" is part of the question)
             if enter && mention.is_some() {
-                enter = false;
                 if let Some((id, title, _)) = offered.first() {
+                    enter = false;
                     pick_tab = Some((*id, title.clone()));
                 }
             }

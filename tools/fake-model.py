@@ -13,7 +13,8 @@ first: both listen on 127.0.0.1:11434.) See docs/UX-AUDIT-2026-11-11.md.
 In a conversation (`/api/chat`) it says how many attached texts it was
 given and repeats the question, so that a test can read both. A question
 that holds "tool:NAME {json}" makes it ask for that tool with that input
-(when Sanaga offered it), then tell what the tool answered.
+(when Sanaga offered it), then tell what the tool answered; "tool:NAME
+@/a/file.json" reads the input from that file.
 
 It also stands in for Claude's Messages API, on 127.0.0.1:11435, for a
 debug build started with SANAGA_CLAUDE_URL=http://127.0.0.1:11435/v1/messages
@@ -57,10 +58,7 @@ def chat_answer(asked):
     if "tool:" in own:
         name, _, rest = own.split("tool:", 1)[1].strip().partition(" ")
         if name in offered:
-            try:
-                args = json.loads(rest) if rest.strip() else {}
-            except ValueError:
-                args = {}
+            args = tool_input(rest)
             return "", [{"function": {"name": name, "arguments": args}}]
         return "Cet outil ne m'a pas été proposé : %s" % name, []
     if own.startswith("Summarise this page"):
@@ -134,6 +132,18 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def tool_input(rest):
+    """The input of a "tool:NAME …" question: JSON, or @file holding it."""
+    rest = rest.strip()
+    try:
+        if rest.startswith("@"):
+            with open(rest[1:], encoding="utf-8") as f:
+                return json.load(f)
+        return json.loads(rest) if rest else {}
+    except (ValueError, OSError):
+        return {}
+
+
 # ---------------------------------------------------------------- Claude
 
 
@@ -182,10 +192,7 @@ def claude_answer(asked):
     if "tool:" in own:
         name, _, rest = own.split("tool:", 1)[1].strip().partition(" ")
         if name in offered:
-            try:
-                args = json.loads(rest) if rest.strip() else {}
-            except ValueError:
-                args = {}
+            args = tool_input(rest)
             return "Je regarde.", [{"name": name, "input": args}]
         return "Cet outil ne m'a pas été proposé : %s" % name, []
     if own.startswith("Summarise this page"):
