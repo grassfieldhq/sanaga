@@ -254,8 +254,8 @@ impl Sanaga {
         }
         let mut source_again = None;
         if let Some(t) = self.tabs.get_mut(active) {
-            // a tab shown again counts as a revisit (Chrome keeps often
-            // revisited tabs awake: see MECHANICS.md)
+            // a tab shown again counts as a revisit (a tab often come back
+            // to is kept awake)
             if t.id != self.saver_last_tab {
                 if t.last_active > 0.0 {
                     t.revisits = t.revisits.saturating_add(1);
@@ -281,9 +281,9 @@ impl Sanaga {
             self.navigate(active, url, None, false);
         }
         // (minutes before an inactive tab sleeps, most pages kept running at
-        // once, revisits above which the timer leaves a tab awake). The three
-        // levels are Chrome's (MECHANICS.md): 6 h - 2 h × level, revisits
-        // 5 / 15 / 15. The energy saver mode is Sanaga's own: 5 min.
+        // once, revisits above which the timer leaves a tab awake). Three
+        // levels: 6 h, 4 h and 2 h, revisits 5 / 15 / 15. The energy saver
+        // mode: 5 min.
         let (minutes, cap, max_revisits) = if self.low_power_active() {
             (5.0, 3, u32::MAX)
         } else {

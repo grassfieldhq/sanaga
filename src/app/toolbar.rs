@@ -689,7 +689,7 @@ impl Sanaga {
 }
 
 /// The address as the address bar shows it when not editing: the site part
-/// and the rest. Like Chrome (MECHANICS.md): unless `full`, `https://`,
+/// and the rest. As other browsers show it: unless `full`, `https://`,
 /// `www.` and a lone `/` are left out; the path is shown decoded
 /// (`/wiki/Yaoundé`, not `/wiki/Yaound%C3%A9`). `http://` stays, as there
 /// is no padlock to tell it.

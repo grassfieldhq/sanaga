@@ -151,7 +151,7 @@ impl Sanaga {
         match self.store.settings.low_power {
             2 => true,
             1 => self.on_battery.1,
-            // Chrome's "only when the battery is at or below 20 %" (MECHANICS.md)
+            // only when the battery is at or below 20 %
             3 => self.on_battery.1 && self.battery_low,
             _ => false,
         }
@@ -524,8 +524,8 @@ impl Sanaga {
 }
 
 /// Does the computer run on its battery now?
-/// Chrome's energy saver threshold: "only when the battery is at or below
-/// 20 %" (Chrome 0xbfb613a, see MECHANICS.md).
+/// The energy saver's "only when the battery is low": at or below 20 %,
+/// the threshold other browsers use.
 pub(super) const LOW_BATTERY_PERCENT: u8 = 20;
 
 /// Whether the computer runs on its battery, and the battery's level (%).
