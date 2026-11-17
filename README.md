@@ -339,6 +339,9 @@ engine bridge and a few system services.
   system's fonts; in a right-to-left sentence each word is drawn properly
   but the words follow one another from left to right (pages are not
   concerned: the web engine draws them).
+- Encrypted DNS (DNS over HTTPS) is the system's to set (systemd-resolved,
+  NetworkManager...): the web engine resolves names through the system and
+  has no setting of its own for it. A proxy can be chosen in Settings.
 - Video recording has no sound; its size is the device's size on screen (use
   100 % zoom for sharper videos).
 - Window moving, maximising and the title bar integration have extra support for

@@ -125,5 +125,6 @@ inside a frame: Sanaga must go on).
 | `SANAGA_BENCH_CYCLE=n` | show the next tab every 3 s, n times (memory tests) |
 | `SANAGA_SHOT_STATE=dark,menu,sidebar,…` | states shown by `--screenshot` |
 | `SANAGA_TEST_POPUPS=1` | let pages open windows without a click (to test sign-in windows) |
+| `SANAGA_DANGER_LIST=/a/file` | the list of sites reported as dangerous, one name per line, instead of the lists fetched (to see the warning without going near a real one) |
 | `SANAGA_UPDATE_URL=http://…` | the address "Look for a new version" asks instead of GitHub (a file holding `{"tag_name": "0.9.0"}`) |
 | `SANAGA_NO_SANDBOX=1` | run pages without the bubblewrap sandbox |

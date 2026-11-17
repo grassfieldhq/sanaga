@@ -7,6 +7,34 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Downloads: they go to the folder your desktop names (Téléchargements,
+  Descargas... wherever it is) or to one chosen in Settings › General,
+  and Sanaga can ask where to save each file.
+- A proxy setting (Settings › General › Network): the system's, none, or
+  an address (`http://host:3128`, `socks5://host:1080`). Pages and
+  Sanaga's own requests (block lists, translation, updates) all go
+  through it; this computer itself is always reached directly.
+- HTTPS first (Settings › Privacy, on): an `http://` address you open —
+  typed, a favourite, a link clicked — is asked over https; over http
+  only when the site did not answer there (refused, a certificate that is
+  not the site's, nothing after five seconds). A name typed without its
+  scheme falls back the same way; an address written with `https://`
+  never does.
+- A warning before a site reported as phishing or malware (Settings ›
+  Privacy, on). The lists (malware-filter's phishing-filter and
+  urlhaus-filter) are fetched once a day and looked up on this computer:
+  no address is sent anywhere. The warning has a way back and, under
+  "Advanced", a way on.
+- A link dragged from a page, a file from the file manager or words can
+  be dropped on the tab bar, the toolbar or the side panel: they open in
+  new tabs (words are searched for). A tab dragged out of the tab bar
+  gets a window of its own.
+- The keyboard's play and pause keys pause or start what plays, from a
+  page or from the interface. (A desktop that keeps these keys for itself
+  uses the media player the engine publishes for each page that plays —
+  with next and previous.)
+- Sanaga can look for a new version once a day (Settings › General, off
+  unless you ask): one request, nothing installed.
 - The address of the link under the mouse shows at the bottom left of a
   web page.
 - A page's full-screen button (a video) fills the screen: Sanaga's bars
@@ -313,6 +341,14 @@ All notable changes to Sanaga are listed here. The format follows
 - Text typed with an input method (Chinese, Japanese, Korean, dead keys)
   shows in the field while it is being composed; it appeared only once
   finished.
+- The thread that listens for other launches of Sanaga sleeps until one
+  connects: it woke twenty times a second for as long as Sanaga was open.
+- Packages: the `.deb`, the `.rpm` and the PKGBUILD ask for the versions
+  of GTK (4.14) and WebKitGTK (2.48) the code needs; the description file
+  names the launcher the packages install; `install.sh` copes with a
+  folder whose name has spaces or signs and says when the sandbox's two
+  programs are missing; the launcher's actions are in five languages
+  ("Open with the Travail profile" gives way to "Choose a profile").
 - Titles and names in other alphabets (Arabic, Hebrew, Devanagari, Chinese,
   Cherokee...) show in the interface with whatever font the system has for
   them (asked to fontconfig when first needed); only a fixed list of Noto
