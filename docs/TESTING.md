@@ -91,9 +91,55 @@ closes as with Quit.
 tools/fake-model.py &     # answers at Ollama's address, always the same
 ```
 
-Then Settings › Intelligence › Ollama: the summary, the translation (its
-bar, Stop, Show original) and the writing of an extension can be tried and
-captured. See [UX-AUDIT-2026-11-11.md](UX-AUDIT-2026-11-11.md).
+Then Settings › Intelligence › Ollama: the assistant's conversations, the
+summary, the translation (its bar, Stop, Show original) and the writing of
+an extension can be tried and captured. See
+[UX-AUDIT-2026-11-11.md](UX-AUDIT-2026-11-11.md).
+
+In a conversation the stand-in says how many texts and pictures it was
+given, so a test can read it. A question that holds `tool:NAME {json}`
+makes it ask for that tool (`tool:NAME @/a/file.json` reads the input from
+a file), then tell what the tool answered. `FAKE_MODEL_LOG=/a/file` writes
+every request it receives there: what Sanaga really sent.
+
+```sh
+FAKE_MODEL_LOG=/tmp/sent.log tools/fake-model.py &
+XDG_DATA_HOME=/tmp/sanaga-test SANAGA_LIVE_TEST='6:ask,7:type:tool:list_tabs,8:key:Enter,12:shot,13:quit' \
+  ./target/debug/sanaga file://$PWD/tests/assistant.html     # (settings.txt: ai=ollama)
+```
+
+The same program stands in for **Claude's Messages API** on port 11435, for
+a debug build started with `SANAGA_CLAUDE_URL=http://127.0.0.1:11435/v1/messages`
+and `ai=claude` (no key is asked for, none is sent). It answers with a
+thinking block, words and tool calls as events, and refuses what the real
+service refuses of a conversation's history: a tool result without its
+call, a thinking block sent back after what came before it was changed.
+It is a stand-in: what Sanaga sends to the real service was written from
+its documentation and has not been tried against it.
+
+More scripted actions for the assistant: `ask`, `summary`, `attach:/a/file`
+(a file attached without the file window), `toolyes` / `toolno` (the
+person's answer to a tool the model asks for), `mcpadd:Name|command or address`
+(an outside tools' server added without the form). `tests/assistant.html`
+has a frame and a web component whose text must reach the model;
+`tests/form.html` has a password, a card number and a hidden field that
+must never be listed nor filled, and says whether it was sent.
+
+## Outside tools without a server
+
+```sh
+tools/fake-mcp.py                       # as a program (what Sanaga starts)
+tools/fake-mcp.py --http 11436          # at http://127.0.0.1:11436/mcp
+tools/fake-mcp.py --http 11436 --events # answers as a stream of events
+```
+
+Three tools: `echo`, `add_note`, `fail`. `cargo test` runs the whole
+exchange with it as a program (`mcp::tests::a_program_is_greeted_listed_and_called`).
+
+## The administrator's policy
+
+`SANAGA_POLICY=/a/file` (debug builds) is read in place of
+`/etc/sanaga/policy.txt`: `ai=off`, or `ai_no_sites=example.org`.
 
 ## Looking for lag
 

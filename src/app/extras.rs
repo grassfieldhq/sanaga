@@ -9,6 +9,14 @@ use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, Margin, RichText, Sense};
 use webkit6::prelude::*;
 
+/// A page as a Markdown link: "[title](address)", with what would end the
+/// title or the address too early written so that it does not.
+pub(super) fn markdown_link(title: &str, address: &str) -> String {
+    let title: String = title.split_whitespace().collect::<Vec<_>>().join(" ").replace('\\', "\\\\").replace('[', "\\[").replace(']', "\\]");
+    let address = address.replace(' ', "%20").replace('(', "%28").replace(')', "%29");
+    format!("[{}]({address})", if title.is_empty() { address.clone() } else { title })
+}
+
 impl Sanaga {
     pub(super) fn current_page(&self) -> Option<(String, String)> {
         let t = self.tabs.get(self.active)?;
@@ -351,5 +359,18 @@ impl Sanaga {
         painter.galley(pos2(r.left() + 18.0, r.center().y - g.size().y / 2.0), g, Color32::WHITE);
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let _ = th;
+    }
+}
+
+#[cfg(test)]
+mod markdown_tests {
+    use super::markdown_link;
+
+    #[test]
+    fn a_page_becomes_a_markdown_link() {
+        assert_eq!(markdown_link("Sanaga — Wikipédia", "https://fr.wikipedia.org/wiki/Sanaga"), "[Sanaga — Wikipédia](https://fr.wikipedia.org/wiki/Sanaga)");
+        // what would end the title or the address too early
+        assert_eq!(markdown_link("Liste [1]\n de  A\\B", "https://example.org/a (b)/c d"), "[Liste \\[1\\] de A\\\\B](https://example.org/a%20%28b%29/c%20d)");
+        assert_eq!(markdown_link("  ", "https://example.org/"), "[https://example.org/](https://example.org/)");
     }
 }

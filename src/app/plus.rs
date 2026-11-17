@@ -468,6 +468,13 @@ impl Sanaga {
     pub(super) fn clear_browsing_data(&mut self, period: u64, history: bool, cookies: bool, cache: bool) {
         let since = if period == 0 { 0 } else { crate::store::now().saturating_sub(period) };
         if history {
+            // (the assistant's conversations of the period go with the history)
+            if let Some(chats) = self.chats.clone().or_else(|| self.store.data_dir().and_then(|d| crate::chats::Chats::open(d))) {
+                self.off_thread(move || chats.clear_since(since), |_, ()| {});
+            }
+            if let Some(a) = self.assistant.as_mut() {
+                a.id = None;
+            }
             // (the links coloured as visited follow the history: see `follow_visited`)
             self.visited.clear();
             self.store.downloads.retain(|d| d.time < since);
@@ -681,9 +688,12 @@ impl Sanaga {
         if !self.tab_search_open {
             return;
         }
+        self.ensure_skills();
         enum Pick {
             Tab(usize),
             Command(&'static str),
+            /// One of the assistant's saved requests, on the page shown.
+            Skill(String),
             Go(String),
         }
         let w = 560.0;
@@ -718,6 +728,9 @@ impl Sanaga {
                 if label.to_lowercase().contains(&q) {
                     lines.push((Pick::Command(name), String::new(), label.to_string(), tr("Commande").to_string()));
                 }
+            }
+            for s in self.skills.iter().filter(|s| s.name.contains(q.trim_start_matches('/')) || s.description.to_lowercase().contains(&q)).take(4) {
+                lines.push((Pick::Skill(s.name.clone()), String::new(), format!("/{} — {}", s.name, s.description), tr("Assistant").to_string()));
             }
             let mut seen: HashSet<String> = self.tabs.iter().map(|t| super::chrome::same_page_key(t.url())).collect();
             let bm = self.store.bookmarks.iter().filter(|b| b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q)).map(|b| (&b.url, &b.title, true));
@@ -831,6 +844,7 @@ impl Sanaga {
                     self.overview_open = false;
                 }
                 Pick::Command(name) => self.run_shortcut(name),
+                Pick::Skill(name) => self.run_skill(&name),
                 Pick::Go(url) => {
                     let a = self.active;
                     self.navigate(a, url, None, true);

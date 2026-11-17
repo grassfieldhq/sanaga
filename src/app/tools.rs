@@ -292,6 +292,7 @@ impl Sanaga {
             "edit-text" => self.toggle_edit_text(),
             "link-copied" => self.say(tr("Lien copié")),
             // (the words selected in the page, read by Sanaga itself)
+            "ask-selection" => self.ask_about_selection(tab, arg.to_string()),
             "search-selection" => {
                 let url = self.store.settings.engine.search_url(arg);
                 let private = self.tabs.iter().find(|t| t.id == tab).is_some_and(|t| t.private);

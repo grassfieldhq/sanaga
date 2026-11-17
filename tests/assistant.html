@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>La Sanaga — page d'essai</title></head>
+<body>
+<nav><a href="#a">Accueil</a> <a href="#b">Fleuves</a></nav>
+<main>
+<h1>La Sanaga</h1>
+<p>La Sanaga est le plus long fleuve du Cameroun : elle parcourt environ 918 kilomètres avant de se jeter dans l'océan Atlantique, au sud de Douala.</p>
+<p>Elle naît de la rencontre du Djérem et du Lom, sur le plateau de l'Adamaoua, et traverse le pays du nord-est au sud-ouest en arrosant les régions du Centre et du Littoral.</p>
+<p>Ses chutes et ses rapides alimentent les barrages d'Édéa et de Song Loulou, qui produisent une grande partie de l'électricité du Cameroun depuis les années 1950.</p>
+<p>Le fleuve abrite de nombreuses espèces de poissons, des lamantins dans son cours inférieur, et ses rives sont bordées de forêts-galeries où vivent des chimpanzés.</p>
+<p id="sel">Le barrage de Nachtigal, mis en service en 2024, ajoute 420 mégawatts à la production du pays.</p>
+<sanaga-card></sanaga-card>
+<iframe srcdoc="<p>Texte du cadre : le bassin de la Sanaga couvre environ 133 000 kilomètres carrés, soit plus du quart du territoire.</p>" style="width:100%;height:60px;border:0"></iframe>
+</main>
+<script>
+customElements.define('sanaga-card', class extends HTMLElement {
+  connectedCallback() {
+    this.attachShadow({ mode: 'open' }).innerHTML = '<p>Texte du composant : le débit moyen du fleuve à Édéa est d\'environ 2 000 mètres cubes par seconde.</p>';
+  }
+});
+</script>
+</body>
+</html>

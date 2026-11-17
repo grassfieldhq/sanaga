@@ -13,6 +13,14 @@ pub(super) fn page_title(ui: &mut Ui, th: &Theme, title: &str) {
     ui.add_space(14.0);
 }
 
+/// What is said of an engine too old to be safe.
+pub(super) fn engine_old_text(months: i64) -> String {
+    tf(
+        "Le moteur web de ce système (WebKitGTK {}) a {} mois : sa série ne reçoit plus de correctifs de sécurité. Mettez votre système à jour pour obtenir un moteur récent.",
+        &[&crate::page::engine_version(), &months],
+    )
+}
+
 pub(super) fn centered_column(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     let w = ui.available_width();
     let cw = (w - 64.0).min(760.0);
@@ -494,6 +502,14 @@ impl Sanaga {
                     None => {}
                 }
             });
+            // an engine whose series no longer gets security fixes: said here
+            if let Some(months) = crate::page::engine_is_old(crate::store::now()) {
+                ui.add_space(12.0);
+                Frame::new().fill(Color32::from_rgb(0xD0, 0x60, 0x30).gamma_multiply(0.14)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 9)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.add(egui::Label::new(RichText::new(engine_old_text(months)).color(th.text)).wrap());
+                });
+            }
             ui.add_space(20.0);
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
                 ui.set_width(ui.available_width());

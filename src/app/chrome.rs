@@ -213,7 +213,9 @@ impl Sanaga {
                             ui.painter().rect_filled(r, 0.0, th.omnibox);
                         }
                         let ic = Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(15.0, 15.0));
-                        if *search {
+                        if url.starts_with("ask:") {
+                            icons::paint(ui.painter(), ic, Icon::Sparkle, th.accent);
+                        } else if *search {
                             icons::paint(ui.painter(), ic, Icon::Search, th.sub);
                         } else if url.starts_with("tab:") {
                             icons::paint(ui.painter(), ic, Icon::Grid, th.accent);
@@ -272,10 +274,16 @@ impl Sanaga {
         }
         // (a completed site's name leads where the site was really visited)
         let direct = self.completed_address(a).unwrap_or_else(|| input_to_url(held, engine, ""));
-        if direct != engine.search_url(q) && super::plus::keyword_search(q).is_none() {
+        let is_search = direct == engine.search_url(q);
+        if !is_search && super::plus::keyword_search(q).is_none() {
             items.push((direct.clone(), direct, false));
         }
         items.push((engine.search_url(q), tf("{} — Rechercher avec {}", &[&q, &short_engine(engine)]), true));
+        // words that are not an address, with a model chosen: they can be
+        // asked of the assistant instead ("ask:" = open it with them)
+        if !self.store.settings.ai.is_empty() && is_search && q.split_whitespace().count() >= 2 {
+            items.push((format!("ask:{q}"), tf("{} — Demander à l'assistant (Maj+Entrée)", &[&q]), true));
+        }
         // Visited pages and favourites, the best first: sites whose name
         // starts with what is typed, then those with a part of their name
         // starting so, then pages that hold it in their address or title;
@@ -417,6 +425,8 @@ impl Sanaga {
                     self.current_group = self.tabs[i].group;
                     self.active = i;
                 }
+            } else if let Some(question) = u.strip_prefix("ask:") {
+                self.ask_assistant(question);
             } else if let Some(r) = u.strip_prefix("calc:") {
                 self.ctx.copy_text(r.to_string());
                 self.notice = Some((tf("{} copié", &[&r]), self.ctx.input(|i| i.time)));

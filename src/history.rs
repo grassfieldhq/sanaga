@@ -973,6 +973,30 @@ impl History {
         .unwrap_or_default()
     }
 
+    /// The pages visited between two times that answer `filter` (the
+    /// words searched; empty: all of them), each once with its latest
+    /// visit of the period, the latest first — for the assistant's
+    /// "what was that page I read last week".
+    pub fn visited_between(&self, filter: &str, from: u64, to: u64, limit: usize) -> Vec<Row> {
+        let words = words_of(filter);
+        self.read("visits of a period", |c| {
+            let mut st = c.prepare_cached("SELECT v.id, v.time, p.url, p.title FROM visits v JOIN pages p ON p.id = v.page WHERE v.time >= ?1 AND v.time <= ?2 ORDER BY v.time DESC, v.id DESC")?;
+            let mut rows = st.query(params![secs(from), secs(to)])?;
+            let (mut out, mut seen) = (Vec::new(), HashSet::new());
+            while let Some(r) = rows.next()? {
+                let (url, title) = (text(r, 2)?, text(r, 3)?);
+                if matches(&words, url, title) && seen.insert(url.to_string()) {
+                    out.push(Row { id: r.get(0)?, time: number(r, 1)?, url: url.to_string(), title: title.to_string() });
+                    if out.len() >= limit {
+                        break;
+                    }
+                }
+            }
+            Ok(out)
+        })
+        .unwrap_or_default()
+    }
+
     /// What the history page lists for `filter` (the words searched;
     /// empty: everything): how many visits, and how many in each group of
     /// days as counted from `now`. The whole history is searched; only
@@ -1084,6 +1108,24 @@ mod tests {
 
     /// Thousands of damaged history files (see mutate.rs): none may panic,
     /// and each visit read is counted once.
+    #[test]
+    fn the_pages_of_a_period_are_found_each_once() {
+        let h = History::in_memory();
+        h.add_visit("https://fr.wikipedia.org/wiki/Sanaga", "Sanaga — Wikipédia", 1_000);
+        h.add_visit("https://fr.wikipedia.org/wiki/Douala", "Douala — Wikipédia", 2_000);
+        h.add_visit("https://fr.wikipedia.org/wiki/Sanaga", "Sanaga — Wikipédia", 3_000);
+        h.add_visit("https://example.org/pont", "Le pont", 9_000);
+        flush();
+        let urls = |rows: Vec<Row>| rows.into_iter().map(|r| (r.time, r.url.rsplit('/').next().unwrap().to_string())).collect::<Vec<_>>();
+        // each page once, with its latest visit of the period, the latest first
+        assert_eq!(urls(h.visited_between("", 0, 5_000, 10)), vec![(3_000, "Sanaga".to_string()), (2_000, "Douala".to_string())]);
+        assert_eq!(urls(h.visited_between("", 0, 2_500, 10)), vec![(2_000, "Douala".to_string()), (1_000, "Sanaga".to_string())]);
+        assert_eq!(urls(h.visited_between("wikipédia sanaga", 0, u64::MAX, 10)), vec![(3_000, "Sanaga".to_string())]);
+        assert_eq!(h.visited_between("", 0, u64::MAX, 2).len(), 2);
+        assert!(h.visited_between("rien", 0, u64::MAX, 10).is_empty());
+        assert!(h.visited_between("", 4_000, 8_000, 10).is_empty());
+    }
+
     #[test]
     fn damaged_history_files_are_read_as_far_as_they_go() {
         let seeds: [&[u8]; 3] = [

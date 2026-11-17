@@ -473,6 +473,96 @@ pub struct SyncJob {
 pub struct Synced {
     pub bookmarks: Option<Vec<Item>>,
     pub reading: Option<Vec<Item>>,
+    /// The assistant's saved requests changed on this computer (their
+    /// files are already written: the window reads them again).
+    pub skills: bool,
+}
+
+// ------------------------------------------------- a folder of small files
+
+/// A text on one line, to be an item of a list (see `format`): line
+/// breaks, tabs and the sign that marks them are written with a "\".
+fn one_line(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('\n', "\\n").replace('\t', "\\t").replace('\r', "")
+}
+
+fn many_lines(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some(other) => out.push(other),
+                None => {}
+            },
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// A file's name that can be an item's: letters, digits, "-" and "_".
+fn plain_name(name: &str) -> bool {
+    !name.is_empty() && name.len() <= 80 && name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+}
+
+/// The small text files of a folder (those ending in `.ext`, 64 KB at
+/// most each) as a list: name, text on one line. `None`: no such folder.
+fn folder_list(dir: &Path, ext: &str) -> Option<Vec<Item>> {
+    let read = std::fs::read_dir(dir).ok()?;
+    let mut out: Vec<Item> = Vec::new();
+    for entry in read.flatten().take(1_000) {
+        let path = entry.path();
+        let Some(name) = path.file_stem().and_then(|n| n.to_str()).filter(|n| plain_name(n)).map(str::to_string) else { continue };
+        if path.extension().and_then(|e| e.to_str()) != Some(ext) || !entry.metadata().is_ok_and(|m| m.is_file() && m.len() <= 64 << 10) {
+            continue;
+        }
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            out.push((name, one_line(&text)));
+        }
+    }
+    out.sort();
+    Some(out)
+}
+
+/// Make a folder's files those of a list: written when they differ,
+/// removed when the list no longer has them.
+fn folder_from_list(dir: &Path, ext: &str, list: &[Item]) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    for (name, line) in list.iter().filter(|i| plain_name(&i.0)) {
+        let (path, text) = (dir.join(format!("{name}.{ext}")), many_lines(line));
+        if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+            crate::store::write_atomic(&path, text)?;
+        }
+    }
+    for (name, _) in folder_list(dir, ext).unwrap_or_default() {
+        if !list.iter().any(|i| i.0 == name) {
+            let _ = std::fs::remove_file(dir.join(format!("{name}.{ext}")));
+        }
+    }
+    Ok(())
+}
+
+/// Exchange a folder of small files with the sync folder, as a list is:
+/// what a computer adds, changes or removes reaches the others. Gives
+/// true when this computer's files changed.
+fn exchange_folder(local_dir: &Path, folder: &str, ext: &str, memory: &Memory, shared: &Path, key: Option<&[u8; 32]>) -> Result<bool, String> {
+    let dir = local_dir.join(folder);
+    let list_file = local_dir.join(format!("{folder}.tsv"));
+    // the folder as a list, for this round (no folder: no list — nothing
+    // is taken for "emptied on purpose")
+    match folder_list(&dir, ext) {
+        Some(list) => crate::store::write_quietly(&list_file, format(&list)).map_err(|e| e.to_string())?,
+        None => {
+            let _ = std::fs::remove_file(&list_file);
+        }
+    }
+    match exchange(&list_file, memory, &shared.join(format!("{folder}.tsv")), key)? {
+        Some(merged) => folder_from_list(&dir, ext, &merged).map(|()| true).map_err(|e| e.to_string()),
+        None => Ok(false),
+    }
 }
 
 /// What this computer's list becomes when the person changed it while a
@@ -539,6 +629,14 @@ fn sync_with(job: &SyncJob, phrase: Option<&str>, status: &mut SyncStatus) -> Sy
                 status.error = e;
                 return synced;
             }
+        }
+    }
+    // the assistant's saved requests: a folder of small text files
+    match exchange_folder(local_dir, "skills", "md", &memory, &dir, key.as_ref()) {
+        Ok(changed) => synced.skills = changed,
+        Err(e) => {
+            status.error = e;
+            return synced;
         }
     }
     // publish this computer's tabs, read the others'
@@ -679,6 +777,49 @@ mod tests {
     /// The addresses of a list file, in order.
     fn urls(file: &Path) -> Vec<String> {
         parse(&std::fs::read_to_string(file).unwrap()).into_iter().map(|i| i.0).collect()
+    }
+
+    #[test]
+    fn saved_requests_travel_between_two_computers() {
+        let (root, [pc1, pc2, shared]) = temp("skills", ["pc1", "pc2", "shared"]);
+        let mut status = SyncStatus::default();
+        let read = |pc: &Path, name: &str| std::fs::read_to_string(pc.join("skills").join(name)).ok();
+        // pc1 has two saved requests (one of several lines, with a tab and a "\"), pc2 none
+        std::fs::create_dir_all(pc1.join("skills")).unwrap();
+        let avis = "---\ndescription: Un avis\n---\nDonne ton avis.\n\tEn deux lignes, avec C:\\dossier\\n.\n";
+        std::fs::write(pc1.join("skills/avis.md"), avis).unwrap();
+        std::fs::write(pc1.join("skills/court.md"), "Réponds en une phrase.\n").unwrap();
+        std::fs::write(pc1.join("skills/notes.txt"), "not a saved request").unwrap();
+        assert!(!sync_with(&job(&pc1, &shared), None, &mut status).skills);
+        assert_eq!(status.error, "");
+        // pc2 gets them, exactly
+        assert!(sync_with(&job(&pc2, &shared), None, &mut status).skills);
+        assert_eq!(read(&pc2, "avis.md").as_deref(), Some(avis));
+        assert_eq!(read(&pc2, "court.md").as_deref(), Some("Réponds en une phrase.\n"));
+        assert_eq!(read(&pc2, "notes.txt"), None);
+        // pc2 changes one, removes the other, writes a new one: pc1 follows
+        std::fs::write(pc2.join("skills/avis.md"), "Donne ton avis, franchement.\n").unwrap();
+        std::fs::remove_file(pc2.join("skills/court.md")).unwrap();
+        std::fs::write(pc2.join("skills/plan.md"), "Fais un plan.\n").unwrap();
+        assert!(!sync_with(&job(&pc2, &shared), None, &mut status).skills);
+        assert!(sync_with(&job(&pc1, &shared), None, &mut status).skills);
+        assert_eq!(read(&pc1, "avis.md").as_deref(), Some("Donne ton avis, franchement.\n"));
+        assert_eq!(read(&pc1, "court.md"), None);
+        assert_eq!(read(&pc1, "plan.md").as_deref(), Some("Fais un plan.\n"));
+        assert!(pc1.join("skills/notes.txt").exists(), "what is not a saved request is left alone");
+        // a round with nothing new changes nothing
+        assert!(!sync_with(&job(&pc1, &shared), None, &mut status).skills && !sync_with(&job(&pc2, &shared), None, &mut status).skills);
+        // a computer with no saved request of its own, and none in the folder: nothing is written
+        let (other_root, [pc3, empty]) = temp("skills-none", ["pc3", "empty"]);
+        sync_with(&job(&pc3, &empty), None, &mut status);
+        assert!(!pc3.join("skills").exists() && !empty.join("Sanaga/Personnel/skills.tsv").exists());
+        // lines survive being one item of a list
+        for text in ["", "a\nb", "tab\there", "back\\slash \\n not a line break", "fin\\"] {
+            assert_eq!(many_lines(&one_line(text)), text);
+            assert!(!one_line(text).contains(['\n', '\t']));
+        }
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&other_root);
     }
 
     #[test]

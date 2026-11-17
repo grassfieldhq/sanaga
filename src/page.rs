@@ -1109,6 +1109,7 @@ pub fn shortcut_name(msg: &str) -> Option<&'static str> {
         (true, true, _, "a") => "tabsearch",
         (true, false, false, "k") => "tabsearch",
         (true, true, _, "e") => "split",
+        (true, false, false, "e") => "ask",
         (true, true, _, "delete") => "cleardata",
         (true, false, false, "s") => "savepage",
         (true, false, true, "i") => "inspector",
@@ -1382,6 +1383,13 @@ fn pressure_settings() -> webkit6::MemoryPressureSettings {
 }
 
 /// The web engine's version ("2.52.6"), for crash reports.
+/// The engine in use belongs to a series that no longer gets security
+/// fixes: its age in months, when it is well past the next series' coming
+/// (a year and a month: a distribution is given time to bring the new one).
+pub fn engine_is_old(now: u64) -> Option<i64> {
+    crate::guard::engine_series_age(webkit6::functions::minor_version(), now).filter(|months| *months >= 13)
+}
+
 pub fn engine_version() -> String {
     format!("{}.{}.{}", webkit6::functions::major_version(), webkit6::functions::minor_version(), webkit6::functions::micro_version())
 }
@@ -1640,6 +1648,18 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
 /// reach its message channel: only Sanaga's scripts, run in the top frame,
 /// talk to Sanaga.
 pub const WORLD: &str = "sanaga";
+
+/// The bytes of what a view shows (its main resource: a page's HTML, or a
+/// PDF, a picture…) with their kind, as the engine holds them — nothing is
+/// fetched again. `None`: the view shows nothing, or it is bigger than `max`.
+pub fn main_resource_bytes(view: &webkit6::WebView, max: usize, then: impl FnOnce(Option<(String, Vec<u8>)>) + 'static) {
+    let Some(res) = view.main_resource() else { return then(None) };
+    let kind = res.response().and_then(|r| r.mime_type()).map(|m| m.to_string()).unwrap_or_default();
+    if res.response().is_some_and(|r| r.content_length() > max as u64) {
+        return then(None);
+    }
+    res.data(None::<&gtk::gio::Cancellable>, move |got| then(got.ok().filter(|b| b.len() <= max).map(|b| (kind, b))));
+}
 
 /// Gives Sanaga's scripts `window.ipc.postMessage(...)` in their world (top
 /// frame only). Each message carries the address of the page that sent it,
@@ -2178,6 +2198,20 @@ impl PageView {
                     });
                 });
                 menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Rechercher la sélection sur le Web"), None));
+                // the same words, to ask the assistant about
+                let action = gtk::gio::SimpleAction::new("sanaga-ask-selection", None);
+                let (tell, page) = (o.clone(), v.downgrade());
+                action.connect_activate(move |_, _| {
+                    let Some(page) = page.upgrade() else { return };
+                    let o = tell.clone();
+                    page.evaluate_javascript("String(window.getSelection())", Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| {
+                        let words = found.map(|w| w.to_str().to_string()).unwrap_or_default();
+                        if !words.trim().is_empty() {
+                            o(PageSignal::Tool("ask-selection", words.trim().chars().take(20_000).collect()));
+                        }
+                    });
+                });
+                menu.append(&webkit6::ContextMenuItem::from_gaction(&action, crate::i18n::tr("Demander à l'assistant…"), None));
                 // a link that opens the page at these very words (a "text
                 // fragment": the first and last words when there are many)
                 if v.uri().is_some_and(|u| u.starts_with("http")) {
@@ -2374,6 +2408,12 @@ impl PageView {
     pub fn evaluate_own(&self, js: &str) -> R<()> {
         self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, |_| {});
         Ok(())
+    }
+    /// Ask one of Sanaga's scripts for an answer (a text), in Sanaga's
+    /// world. The answer comes straight from the engine: nothing the page
+    /// runs can give another in its place.
+    pub fn ask_own(&self, js: &str, then: impl FnOnce(Option<String>) + 'static) {
+        self.view.evaluate_javascript(js, Some(WORLD), None, None::<&gtk::gio::Cancellable>, move |found| then(found.ok().map(|v| v.to_str().to_string())));
     }
     /// Find in page with the engine's own search: every match is marked,
     /// the current one stands out, and the page tells how many there are

@@ -80,8 +80,9 @@ fn parse_list(text: &str) -> Vec<(String, String)> {
         let get = |name: &str| item.iter().find(|(n, _)| *n == name).map(|(_, v)| *v);
         if let (Some("sanaga"), Some(site)) = (get("application"), get("site")) {
             let user = get("user").unwrap_or_default();
-            // (Sanaga's own secrets — the AI key, the sync phrase — are not accounts)
-            if site != crate::ai::KEY_SITE && site != crate::sync::KEY_SITE && !out.iter().any(|(s, u)| s == site && u == user) {
+            // (Sanaga's own secrets — the AI key, the sync phrase, the access
+            // tokens of the assistant's outside tools — are not accounts)
+            if site != crate::ai::KEY_SITE && site != crate::sync::KEY_SITE && !site.starts_with(crate::mcp::KEY_PREFIX) && !out.iter().any(|(s, u)| s == site && u == user) {
                 out.push((site.to_string(), user.to_string()));
             }
         }

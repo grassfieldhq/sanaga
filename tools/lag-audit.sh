@@ -69,7 +69,8 @@ settingsfind:cook go:sanaga://passwords go:sanaga://extensions go:sanaga://profi
 go:sanaga://about activity crashes go:file://$work/long.html find type:fox key:Enter key:Enter esc reader reader zin zout zreset source close
 split split devices devices bookmark readinglist site esc aimenu aimenu sharemenu sharemenu profilemenu profilemenu overflow overflow
 focus focus container esc makedefault appicon:1 appicon:0 syncnow launcher reload back fwd addr type:site1 key:ArrowDown esc
-opentab:file://$here/tests/smoke.html close private close reopen"
+opentab:file://$here/tests/smoke.html close private close reopen
+go:file://$work/long.html ask summary type:/ esc go:sanaga://skills go:sanaga://tools go:sanaga://notes"
 spec=""
 t=6
 for a in $actions; do

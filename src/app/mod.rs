@@ -1,6 +1,9 @@
 //! The Sanaga window: shared state, the frame loop and the screenshot mode.
 
 mod accounts;
+mod aiforms;
+mod aitools;
+mod assistant;
 mod bookmarks;
 mod buttons;
 mod chrome;
@@ -16,11 +19,13 @@ mod importer;
 mod intelligence;
 mod layout;
 mod mainmenu;
+mod mcppage;
 mod media;
 mod menus;
 mod myframes;
 mod nav;
 mod network;
+mod notespage;
 mod onboarding;
 mod pages;
 mod plus;
@@ -34,6 +39,7 @@ mod settings;
 mod sidebar;
 mod siteid;
 mod sitepanel;
+mod skillspage;
 mod source;
 mod start;
 mod switcher;
@@ -89,6 +95,12 @@ enum Internal {
     Sites,
     Import,
     CreateExtension,
+    /// The assistant's saved requests (`sanaga://skills`).
+    Skills,
+    /// The assistant's outside tools (`sanaga://tools`).
+    Tools,
+    /// The answers kept as notes (`sanaga://notes`, `sanaga://notes/NAME`).
+    Notes,
     Onboarding,
     /// A protected site (Netflix…) opened where it plays: `sanaga://protected?u=…`.
     Protected,
@@ -141,6 +153,10 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://sites" => Internal::Sites,
         "sanaga://import" => Internal::Import,
         "sanaga://create-extension" => Internal::CreateExtension,
+        "sanaga://skills" => Internal::Skills,
+        "sanaga://tools" => Internal::Tools,
+        "sanaga://notes" => Internal::Notes,
+        p if p.starts_with("sanaga://notes/") => Internal::Notes,
         "sanaga://start" => Internal::Onboarding,
         p if p.starts_with("sanaga://protected") => Internal::Protected,
         _ => return None,
@@ -164,6 +180,9 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Sites => tr("Paramètres des sites"),
         Internal::Import => tr("Importer depuis un autre navigateur"),
         Internal::CreateExtension => tr("Créer une extension"),
+        Internal::Skills => tr("Demandes enregistrées"),
+        Internal::Tools => tr("Outils extérieurs de l'assistant"),
+        Internal::Notes => tr("Notes"),
         Internal::Onboarding => tr("Bienvenue dans Sanaga"),
         Internal::Protected => tr("Contenu protégé"),
     }
@@ -659,9 +678,22 @@ pub struct Sanaga {
     extra_sessions: Vec<Vec<String>>,
     /// Data changes seen (another window may change bookmarks, settings…).
     store_seen: u64,
-    /// Page summary at the side, answers of the AI models, the
-    /// create-an-extension form, the Ollama models found, the Claude key typed.
-    summary: Option<intelligence::Summary>,
+    /// The assistant at the side of the page (a conversation; a page's
+    /// summary is one), answers of the AI models, the create-an-extension
+    /// form, the Ollama models found, the Claude key typed.
+    assistant: Option<assistant::Assistant>,
+    /// The assistant's conversations kept on this computer (opened when
+    /// the assistant is first used).
+    chats: Option<crate::chats::Chats>,
+    /// The assistant's saved requests (read once, and after a change), and
+    /// the form of their page.
+    skills: Vec<crate::skills::Skill>,
+    skill_form: skillspage::SkillForm,
+    /// The assistant's outside tools (MCP servers) and the form of their page.
+    mcp: mcppage::McpState,
+    mcp_form: mcppage::McpForm,
+    /// The answers kept as notes, as their page shows them.
+    notes: notespage::NotesState,
     ai_tx: std::sync::mpsc::Sender<intelligence::AiDone>,
     ai_rx: Receiver<intelligence::AiDone>,
     ext_form: intelligence::ExtForm,
@@ -1042,7 +1074,13 @@ impl Sanaga {
             quit_all: false,
             extra_sessions: Vec::new(),
             store_seen: crate::store::CHANGES.load(Ordering::Relaxed),
-            summary: None,
+            assistant: None,
+            chats: None,
+            skills: Vec::new(),
+            skill_form: Default::default(),
+            mcp: Default::default(),
+            mcp_form: Default::default(),
+            notes: Default::default(),
             ai_tx,
             ai_rx,
             ext_form: Default::default(),
@@ -1278,6 +1316,19 @@ impl Sanaga {
         app.refresh_logins();
         if app.store.settings.ai == "claude" {
             app.check_ai_key();
+        }
+        // (what the administrator fixed, if anything: read here, once,
+        // with the profile's own files — not later, in the middle of a frame)
+        let _ = crate::policy::get();
+        // an engine too old to be safe: said once for each version of it
+        // (and always on the About page)
+        if crate::shell::active() && app.slot == 0 && !app.guest {
+            let version = crate::page::engine_version();
+            if let Some(months) = crate::page::engine_is_old(crate::store::now()).filter(|_| app.store.settings.engine_warned != version) {
+                app.notice = Some((pages::engine_old_text(months), app.ctx.input(|i| i.time) + 8.0));
+                app.store.settings.engine_warned = version;
+                app.store.save_settings();
+            }
         }
         app
     }
@@ -1983,6 +2034,21 @@ impl Sanaga {
                             self.tabs[i].parent = Some(parent);
                         }
                         a if a.starts_with("previewlink:") => self.preview_link(&a[12..]),
+                        // (the person's answer to a tool the assistant's model asks for)
+                        "toolyes" => self.tool_answered(true),
+                        "toolno" => self.tool_answered(false),
+                        // (an outside tools' server added without the form: "mcpadd:name|program or address")
+                        a if a.starts_with("mcpadd:") => {
+                            if let Some((name, target)) = a[7..].split_once('|') {
+                                self.ensure_mcp();
+                                self.add_mcp_server(
+                                    crate::mcp::Server { name: name.to_string(), program: !target.starts_with("http"), target: target.to_string(), on: true, free: Vec::new() },
+                                    String::new(),
+                                );
+                            }
+                        }
+                        // (a file attached to the assistant's question, without the file window)
+                        a if a.starts_with("attach:") => self.attach_path(std::path::PathBuf::from(&a[7..])),
                         a if a.starts_with("installext:") => match crate::webext::install(std::path::Path::new(&a[11..])) {
                             Ok((name, id)) => {
                                 self.store.extensions_on.push(id.clone());
@@ -2331,10 +2397,11 @@ impl Sanaga {
                 self.sidebar(&mut inner, &th);
             });
         }
-        if self.summary.is_some() && !self.focus_mode {
+        self.assistant_step();
+        if self.assistant.is_some() && !self.focus_mode {
             // (its left edge can be dragged: wider to read, narrower for the page)
             egui::Panel::right("summary").resizable(true).default_size(380.0).size_range(300.0..=640.0).frame(Frame::NONE.fill(th.sidebar)).show(ui, |ui| {
-                self.summary_panel(ui, &th);
+                self.assistant_panel(ui, &th);
             });
         }
         // (a menu over a living page: the page area is left clear, see sync_web)

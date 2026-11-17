@@ -1,25 +1,10 @@
-//! Summaries of pages and extensions written from a description (see `ai.rs`
-//! for the models). The summary shows in a panel at the side of the page.
+//! Extensions written from a description (see `ai.rs` for the models), the
+//! answers of the models as they come back to the window, and how a model's
+//! answer is drawn. The conversation itself is in `assistant.rs`.
 
 use super::*;
 use crate::ai::{self, Provider};
-use crate::icons::{self, Icon};
-use eframe::egui::{Align, Color32, Layout, Margin, RichText, Sense, TextEdit};
-
-/// Collects the readable text of the page (its article or main part when it
-/// has one) and hands it to Sanaga.
-const PAGE_TEXT_JS: &str = r#"(function(){
-  var root = document.querySelector('article') || document.querySelector('main') || document.querySelector('[role=main]') || document.body;
-  // the paragraphs of the text first (not menus, lists of links, references)
-  var ps = Array.prototype.slice.call((root || document).querySelectorAll('p'))
-    .filter(function (p) { return p.offsetParent !== null && !p.closest('nav,footer,aside,.references,.reflist,[role=navigation]'); })
-    .map(function (p) { return p.innerText.trim(); })
-    .filter(function (x) { return x.split(/\s+/).length >= 8; });
-  var t = ps.join('\n');
-  if (t.length < 600) t = (root && root.innerText) || '';
-  if (t.length < 600 && document.body) t = document.body.innerText || '';
-  if (window.ipc) window.ipc.postMessage('sum:' + (document.title || '').replace(/\n/g, ' ') + '\n' + t.slice(0, 80000));
-})();"#;
+use eframe::egui::{Color32, Margin, RichText, TextEdit};
 
 /// One paragraph of a model's answer, as it is shown.
 #[derive(Debug, PartialEq)]
@@ -84,7 +69,7 @@ pub(super) fn paragraphs(text: &str) -> Vec<Para> {
 
 /// Show a model's answer: paragraphs, points with their bullet hanging,
 /// bold where the model put emphasis. The text can be selected.
-fn rich_text(ui: &mut Ui, th: &Theme, text: &str) {
+pub(super) fn rich_text(ui: &mut Ui, th: &Theme, text: &str) {
     let size = 14.5;
     for para in paragraphs(text) {
         let mut job = egui::text::LayoutJob::default();
@@ -108,40 +93,35 @@ fn rich_text(ui: &mut Ui, th: &Theme, text: &str) {
     }
 }
 
-pub(super) struct Summary {
-    tab: u64,
-    title: String,
-    text: String,
-    busy: bool,
-    by: String,
-    note: String,
-    /// The page's text has arrived (later ones are ignored).
-    sent: bool,
-    /// The request being answered (parts of an earlier one are dropped),
-    /// and what stops it.
-    run: u64,
-    stop: std::sync::Arc<AtomicBool>,
-}
-
-impl Summary {
-    pub(super) fn is_for(&self, tab: u64) -> bool {
-        self.tab == tab
-    }
-}
-
 pub(super) enum AiDone {
-    Summary {
-        tab: u64,
+    /// What a model's thread says about the conversation it answers.
+    Chat {
         run: u64,
-        result: Result<String, String>,
-        by: String,
-        fallback: String,
+        ev: super::assistant::ChatEvent,
     },
-    /// A part of a summary, as the model writes it.
-    SummaryPiece {
+    /// The text of a page asked for a question (nothing: the page could
+    /// not answer).
+    PageText {
+        ticket: u64,
+        text: Option<super::assistant::PageText>,
+    },
+    /// The fields of a page's form, listed for a tool of the assistant.
+    FormRead {
         tab: u64,
-        run: u64,
-        text: String,
+        address: String,
+        listed: Option<String>,
+        ask: super::assistant::ToolAsk,
+    },
+    /// How many fields a tool of the assistant filled, of how many.
+    FormFilled {
+        filled: usize,
+        wanted: usize,
+        ask: super::assistant::ToolAsk,
+    },
+    /// The page asked for is a PDF: the document itself.
+    PageFile {
+        ticket: u64,
+        file: crate::chat::Attachment,
     },
     Extension(u64, Result<(String, String), String>),
     /// A part of an extension's code, as the model writes it.
@@ -209,6 +189,10 @@ impl Sanaga {
     /// tab's page was sent to the online service like any other.)
     pub(super) fn page_text_provider(&self, tab: u64) -> Provider {
         let provider = self.ai_provider();
+        // (a site the administrator keeps from every model)
+        if self.tabs.iter().any(|t| t.id == tab && !crate::policy::get().ai_allowed_on(t.url())) {
+            return Provider::Local;
+        }
         let private = self.tabs.iter().any(|t| t.id == tab && t.private);
         match provider {
             Provider::Claude { .. } | Provider::Cli { .. } if private => Provider::Local,
@@ -218,6 +202,10 @@ impl Sanaga {
 
     /// The model chosen in Settings › Intelligence (with its key, for Claude).
     pub(super) fn ai_provider(&self) -> Provider {
+        // (no AI at all, by the administrator's choice)
+        if crate::policy::get().ai_off {
+            return Provider::Local;
+        }
         let st = &self.store.settings;
         if let Some(tool) = crate::ai_cli::CliTool::from_key(&st.ai) {
             return Provider::Cli { tool, model: st.ai_model.clone() };
@@ -232,113 +220,21 @@ impl Sanaga {
             "claude" if self.store.data_dir().is_none() => Provider::Local,
             // (no key in the keyring: Sanaga's own summary; the key itself
             // is read where the request is made, on its thread)
-            "claude" if self.ai_key_known == Some(false) => Provider::Local,
+            "claude" if self.ai_key_known == Some(false) && ai::test_claude().is_none() => Provider::Local,
             "claude" => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, profile: self.store.profile.clone() },
             _ => Provider::Local,
         }
-    }
-
-    /// Summarise the page shown (toolbar button, menu).
-    pub(super) fn summarize_page(&mut self) {
-        let t = &self.tabs[self.active];
-        let (id, title) = (t.id, t.title());
-        let Some(w) = t.web.as_ref().filter(|_| matches!(t.view, View::Web)) else {
-            self.notice = Some((tr("Le résumé marche sur les pages des sites.").into(), self.ctx.input(|i| i.time)));
-            return;
-        };
-        let _ = w.evaluate_own(PAGE_TEXT_JS);
-        // (a summary still being written gives way to the new one)
-        if let Some(old) = &self.summary {
-            old.stop.store(true, Ordering::Relaxed);
-        }
-        self.ai_run += 1;
-        self.summary = Some(Summary { tab: id, title, text: String::new(), busy: true, by: String::new(), note: String::new(), sent: false, run: self.ai_run, stop: Default::default() });
-    }
-
-    pub(super) fn summary_text_arrived(&mut self, tab: u64, text: String) {
-        // only the text the person asked for (one answer per request)
-        if !self.summary.as_ref().is_some_and(|s| s.tab == tab && s.busy && s.text.is_empty() && !s.sent) {
-            return;
-        }
-        if let Some(s) = self.summary.as_mut() {
-            s.sent = true;
-        }
-        let (title, body) = text.split_once('\n').map(|(a, b)| (a.to_string(), b.to_string())).unwrap_or_default();
-        let fallback = ai::local_summary(&body, 6);
-        let provider = self.page_text_provider(tab);
-        if let Some(s) = self.summary.as_mut() {
-            if !title.trim().is_empty() {
-                s.title = title.trim().to_string();
-            }
-        }
-        if body.split_whitespace().count() < 30 {
-            if let Some(s) = self.summary.as_mut() {
-                s.busy = false;
-                s.text = tr("Cette page contient trop peu de texte à résumer.").into();
-            }
-            return;
-        }
-        // the page's text only goes to a model with no tools and no files
-        let refused = ai::page_content_allowed(&provider).err();
-        if provider == Provider::Local || refused.is_some() {
-            if let Some(s) = self.summary.as_mut() {
-                s.busy = false;
-                s.text = fallback;
-                s.by = Provider::Local.label();
-                s.note = refused.unwrap_or_default();
-            }
-            return;
-        }
-        let tx = self.ai_tx.clone();
-        let repaint = self.ctx.clone();
-        let by = provider.label();
-        let (run, stop) = self.summary.as_ref().map(|s| (s.run, s.stop.clone())).unwrap_or_default();
-        if let Some(s) = self.summary.as_mut() {
-            s.by = by.clone();
-        }
-        std::thread::Builder::new()
-            .name("sanaga-summary".into())
-            .spawn(move || {
-                let (system, prompt) = ai::summary_prompt(&title, &body);
-                // (shown as the model writes it)
-                let (tx2, repaint2) = (tx.clone(), repaint.clone());
-                let result = ai::ask_live(&provider, &system, &prompt, 900, &stop, &mut |text| {
-                    let _ = tx2.send(AiDone::SummaryPiece { tab, run, text: text.to_string() });
-                    repaint2.request_repaint();
-                });
-                let _ = tx.send(AiDone::Summary { tab, run, result, by, fallback });
-                repaint.request_repaint();
-            })
-            .ok();
     }
 
     /// Answers of the models, when they come.
     pub(super) fn poll_ai(&mut self) {
         while let Ok(done) = self.ai_rx.try_recv() {
             match done {
-                AiDone::SummaryPiece { tab, run, text } => {
-                    if let Some(s) = self.summary.as_mut().filter(|s| s.tab == tab && s.run == run && s.busy) {
-                        s.text.push_str(&text);
-                    }
-                }
-                AiDone::Summary { tab, run, result, by, fallback } => {
-                    let Some(s) = self.summary.as_mut().filter(|s| s.tab == tab && s.run == run && s.busy) else { continue };
-                    s.busy = false;
-                    match result {
-                        Ok(t) => {
-                            s.text = t.trim().to_string();
-                            s.by = by;
-                        }
-                        // (stopped by the person: what was written stays)
-                        Err(e) if e == ai::STOPPED => {}
-                        Err(e) => {
-                            // the model failed: Sanaga's own summary instead
-                            s.text = fallback;
-                            s.by = Provider::Local.label();
-                            s.note = e;
-                        }
-                    }
-                }
+                AiDone::Chat { run, ev } => self.chat_event(run, ev),
+                AiDone::PageText { ticket, text } => self.page_text_arrived(ticket, text),
+                AiDone::PageFile { ticket, file } => self.page_file_arrived(ticket, file),
+                AiDone::FormRead { tab, address, listed, ask } => self.form_read(tab, address, listed, ask),
+                AiDone::FormFilled { filled, wanted, ask } => self.form_filled(filled, wanted, ask),
                 AiDone::ExtensionPiece(run, text) => {
                     if self.ext_form.busy && self.ext_form.run == run {
                         self.ext_form.code.push_str(&text);
@@ -440,94 +336,6 @@ impl Sanaga {
             let _ = tx.send(AiDone::Models(ai::ollama_models()));
             repaint.request_repaint();
         });
-    }
-
-    /// The summary, at the side of the page.
-    pub(super) fn summary_panel(&mut self, ui: &mut Ui, th: &Theme) {
-        let mut close = false;
-        let mut again = false;
-        let mut copy = false;
-        let mut choose = false;
-        let mut stop = false;
-        let no_model = self.ai_provider() == Provider::Local;
-        let active_id = self.tabs[self.active].id;
-        let Some(s) = self.summary.as_ref() else { return };
-        Frame::new().inner_margin(Margin::symmetric(18, 14)).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
-                icons::paint(ui.painter(), r, Icon::Sparkle, th.accent);
-                ui.label(RichText::new(tr("Résumé")).size(17.0).family(bold()).color(th.text));
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if super::chrome::icon_button_small(ui, Icon::Close, th).tip(tr("Fermer")).clicked() {
-                        close = true;
-                    }
-                });
-            });
-            ui.add_space(6.0);
-            ui.label(RichText::new(&s.title).size(13.5).family(bold()).color(th.sub));
-            ui.add_space(10.0);
-            if s.busy {
-                // (the answer shows as the model writes it)
-                if !s.text.is_empty() {
-                    egui::ScrollArea::vertical().id_salt("summary-scroll").max_height(ui.available_height() - 80.0).stick_to_bottom(true).show(ui, |ui| {
-                        rich_text(ui, th, &s.text);
-                    });
-                    ui.add_space(10.0);
-                }
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(RichText::new(if s.text.is_empty() { tr("Lecture de la page…") } else { tr("Écriture du résumé…") }).color(th.sub));
-                    // (only a model's answer can be stopped; Sanaga's own is immediate)
-                    if !s.by.is_empty() && ui.button(tr("Arrêter")).clicked() {
-                        stop = true;
-                    }
-                });
-            } else {
-                egui::ScrollArea::vertical().id_salt("summary-scroll").max_height(ui.available_height() - 80.0).show(ui, |ui| {
-                    rich_text(ui, th, &s.text);
-                });
-                ui.add_space(12.0);
-                if !s.note.is_empty() {
-                    ui.label(RichText::new(&s.note).size(11.5).color(Color32::from_rgb(0xD0, 0x60, 0x30)));
-                }
-                ui.label(RichText::new(tf("Par : {}", &[&s.by])).size(11.5).color(th.sub));
-                // no model chosen: say that one would do better, and where
-                if no_model && ui.link(RichText::new(tr("Choisir une IA pour des résumés plus fins…")).size(12.0)).clicked() {
-                    choose = true;
-                }
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button(tr("Copier")).clicked() {
-                        copy = true;
-                    }
-                    let label = if s.tab == active_id { tr("Résumer à nouveau") } else { tr("Résumer cette page") };
-                    if ui.button(label).clicked() {
-                        again = true;
-                    }
-                });
-            }
-        });
-        if copy {
-            if let Some(s) = &self.summary {
-                self.ctx.copy_text(format!("{}\n\n{}", s.title, s.text));
-            }
-        }
-        if stop {
-            if let Some(s) = self.summary.as_mut() {
-                s.stop.store(true, Ordering::Relaxed);
-                s.busy = false;
-                s.note = if s.text.trim().is_empty() { tr("Résumé arrêté.").to_string() } else { tr("Résumé arrêté avant la fin.").to_string() };
-            }
-        }
-        if choose {
-            self.open_settings(&super::settings::Section::Intelligence.address());
-        }
-        if close {
-            self.summary = None;
-        } else if again {
-            self.summarize_page();
-        }
     }
 
     /// sanaga://create-extension: describe what you want, a model writes it.

@@ -1282,3 +1282,158 @@ DNS chiffré	DNS cifrado
 Adresse du résolveur	Dirección del resolvedor
 Sanaga — barres et menus	Sanaga — barras y menús
 L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.	No se pudo abrir el historial: las páginas visitadas esta vez no se guardarán.
+Sélection	Selección
+{} — texte trop long : {} % lus	{} — texto demasiado largo: {} % leído
+Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.	En una pestaña privada, solo un modelo en este ordenador (Ollama) puede responder: el texto de la página no sale de él.
+Pour poser des questions, choisissez un modèle d'IA : Ollama sur cet ordinateur, ou Claude avec votre clé.	Para hacer preguntas, elija un modelo de IA: Ollama en este ordenador, o Claude con su clave.
+Réponse arrêtée avant la fin.	Respuesta detenida antes del final.
+Assistant	Asistente
+Nouvelle conversation	Nueva conversación
+Paramètres › Intelligence…	Ajustes › Inteligencia…
+Avec cette page : {}	Con esta página: {}
+Sans la page	Sin la página
+Le texte de la page part avec la question. Cliquer pour ne pas l'envoyer.	El texto de la página se envía con la pregunta. Haga clic para no enviarlo.
+La question part seule. Cliquer pour joindre le texte de la page.	La pregunta se envía sola. Haga clic para adjuntar el texto de la página.
+Retirer	Quitar
+Posez une question sur cette page…	Haga una pregunta sobre esta página…
+Poursuivre la conversation…	Continuar la conversación…
+Question à l'assistant	Pregunta al asistente
+Écriture de la réponse…	Escribiendo la respuesta…
+Envoyer	Enviar
+Posez une question sur la page affichée, ou demandez-en le résumé. Le texte de la page part avec votre première question.	Haga una pregunta sobre la página mostrada, o pida su resumen. El texto de la página se envía con su primera pregunta.
+Poser une question à l'assistant	Hacer una pregunta al asistente
+Ctrl+E	Ctrl+E
+Assistant : questions, résumé, traduction	Asistente: preguntas, resumen, traducción
+Poser une question	Hacer una pregunta
+Sur cette page, à côté d'elle	Sobre esta página, a su lado
+Le modèle a refusé de répondre à cette demande.	El modelo se negó a responder a esta petición.
+La réponse du modèle a été coupée avant la fin.	La respuesta del modelo se cortó antes del final.
+{} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} no sabe usar herramientas: responde con lo que usted le adjuntó.
+Le modèle a demandé trop d'outils sans répondre.	El modelo pidió demasiadas herramientas sin responder.
+Demander à l'assistant…	Preguntar al asistente…
+Joindre un fichier	Adjuntar un archivo
+Non lu (page vide ou trop lente à charger) : {}	No leído (página vacía o demasiado lenta en cargar): {}
++ Joindre	+ Adjuntar
+Joindre un autre onglet (ou tapez @) ou un fichier : texte, image, PDF	Adjuntar otra pestaña (o escriba @) o un archivo: texto, imagen, PDF
+Aucun autre onglet ouvert.	No hay otra pestaña abierta.
+Aucun onglet ne porte ce nom.	Ninguna pestaña tiene este nombre.
+Un fichier… (texte, image, PDF)	Un archivo… (texto, imagen, PDF)
+Ce n'est pas un fichier.	No es un archivo.
+« {} » est trop gros ({} Mo au plus pour ce type de fichier).	«{}» es demasiado grande ({} MB como máximo para este tipo de archivo).
+Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	Sanaga no sabe leer «{}»: adjunte un texto, una imagen o un PDF (un documento de Word o Excel puede guardarse como PDF).
+Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	Un modelo en este ordenador no lee los PDF: solo Claude los lee.
+Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	Este modelo no lee ni imágenes ni PDF: quítelos, o elija Claude u Ollama en Ajustes › Inteligencia.
+Recherche dans l'historique	Búsqueda en el historial
+Recherche dans l'historique : « {} »	Búsqueda en el historial: «{}»
+Liste des onglets ouverts	Lista de las pestañas abiertas
+Lecture de l'onglet « {} »	Lectura de la pestaña «{}»
+Recherche dans les favoris : « {} »	Búsqueda en los favoritos: «{}»
+Recherche dans les conversations : « {} »	Búsqueda en las conversaciones: «{}»
+Ouvrir {}	Abrir {}
+Fermer : {}	Cerrar: {}
+Grouper sous « {} » : {}	Agrupar como «{}»: {}
+Commande : {}	Comando: {}
+Conversations précédentes	Conversaciones anteriores
+L'assistant veut consulter votre navigateur	El asistente quiere consultar su navegador
+L'assistant veut agir	El asistente quiere actuar
+Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.	Lo que encuentre allí se envía al modelo, fuera de este ordenador.
+Autoriser pour cette conversation	Permitir para esta conversación
+Accepter	Aceptar
+Refuser	Rechazar
+En attente de votre réponse…	Esperando su respuesta…
+Rechercher dans les conversations…	Buscar en las conversaciones…
+Aucune conversation gardée.	No hay ninguna conversación guardada.
+Aucune conversation ne contient ces mots.	Ninguna conversación contiene estas palabras.
+Conversation	Conversación
+Laisser l'assistant consulter votre navigateur et agir	Permitir que el asistente consulte su navegador y actúe
+Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite	Historial, pestañas, favoritos, conversaciones; cada acción se le muestra antes de hacerse
+Garder les conversations sur cet ordinateur	Guardar las conversaciones en este ordenador
+Pour les reprendre et les retrouver ; jamais celles des onglets privés	Para retomarlas y encontrarlas; nunca las de las pestañas privadas
+Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	Un modelo en este ordenador consulta libremente; con Claude, se le pregunta la primera vez que quiere buscar en su historial, sus pestañas o sus favoritos, ya que lo que encuentra allí se le envía. Abrir, cerrar, agrupar, ejecutar un comando: siempre con su acuerdo.
+Aucune demande enregistrée ne commence ainsi.	Ninguna petición guardada empieza así.
+Gérer les demandes enregistrées…	Gestionar las peticiones guardadas…
+Posez une question sur cette page… (« / » : demandes enregistrées)	Haga una pregunta sobre esta página… («/»: peticiones guardadas)
+Demandes enregistrées	Peticiones guardadas
+Vos demandes fréquentes, appelées par « / » et leur nom	Sus peticiones frecuentes, llamadas con «/» y su nombre
+Une demande que vous faites souvent à l'assistant, gardée sous un nom : tapez « / » puis ce nom dans son champ. Ce que vous tapez ensuite part avec elle.	Una petición que hace a menudo al asistente, guardada con un nombre: escriba «/» y ese nombre en su campo. Lo que escriba después se envía con ella.
+{} — fournie avec Sanaga	{} — incluida con Sanaga
+Adapter	Adaptar
+Nouvelle demande	Nueva petición
+Ouvrir le dossier…	Abrir la carpeta…
+Une fenêtre d'invité ne garde pas de demandes.	Una ventana de invitado no guarda peticiones.
+Modifier la demande	Editar la petición
+Nom (ce que vous taperez après « / »)	Nombre (lo que escribirá después de «/»)
+Ex. : avis	Ej.: opinión
+Ce qu'elle fait, en quelques mots	Lo que hace, en pocas palabras
+Ex. : les points faibles d'un texte	Ej.: los puntos débiles de un texto
+Joindre la page affichée	Adjuntar la página mostrada
+La demande, telle qu'elle part au modèle	La petición, tal como se envía al modelo
+Ex. : Relis ce texte comme un lecteur exigeant : dis ce qui n'est pas clair, ce qui manque, et ce qui est de trop.	Ej.: Relee este texto como un lector exigente: di qué no está claro, qué falta y qué sobra.
+Écrire la demande avec l'IA	Escribir la petición con la IA
+« /{} » est supprimée.	«/{}» se ha eliminado.
+« /{} » est enregistrée : tapez-la dans le champ de l'assistant.	«/{}» se ha guardado: escríbala en el campo del asistente.
+résumer	resumir
+L'essentiel de la page en quelques points	Lo esencial de la página en unos puntos
+expliquer	explicar
+La page, ou la sélection, dite simplement	La página, o la selección, dicha con sencillez
+comparer	comparar
+Les pages jointes : ce qui les rapproche, ce qui les sépare	Las páginas adjuntas: lo que las acerca, lo que las separa
+à-faire	tareas
+Ce que la page demande de faire : étapes, dates, montants	Lo que la página pide hacer: pasos, fechas, importes
+{} — Demander à l'assistant (Maj+Entrée)	{} — Preguntar al asistente (Mayús+Intro)
+{} › {} — envoyé : {}	{} › {} — enviado: {}
+Outils extérieurs de l'assistant	Herramientas externas del asistente
+Ajoutez vos propres serveurs d'outils (protocole MCP) : un programme sur cet ordinateur, ou une adresse. L'assistant peut alors utiliser leurs outils dans une conversation ; chaque utilisation vous est montrée avant d'être faite, sauf pour les outils que vous laissez libres.	Añada sus propios servidores de herramientas (protocolo MCP): un programa en este ordenador, o una dirección. El asistente puede entonces usar sus herramientas en una conversación; cada uso se le muestra antes de hacerse, salvo para las herramientas que deje libres.
+Programme	Programa
+Relire ses outils	Volver a leer sus herramientas
+Lecture de ses outils…	Leyendo sus herramientas…
+Injoignable : {}	No se puede contactar: {}
+Ce serveur n'offre aucun outil.	Este servidor no ofrece ninguna herramienta.
+Interrupteur allumé : l'outil s'utilise sans vous demander. À réserver aux outils qui ne font que lire.	Interruptor encendido: la herramienta se usa sin preguntarle. Resérvelo a las herramientas que solo leen.
+Aucun serveur ajouté.	Ningún servidor añadido.
+Une fenêtre d'invité ne garde pas d'outils.	Una ventana de invitado no guarda herramientas.
+Ajouter un serveur	Añadir un servidor
+Ex. : Notes	Ej.: Notas
+Un programme sur cet ordinateur	Un programa en este ordenador
+Sa ligne de commande, ex. : npx -y @exemple/serveur-notes	Su línea de comandos, ej.: npx -y @ejemplo/servidor-notas
+Ce programme est lancé avec vos droits, comme si vous le lanciez vous-même : n'ajoutez que ceux en qui vous avez confiance.	Este programa se inicia con sus permisos, como si lo iniciara usted: añada solo aquellos en los que confía.
+Jeton d'accès (facultatif)	Token de acceso (opcional)
+Gardé dans le trousseau du système. Les services qui demandent une fenêtre de connexion (OAuth) ne sont pas encore pris en charge.	Guardado en el llavero del sistema. Los servicios que piden una ventana de inicio de sesión (OAuth) aún no son compatibles.
+Un serveur porte déjà ce nom.	Ya hay un servidor con este nombre.
+Adresse refusée : https, ou un serveur sur cet ordinateur.	Dirección rechazada: https, o un servidor en este ordenador.
+« {} » est ajouté.	«{}» se ha añadido.
+Le jeton n'a pas pu être gardé dans le trousseau du système.	No se pudo guardar el token en el llavero del sistema.
+Outils extérieurs	Herramientas externas
+Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Sus propios servidores de herramientas (MCP); cada uso se le muestra
+Ce n'est pas un serveur MCP (réponse inattendue).	No es un servidor MCP (respuesta inesperada).
+Accès refusé : vérifiez le jeton d'accès.	Acceso denegado: compruebe el token de acceso.
+Le serveur ne répond pas.	El servidor no responde.
+Lecture des champs du formulaire	Lectura de los campos del formulario
+Remplissage du formulaire	Rellenado del formulario
+Remplir ces champs de la page (rien n'est envoyé) :	Rellenar estos campos de la página (no se envía nada):
+champ n° {}	campo n.º {}
+Une fois remplis, la page peut lire ces champs.	Una vez rellenados, la página puede leer estos campos.
+Voir la note	Ver la nota
+Garder comme note	Guardar como nota
+Notes	Notas
+Une fenêtre d'invité ne garde pas de notes.	Una ventana de invitado no guarda notas.
+Note gardée le {}.	Nota guardada el {}.
+Note gardée le {} — réponse de {}.	Nota guardada el {} — respuesta de {}.
+Réponse gardée dans les notes.	Respuesta guardada en las notas.
+‹ Toutes les notes	‹ Todas las notas
+Cette note n'existe plus.	Esta nota ya no existe.
+Poursuivre avec l'assistant	Continuar con el asistente
+Ouvrir comme page à imprimer	Abrir como página para imprimir
+La note devient une page : Ctrl+P l'imprime ou l'enregistre en PDF.	La nota se convierte en una página: Ctrl+P la imprime o la guarda como PDF.
+Les réponses de l'assistant que vous avez gardées. Ce sont des fichiers texte dans le dossier du profil : ils restent lisibles sans Sanaga.	Las respuestas del asistente que ha guardado. Son archivos de texto en la carpeta del perfil: siguen siendo legibles sin Sanaga.
+Aucune note. Sous une réponse de l'assistant : « Garder comme note ».	Ninguna nota. Bajo una respuesta del asistente: «Guardar como nota».
+Note copiée.	Nota copiada.
+Les réponses que vous avez gardées	Las respuestas que ha guardado
+Le moteur web de ce système (WebKitGTK {}) a {} mois : sa série ne reçoit plus de correctifs de sécurité. Mettez votre système à jour pour obtenir un moteur récent.	El motor web de este sistema (WebKitGTK {}) tiene {} meses: su serie ya no recibe correcciones de seguridad. Actualice su sistema para obtener un motor reciente.
+L'assistant est désactivé par l'administrateur de cet ordinateur.	El asistente está desactivado por el administrador de este ordenador.
+L'administrateur de cet ordinateur ne laisse pas l'assistant lire ce site.	El administrador de este ordenador no permite que el asistente lea este sitio.
+Non lu, par réglage de l'administrateur : {}	No leído, por ajuste del administrador: {}
+L'administrateur de cet ordinateur a désactivé l'intelligence artificielle : les réglages ci-dessous sont sans effet, et les résumés sont ceux de Sanaga seul.	El administrador de este ordenador ha desactivado la inteligencia artificial: los ajustes de abajo no tienen efecto, y los resúmenes son los de Sanaga solo.
+L'administrateur de cet ordinateur ne laisse aucun modèle lire ces sites : {}	El administrador de este ordenador no deja que ningún modelo lea estos sitios: {}
+Copier le lien en Markdown	Copiar el enlace en Markdown
+Lien copié en Markdown.	Enlace copiado en Markdown.

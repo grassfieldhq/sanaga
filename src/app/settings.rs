@@ -1402,6 +1402,36 @@ impl Sanaga {
                 }
                 _ => {}
             }
+            // what the administrator of the computer fixed is said first
+            let policy = crate::policy::get();
+            if policy.ai_off {
+                footnote(ui, th, tr("L'administrateur de cet ordinateur a désactivé l'intelligence artificielle : les réglages ci-dessous sont sans effet, et les résumés sont ceux de Sanaga seul."));
+            } else if !policy.ai_no_sites.is_empty() {
+                footnote(ui, th, &tf("L'administrateur de cet ordinateur ne laisse aucun modèle lire ces sites : {}", &[&policy.ai_no_sites.join(", ")]));
+            }
+            group(ui, th, tr("Assistant"), |ui, rows| {
+                changed |= rows.switch(
+                    ui,
+                    tr("Laisser l'assistant consulter votre navigateur et agir"),
+                    tr("Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite"),
+                    &mut st.ai_tools,
+                );
+                changed |= rows.switch(ui, tr("Garder les conversations sur cet ordinateur"), tr("Pour les reprendre et les retrouver ; jamais celles des onglets privés"), &mut st.keep_chats);
+                if rows.link(ui, tr("Demandes enregistrées"), tr("Vos demandes fréquentes, appelées par « / » et leur nom"), "") {
+                    acts.push(Act::Go("sanaga://skills"));
+                }
+                if rows.link(ui, tr("Outils extérieurs"), tr("Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée"), "") {
+                    acts.push(Act::Go("sanaga://tools"));
+                }
+                if rows.link(ui, tr("Notes"), tr("Les réponses que vous avez gardées"), "") {
+                    acts.push(Act::Go("sanaga://notes"));
+                }
+            });
+            footnote(
+                ui,
+                th,
+                tr("Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord."),
+            );
             group(ui, th, tr("Traduction des pages"), |ui, rows| {
                 for (key, label, sub) in [
                     ("ai", tr("Avec l'intelligence choisie ci-dessus"), tr("La page est traduite sur place ; seul son texte est envoyé")),

@@ -672,6 +672,7 @@ impl Sanaga {
                 (sc(cs, Key::A), "tabsearch"),
                 (sc(c, Key::K), "tabsearch"),
                 (sc(cs, Key::E), "split"),
+                (sc(c, Key::E), "ask"),
                 (sc(cs, Key::Delete), "cleardata"),
                 (sc(c, Key::S), "savepage"),
                 (sc(cs, Key::L), "sidebar"),
@@ -829,6 +830,17 @@ impl Sanaga {
                 "site" => self.site_panel = true,
                 "inspector" => self.open_inspector(),
                 "summary" => self.summarize_page(),
+                "ask" => self.open_assistant(),
+                "notes" => {
+                    self.open_tab("sanaga://notes", false);
+                }
+                // "[title](address)", for notes and messages written in Markdown
+                "copymd" => {
+                    if let Some((address, title)) = self.current_page() {
+                        self.ctx.copy_text(super::extras::markdown_link(&title, &address));
+                        self.say(tr("Lien copié en Markdown."));
+                    }
+                }
                 "devices" => self.toggle_devices(),
                 "print" => self.print_page(),
                 "source" => self.view_source(),

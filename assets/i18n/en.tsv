@@ -1282,3 +1282,158 @@ DNS chiffré	Encrypted DNS
 Adresse du résolveur	Resolver address
 Sanaga — barres et menus	Sanaga — bars and menus
 L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.	The history could not be opened: the pages visited this time will not be kept.
+Sélection	Selection
+{} — texte trop long : {} % lus	{} — text too long: {} % read
+Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.	In a private tab, only a model on this computer (Ollama) can answer: the page's text does not leave it.
+Pour poser des questions, choisissez un modèle d'IA : Ollama sur cet ordinateur, ou Claude avec votre clé.	To ask questions, choose an AI model: Ollama on this computer, or Claude with your key.
+Réponse arrêtée avant la fin.	Answer stopped before the end.
+Assistant	Assistant
+Nouvelle conversation	New conversation
+Paramètres › Intelligence…	Settings › Intelligence…
+Avec cette page : {}	With this page: {}
+Sans la page	Without the page
+Le texte de la page part avec la question. Cliquer pour ne pas l'envoyer.	The page's text goes with the question. Click to leave it out.
+La question part seule. Cliquer pour joindre le texte de la page.	The question goes alone. Click to attach the page's text.
+Retirer	Remove
+Posez une question sur cette page…	Ask a question about this page…
+Poursuivre la conversation…	Continue the conversation…
+Question à l'assistant	Question to the assistant
+Écriture de la réponse…	Writing the answer…
+Envoyer	Send
+Posez une question sur la page affichée, ou demandez-en le résumé. Le texte de la page part avec votre première question.	Ask a question about the page shown, or ask for its summary. The page's text goes with your first question.
+Poser une question à l'assistant	Ask the assistant a question
+Ctrl+E	Ctrl+E
+Assistant : questions, résumé, traduction	Assistant: questions, summary, translation
+Poser une question	Ask a question
+Sur cette page, à côté d'elle	About this page, beside it
+Le modèle a refusé de répondre à cette demande.	The model declined to answer this request.
+La réponse du modèle a été coupée avant la fin.	The model's answer was cut before the end.
+{} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} cannot use tools: it answers with what you attached.
+Le modèle a demandé trop d'outils sans répondre.	The model asked for too many tools without answering.
+Demander à l'assistant…	Ask the assistant…
+Joindre un fichier	Attach a file
+Non lu (page vide ou trop lente à charger) : {}	Not read (empty page, or too slow to load): {}
++ Joindre	+ Attach
+Joindre un autre onglet (ou tapez @) ou un fichier : texte, image, PDF	Attach another tab (or type @) or a file: text, picture, PDF
+Aucun autre onglet ouvert.	No other tab is open.
+Aucun onglet ne porte ce nom.	No tab has this name.
+Un fichier… (texte, image, PDF)	A file… (text, picture, PDF)
+Ce n'est pas un fichier.	This is not a file.
+« {} » est trop gros ({} Mo au plus pour ce type de fichier).	“{}” is too big ({} MB at most for this kind of file).
+Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	Sanaga cannot read “{}”: attach a text, a picture or a PDF (a Word or Excel document can be saved as PDF).
+Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	A model on this computer does not read PDFs: only Claude does.
+Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	This model reads neither pictures nor PDFs: remove them, or choose Claude or Ollama in Settings › Intelligence.
+Recherche dans l'historique	Searching the history
+Recherche dans l'historique : « {} »	Searching the history: “{}”
+Liste des onglets ouverts	Listing the open tabs
+Lecture de l'onglet « {} »	Reading the tab “{}”
+Recherche dans les favoris : « {} »	Searching the favourites: “{}”
+Recherche dans les conversations : « {} »	Searching the conversations: “{}”
+Ouvrir {}	Open {}
+Fermer : {}	Close: {}
+Grouper sous « {} » : {}	Group as “{}”: {}
+Commande : {}	Command: {}
+Conversations précédentes	Earlier conversations
+L'assistant veut consulter votre navigateur	The assistant wants to look into your browser
+L'assistant veut agir	The assistant wants to act
+Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.	What it finds there is sent to the model, outside this computer.
+Autoriser pour cette conversation	Allow for this conversation
+Accepter	Accept
+Refuser	Refuse
+En attente de votre réponse…	Waiting for your answer…
+Rechercher dans les conversations…	Search the conversations…
+Aucune conversation gardée.	No conversation is kept.
+Aucune conversation ne contient ces mots.	No conversation holds these words.
+Conversation	Conversation
+Laisser l'assistant consulter votre navigateur et agir	Let the assistant look into your browser and act
+Historique, onglets, favoris, conversations ; chaque action vous est montrée avant d'être faite	History, tabs, favourites, conversations; each action is shown to you before it is done
+Garder les conversations sur cet ordinateur	Keep the conversations on this computer
+Pour les reprendre et les retrouver ; jamais celles des onglets privés	To go on with them and find them again; never those of private tabs
+Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	A model on this computer looks freely; with Claude, you are asked the first time it wants to search your history, your tabs or your favourites, since what it finds there is sent to it. Opening, closing, grouping, running a command: always after you agree.
+Aucune demande enregistrée ne commence ainsi.	No saved request begins like this.
+Gérer les demandes enregistrées…	Manage saved requests…
+Posez une question sur cette page… (« / » : demandes enregistrées)	Ask a question about this page… (“/”: saved requests)
+Demandes enregistrées	Saved requests
+Vos demandes fréquentes, appelées par « / » et leur nom	Your frequent requests, called with “/” and their name
+Une demande que vous faites souvent à l'assistant, gardée sous un nom : tapez « / » puis ce nom dans son champ. Ce que vous tapez ensuite part avec elle.	A request you often make to the assistant, kept under a name: type “/” then that name in its field. What you type after it goes with it.
+{} — fournie avec Sanaga	{} — provided with Sanaga
+Adapter	Adapt
+Nouvelle demande	New request
+Ouvrir le dossier…	Open the folder…
+Une fenêtre d'invité ne garde pas de demandes.	A guest window keeps no requests.
+Modifier la demande	Edit the request
+Nom (ce que vous taperez après « / »)	Name (what you will type after “/”)
+Ex. : avis	E.g.: review
+Ce qu'elle fait, en quelques mots	What it does, in a few words
+Ex. : les points faibles d'un texte	E.g.: a text's weak points
+Joindre la page affichée	Attach the page shown
+La demande, telle qu'elle part au modèle	The request, as it goes to the model
+Ex. : Relis ce texte comme un lecteur exigeant : dis ce qui n'est pas clair, ce qui manque, et ce qui est de trop.	E.g.: Read this text as a demanding reader: say what is unclear, what is missing, and what is too much.
+Écrire la demande avec l'IA	Write the request with the AI
+« /{} » est supprimée.	“/{}” is deleted.
+« /{} » est enregistrée : tapez-la dans le champ de l'assistant.	“/{}” is saved: type it in the assistant's field.
+résumer	summarise
+L'essentiel de la page en quelques points	The page's essentials in a few points
+expliquer	explain
+La page, ou la sélection, dite simplement	The page, or the selection, said simply
+comparer	compare
+Les pages jointes : ce qui les rapproche, ce qui les sépare	The attached pages: what they share, what sets them apart
+à-faire	to-do
+Ce que la page demande de faire : étapes, dates, montants	What the page asks you to do: steps, dates, amounts
+{} — Demander à l'assistant (Maj+Entrée)	{} — Ask the assistant (Shift+Enter)
+{} › {} — envoyé : {}	{} › {} — sent: {}
+Outils extérieurs de l'assistant	The assistant's outside tools
+Ajoutez vos propres serveurs d'outils (protocole MCP) : un programme sur cet ordinateur, ou une adresse. L'assistant peut alors utiliser leurs outils dans une conversation ; chaque utilisation vous est montrée avant d'être faite, sauf pour les outils que vous laissez libres.	Add your own tool servers (the MCP protocol): a program on this computer, or an address. The assistant can then use their tools in a conversation; each use is shown to you before it is made, except for the tools you let free.
+Programme	Program
+Relire ses outils	Read its tools again
+Lecture de ses outils…	Reading its tools…
+Injoignable : {}	Cannot be reached: {}
+Ce serveur n'offre aucun outil.	This server offers no tool.
+Interrupteur allumé : l'outil s'utilise sans vous demander. À réserver aux outils qui ne font que lire.	Switch on: the tool is used without asking you. Keep it for tools that only read.
+Aucun serveur ajouté.	No server added.
+Une fenêtre d'invité ne garde pas d'outils.	A guest window keeps no tools.
+Ajouter un serveur	Add a server
+Ex. : Notes	E.g.: Notes
+Un programme sur cet ordinateur	A program on this computer
+Sa ligne de commande, ex. : npx -y @exemple/serveur-notes	Its command line, e.g.: npx -y @example/notes-server
+Ce programme est lancé avec vos droits, comme si vous le lanciez vous-même : n'ajoutez que ceux en qui vous avez confiance.	This program is started with your rights, as if you started it yourself: only add those you trust.
+Jeton d'accès (facultatif)	Access token (optional)
+Gardé dans le trousseau du système. Les services qui demandent une fenêtre de connexion (OAuth) ne sont pas encore pris en charge.	Kept in the system keyring. Services that ask for a sign-in window (OAuth) are not supported yet.
+Un serveur porte déjà ce nom.	A server already has this name.
+Adresse refusée : https, ou un serveur sur cet ordinateur.	Address refused: https, or a server on this computer.
+« {} » est ajouté.	“{}” is added.
+Le jeton n'a pas pu être gardé dans le trousseau du système.	The token could not be kept in the system keyring.
+Outils extérieurs	Outside tools
+Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée	Your own tool servers (MCP); each use is shown to you
+Ce n'est pas un serveur MCP (réponse inattendue).	This is not an MCP server (unexpected answer).
+Accès refusé : vérifiez le jeton d'accès.	Access refused: check the access token.
+Le serveur ne répond pas.	The server does not answer.
+Lecture des champs du formulaire	Reading the form's fields
+Remplissage du formulaire	Filling the form
+Remplir ces champs de la page (rien n'est envoyé) :	Fill these fields of the page (nothing is sent):
+champ n° {}	field no. {}
+Une fois remplis, la page peut lire ces champs.	Once filled, the page can read these fields.
+Voir la note	See the note
+Garder comme note	Keep as a note
+Notes	Notes
+Une fenêtre d'invité ne garde pas de notes.	A guest window keeps no notes.
+Note gardée le {}.	Note kept on {}.
+Note gardée le {} — réponse de {}.	Note kept on {} — answer by {}.
+Réponse gardée dans les notes.	Answer kept in the notes.
+‹ Toutes les notes	‹ All notes
+Cette note n'existe plus.	This note no longer exists.
+Poursuivre avec l'assistant	Go on with the assistant
+Ouvrir comme page à imprimer	Open as a page to print
+La note devient une page : Ctrl+P l'imprime ou l'enregistre en PDF.	The note becomes a page: Ctrl+P prints it or saves it as PDF.
+Les réponses de l'assistant que vous avez gardées. Ce sont des fichiers texte dans le dossier du profil : ils restent lisibles sans Sanaga.	The assistant's answers you kept. They are text files in the profile's folder: they stay readable without Sanaga.
+Aucune note. Sous une réponse de l'assistant : « Garder comme note ».	No note. Under an answer of the assistant: “Keep as a note”.
+Note copiée.	Note copied.
+Les réponses que vous avez gardées	The answers you kept
+Le moteur web de ce système (WebKitGTK {}) a {} mois : sa série ne reçoit plus de correctifs de sécurité. Mettez votre système à jour pour obtenir un moteur récent.	This system's web engine (WebKitGTK {}) is {} months old: its series no longer gets security fixes. Update your system to get a recent engine.
+L'assistant est désactivé par l'administrateur de cet ordinateur.	The assistant is switched off by this computer's administrator.
+L'administrateur de cet ordinateur ne laisse pas l'assistant lire ce site.	This computer's administrator does not let the assistant read this site.
+Non lu, par réglage de l'administrateur : {}	Not read, by the administrator's setting: {}
+L'administrateur de cet ordinateur a désactivé l'intelligence artificielle : les réglages ci-dessous sont sans effet, et les résumés sont ceux de Sanaga seul.	This computer's administrator has switched artificial intelligence off: the settings below have no effect, and summaries are Sanaga's own.
+L'administrateur de cet ordinateur ne laisse aucun modèle lire ces sites : {}	This computer's administrator lets no model read these sites: {}
+Copier le lien en Markdown	Copy the link as Markdown
+Lien copié en Markdown.	Link copied as Markdown.

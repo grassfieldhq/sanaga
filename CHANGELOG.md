@@ -6,6 +6,66 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+What the comparison with the Dia browser asked for
+([docs/DIA-AUDIT-2026-11-17.md](docs/DIA-AUDIT-2026-11-17.md)): the ✦
+button was a summary, it is now an assistant.
+
+### Added
+- **The assistant**: a conversation at the side of the page (Ctrl+E, the ✦
+  button, the page's menu on selected words). A question about the page
+  shown, follow-up questions, Stop, the last question taken back and asked
+  differently. The page's text goes once, with the question it is attached
+  to; it now holds the page as shown, its open shadow trees and the frames
+  of the same site. A summary is such a conversation's first question.
+- **More than one page**: other tabs attached with "@" or "+ Attach" (a tab
+  asleep is loaded first), text files, pictures and PDFs (a PDF shown in a
+  tab is taken from the engine; only Claude reads PDFs). What a model
+  cannot read is said before anything is sent.
+- **Saved requests**: `/name` in the assistant's field — four provided
+  (summarise, explain, compare, to-do), the person's own as text files in
+  the profile's `skills` folder, managed on `sanaga://skills`, found by the
+  palette, carried by the sync folder.
+- **Tools the model is given by Sanaga, and by nothing else.** Reading: the
+  history by words and by days, the open tabs, a tab's page, favourites,
+  earlier conversations — free for a model on this computer, asked about
+  once per conversation for a model outside it. Acting: open an address,
+  close or group tabs, run a command, fill a form's fields — each use
+  shown with exactly what it would do, and waiting for the person, every
+  time. Password, card and hidden fields are never listed nor filled, and
+  a form is never sent.
+- **Outside tools**: the person's own MCP servers (a program, or an
+  address with an optional token kept in the keyring), on `sanaga://tools`.
+  Every call is shown with what is sent, unless that tool was let free.
+- **Conversations kept on this computer** (`chats.db`): reopened and gone
+  on with, searched, deleted, cleared with the history — never those
+  holding something of a private tab.
+- **Notes**: an answer kept as a text file in the profile's `notes` folder,
+  read on `sanaga://notes`, gone on with, or opened as a page to print.
+- A question typed in the address bar can be asked of the assistant (one
+  more line under the bar; Shift+Enter).
+- For organisations: `/etc/sanaga/policy.txt` switches AI off (`ai=off`) or
+  keeps given sites from every model (`ai_no_sites=…`).
+- The About page, and a message once per version, say when the system's
+  WebKitGTK belongs to a series that no longer gets security fixes.
+- "Copy the link as Markdown" among the commands.
+- For tests: `tools/fake-model.py` answers conversations, calls tools, and
+  stands in for Claude's Messages API (it refuses what the service refuses
+  of a conversation's history); `tools/fake-mcp.py` is a stand-in MCP
+  server; `tests/assistant.html`, `tests/form.html`.
+
+### Changed
+- Once something of a private tab is in a conversation, only a model on
+  this computer answers it.
+- The summary's long text is cut to what the model can take and says so,
+  to the model and to the person (it was cut at 24,000 characters,
+  silently).
+
+### Not done (said in the audit, section "What was done")
+- Video subtitles as context; dictation; the sign-in windows (OAuth) some
+  MCP services need; passkeys (WebKitGTK gives pages no WebAuthn);
+  changeable shortcuts, groups inside groups, links of a site always to a
+  container, a remembered split layout; the Windows and macOS ports.
+
 ## [0.5.0] — 2026-11-17
 
 ### Changed

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Inscription — page d'essai</title></head>
+<body>
+<h1>Inscription</h1>
+<form id="f" action="/sent" method="post">
+  <p><label for="nom">Nom complet</label> <input id="nom" name="nom" type="text"></p>
+  <p><label>Adresse électronique <input id="mail" name="mail" type="email" autocomplete="email"></label></p>
+  <p><label for="pass">Mot de passe</label> <input id="pass" name="pass" type="password"></p>
+  <p><label for="carte">Numéro de carte</label> <input id="carte" name="carte" type="text" autocomplete="cc-number"></p>
+  <input id="cache" type="hidden" name="jeton" value="abc">
+  <p><label for="pays">Pays</label>
+    <select id="pays" name="pays"><option value="">Choisir…</option><option value="cm">Cameroun</option><option value="ga">Gabon</option></select></p>
+  <p><label><input id="lettre" type="checkbox" name="lettre"> Recevoir la lettre d'information</label></p>
+  <p><label for="mot">Message</label><br><textarea id="mot" name="mot" rows="3" cols="40"></textarea></p>
+  <p><button id="envoi" type="submit">Envoyer</button></p>
+</form>
+<p id="etat">non envoyé</p>
+<script>
+  // the page counts the "input" events it hears: a filled field is noticed, as when typed
+  var heard = 0;
+  document.addEventListener('input', function () { heard++; document.getElementById('etat').dataset.heard = heard; });
+  document.getElementById('f').addEventListener('submit', function (e) { e.preventDefault(); document.getElementById('etat').textContent = 'ENVOYÉ'; });
+</script>
+</body>
+</html>

@@ -67,7 +67,7 @@ impl CliTool {
 /// Where command-line tools live: the PATH Sanaga got, plus the usual places
 /// of npm, mise, bun, volta… (a launcher often gives a shorter PATH than a
 /// terminal).
-fn search_path() -> Vec<PathBuf> {
+pub(crate) fn search_path() -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
     if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
         for d in [".local/bin", ".claude/local", ".local/share/mise/command-wrappers/bin", ".local/share/mise/shims", ".npm-global/bin", ".volta/bin", ".bun/bin", ".cargo/bin", ".opencode/bin", "bin"]

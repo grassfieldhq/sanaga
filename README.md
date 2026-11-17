@@ -57,17 +57,45 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 - Built-in PDF reader (search, zoom, print, annotations).
 - Files the browser can't show (archives, installers…) are downloaded; a
   downloads bar and page.
-- The ✦ button: summarise the page, or translate it into the language you
-  choose (20 languages; Google, or in place with the AI of your choice:
-  Claude Code run with no tools, Claude, a local Ollama model — offline).
-  Codex and Gemini CLI can read local files even locked down, so Sanaga never
-  sends them the text of a page.
+- The ✦ button: the assistant (below), and the page translated into the
+  language you choose (20 languages; Google, or in place with the AI of your
+  choice: Claude Code run with no tools, Claude, a local Ollama model —
+  offline). Codex and Gemini CLI can read local files even locked down, so
+  Sanaga never sends them the text of a page.
 - Extensions written from a description.
 - Clear error pages: site not found, no connection (reloads by itself when it
   comes back), refused, too slow, invalid certificate (back to safety, or go
   on knowingly), blocked port — with search and archived-copy shortcuts.
 - Alerts, confirmations, prompts and site logins in Sanaga's own sheets, the
   site's name on top; a site that insists can be silenced.
+
+**The assistant** (the ✦ button, Ctrl+E)
+- A conversation at the side of the page: ask about the page shown, go on
+  asking, stop, take the last question back. A summary (Ctrl+Shift+Y) is
+  its first question. Words selected in a page can be asked about from the
+  page's menu; a question typed in the address bar can be asked too
+  (Shift+Enter).
+- With the model of your choice: one on this computer (Ollama — nothing
+  leaves it), Claude with your own key, or Claude Code run with no tools.
+  No account, no subscription to Sanaga. Without a model, the summary is
+  Sanaga's own extract. From a private tab, only a model on this computer
+  answers.
+- More than the page: other tabs with "@", text files, pictures, PDFs.
+- Saved requests: `/summarise`, `/explain`, `/compare`, `/to-do`, and your
+  own, kept as text files (`sanaga://skills`).
+- It can look into your browser — the history ("that page about X I read
+  last week"), the open tabs, favourites, earlier conversations — and act
+  when you accept: open an address, close or group tabs, run a command,
+  fill the fields of a form (never a password, never sending it). A model
+  only ever has the tools Sanaga gives it; each action is shown first, and
+  with a model outside your computer you are asked before it looks into
+  your history, tabs or favourites.
+- Your own outside tools (MCP servers), on `sanaga://tools`: every call is
+  shown with what is sent.
+- Conversations kept on your computer, reopened and searched; an answer
+  kept as a note (`sanaga://notes`), printed or saved as PDF.
+- An administrator can switch AI off, or keep given sites from every model
+  (`/etc/sanaga/policy.txt`).
 
 **Tabs and windows**
 - Chrome-style tab row: pinned tabs, drag to reorder, mute, duplicate, “new tab
@@ -266,7 +294,7 @@ sanaga --automation           # let test software drive it (WebDriver); keeps no
 | Page source / print / save | Ctrl+U / Ctrl+P / Ctrl+S |
 | Web inspector | Ctrl+Shift+I, F12 |
 | Mobile simulator | Ctrl+Shift+M |
-| Page summary | Ctrl+Shift+Y |
+| Ask the assistant / page summary | Ctrl+E / Ctrl+Shift+Y |
 | Focus mode | F9 |
 | Fill in my contact details | Ctrl+Shift+F |
 | Full screen | F11 |
@@ -279,9 +307,11 @@ Everything stays on your computer, in `~/.local/share/sanaga/`
 database: every visit, without limit), bookmarks, session, site
 data (`webkit/`, and `webkit/containers/<name>/` for each container), website
 settings (`sites.tsv`), your toolbar buttons (`buttons.tsv`), extensions
-(`extensions/`), device frames (`cadres/`), crash reports (`crashes/`), and
-one sub-folder per extra profile (`profils/<name>/`). Passwords are not stored
-there: they go to the system keyring.
+(`extensions/`), device frames (`cadres/`), crash reports (`crashes/`), the
+assistant's conversations (`chats.db`), saved requests (`skills/`), notes
+(`notes/`) and outside tools (`mcp.tsv`), and one sub-folder per extra
+profile (`profils/<name>/`). Passwords, the Claude key and the access tokens
+of outside tools are not stored there: they go to the system keyring.
 
 ## How it is built
 
@@ -298,6 +328,8 @@ there: they go to the system keyring.
 | Crash reports, the bar after a crash | `src/crash.rs`, `src/app/crashes.rs` |
 | Which process serves which tab (loaded by the page processes) | `page-helper/` |
 | Fuzzing of the file and page readers | `src/mutate.rs`, `fuzz/`, [docs/FUZZING.md](docs/FUZZING.md) |
+| The assistant: conversations and models, the tools Sanaga gives a model, forms, the panel | `src/chat.rs`, `src/ai.rs`, `src/ai_cli.rs`, `src/app/assistant.rs`, `src/app/aitools.rs`, `src/app/aiforms.rs` |
+| Kept conversations, saved requests, notes, outside tools (MCP), the administrator's policy | `src/chats.rs`, `src/skills.rs`, `src/notes.rs`, `src/mcp.rs`, `src/policy.rs`, and their pages in `src/app/` |
 | Translations | `src/i18n.rs`, `assets/i18n/` |
 
 `eframe` is only used for `--screenshot` (a picture of the interface without
@@ -333,6 +365,14 @@ engine bridge and a few system services.
   or in an installed browser that has Widevine (Chrome, Chromium with
   Widevine, Brave, Edge, Vivaldi, Firefox) — as an app window, and by itself
   if you choose so.
+- The assistant: a tab's frames from other sites are not read (the engine
+  keeps them apart); a PDF is read by Claude only; a video's subtitles are
+  not read; there is no dictation. Outside tools (MCP) take an access
+  token, not the sign-in windows (OAuth) some services ask for. The tools
+  of a conversation are those it began with. The Claude side was checked
+  against the documentation and a stand-in service (`tools/fake-model.py`),
+  not against the real service: no key was at hand.
+- Passkeys: WebKitGTK gives pages no WebAuthn (looked for in 2.52).
 - Keeping a window on top and placing the floating video are done with
   Hyprland; on other desktops the desktop decides.
 - Emoji in Sanaga's own interface are in colour when the system has a colour
@@ -372,6 +412,10 @@ fixed, and what still separates them from the very best:
 
 What people dislike in Chrome, Firefox and Safari, checked against Sanaga:
 [docs/AUDIT.md](docs/AUDIT.md).
+
+What the Dia browser does better than Sanaga, what it takes to get there,
+and what was done of it:
+[docs/DIA-AUDIT-2026-11-17.md](docs/DIA-AUDIT-2026-11-17.md).
 
 ## Roadmap
 

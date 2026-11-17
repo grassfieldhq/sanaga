@@ -444,13 +444,13 @@ impl Sanaga {
         }
         if self.tb("summary") {
             let r = slot_r(&mut rx, 36.0);
-            let on = self.summary.is_some();
+            let on = self.assistant.is_some();
             let can = matches!(self.tabs[a].view, View::Web);
-            let resp = tool(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th, tr("Résumer ou traduire la page"));
+            let resp = tool(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th, tr("Assistant : questions, résumé, traduction"));
             self.ai_menu_rect = resp.rect;
             if resp.clicked() {
-                if on && self.summary.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
-                    self.summary = None;
+                if on && self.assistant.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
+                    self.close_assistant();
                 } else {
                     self.ai_menu_open = !self.ai_menu_open;
                     self.menu_open = false;
@@ -749,7 +749,15 @@ impl Sanaga {
             self.inline_typed.clear();
         }
         if resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+            // Shift+Enter: what is typed is asked of the assistant, not searched
+            let ask = ui.input(|i| i.modifiers.shift) && !self.store.settings.ai.is_empty() && !self.tabs[a].address.trim().is_empty();
             match picked {
+                _ if ask => {
+                    let question = if self.suggest_sel.is_some() { self.suggest_typed.clone() } else { self.tabs[a].address.clone() };
+                    self.suggest_open = false;
+                    self.suggest_sel = None;
+                    self.ask_assistant(&question);
+                }
                 Some(u) => self.activate_suggestion(&u),
                 None => {
                     // (a site's name completed while typing leads where the site
