@@ -478,14 +478,28 @@ impl Sanaga {
                 NetMsg::Page { tab, nav, result } => self.on_page(tab, nav, result),
                 NetMsg::Source { tab, nav, url, result } => {
                     let web_ok = self.web_ok;
-                    let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab && t.nav == nav) else { continue };
+                    if !self.tabs.iter().any(|t| t.id == tab && t.nav == nav) {
+                        continue;
+                    }
                     match result {
                         Ok(text) if web_ok => {
-                            // shown by WebKit: colours, line numbers, wrapping
-                            t.view = View::Web;
-                            t.loading = true;
-                            t.entries[t.idx].title = format!("view-source:{url}");
-                            t.web_pending = Some(format!("{}{}", super::source::HTML_MARK, super::source::page(&url, &text)));
+                            // shown by WebKit: colours, line numbers, wrapping.
+                            // Colouring a whole page takes a moment (a large
+                            // one, seconds): on a thread — the tab goes on
+                            // loading and the window answers meanwhile.
+                            self.off_thread(
+                                move || {
+                                    let page = super::source::page(&url, &text);
+                                    (url, page)
+                                },
+                                move |app, (url, page)| {
+                                    let Some(t) = app.tabs.iter_mut().find(|t| t.id == tab && t.nav == nav) else { return };
+                                    t.view = View::Web;
+                                    t.loading = true;
+                                    t.entries[t.idx].title = format!("view-source:{url}");
+                                    t.web_pending = Some(format!("{}{}", super::source::HTML_MARK, page));
+                                },
+                            );
                         }
                         Ok(text) => {
                             let mut d = crate::html::plain(&text, &url);
