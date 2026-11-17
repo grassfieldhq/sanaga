@@ -215,7 +215,17 @@ impl Sanaga {
         ui.painter().text(pos2(minus.right() + 24.0, bar.center().y), Align2::CENTER_CENTER, format!("{:.0} %", cur * 100.0), FontId::proportional(12.5), SUB);
         let fresp = ui.interact(fit, egui::Id::new("studio-fit"), Sense::click());
         let fit_on = d.zoom == 0.0;
-        ui.painter().rect_filled(fit, CornerRadius::same(12), if fit_on { ACCENT } else if fresp.hovered() { Color32::from_white_alpha(22) } else { Color32::TRANSPARENT });
+        ui.painter().rect_filled(
+            fit,
+            CornerRadius::same(12),
+            if fit_on {
+                ACCENT
+            } else if fresp.hovered() {
+                Color32::from_white_alpha(22)
+            } else {
+                Color32::TRANSPARENT
+            },
+        );
         ui.painter().text(fit.center(), Align2::CENTER_CENTER, tr("Ajuster"), FontId::proportional(12.0), if fit_on { Color32::WHITE } else { TEXT });
         if fresp.tip(tr("Adapter l'appareil à la fenêtre")).clicked() {
             d.zoom = 0.0;

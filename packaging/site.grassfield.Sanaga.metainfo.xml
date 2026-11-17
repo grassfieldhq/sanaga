@@ -19,7 +19,7 @@
       <li>A mobile simulator for web developers</li>
     </ul>
   </description>
-  <launchable type="desktop-id">site.grassfield.Sanaga.desktop</launchable>
+  <launchable type="desktop-id">sanaga.desktop</launchable>
   <url type="homepage">https://github.com/grassfieldhq/sanaga</url>
   <url type="bugtracker">https://github.com/grassfieldhq/sanaga/issues</url>
   <screenshots>
@@ -34,6 +34,7 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.5.0" date="2026-11-17"/>
     <release version="0.4.0" date="2026-11-09"/>
     <release version="0.3.0" date="2026-11-09"/>
     <release version="0.2.0" date="2026-11-09"/>

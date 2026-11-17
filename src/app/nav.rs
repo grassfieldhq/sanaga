@@ -61,6 +61,9 @@ impl Sanaga {
             parent: None,
             tree_folded: false,
             companion: false,
+            load_behind: false,
+            capturing: false,
+            saved_state: None,
         });
         let i = self.tabs.len() - 1;
         self.active = i;
@@ -74,9 +77,48 @@ impl Sanaga {
     /// Open in a background tab (the current tab stays in front).
     pub(super) fn open_background(&mut self, url: &str, private: bool) {
         let cur = self.active;
-        self.open_tab(url, private);
+        let i = self.open_tab(url, private);
+        // (asked for by the person, now: it loads behind, as in other
+        // browsers — it used to show no title and no icon, and to start
+        // loading only once looked at)
+        if let Some(t) = self.tabs.get_mut(i) {
+            t.load_behind = true;
+        }
         self.active = cur;
         self.focus_address = false;
+    }
+
+    /// Keep what a closed tab's page held (the last ten): see "reopen".
+    pub(super) fn keep_closed_state(&mut self, t: &Tab) {
+        if let Some(state) = t.web.as_ref().filter(|_| matches!(t.view, View::Web)).and_then(|w| w.session_state()).or_else(|| t.saved_state.clone()) {
+            self.closed_states.push((t.url().to_string(), state));
+            if self.closed_states.len() > 10 {
+                self.closed_states.remove(0);
+            }
+        }
+    }
+
+    /// The person closes a tab. When something was typed in its page, the
+    /// page is asked first: a page that guards unsaved work ("leave this
+    /// page?") gets to ask, and the tab closes once that is answered — at
+    /// once when the page has nothing to say. (A tab used to close with
+    /// what had been typed, whatever the page wanted.) Asked a second time
+    /// within a few seconds, the tab closes regardless: a page that no
+    /// longer answers cannot keep it open.
+    pub(super) fn ask_close_tab(&mut self, i: usize) {
+        let now = self.ctx.input(|t| t.time);
+        if let Some(t) = self.tabs.get(i) {
+            let again = self.close_asked.is_some_and(|(id, at)| id == t.id && now - at < 4.0);
+            if t.form_dirty && matches!(t.view, View::Web) && !again {
+                if let Some(w) = &t.web {
+                    self.close_asked = Some((t.id, now));
+                    w.try_close();
+                    return;
+                }
+            }
+        }
+        self.close_asked = None;
+        self.close_tab(i);
     }
 
     pub(super) fn close_tab(&mut self, i: usize) {
@@ -95,6 +137,7 @@ impl Sanaga {
         let t = self.tabs.remove(i);
         if !t.private && !t.entries.is_empty() {
             self.closed.push(t.url().to_string());
+            self.keep_closed_state(&t);
         }
         let want = if closing_active { neighbour } else { active_id };
         match want.and_then(|id| self.tabs.iter().position(|t| t.id == id)) {
@@ -108,7 +151,9 @@ impl Sanaga {
     }
 
     pub(super) fn save_session(&self) {
-        if self.screenshot.is_some() || self.app_mode {
+        // (never while the saved tabs are being brought back: only part of
+        // them is there yet)
+        if self.screenshot.is_some() || self.app_mode || self.restoring {
             return;
         }
         // one line per tab: address, group name, pinned, title, container, and
@@ -128,7 +173,18 @@ impl Sanaga {
                 };
                 let color = if g > 0 { self.group_colors.get(g).map(|c| c.to_string()).unwrap_or_default() } else { String::new() };
                 let folded = if self.group_folded(g) { "1" } else { "" };
-                format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", t.url(), group, if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " "), parent, active, color, folded)
+                format!(
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    t.url(),
+                    group,
+                    if t.pinned { "1" } else { "0" },
+                    t.title().replace(['\t', '\n'], " "),
+                    t.container.replace('\t', " "),
+                    parent,
+                    active,
+                    color,
+                    folded
+                )
             })
             .collect();
         self.store.save_session(self.slot, &urls);
@@ -221,8 +277,18 @@ impl Sanaga {
             tab.loading = true;
             tab.view = View::Loading;
             let (id, nav) = (tab.id, tab.nav);
+            // (an open page of the same kind only: the source of a page
+            // signed in in a private tab or a container is not shown in an
+            // ordinary tab, nor the other way round)
+            let (private, container) = (tab.private, tab.container.clone());
             use webkit6::prelude::*;
-            let open_page = self.tabs.iter().filter_map(|t| t.web.as_ref()).map(|w| w.webview()).find(|w| w.uri().map(|u| u.as_str() == inner).unwrap_or(false));
+            let open_page = self
+                .tabs
+                .iter()
+                .filter(|t| t.private == private && t.container == container)
+                .filter_map(|t| t.web.as_ref())
+                .map(|w| w.webview())
+                .find(|w| w.uri().map(|u| u.as_str() == inner).unwrap_or(false));
             if let Some(res) = open_page.and_then(|w| w.main_resource()) {
                 let (tx, ctx, u) = (self.tx.clone(), self.ctx.clone(), inner.to_string());
                 res.data(None::<&webkit6::gio::Cancellable>, move |r| {
@@ -233,7 +299,7 @@ impl Sanaga {
                 return;
             }
             let Some(tab) = self.tabs.get_mut(ti) else { return };
-            let agent = if tab.private { self.private_agent.clone() } else { self.agent.clone() };
+            let agent = if tab.private { &self.private_agent } else { &self.agent }.for_address(inner);
             let req = net::Request { tab: tab.id, nav: tab.nav, url: inner.to_string(), post_body: None, full: true, source: true, referrer: String::new(), allow_download: false };
             net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
             return;
@@ -254,7 +320,7 @@ impl Sanaga {
         if !matches!(tab.view, View::Doc(_)) {
             tab.view = View::Loading;
         }
-        let agent = if tab.private { self.private_agent.clone() } else { self.agent.clone() };
+        let agent = if tab.private { &self.private_agent } else { &self.agent }.for_address(&url);
         // (a restored tab: nobody asked for it now, a download from it is asked first)
         let allow_download = !self.restoring;
         let req = net::Request { tab: tab.id, nav: tab.nav, url, post_body: post, full: tab.full && !tab.reader, source: false, referrer, allow_download };
@@ -412,14 +478,28 @@ impl Sanaga {
                 NetMsg::Page { tab, nav, result } => self.on_page(tab, nav, result),
                 NetMsg::Source { tab, nav, url, result } => {
                     let web_ok = self.web_ok;
-                    let Some(t) = self.tabs.iter_mut().find(|t| t.id == tab && t.nav == nav) else { continue };
+                    if !self.tabs.iter().any(|t| t.id == tab && t.nav == nav) {
+                        continue;
+                    }
                     match result {
                         Ok(text) if web_ok => {
-                            // shown by WebKit: colours, line numbers, wrapping
-                            t.view = View::Web;
-                            t.loading = true;
-                            t.entries[t.idx].title = format!("view-source:{url}");
-                            t.web_pending = Some(format!("{}{}", super::source::HTML_MARK, super::source::page(&url, &text)));
+                            // shown by WebKit: colours, line numbers, wrapping.
+                            // Colouring a whole page takes a moment (a large
+                            // one, seconds): on a thread — the tab goes on
+                            // loading and the window answers meanwhile.
+                            self.off_thread(
+                                move || {
+                                    let page = super::source::page(&url, &text);
+                                    (url, page)
+                                },
+                                move |app, (url, page)| {
+                                    let Some(t) = app.tabs.iter_mut().find(|t| t.id == tab && t.nav == nav) else { return };
+                                    t.view = View::Web;
+                                    t.loading = true;
+                                    t.entries[t.idx].title = format!("view-source:{url}");
+                                    t.web_pending = Some(format!("{}{}", super::source::HTML_MARK, page));
+                                },
+                            );
                         }
                         Ok(text) => {
                             let mut d = crate::html::plain(&text, &url);
@@ -453,7 +533,7 @@ impl Sanaga {
                     }
                     let private = t.private;
                     if self.light_download_sites.iter().any(|(p, s)| *p == private && *s == site) {
-                        let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+                        let agent = if private { &self.private_agent } else { &self.agent }.for_address(&req.url);
                         net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
                     } else {
                         if !self.download_asks.contains(&site) {
@@ -495,11 +575,7 @@ impl Sanaga {
     /// Free the least recently drawn pictures when they use too much memory.
     fn trim_images(&mut self) {
         while self.img_bytes > IMAGE_BUDGET {
-            let oldest = self
-                .images
-                .iter()
-                .filter_map(|(k, v)| if let ImgSlot::Ready(_, _, f) = v { Some((k.clone(), *f)) } else { None })
-                .min_by_key(|(_, f)| *f);
+            let oldest = self.images.iter().filter_map(|(k, v)| if let ImgSlot::Ready(_, _, f) = v { Some((k.clone(), *f)) } else { None }).min_by_key(|(_, f)| *f);
             let Some((k, _)) = oldest else { break };
             if let Some(ImgSlot::Ready(_, s, _)) = self.images.remove(&k) {
                 self.img_bytes = self.img_bytes.saturating_sub((s.x * s.y * 4.0) as usize);
@@ -512,7 +588,7 @@ impl Sanaga {
             return;
         }
         self.images.insert(url.clone(), ImgSlot::Loading);
-        let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+        let agent = if private { &self.private_agent } else { &self.agent }.for_address(&url);
         net::fetch_image(agent, url, self.tx.clone(), self.ctx.clone());
     }
 
@@ -575,6 +651,22 @@ impl Sanaga {
                 (sc(cs, Key::B), "bmbar"),
                 (sc(cs, Key::R), "reader"),
                 (sc(cs, Key::Backslash), "overview"),
+                (sc(c, Key::Num1), "tab1"),
+                (sc(c, Key::Num2), "tab2"),
+                (sc(c, Key::Num3), "tab3"),
+                (sc(c, Key::Num4), "tab4"),
+                (sc(c, Key::Num5), "tab5"),
+                (sc(c, Key::Num6), "tab6"),
+                (sc(c, Key::Num7), "tab7"),
+                (sc(c, Key::Num8), "tab8"),
+                (sc(c, Key::Num9), "tablast"),
+                (sc(c, Key::F5), "hardreload"),
+                (sc(Modifiers::SHIFT, Key::F5), "hardreload"),
+                (sc(Modifiers::SHIFT, Key::F3), "findprev"),
+                (sc(cs, Key::G), "findprev"),
+                (sc(Modifiers::NONE, Key::F3), "findnext"),
+                (sc(c, Key::G), "findnext"),
+                (sc(Modifiers::ALT, Key::D), "addr"),
                 (sc(cs, Key::O), "overview"),
                 (sc(cs, Key::F), "contacts"),
                 (sc(cs, Key::A), "tabsearch"),
@@ -641,7 +733,15 @@ impl Sanaga {
                 }
                 "reopen" => {
                     if let Some(u) = self.closed.pop() {
-                        self.open_tab(&u, false);
+                        let i = self.open_tab(&u, false);
+                        // (with the pages it had before and after: it used
+                        // to come back as its last address alone)
+                        if let Some(k) = self.closed_states.iter().rposition(|(x, _)| *x == u) {
+                            let (_, state) = self.closed_states.remove(k);
+                            if let Some(t) = self.tabs.get_mut(i) {
+                                t.saved_state = Some(state);
+                            }
+                        }
                     }
                 }
                 "bmbar" => {
@@ -652,17 +752,43 @@ impl Sanaga {
                     self.open_tab("sanaga://newtab", false);
                 }
                 "window" => self.new_window(Vec::new()),
+                "mediaplay" => self.media_key(true),
+                "mediapause" => self.media_key(false),
                 "settings" => {
                     self.open_settings("sanaga://settings");
                 }
                 "translate" => self.translate_page(),
-                "close" => self.close_tab(a),
+                "close" => self.ask_close_tab(a),
                 // Ctrl+Tab: the tabs used last, as pictures (or the tab bar's order)
                 "next" | "prev" if self.store.settings.tab_switcher => self.switch_tabs(if t == "next" { 1 } else { -1 }),
                 "next" | "tabright" => self.tab_bar_step(true),
                 "prev" | "tableft" => self.tab_bar_step(false),
                 "addr" => self.focus_address = true,
                 "reload" => self.reload(a),
+                "hardreload" => match self.tabs.get(a).filter(|t| matches!(t.view, View::Web)).and_then(|t| t.web.as_ref()) {
+                    Some(w) => w.reload_fresh(),
+                    None => self.reload(a),
+                },
+                // Ctrl+1…8: that tab of the bar; Ctrl+9: the last one
+                "tab1" | "tab2" | "tab3" | "tab4" | "tab5" | "tab6" | "tab7" | "tab8" | "tablast" => {
+                    let order = self.visible_tabs();
+                    let place = t[3..].parse::<usize>().ok().map(|n| n - 1).unwrap_or(order.len().saturating_sub(1));
+                    if let Some(&i) = order.get(place) {
+                        self.active = i;
+                        self.current_group = self.tabs[i].group;
+                    }
+                }
+                // F3, Ctrl+G: the next match of the words searched (the
+                // search opens if nothing was searched yet)
+                "findnext" | "findprev" => {
+                    if self.find_query.is_empty() {
+                        self.find_open = true;
+                        self.focus_find = true;
+                    } else if self.tabs.get(a).is_some_and(|x| matches!(x.view, View::Web)) {
+                        self.find_open = true;
+                        self.web_find(t == "findprev", false);
+                    }
+                }
                 "back" => self.go_history(a, -1),
                 "fwd" => self.go_history(a, 1),
                 "home" => self.go_home(a),

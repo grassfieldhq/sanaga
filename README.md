@@ -174,7 +174,7 @@ Sanaga is named after the Sanaga, the longest river in Cameroon.
 
 Download a package from the
 [Releases page](https://github.com/grassfieldhq/sanaga/releases) (the latest
-one, named after its version, e.g. **0.4.0**). Packages bring
+one, named after its version, e.g. **0.5.0**). Packages bring
 everything, video codecs included:
 
 | Your system | Download | Install |
@@ -275,7 +275,8 @@ sanaga --automation           # let test software drive it (WebDriver); keeps no
 ### Where your data is
 
 Everything stays on your computer, in `~/.local/share/sanaga/`
-(or `$XDG_DATA_HOME/sanaga/`): settings, history, bookmarks, session, site
+(or `$XDG_DATA_HOME/sanaga/`): settings, history (`history.db`, a SQLite
+database: every visit, without limit), bookmarks, session, site
 data (`webkit/`, and `webkit/containers/<name>/` for each container), website
 settings (`sites.tsv`), your toolbar buttons (`buttons.tsv`), extensions
 (`extensions/`), device frames (`cadres/`), crash reports (`crashes/`), and
@@ -334,8 +335,17 @@ engine bridge and a few system services.
   if you choose so.
 - Keeping a window on top and placing the floating video are done with
   Hyprland; on other desktops the desktop decides.
-- Emoji in Sanaga's own interface are in colour when Noto Color Emoji is
-  installed (black and white otherwise).
+- Emoji in Sanaga's own interface are in colour when the system has a colour
+  emoji font (black and white otherwise). Other alphabets there use the
+  system's fonts. Right-to-left sentences (Arabic, Hebrew) read right
+  wherever a title or a name is shown; in a field being typed in (the
+  address bar), each word is drawn properly but the words follow one
+  another from left to right until the text is shown elsewhere.
+- Encrypted DNS (Settings › Privacy) goes through a small relay Sanaga
+  runs on this computer, since the web engine has no setting for it: the
+  pages' bytes pass through it untouched. It is not used together with a
+  proxy (the proxy finds the sites' addresses itself), and the names of
+  the home or office network stay with the system's DNS.
 - Video recording has no sound; its size is the device's size on screen (use
   100 % zoom for sharper videos).
 - Window moving, maximising and the title bar integration have extra support for

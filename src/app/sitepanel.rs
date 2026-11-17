@@ -15,7 +15,14 @@ const FONTS: [&str; 7] = ["", "sans-serif", "serif", "Inter", "Noto Sans", "Atki
 /// A site's settings in a few words ("no JavaScript · dark · 2 elements removed").
 pub(super) fn summary(p: &SitePrefs) -> String {
     let mut what: Vec<String> = Vec::new();
-    for (on, label) in [(!p.js, tr("sans JavaScript")), (!p.blocker, tr("bloqueur coupé")), (!p.fonts, tr("sans ses polices")), (p.dark, tr("sombre")), (p.no_sticky, tr("sans bandeaux collants")), (p.unlock, tr("copie débloquée"))] {
+    for (on, label) in [
+        (!p.js, tr("sans JavaScript")),
+        (!p.blocker, tr("bloqueur coupé")),
+        (!p.fonts, tr("sans ses polices")),
+        (p.dark, tr("sombre")),
+        (p.no_sticky, tr("sans bandeaux collants")),
+        (p.unlock, tr("copie débloquée")),
+    ] {
         if on {
             what.push(label.to_string());
         }

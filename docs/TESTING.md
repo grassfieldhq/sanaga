@@ -109,14 +109,43 @@ More scripted actions for it: `go:ADDRESS` (in this tab), `opentab:ADDRESS`,
 `section:N` (the Nth Settings category), `syncnow`, and `panic` (a panic
 inside a frame: Sanaga must go on).
 
+## Without a mouse, without the screen
+
+```sh
+SANAGA_DEBUG_A11Y=1 SANAGA_LIVE_TEST="5:key:Tab,6:key:Tab,7:shot,8:quit" ./target/debug/sanaga
+python3 tools/contrast.py     # the tab bar's texts against what is behind them (4.5:1 at least)
+```
+
+With a screen reader — or only the accessibility bus — running, what the
+reader is really given can be read through AT-SPI, and Orca can be run
+without a sound card (its log holds what it would say):
+
+```sh
+tools/a11y-tree.py --all                 # needs python3-gi, gir1.2-atspi-2.0
+orca --debug-file=/tmp/orca.log          # then: grep 'SPEECH OUTPUT' /tmp/orca.log
+```
+
+Sanaga's interface and the page are two trees named `sanaga`: the bars and
+menus ("Sanaga — bars and menus", published by Sanaga), and the window with
+the page's document (published by GTK and the web engine).
+
+`SANAGA_DEBUG_A11Y=1` (debug builds) prints what a screen reader is told,
+each time it changes: one line per named control — `a11y Tab "Wikipédia"
+selected`, `a11y MenuItem "History"`, `a11y Status "Address copied."
+live=Polite` — with `FOCUS` on the one the keyboard is on (and `(no name)`
+if it has none: a defect). Each `key:Tab` moves the keyboard to the next
+control; the picture must show a ring around it.
+
 ## Other switches
 
 | Variable | Effect |
 |---|---|
 | `SANAGA_DEBUG_FRAMES=1` | print each frame's duration |
+| `SANAGA_DEBUG_A11Y=1` | print what screen readers are told, and where the keyboard is (see above); debug builds |
 | `SANAGA_DEBUG_STALLS=30` | print every time the window did not answer for 30 ms or more (`stall … ms after <last command> (layout … ms, painting … ms)`), and each frame whose own work took 4 ms or more (`frame … ms after …`); all builds |
 | `SANAGA_DEBUG_STALL_STACKS=200` | with it: where the window's thread is during a stall of 200 ms or more |
 | `SANAGA_DEBUG_TICK=1` | print the web engine ticks |
+| `SANAGA_DEBUG_SUGGEST=1` | print the address bar's list of suggestions each time it is put together (when the text or the history's answer changes — never at every frame) |
 | `SANAGA_DEBUG_GL=1` | print the OpenGL version and errors |
 | `SANAGA_DEBUG_START=1` | print how long each step of the start took |
 | `SANAGA_DEBUG_BLOCKER=1` | print the block lists' fetch and compilation |
@@ -124,5 +153,9 @@ inside a frame: Sanaga must go on).
 | `SANAGA_HWACCEL=never\|always` | force WebKit's hardware acceleration policy |
 | `SANAGA_BENCH_CYCLE=n` | show the next tab every 3 s, n times (memory tests) |
 | `SANAGA_SHOT_STATE=dark,menu,sidebar,…` | states shown by `--screenshot` |
+| `SANAGA_MOCK_CAPTURE=1` | a camera, a microphone and a screen made up by the engine: the questions and the capture sign can be tried on a machine without any |
 | `SANAGA_TEST_POPUPS=1` | let pages open windows without a click (to test sign-in windows) |
+| `SANAGA_DANGER_LIST=/a/file` | the list of sites reported as dangerous, one name per line, instead of the lists fetched (to see the warning without going near a real one) |
+| `SANAGA_DEBUG_DNS=1` | encrypted DNS: prints each name that could not be resolved, and why |
+| `SANAGA_UPDATE_URL=http://…` | the address "Look for a new version" asks instead of GitHub (a file holding `{"tag_name": "0.9.0"}`) |
 | `SANAGA_NO_SANDBOX=1` | run pages without the bubblewrap sandbox |

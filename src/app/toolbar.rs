@@ -17,9 +17,124 @@ pub(super) fn tool_button(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: b
     } else if enabled && resp.hovered() {
         ui.painter().rect_filled(spot, CornerRadius::same(14), th.track);
     }
-    let col = if on { th.accent } else if enabled { th.text.gamma_multiply(0.82) } else { th.sub.gamma_multiply(0.4) };
+    let col = if on {
+        th.accent
+    } else if enabled {
+        th.text.gamma_multiply(0.82)
+    } else {
+        th.sub.gamma_multiply(0.4)
+    };
     icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(17.0, 17.0)), icon, col);
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// A toolbar button with its hover text. For screen readers it is a button
+/// even while it cannot be pressed ("unavailable"): Back and Forward with
+/// nowhere to go were read out as plain text.
+pub(super) fn tool(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: bool, th: &Theme, tip: &str) -> Response {
+    let resp = tool_button(ui, r, icon, enabled, on, th).tip(tip);
+    if !enabled {
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, false, tip));
+    }
+    resp
+}
+
+/// For screen readers: what a control drawn by Sanaga is (a tab, a link,
+/// a line of a list) and its name. The hover text already names a control
+/// as a button (see `Tip`); this is for the controls that are not buttons,
+/// or whose hover text is not their name — a site's tile whose hover text
+/// is its address was read out as an address, letter by letter.
+pub(super) fn named(resp: &Response, role: egui::accesskit::Role, name: &str) {
+    resp.widget_info(|| egui::WidgetInfo::labeled(role, true, name));
+}
+
+/// A tab, for screen readers: its title, and whether it is the one shown
+/// ("selected"). A tab was a button like the others: nothing said which
+/// tab was open, nor that these were tabs.
+pub(super) fn named_tab(resp: &Response, title: &str, shown: bool) {
+    named(resp, egui::accesskit::Role::Tab, title);
+    resp.ctx.accesskit_node_builder(resp.id, |node| node.set_selected(shown));
+}
+
+/// What the empty part of a bar senses: the pointer (drag to move the
+/// window, double-click, right-click menu) — never the keyboard. Able to
+/// take the focus, each bar was a stop of the Tab key with nothing to show
+/// for it: the keyboard seemed lost between the address field and the
+/// favourites, and again before the tabs.
+pub(super) fn bar_sense() -> Sense {
+    Sense::CLICK | Sense::DRAG
+}
+
+/// The place that takes the click for a small symbol (a tab's close cross,
+/// its speaker): 24 by 24 around the symbol's centre, the least a pointer
+/// or a finger aims at without effort (WCAG 2.5.8). The symbol itself is
+/// drawn as small as before, in the middle.
+pub(super) fn click_area(centre: egui::Pos2) -> Rect {
+    Rect::from_center_size(centre, vec2(24.0, 24.0))
+}
+
+/// Test aid (debug builds): with `SANAGA_DEBUG_A11Y=1`, what Sanaga hands
+/// to screen readers is printed each time it changes — one line per named
+/// control: `a11y <role> "<name>"` and its states (selected, expanded,
+/// live…). There is no screen reader on a test machine: this shows what
+/// one would be told.
+#[cfg(debug_assertions)]
+pub(super) fn debug_a11y(ctx: &egui::Context) {
+    struct Printer {
+        last: Vec<String>,
+    }
+    impl egui::Plugin for Printer {
+        fn debug_name(&self) -> &'static str {
+            "sanaga-a11y-printer"
+        }
+        fn output_hook(&mut self, _ctx: &egui::Context, output: &mut egui::FullOutput) {
+            let Some(update) = &output.platform_output.accesskit_update else { return };
+            let mut lines: Vec<String> = Vec::new();
+            for (id, node) in &update.nodes {
+                let name = node.label().or_else(|| node.value()).unwrap_or_default();
+                // (a control with no name is left out — but said when the
+                // keyboard is on it: that is a defect to see)
+                let focused = update.focus == *id && node.role() != egui::accesskit::Role::Window;
+                if name.is_empty() && !focused {
+                    continue;
+                }
+                let mut line = if name.is_empty() { format!("{:?} (no name)", node.role()) } else { format!("{:?} {name:?}", node.role()) };
+                if let Some(selected) = node.is_selected() {
+                    line.push_str(if selected { " selected" } else { " not-selected" });
+                }
+                if let Some(toggled) = node.toggled() {
+                    line.push_str(&format!(" toggled={toggled:?}"));
+                }
+                if let Some(expanded) = node.is_expanded() {
+                    line.push_str(if expanded { " expanded" } else { " folded" });
+                }
+                if let Some(live) = node.live() {
+                    line.push_str(&format!(" live={live:?}"));
+                }
+                if node.is_disabled() {
+                    line.push_str(" disabled");
+                }
+                if focused {
+                    line.push_str(" FOCUS");
+                }
+                lines.push(line);
+            }
+            if lines != self.last {
+                eprintln!("a11y --- {} named controls", lines.len());
+                for line in &lines {
+                    eprintln!("a11y {line}");
+                }
+                self.last = lines;
+            }
+        }
+    }
+    let on_id = egui::Id::new("sanaga-a11y-printer");
+    if std::env::var_os("SANAGA_DEBUG_A11Y").is_none() || ctx.data(|d| d.get_temp::<bool>(on_id)).is_some() {
+        return;
+    }
+    ctx.data_mut(|d| d.insert_temp(on_id, true));
+    ctx.enable_accesskit();
+    ctx.add_plugin(Printer { last: Vec::new() });
 }
 
 /// The capsules behind groups of toolbar buttons that touch each other, with
@@ -75,14 +190,14 @@ pub(super) fn spinner(p: &egui::Painter, c: egui::Pos2, r: f32, time: f64, col: 
     p.add(egui::Shape::line(pts, Stroke::new(1.8, col)));
 }
 
-
 /// The three round window buttons; returns where they end on the right.
 pub(super) fn window_buttons(ui: &mut Ui, x: f32, cy: f32) -> f32 {
     let hover_lights = ui.rect_contains_pointer(Rect::from_min_size(pos2(x - 10.0, cy - 10.0), vec2(64.0, 20.0)));
     let lights = [Color32::from_rgb(0xFF, 0x5F, 0x57), Color32::from_rgb(0xFE, 0xBC, 0x2E), Color32::from_rgb(0x28, 0xC8, 0x40)];
     for (k, col) in lights.into_iter().enumerate() {
         let c = pos2(x + k as f32 * 20.0, cy);
-        let resp = ui.interact(Rect::from_center_size(c, vec2(16.0, 16.0)), egui::Id::new(("winbtn", k)), Sense::click());
+        // (20 across, 24 high: the three are 20 apart, the bar has the height)
+        let resp = ui.interact(Rect::from_center_size(c, vec2(20.0, 24.0)), egui::Id::new(("winbtn", k)), Sense::click());
         ui.painter().circle_filled(c, 6.5, col);
         ui.painter().circle_stroke(c, 6.5, Stroke::new(0.6, Color32::from_black_alpha(40)));
         if hover_lights {
@@ -184,8 +299,9 @@ pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
 }
 
 impl Sanaga {
-
     pub(super) fn toolbar(&mut self, ui: &mut Ui, th: &Theme) {
+        #[cfg(debug_assertions)]
+        debug_a11y(ui.ctx());
         let a = self.active;
         let full = ui.max_rect();
         let cy = full.center().y;
@@ -194,7 +310,7 @@ impl Sanaga {
         let can_fwd = self.tabs[a].idx + 1 < self.tabs[a].entries.len() || web.map(|w| w.can_go_forward().unwrap_or(false)).unwrap_or(false);
         let loading = self.tabs[a].loading;
 
-        let bg = ui.interact(full, egui::Id::new("toolbar-bg"), Sense::click_and_drag());
+        let bg = ui.interact(full, egui::Id::new("toolbar-bg"), bar_sense());
         window_drag(ui, &bg);
 
         // window buttons: in the tab row above (like Chrome), or here when
@@ -220,20 +336,20 @@ impl Sanaga {
         });
         if self.tb("sidebar") {
             let sb = slot(&mut x, 36.0);
-            if tool_button(ui, sb, Icon::Sidebar, true, self.sidebar_open, th).tip(tr("Barre latérale")).clicked() {
+            if tool(ui, sb, Icon::Sidebar, true, self.sidebar_open, th, tr("Barre latérale")).clicked() {
                 self.sidebar_open = !self.sidebar_open;
             }
             x += 10.0;
         }
         if self.tb("back") {
             let back = slot(&mut x, 36.0);
-            if tool_button(ui, back, Icon::Back, can_back, false, th).tip(tr("Page précédente (Alt+←)")).clicked() {
+            if tool(ui, back, Icon::Back, can_back, false, th, tr("Page précédente (Alt+←)")).clicked() {
                 self.go_history(a, -1);
             }
         }
         if self.tb("forward") {
             let fwd = slot(&mut x, 36.0);
-            if tool_button(ui, fwd, Icon::Forward, can_fwd, false, th).tip(tr("Page suivante (Alt+→)")).clicked() {
+            if tool(ui, fwd, Icon::Forward, can_fwd, false, th, tr("Page suivante (Alt+→)")).clicked() {
                 self.go_history(a, 1);
             }
         }
@@ -250,7 +366,7 @@ impl Sanaga {
         }
         if self.tb("home") {
             let hm = slot(&mut x, 36.0);
-            if tool_button(ui, hm, Icon::Home, true, false, th).tip(tr("Page d'accueil")).clicked() {
+            if tool(ui, hm, Icon::Home, true, false, th, tr("Page d'accueil")).clicked() {
                 self.go_home(a);
             }
         }
@@ -265,7 +381,7 @@ impl Sanaga {
             r
         };
         let menu_r = slot_r(&mut rx, 36.0);
-        let mresp = tool_button(ui, menu_r, Icon::Menu, true, self.menu_open, th).tip(tr("Menu de Sanaga"));
+        let mresp = tool(ui, menu_r, Icon::Menu, true, self.menu_open, th, tr("Menu de Sanaga"));
         if mresp.clicked() {
             self.menu_open = !self.menu_open;
             self.overflow_open = false;
@@ -282,6 +398,7 @@ impl Sanaga {
             if resp.hovered() || self.overflow_open {
                 ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(8), th.omnibox_hover);
             }
+            super::chrome::focus_ring(ui, &resp, r.shrink(2.0), 8.0, th);
             ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "»", FontId::proportional(17.0), th.text);
             if resp.tip(tr("Autres boutons")).clicked() {
                 self.overflow_open = !self.overflow_open;
@@ -296,22 +413,27 @@ impl Sanaga {
             if resp.hovered() {
                 ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(8), th.omnibox_hover);
             }
+            super::chrome::focus_ring(ui, &resp, r.shrink(2.0), 8.0, th);
             super::buttons::paint_symbol(ui.painter(), r, &self.store.buttons[k], th.text);
             let tip = super::buttons::button_tip(&self.store.buttons[k]);
             if resp.tip(tip).clicked() {
                 self.run_button(k);
             }
         }
+        // (a button of the person's may have closed the tab in use — the
+        // mobile preview beside the page does: the rest of the bar is
+        // drawn for the tab in use now)
+        let a = self.active.min(self.tabs.len().saturating_sub(1));
         if self.tb("overview") {
             let ov_r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, ov_r, Icon::Grid, true, self.overview_open, th).tip(tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {
+            if tool(ui, ov_r, Icon::Grid, true, self.overview_open, th, tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {
                 self.toggle_overview();
             }
         }
         let has_page = !self.tabs[a].url().starts_with("sanaga://");
         if self.tb("share") {
             let share_r = slot_r(&mut rx, 36.0);
-            let sresp = tool_button(ui, share_r, Icon::Share, has_page, self.share_open, th).tip(tr("Partager"));
+            let sresp = tool(ui, share_r, Icon::Share, has_page, self.share_open, th, tr("Partager"));
             if sresp.clicked() {
                 self.share_open = !self.share_open;
                 self.menu_open = false;
@@ -324,7 +446,7 @@ impl Sanaga {
             let r = slot_r(&mut rx, 36.0);
             let on = self.summary.is_some();
             let can = matches!(self.tabs[a].view, View::Web);
-            let resp = tool_button(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th).tip(tr("Résumer ou traduire la page"));
+            let resp = tool(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th, tr("Résumer ou traduire la page"));
             self.ai_menu_rect = resp.rect;
             if resp.clicked() {
                 if on && self.summary.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
@@ -338,54 +460,54 @@ impl Sanaga {
         if self.tb("mobile") {
             let r = slot_r(&mut rx, 36.0);
             let on = self.device.is_some();
-            if tool_button(ui, r, Icon::Phone, true, on, th).tip(tr("Simulateur mobile (Ctrl+Maj+M)")).clicked() {
+            if tool(ui, r, Icon::Phone, true, on, th, tr("Simulateur mobile (Ctrl+Maj+M)")).clicked() {
                 self.toggle_devices();
             }
         }
         if self.tb("print") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::Print, has_page, false, th).tip(tr("Imprimer… (Ctrl+P)")).clicked() {
+            if tool(ui, r, Icon::Print, has_page, false, th, tr("Imprimer… (Ctrl+P)")).clicked() {
                 self.print_page();
             }
         }
         if self.tb("reading") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::Glasses, true, false, th).tip(tr("Liste de lecture")).clicked() {
+            if tool(ui, r, Icon::Glasses, true, false, th, tr("Liste de lecture")).clicked() {
                 self.sidebar_open = !self.sidebar_open;
             }
         }
         if self.tb("bookmarks") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::StarFilled, true, false, th).tip(tr("Favoris")).clicked() {
+            if tool(ui, r, Icon::StarFilled, true, false, th, tr("Favoris")).clicked() {
                 self.open_tab("sanaga://bookmarks", false);
             }
         }
         if self.tb("newtab") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::Plus, true, false, th).tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
+            if tool(ui, r, Icon::Plus, true, false, th, tr("Nouvel onglet (Ctrl+T)")).clicked() {
                 self.open_tab("sanaga://newtab", false);
             }
         }
         if self.tb("downloads") && !self.store.downloads.is_empty() {
             let dl = slot_r(&mut rx, 36.0);
-            if tool_button(ui, dl, Icon::Download, true, false, th).tip(tr("Téléchargements (Ctrl+J)")).clicked() {
+            if tool(ui, dl, Icon::Download, true, false, th, tr("Téléchargements (Ctrl+J)")).clicked() {
                 self.open_tab("sanaga://downloads", false);
             }
         }
         let now = ui.input(|i| i.time);
         if self.tb("memory") {
-        if now - self.mem.0 > 2.0 {
-            self.mem = (now, net::memory_used_cached());
-        }
-        let mg = ui.painter().layout_no_wrap(tf("{} Mo", &[&format!("{:.0}", self.mem.1 as f64 / 1048576.0)]), FontId::proportional(11.5), th.sub);
-        let mr = slot_r(&mut rx, mg.size().x + 30.0);
-        let mresp = ui.interact(mr, egui::Id::new("memchip"), Sense::hover());
-        if mresp.hovered() {
-            ui.painter().rect_filled(mr, CornerRadius::same(7), th.omnibox_hover);
-        }
-        icons::paint(ui.painter(), Rect::from_center_size(pos2(mr.left() + 12.0, cy), vec2(12.0, 12.0)), Icon::Leaf, Color32::from_rgb(0x34, 0xC7, 0x59));
-        ui.painter().galley(pos2(mr.left() + 22.0, cy - mg.size().y / 2.0), mg, th.sub);
-        mresp.tip(tr("Mémoire utilisée par Sanaga et son moteur, en ce moment"));
+            if now - self.mem.0 > 2.0 {
+                self.mem = (now, net::memory_used_cached());
+            }
+            let mg = ui.painter().layout_no_wrap(tf("{} Mo", &[&format!("{:.0}", self.mem.1 as f64 / 1048576.0)]), FontId::proportional(11.5), th.sub);
+            let mr = slot_r(&mut rx, mg.size().x + 30.0);
+            let mresp = ui.interact(mr, egui::Id::new("memchip"), Sense::hover());
+            if mresp.hovered() {
+                ui.painter().rect_filled(mr, CornerRadius::same(7), th.omnibox_hover);
+            }
+            icons::paint(ui.painter(), Rect::from_center_size(pos2(mr.left() + 12.0, cy), vec2(12.0, 12.0)), Icon::Leaf, Color32::from_rgb(0x34, 0xC7, 0x59));
+            ui.painter().galley(pos2(mr.left() + 22.0, cy - mg.size().y / 2.0), mg, th.sub);
+            mresp.tip(tr("Mémoire utilisée par Sanaga et son moteur, en ce moment"));
         }
         let right_start = rx - 8.0;
 
@@ -438,13 +560,10 @@ impl Sanaga {
             // Sanaga's own pages: nothing to bookmark
         } else {
             let bookmarked = self.store.is_bookmarked(&url);
-            let sresp = ui.interact(star_r, egui::Id::new("star"), Sense::click()).tip(if bookmarked {
-                tr("Retirer des favoris (Ctrl+D)")
-            } else {
-                tr("Ajouter aux favoris (Ctrl+D)")
-            });
+            let sresp = ui.interact(star_r, egui::Id::new("star"), Sense::click()).tip(if bookmarked { tr("Retirer des favoris (Ctrl+D)") } else { tr("Ajouter aux favoris (Ctrl+D)") });
             let (icon, col) = if bookmarked { (Icon::StarFilled, th.accent) } else { (Icon::Star, th.sub) };
             icons::paint(ui.painter(), star_r.shrink(5.0), icon, if sresp.hovered() && !bookmarked { th.text } else { col });
+            super::chrome::focus_ring(ui, &sresp, star_r.shrink(2.0), 6.0, th);
             if sresp.clicked() {
                 self.star_clicked(star_r);
             }
@@ -456,6 +575,7 @@ impl Sanaga {
             if rresp.hovered() {
                 ui.painter().rect_filled(rr, CornerRadius::same(6), th.border);
             }
+            super::chrome::focus_ring(ui, &rresp, rr.shrink(2.0), 6.0, th);
             icons::paint(ui.painter(), rr.shrink(6.0), if loading { Icon::Stop } else { Icon::Reload }, th.sub);
             if rresp.tip(if loading { tr("Arrêter (Échap)") } else { tr("Actualiser (Ctrl+R)") }).clicked() {
                 if loading {
@@ -472,6 +592,7 @@ impl Sanaga {
             let reading = self.tabs[a].reader;
             let rd = Rect::from_center_size(pos2(text_right - 12.0, rect.center().y), vec2(24.0, 24.0));
             let resp = ui.interact(rd, egui::Id::new("reader-btn"), Sense::click());
+            super::chrome::focus_ring(ui, &resp, rd.shrink(2.0), 6.0, th);
             if reading {
                 ui.painter().rect_filled(rd, CornerRadius::same(6), th.accent);
             } else if resp.hovered() {
@@ -489,6 +610,7 @@ impl Sanaga {
             let zr = Rect::from_min_max(pos2(text_right - 46.0, rect.top() + 8.0), pos2(text_right - 2.0, rect.bottom() - 8.0));
             let zresp = ui.interact(zr, egui::Id::new("zoomchip"), Sense::click()).tip(tr("Réinitialiser le zoom"));
             ui.painter().rect_filled(zr, CornerRadius::same(5), th.border);
+            super::chrome::focus_ring(ui, &zresp, zr, 5.0, th);
             ui.painter().text(zr.center(), Align2::CENTER_CENTER, format!("{:.0} %", zoom * 100.0), FontId::proportional(11.0), th.text);
             if zresp.clicked() {
                 self.tabs[a].zoom = 1.0;
@@ -501,16 +623,29 @@ impl Sanaga {
         // person wants it whole), centred, with a padlock
         if !focused {
             let font = FontId::proportional(14.0);
+            // The padlock says what the engine knows of the page shown: a
+            // closed one for a certificate the system trusts, a struck-out
+            // red one when the person went on despite an invalid
+            // certificate, none on Sanaga's error pages or while the page
+            // is on its way. (It used to be drawn for any address starting
+            // with https://.) The Light engine's pages are fetched by
+            // Sanaga, which refuses an invalid certificate.
+            let secure = match (&self.tabs[a].view, &self.tabs[a].web) {
+                _ if !url.starts_with("https://") => None,
+                (View::Web, Some(w)) => w.secure(),
+                (View::Web, None) => None,
+                _ => Some(true),
+            };
             let (job, col, lock) = if is_ntp || url.is_empty() {
-                (egui::text::LayoutJob::simple_singleline(tr("Rechercher ou saisir le nom d'un site").to_string(), font, th.sub), th.sub, false)
+                (egui::text::LayoutJob::simple_singleline(tr("Rechercher ou saisir le nom d'un site").to_string(), font, th.sub), th.sub, None)
             } else if url.starts_with("sanaga://") {
-                (egui::text::LayoutJob::simple_singleline(self.tabs[a].title(), font, th.text), th.text, false)
+                (egui::text::LayoutJob::simple_singleline(self.tabs[a].title(), font, th.text), th.text, None)
             } else {
                 let (site, rest) = display_url(&url, self.store.settings.full_urls);
                 let mut job = egui::text::LayoutJob::default();
                 job.append(&site, 0.0, egui::TextFormat::simple(font.clone(), th.text));
                 job.append(&rest, 0.0, egui::TextFormat::simple(font, th.sub));
-                (job, th.text, url.starts_with("https://"))
+                (job, th.text, secure)
             };
             // (too long for the pill: it ends with "…" instead of being cut
             // in the middle of a letter)
@@ -518,10 +653,17 @@ impl Sanaga {
             job.wrap = egui::text::TextWrapping { max_width: (text_right - star_r.right() - 30.0).max(0.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
             let g = ui.painter().layout_job(job);
             let gw = g.size().x.min(text_right - star_r.right() - 30.0).max(0.0);
-            let lock_w = if lock { 17.0 } else { 0.0 };
+            let lock_w = if lock.is_some() { 17.0 } else { 0.0 };
             let x0 = rect.center().x - (gw + lock_w) / 2.0;
-            if lock {
-                icons::paint(ui.painter(), Rect::from_center_size(pos2(x0 + 5.0, rect.center().y), vec2(11.0, 11.0)), Icon::Lock, th.sub);
+            if let Some(trusted) = lock {
+                let r = Rect::from_center_size(pos2(x0 + 5.0, rect.center().y), vec2(11.0, 11.0));
+                if trusted {
+                    icons::paint(ui.painter(), r, Icon::Lock, th.sub);
+                } else {
+                    let red = Color32::from_rgb(0xD9, 0x30, 0x25);
+                    icons::paint(ui.painter(), r, Icon::Lock, red);
+                    ui.painter().line_segment([r.left_bottom() + vec2(-1.0, 1.0), r.right_top() + vec2(1.0, -1.0)], Stroke::new(1.6, red));
+                }
             }
             let clip = Rect::from_min_max(pos2(x0 + lock_w, rect.top()), pos2(x0 + lock_w + gw, rect.bottom()));
             ui.painter().with_clip_rect(clip).galley(pos2(clip.left(), rect.center().y - g.size().y / 2.0), g, col);
@@ -573,6 +715,8 @@ impl Sanaga {
             te.text_color(Color32::TRANSPARENT)
         };
         let resp = ui.new_child(egui::UiBuilder::new().max_rect(te_rect).layout(egui::Layout::left_to_right(Align::Center))).add(te);
+        // (its name for screen readers: a text field with nothing saying what it is for)
+        let resp = resp.accessible_name(tr("Rechercher ou saisir le nom d'un site"));
         if self.focus_address {
             resp.request_focus();
             self.focus_address = false;
@@ -589,31 +733,15 @@ impl Sanaga {
             // next letter replaces it, Enter goes there). Erasing never does.
             let typed = tab.address.clone();
             let forward = typed.len() > self.inline_typed.len() && typed.starts_with(&self.inline_typed);
-            let at_end = TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).is_some_and(|r| r.primary.index == egui::text::CharIndex(typed.chars().count()) && r.secondary.index == r.primary.index);
+            let at_end = TextEdit::load_state(ui.ctx(), id)
+                .and_then(|s| s.cursor.char_range())
+                .is_some_and(|r| r.primary.index == egui::text::CharIndex(typed.chars().count()) && r.secondary.index == r.primary.index);
             self.inline_typed = typed.clone();
             self.inline_done = false;
             if forward && at_end {
-                if let Some(site) = self.site_completion(&typed) {
-                    // (the rest of the name: what follows as many letters as
-                    // were typed — a typed letter may take more bytes than the
-                    // name's, e.g. the Kelvin sign for "k")
-                    let rest: String = site.chars().skip(typed.chars().count()).collect();
-                    let full = format!("{typed}{rest}");
-                    if let Some(mut state) = TextEdit::load_state(ui.ctx(), id) {
-                        let (from, to) = (egui::text::CCursor::new(typed.chars().count()), egui::text::CCursor::new(full.chars().count()));
-                        state.cursor.set_char_range(Some(egui::text::CCursorRange::two(from, to)));
-                        state.store(ui.ctx(), id);
-                        self.tabs[a].address = full;
-                        self.inline_done = true;
-                        // the site's address is looked up now (DNS), so the
-                        // page starts sooner on Enter; never for a private tab
-                        if !self.tabs[a].private {
-                            if let Some(e) = &self.web_context {
-                                e.session.prefetch_dns(&site);
-                            }
-                        }
-                    }
-                }
+                // (asked of the history off the window's thread; the field
+                // is completed when the answer comes: `complete_address`)
+                self.ask_completion(&typed);
             }
         }
         if !focused {
@@ -624,17 +752,28 @@ impl Sanaga {
             match picked {
                 Some(u) => self.activate_suggestion(&u),
                 None => {
-                    let u = input_to_url(&self.tabs[a].address, engine, &home);
+                    // (a site's name completed while typing leads where the site
+                    // was really visited: http://nas.lan:8080, not https://nas.lan)
+                    let u = self.completed_address(a).unwrap_or_else(|| input_to_url(&self.tabs[a].address, engine, &home));
                     self.navigate(a, u, None, true);
                 }
             }
         }
         // progress along the bottom of the field
         if loading {
-            let t = ui.input(|i| i.time) as f32;
-            let w = rect.width() * 0.3;
-            let x = rect.left() + (t * 0.8).fract() * (rect.width() + w) - w;
-            let bar = Rect::from_min_max(pos2(x.max(rect.left() + 8.0), rect.bottom() - 2.5), pos2((x + w).min(rect.right() - 8.0), rect.bottom() - 0.5));
+            // (how far the engine says the page has come; a moving bar for
+            // a page it has not started on yet, and for the Light engine,
+            // which gives no measure)
+            let progress = self.tabs[a].web.as_ref().filter(|_| matches!(self.tabs[a].view, View::Web)).map(|w| w.load_progress()).filter(|p| *p > 0.0 && *p < 1.0);
+            let bar = match progress {
+                Some(p) => Rect::from_min_max(pos2(rect.left() + 8.0, rect.bottom() - 2.5), pos2(rect.left() + 8.0 + (rect.width() - 16.0) * p.max(0.06), rect.bottom() - 0.5)),
+                None => {
+                    let t = ui.input(|i| i.time) as f32;
+                    let w = rect.width() * 0.3;
+                    let x = rect.left() + (t * 0.8).fract() * (rect.width() + w) - w;
+                    Rect::from_min_max(pos2(x.max(rect.left() + 8.0), rect.bottom() - 2.5), pos2((x + w).min(rect.right() - 8.0), rect.bottom() - 0.5))
+                }
+            };
             if bar.width() > 0.0 {
                 ui.painter().rect_filled(bar, 1.0, th.accent);
             }
@@ -656,7 +795,7 @@ impl Sanaga {
 }
 
 /// The address as the address bar shows it when not editing: the site part
-/// and the rest. Like Chrome (MECHANICS.md): unless `full`, `https://`,
+/// and the rest. As other browsers show it: unless `full`, `https://`,
 /// `www.` and a lone `/` are left out; the path is shown decoded
 /// (`/wiki/Yaoundé`, not `/wiki/Yaound%C3%A9`). `http://` stays, as there
 /// is no padlock to tell it.

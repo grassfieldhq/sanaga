@@ -1,9 +1,9 @@
 //! Background loading: pages, images and downloads run on worker threads so the
 //! window never freezes. Results come back through a channel.
 
+use crate::html::{self, Document};
 use crate::i18n::{tf, tr};
 use eframe::egui;
-use crate::html::{self, Document};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
@@ -12,16 +12,133 @@ use std::time::Duration;
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Sanaga/0.1 (navigateur leger)";
 const MAX_IMAGE_SIDE: u32 = 1200;
+/// The most that is read of a picture, or of a local file shown as a page
+/// (the Light engine and the Reader keep what they read in memory).
+const MAX_BODY: u64 = 12 * 1024 * 1024;
+
+/// Read a file of this computer for the Light engine: an ordinary file
+/// only, and its first `MAX_BODY` bytes at most. A device such as
+/// `/dev/zero` never ends and a pipe never answers: read like a file, they
+/// filled Sanaga's memory or left the tab loading for ever.
+fn read_local(path: &Path) -> std::io::Result<Vec<u8>> {
+    use std::os::unix::fs::OpenOptionsExt;
+    // (opened without waiting — a pipe would — then looked at: the file that is read is the one that was checked)
+    let f = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(path)?;
+    let meta = f.metadata()?;
+    if meta.is_dir() {
+        return Err(std::io::Error::from_raw_os_error(libc::EISDIR));
+    }
+    if !meta.is_file() {
+        return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+    }
+    let mut bytes = Vec::new();
+    f.take(MAX_BODY).read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
+
+/// The file name a site gives a download in its `Content-Disposition`
+/// header, as the site wrote it (what it may hold — folders, `..`, encoded
+/// characters — is dealt with by `safe_download_name`, which every
+/// download name goes through). The header is read as browsers read it:
+/// parameters separated by `;`, values in quotes or not, names in any
+/// case, and `filename*=UTF-8''…` (any language, percent-encoded) rather
+/// than `filename=` when both are there. (It used to be cut at the first
+/// `filename=`: `filename="rapport.pdf"; filename*=UTF-8''rapport.pdf`
+/// gave a file called `rapport.pdf"; filename*=UTF-8''rapport.pdf`.)
+pub fn disposition_name(header: &str) -> Option<String> {
+    // the parts between `;` — a `;` inside quotes belongs to its value
+    let mut parts = vec![String::new()];
+    let (mut quoted, mut escaped) = (false, false);
+    for c in header.chars() {
+        if quoted {
+            quoted = escaped || c != '"';
+            escaped = !escaped && c == '\\';
+        } else if c == ';' {
+            parts.push(String::new());
+            continue;
+        } else {
+            quoted = c == '"';
+        }
+        parts.last_mut()?.push(c);
+    }
+    let (mut plain, mut extended) = (None::<String>, None::<String>);
+    for part in &parts {
+        let Some((name, value)) = part.split_once('=') else { continue };
+        let value = value.trim();
+        match name.trim().to_ascii_lowercase().as_str() {
+            "filename" if plain.is_none() => {
+                plain = Some(match value.strip_prefix('"') {
+                    // in quotes: up to the closing one, `\x` standing for x
+                    Some(inside) => {
+                        let mut text = String::new();
+                        let mut chars = inside.chars();
+                        while let Some(c) = chars.next() {
+                            match c {
+                                '"' => break,
+                                '\\' => text.extend(chars.next()),
+                                c => text.push(c),
+                            }
+                        }
+                        text
+                    }
+                    None => value.trim_matches('\'').to_string(),
+                });
+            }
+            // charset'language'percent-encoded bytes
+            "filename*" if extended.is_none() => {
+                let mut fields = value.splitn(3, '\'');
+                let (Some(charset), Some(_language), Some(encoded)) = (fields.next(), fields.next(), fields.next()) else { continue };
+                extended = match charset.trim().to_ascii_lowercase().as_str() {
+                    // (left encoded: `safe_download_name` decodes it, once)
+                    "utf-8" => Some(encoded.to_string()),
+                    // one byte, one character: written again the UTF-8 way
+                    "iso-8859-1" => {
+                        let text: String = percent_encoding::percent_decode_str(encoded).map(|b| b as char).collect();
+                        Some(percent_encoding::utf8_percent_encode(&text, percent_encoding::NON_ALPHANUMERIC).to_string())
+                    }
+                    _ => None,
+                };
+            }
+            _ => {}
+        }
+    }
+    let named = |n: &String| !n.trim().is_empty();
+    extended.filter(named).or(plain.filter(named))
+}
 
 pub enum NetMsg {
-    Page { tab: u64, nav: u64, result: Result<Arc<Document>, String> },
+    Page {
+        tab: u64,
+        nav: u64,
+        result: Result<Arc<Document>, String>,
+    },
     /// A page's source text ("view source").
-    Source { tab: u64, nav: u64, url: String, result: Result<String, String> },
-    Image { url: String, result: Result<egui::ColorImage, String> },
-    Download { tab: u64, nav: u64, name: String, path: PathBuf, bytes: u64, result: Result<(), String> },
+    Source {
+        tab: u64,
+        nav: u64,
+        url: String,
+        result: Result<String, String>,
+    },
+    Image {
+        url: String,
+        result: Result<egui::ColorImage, String>,
+    },
+    Download {
+        tab: u64,
+        nav: u64,
+        name: String,
+        path: PathBuf,
+        bytes: u64,
+        result: Result<(), String>,
+    },
     /// A fetch no action of the person's started (a restored tab) turned out
     /// to be a download: asked first (the request, to run again if allowed).
-    DownloadAsk { tab: u64, nav: u64, site: String, req: Request },
+    DownloadAsk {
+        tab: u64,
+        nav: u64,
+        site: String,
+        req: Request,
+    },
 }
 
 /// Ask sites for pages in the interface language first.
@@ -87,22 +204,201 @@ fn system_tls() -> Option<Arc<rustls::ClientConfig>> {
         .clone()
 }
 
-/// A builder for Sanaga's own requests, with the system's certificates.
-pub fn builder() -> ureq::AgentBuilder {
-    let b = ureq::AgentBuilder::new();
+/// A builder with the system's certificates and nothing else: no proxy, the
+/// system's own DNS. (For the encrypted DNS resolver's own client, which
+/// cannot ask itself where it is.)
+pub fn plain_builder() -> ureq::AgentBuilder {
+    let b = ureq::AgentBuilder::new().try_proxy_from_env(false);
     match system_tls() {
         Some(tls) => b.tls_config(tls),
         None => b,
     }
 }
 
+/// A builder for Sanaga's own requests, with the system's certificates,
+/// through the proxy the pages go through — or, without a proxy, with the
+/// encrypted DNS of the settings.
+pub fn builder() -> ureq::AgentBuilder {
+    let b = ureq::AgentBuilder::new();
+    let b = match system_tls() {
+        Some(tls) => b.tls_config(tls),
+        None => b,
+    };
+    match own_proxy() {
+        OwnProxy::Direct if crate::doh::on() => b.try_proxy_from_env(false).resolver(crate::doh::Own),
+        OwnProxy::Direct => b.try_proxy_from_env(false),
+        // (the system has not said yet: no name is asked in clear meanwhile)
+        OwnProxy::Environment if crate::doh::on() => b.try_proxy_from_env(true).resolver(crate::doh::Own),
+        OwnProxy::Environment => b.try_proxy_from_env(true),
+        OwnProxy::Through(proxy) => b.proxy(proxy),
+    }
+}
+
+/// Do pages and Sanaga's requests go straight to the sites (no proxy of the
+/// settings, none of the system)? Only then can the encrypted DNS be used:
+/// a proxy resolves the names itself. (While the system has not said yet
+/// whether it has a proxy, it is taken to have none: with the encrypted
+/// DNS on, no name is asked in clear during that moment.)
+pub fn goes_direct() -> bool {
+    matches!(own_proxy(), OwnProxy::Direct | OwnProxy::Environment)
+}
+
+/// (for the settings page: a proxy is in the way of the encrypted DNS)
+pub fn bump_generation() {
+    PROXY_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The proxy of the settings (see `guard::proxy_choice`), what the system
+/// answered when it is the system's, and a number that changes with them
+/// (a client made before is made again: see `proxy_generation`).
+static PROXY: std::sync::RwLock<(String, Option<Vec<String>>)> = std::sync::RwLock::new((String::new(), None));
+static PROXY_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The settings' proxy, told at start and whenever it changes.
+pub fn set_proxy(setting: &str) {
+    let Ok(mut p) = PROXY.write() else { return };
+    if p.0 != setting.trim() {
+        p.0 = setting.trim().to_string();
+        PROXY_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// What the system answers for its proxy (GNOME's and KDE's network
+/// settings, the environment): `direct://`, or proxies in order of
+/// preference. Asked away from the window (an automatic configuration is
+/// fetched from the network).
+pub fn set_system_proxy(answer: Vec<String>) {
+    let Ok(mut p) = PROXY.write() else { return };
+    if p.1.as_ref() != Some(&answer) {
+        p.1 = Some(answer);
+        PROXY_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Changes when the proxy to use does: clients kept from before are then
+/// made again (a number to compare, nothing to read).
+pub fn proxy_generation() -> u64 {
+    PROXY_GENERATION.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+enum OwnProxy {
+    Direct,
+    /// The system's settings were not read (yet): the environment's
+    /// variables, as command-line programs do.
+    Environment,
+    Through(ureq::Proxy),
+}
+
+/// A proxy nothing answers at: a request that may not go around the proxy
+/// of the settings fails rather than leave by another way.
+fn nowhere() -> OwnProxy {
+    ureq::Proxy::new("http://127.0.0.1:1").map(OwnProxy::Through).unwrap_or(OwnProxy::Direct)
+}
+
+fn own_proxy() -> OwnProxy {
+    use crate::guard::ProxyChoice;
+    let (setting, system) = PROXY.read().map(|p| p.clone()).unwrap_or_default();
+    match crate::guard::proxy_choice(&setting) {
+        Some(ProxyChoice::Direct) => OwnProxy::Direct,
+        Some(ProxyChoice::Custom(address)) => ureq::Proxy::new(&address).map(OwnProxy::Through).unwrap_or_else(|_| nowhere()),
+        Some(ProxyChoice::System) => match system.as_deref().and_then(|l| l.first()) {
+            None => OwnProxy::Environment,
+            Some(first) if first.starts_with("direct:") => OwnProxy::Direct,
+            Some(first) => ureq::Proxy::new(first).map(OwnProxy::Through).unwrap_or_else(|_| nowhere()),
+        },
+        // (a setting that is not an address: the pages are not loaded
+        // either, see page::apply_proxy)
+        None => nowhere(),
+    }
+}
+
+/// Where the releases of Sanaga are listed (what "Look for a new version"
+/// asks, and only when the person clicks: Sanaga asks nothing by itself).
+const RELEASES_API: &str = "https://api.github.com/repos/grassfieldhq/sanaga/releases/latest";
+pub const RELEASES_PAGE: &str = "https://github.com/grassfieldhq/sanaga/releases/latest";
+
+/// The newest released version ("0.5.0"), as GitHub gives it.
+pub fn latest_release() -> Result<String, String> {
+    // (test aid, debug builds only: another address to ask)
+    let address = if cfg!(debug_assertions) { std::env::var("SANAGA_UPDATE_URL").unwrap_or_else(|_| RELEASES_API.to_string()) } else { RELEASES_API.to_string() };
+    let body = agent_for(&address).get(&address).set("Accept", "application/vnd.github+json").call().map_err(|e| e.to_string())?.into_string().map_err(|e| e.to_string())?;
+    let tag = crate::ai::json_string(&body, "tag_name").ok_or("no version in the answer")?;
+    let version = tag.trim().trim_start_matches('v').to_string();
+    // (a version is numbers and dots: nothing else is shown to the person)
+    if version.is_empty() || version.len() > 32 || !version.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return Err("not a version".into());
+    }
+    Ok(version)
+}
+
+/// Is version `latest` newer than `current`? ("0.10.0" is newer than
+/// "0.9.2": numbers are compared, not letters.)
+pub fn is_newer(latest: &str, current: &str) -> bool {
+    let parts = |v: &str| -> Vec<u64> { v.split('.').map(|p| p.trim().parse().unwrap_or(0)).collect() };
+    let (a, b) = (parts(latest), parts(current));
+    for k in 0..a.len().max(b.len()) {
+        let (x, y) = (a.get(k).copied().unwrap_or(0), b.get(k).copied().unwrap_or(0));
+        if x != y {
+            return x > y;
+        }
+    }
+    false
+}
+
 pub fn agent() -> ureq::Agent {
-    builder()
-        .user_agent(USER_AGENT)
-        .timeout_connect(Duration::from_secs(10))
-        .timeout_read(Duration::from_secs(20))
-        .redirects(8)
-        .build()
+    builder().user_agent(USER_AGENT).timeout_connect(Duration::from_secs(10)).timeout_read(Duration::from_secs(20)).redirects(8).build()
+}
+
+/// A builder for requests to this computer itself (a local model, a site
+/// being made here): never through a proxy, which could not reach it.
+pub fn local_builder() -> ureq::AgentBuilder {
+    let b = ureq::AgentBuilder::new().try_proxy_from_env(false);
+    match system_tls() {
+        Some(tls) => b.tls_config(tls),
+        None => b,
+    }
+}
+
+/// Is this address on this computer itself (`localhost`, `127.0.0.1`, `[::1]`)?
+pub fn on_this_computer(address: &str) -> bool {
+    match url::Url::parse(address).ok().as_ref().and_then(|u| u.host()) {
+        Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost") || d.to_ascii_lowercase().ends_with(".localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    }
+}
+
+/// The right client for one address: this computer is asked directly, the
+/// rest through the proxy of the settings.
+pub fn agent_for(address: &str) -> ureq::Agent {
+    if on_this_computer(address) {
+        local_builder().user_agent(USER_AGENT).timeout_connect(Duration::from_secs(10)).timeout_read(Duration::from_secs(20)).redirects(8).build()
+    } else {
+        agent()
+    }
+}
+
+/// The clients of one kind of tabs (the usual ones, or the private ones),
+/// each with its own cookies: one that goes through the proxy of the
+/// settings, one for this computer itself.
+pub struct Clients {
+    web: ureq::Agent,
+    local: ureq::Agent,
+}
+
+impl Clients {
+    pub fn new() -> Clients {
+        Clients { web: agent(), local: agent_for("http://localhost/") }
+    }
+
+    pub fn for_address(&self, address: &str) -> ureq::Agent {
+        if on_this_computer(address) {
+            self.local.clone()
+        } else {
+            self.web.clone()
+        }
+    }
 }
 
 pub struct Request {
@@ -122,17 +418,79 @@ pub struct Request {
     pub allow_download: bool,
 }
 
+/// The folder chosen for downloads in the settings ("" = the system's), and
+/// whether the person is asked where to save each download.
+static DOWNLOAD_CHOICE: std::sync::RwLock<(String, bool)> = std::sync::RwLock::new((String::new(), false));
+
+/// The settings' choices about downloads, told whenever they change.
+pub fn set_download_choice(dir: &str, ask: bool) {
+    if let Ok(mut c) = DOWNLOAD_CHOICE.write() {
+        *c = (dir.trim().to_string(), ask);
+    }
+}
+
+/// Is the person asked where to save each download?
+pub fn download_asks() -> bool {
+    DOWNLOAD_CHOICE.read().map(|c| c.1).unwrap_or(false)
+}
+
+/// Where downloads go: the folder chosen in the settings when it is there,
+/// else the system's Downloads folder.
 pub fn download_dir() -> PathBuf {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
-    for name in ["Téléchargements", "Downloads"] {
-        let p = home.join(name);
-        if p.is_dir() {
+    let chosen = DOWNLOAD_CHOICE.read().map(|c| c.0.clone()).unwrap_or_default();
+    if !chosen.is_empty() {
+        let p = PathBuf::from(&chosen);
+        // (a folder on a disk that is not plugged in today: the system's
+        // folder is used meanwhile, the choice stays)
+        if p.is_absolute() && p.is_dir() {
             return p;
         }
     }
-    let p = home.join("Downloads");
-    let _ = std::fs::create_dir_all(&p);
-    p
+    system_download_dir()
+}
+
+/// The system's Downloads folder: the one the desktop names in
+/// `user-dirs.dirs` (it may be anywhere, and is named in the person's
+/// language: Descargas, Загрузки...), else `~/Downloads`. Looked for once.
+pub fn system_download_dir() -> PathBuf {
+    static DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| {
+        let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
+        let config = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).unwrap_or_else(|| home.join(".config"));
+        let named = std::fs::read_to_string(config.join("user-dirs.dirs")).ok().and_then(|t| xdg_download_dir(&t, &home));
+        // (a desktop without the Downloads folder says "$HOME/": the home
+        // folder itself is not a place to pour files into)
+        if let Some(p) = named.filter(|p| p.is_dir() && *p != home) {
+            return p;
+        }
+        for name in ["Téléchargements", "Downloads"] {
+            let p = home.join(name);
+            if p.is_dir() {
+                return p;
+            }
+        }
+        let p = home.join("Downloads");
+        let _ = std::fs::create_dir_all(&p);
+        p
+    })
+    .clone()
+}
+
+/// The Downloads folder named in a `user-dirs.dirs` file (xdg-user-dirs):
+/// `XDG_DOWNLOAD_DIR="$HOME/Téléchargements"` or an absolute path, with
+/// `\"` and `\\` for a quote and a backslash in the name.
+fn xdg_download_dir(text: &str, home: &Path) -> Option<PathBuf> {
+    let line = text.lines().map(str::trim).rfind(|l| l.starts_with("XDG_DOWNLOAD_DIR="))?;
+    let value = line["XDG_DOWNLOAD_DIR=".len()..].trim().strip_prefix('"')?.strip_suffix('"')?;
+    let mut plain = String::new();
+    let mut chars = value.chars();
+    while let Some(c) = chars.next() {
+        plain.push(if c == '\\' { chars.next()? } else { c });
+    }
+    if let Some(rest) = plain.strip_prefix("$HOME") {
+        return (rest.is_empty() || rest.starts_with('/')).then(|| home.join(rest.trim_start_matches('/')));
+    }
+    plain.starts_with('/').then(|| PathBuf::from(plain))
 }
 
 // (download names, the download mark: see guard.rs, testable without GTK)
@@ -183,19 +541,8 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
             };
             if let Some(path) = url.strip_prefix("file://") {
                 let path = url::Url::parse(&url).ok().and_then(|u| u.to_file_path().ok()).unwrap_or_else(|| PathBuf::from(path));
-                match std::fs::read(&path) {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        let lower = path.to_string_lossy().to_ascii_lowercase();
-                        let doc = if lower.ends_with(".html") || lower.ends_with(".htm") {
-                            html::parse_page(&text, &url, !full)
-                        } else if [".png", ".jpg", ".jpeg", ".gif", ".webp"].iter().any(|e| lower.ends_with(e)) {
-                            html::image_doc(&url, bytes.len())
-                        } else {
-                            html::plain(&text, &url)
-                        };
-                        send(Ok(Arc::new(doc)));
-                    }
+                match local_page(&path, &url, !full) {
+                    Ok(doc) => send(Ok(Arc::new(doc))),
                     Err(e) => send(Err(tf("Fichier introuvable : {}", &[&e]))),
                 }
                 return;
@@ -245,9 +592,7 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                 // Save to the downloads folder.
                 let name = resp
                     .header("Content-Disposition")
-                    .and_then(|d| d.split("filename=").nth(1))
-                    .map(|n| n.trim_matches(|c| c == '"' || c == '\'' || c == ';' || c == ' ').to_string())
-                    .filter(|n| !n.is_empty())
+                    .and_then(disposition_name)
                     .or_else(|| final_url.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).filter(|s| !s.is_empty()).map(|s| s.to_string()))
                     .unwrap_or_else(|| "telechargement".into());
                 // (a safe name, a new file: never one that was already there)
@@ -274,17 +619,30 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                     ctx.request_repaint();
                 }
                 Ok(body) => {
-                    let doc = if ctype.starts_with("text/html") || ctype.contains("xhtml") || ctype.is_empty() {
-                        html::parse_page(&body, &final_url, !full)
-                    } else {
-                        html::plain(&body, &final_url)
-                    };
+                    let doc = if ctype.starts_with("text/html") || ctype.contains("xhtml") || ctype.is_empty() { html::parse_page(&body, &final_url, !full) } else { html::plain(&body, &final_url) };
                     send(Ok(Arc::new(doc)));
                 }
                 Err(e) => send(Err(tf("La page n'a pas pu être lue : {}", &[&e]))),
             }
         })
         .ok();
+}
+
+/// A file of this computer as a page of the Light engine: a web page, a
+/// picture, or plain text (see `read_local` for what is read of it).
+fn local_page(path: &Path, url: &str, main_only: bool) -> std::io::Result<Document> {
+    let lower = path.to_string_lossy().to_ascii_lowercase();
+    if [".png", ".jpg", ".jpeg", ".gif", ".webp"].iter().any(|e| lower.ends_with(e)) {
+        // (only its size is wanted here: the picture is read when it is shown)
+        let meta = std::fs::metadata(path)?;
+        if !meta.is_file() {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+        }
+        return Ok(html::image_doc(url, meta.len() as usize));
+    }
+    let bytes = read_local(path)?;
+    let text = String::from_utf8_lossy(&bytes);
+    Ok(if lower.ends_with(".html") || lower.ends_with(".htm") { html::parse_page(&text, url, main_only) } else { html::plain(&text, url) })
 }
 
 fn describe_error(e: &ureq::Error) -> String {
@@ -309,12 +667,15 @@ pub fn fetch_image(agent: ureq::Agent, url: String, tx: Sender<NetMsg>, ctx: egu
         .spawn(move || {
             let result = (|| -> Result<egui::ColorImage, String> {
                 let bytes = if url.starts_with("file://") {
+                    // (a local page's own picture — a page from the network
+                    // never names one: see html.rs — read as far as one from
+                    // the network is)
                     let p = url::Url::parse(&url).ok().and_then(|u| u.to_file_path().ok()).ok_or("chemin invalide")?;
-                    std::fs::read(p).map_err(|e| e.to_string())?
+                    read_local(&p).map_err(|e| e.to_string())?
                 } else {
                     let resp = agent.get(&url).set("Accept", "image/png,image/jpeg,image/gif,image/webp,*/*;q=0.5").call().map_err(|e| e.to_string())?;
                     let mut buf = Vec::new();
-                    resp.into_reader().take(12 * 1024 * 1024).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+                    resp.into_reader().take(MAX_BODY).read_to_end(&mut buf).map_err(|e| e.to_string())?;
                     buf
                 };
                 decode_image(&bytes)
@@ -328,11 +689,7 @@ pub fn fetch_image(agent: ureq::Agent, url: String, tx: Sender<NetMsg>, ctx: egu
 pub fn decode_image(bytes: &[u8]) -> Result<egui::ColorImage, String> {
     let img = image::load_from_memory(bytes).map_err(|e| e.to_string())?;
     // Downscale big pictures right away: keeps memory use low.
-    let img = if img.width() > MAX_IMAGE_SIDE || img.height() > MAX_IMAGE_SIDE {
-        img.thumbnail(MAX_IMAGE_SIDE, MAX_IMAGE_SIDE)
-    } else {
-        img
-    };
+    let img = if img.width() > MAX_IMAGE_SIDE || img.height() > MAX_IMAGE_SIDE { img.thumbnail(MAX_IMAGE_SIDE, MAX_IMAGE_SIDE) } else { img };
     let rgba = img.to_rgba8();
     let size = [rgba.width() as usize, rgba.height() as usize];
     Ok(egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()))
@@ -349,11 +706,7 @@ pub fn memory_used() -> Option<u64> {
                 return kb * 1024;
             }
         }
-        std::fs::read_to_string(format!("/proc/{pid}/statm"))
-            .ok()
-            .and_then(|s| s.split_whitespace().nth(1).and_then(|p| p.parse::<u64>().ok()))
-            .unwrap_or(0)
-            * 4096
+        std::fs::read_to_string(format!("/proc/{pid}/statm")).ok().and_then(|s| s.split_whitespace().nth(1).and_then(|p| p.parse::<u64>().ok())).unwrap_or(0) * 4096
     };
     let me = std::process::id();
     let mut parents: Vec<(u32, u32)> = Vec::new();
@@ -424,10 +777,8 @@ pub struct Process {
 
 /// (start time, number as seen from inside its sandbox) of a process.
 fn process_identity(pid: u32) -> (u64, u32) {
-    let start = std::fs::read_to_string(format!("/proc/{pid}/stat"))
-        .ok()
-        .and_then(|s| s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(19).and_then(|v| v.parse::<u64>().ok())))
-        .unwrap_or(0);
+    let start =
+        std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|s| s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(19).and_then(|v| v.parse::<u64>().ok()))).unwrap_or(0);
     // "NSpid: 15700 2": its number in each nested set of processes, innermost last
     let inner = std::fs::read_to_string(format!("/proc/{pid}/status"))
         .ok()
@@ -540,6 +891,105 @@ pub fn human_bytes(b: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn this_computer_is_asked_without_a_proxy() {
+        for local in ["http://localhost:11434/api", "http://LOCALHOST/", "http://app.localhost:3000/", "http://127.0.0.1:8080/", "http://127.8.9.1/", "http://[::1]:8000/"] {
+            assert!(on_this_computer(local), "{local}");
+        }
+        for far in ["https://example.org/", "http://localhost.example.org/", "http://192.168.1.10/", "http://10.0.0.1/", "not an address"] {
+            assert!(!on_this_computer(far), "{far}");
+        }
+    }
+
+    #[test]
+    fn the_downloads_folder_is_the_one_the_desktop_names() {
+        let home = Path::new("/home/awa");
+        let dir = |t: &str| xdg_download_dir(t, home);
+        assert_eq!(dir("# comment\nXDG_DESKTOP_DIR=\"$HOME/Bureau\"\nXDG_DOWNLOAD_DIR=\"$HOME/Téléchargements\"\n"), Some(PathBuf::from("/home/awa/Téléchargements")));
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"/data/Reçus\""), Some(PathBuf::from("/data/Reçus")));
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"$HOME/My \\\"big\\\" files\""), Some(PathBuf::from("/home/awa/My \"big\" files")));
+        // the home folder itself (no Downloads folder on that desktop)
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"$HOME/\""), Some(PathBuf::from("/home/awa")));
+        // not a path Sanaga can use: another variable, a relative path, no quotes
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"$HOMEWORK/x\""), None);
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"Downloads\""), None);
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=$HOME/Downloads"), None);
+        assert_eq!(dir("XDG_MUSIC_DIR=\"$HOME/Musique\""), None);
+    }
+
+    #[test]
+    fn versions_are_compared_as_numbers() {
+        assert!(super::is_newer("0.5.0", "0.4.0"));
+        assert!(super::is_newer("0.10.0", "0.9.2"));
+        assert!(super::is_newer("1.0", "0.99.99"));
+        assert!(super::is_newer("0.4.1", "0.4"));
+        assert!(!super::is_newer("0.4.0", "0.4.0"));
+        assert!(!super::is_newer("0.3.9", "0.4.0"));
+        assert!(!super::is_newer("", "0.4.0"));
+    }
+
+    #[test]
+    fn a_downloads_name_is_read_from_its_header() {
+        let name = |header: &str| disposition_name(header).map(|n| safe_download_name(&n));
+        // both forms, as servers send them: one name, not the rest of the header
+        assert_eq!(name("attachment; filename=\"rapport.pdf\"; filename*=UTF-8''rapport.pdf").as_deref(), Some("rapport.pdf"));
+        assert_eq!(disposition_name("attachment; filename=\"rapport.pdf\"; size=3").as_deref(), Some("rapport.pdf"));
+        // the encoded form first, wherever it is, names in any case
+        assert_eq!(name("attachment; filename=\"Recu n1.pdf\"; filename*=UTF-8''Re%C3%A7u%20n%C2%B01.pdf").as_deref(), Some("Reçu n°1.pdf"));
+        assert_eq!(name("Attachment; FileName*=utf-8'fr'%C3%A9t%C3%A9.txt; FILENAME=ete.txt").as_deref(), Some("été.txt"));
+        assert_eq!(name("attachment; filename*=ISO-8859-1''Re%E7u%20100%25.pdf").as_deref(), Some("Reçu 100%.pdf"));
+        // a charset Sanaga does not read: the plain name
+        assert_eq!(name("attachment; filename*=koi8-r''%D2.txt; filename=r.txt").as_deref(), Some("r.txt"));
+        assert_eq!(name("attachment; filename*=UTF-8''; filename=r.txt").as_deref(), Some("r.txt"));
+        // quotes: a `;` and an escaped quote inside, spaces around
+        assert_eq!(disposition_name("attachment; filename = \"a;b \\\"c\\\".pdf\" ; x=y").as_deref(), Some("a;b \"c\".pdf"));
+        assert_eq!(disposition_name("attachment;filename=plain.txt").as_deref(), Some("plain.txt"));
+        assert_eq!(disposition_name("attachment; filename='quoted.txt'").as_deref(), Some("quoted.txt"));
+        assert_eq!(disposition_name("filename=\"sans-type.txt\"").as_deref(), Some("sans-type.txt"));
+        // no name
+        for none in ["attachment", "inline", "", "attachment; filename=", "attachment; filename=\"\"", "attachment; filename*=UTF-8''", "attachment; name=x"] {
+            assert_eq!(disposition_name(none), None, "{none}");
+        }
+        // whatever the name says, it stays a name in the Downloads folder
+        assert_eq!(name("attachment; filename=\"..%2F..%2F.config%2Fautostart%2Fevil.desktop\"").as_deref(), Some("evil.desktop.download"));
+        assert_eq!(name("attachment; filename*=UTF-8''..%2F..%2Fevil.desktop").as_deref(), Some("evil.desktop.download"));
+        assert_eq!(name("attachment; filename=\"/etc/passwd\"").as_deref(), Some("passwd"));
+        // odd headers never crash the reader
+        crate::mutate::run(&[b"attachment; filename=\"a;b.pdf\"; filename*=UTF-8''a%20b.pdf".as_slice()], 3000, |data| {
+            let _ = disposition_name(&String::from_utf8_lossy(data));
+        });
+    }
+
+    #[test]
+    fn local_files_are_read_as_far_as_the_networks() {
+        let dir = std::env::temp_dir().join(format!("sanaga-net-local-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // what never ends, what never answers, what is not a file: refused
+        assert!(read_local(Path::new("/dev/zero")).is_err());
+        let zero = dir.join("zero.png");
+        std::os::unix::fs::symlink("/dev/zero", &zero).unwrap();
+        assert!(read_local(&zero).is_err());
+        assert!(local_page(&zero, "file:///x/zero.png", true).is_err());
+        assert!(local_page(Path::new("/dev/zero"), "file:///dev/zero", true).is_err());
+        assert!(read_local(&dir).is_err());
+        if std::process::Command::new("mkfifo").arg(dir.join("pipe.txt")).status().is_ok_and(|s| s.success()) {
+            assert!(read_local(&dir.join("pipe.txt")).is_err());
+        }
+        // a file bigger than a page may be: its start
+        let big = dir.join("big.txt");
+        std::fs::File::create(&big).unwrap().set_len(MAX_BODY + 4096).unwrap();
+        assert_eq!(read_local(&big).unwrap().len() as u64, MAX_BODY);
+        // ordinary files, as before
+        std::fs::write(dir.join("a.html"), "<title>Local</title><p>Bonjour<img src=photo.png>").unwrap();
+        let doc = local_page(&dir.join("a.html"), "file:///x/a.html", false).unwrap();
+        assert_eq!(doc.title, "Local");
+        std::fs::write(dir.join("photo.png"), [0u8; 10]).unwrap();
+        assert_eq!(local_page(&dir.join("photo.png"), "file:///x/photo.png", false).unwrap().bytes, 10);
+        assert!(local_page(&dir.join("missing.txt"), "file:///x/missing.txt", false).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn requests_trust_the_systems_certificates() {

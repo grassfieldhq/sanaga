@@ -13,6 +13,107 @@ use crate::icons::{self, Icon};
 use crate::store;
 use eframe::egui::{Align, Align2, Color32, CursorIcon, Layout, Margin, Pos2, RichText, ScrollArea, Sense, TextEdit, UiBuilder};
 
+/// What a read of the disk gave, kept. Settings and Sanaga's other pages
+/// are drawn again at every frame: reading the extensions folder, the
+/// profiles or the crash reports each time opened dozens of files sixty
+/// times a second while the pointer moved over the page. Read once
+/// instead, on a thread (a folder may be slow), and again when what is
+/// there may have changed: Sanaga changed it (`changed`), the page that
+/// shows it has just been opened, or the window has just come back to the
+/// front — the person may have added a file with another program
+/// meanwhile. While a new read is under way the last answer shows.
+pub(super) struct Kept<T> {
+    value: Option<std::rc::Rc<T>>,
+    /// A read is under way, since then.
+    reading: Option<std::time::Instant>,
+    /// What is on the disk may have changed after the last read began.
+    stale: bool,
+}
+
+impl<T> Kept<T> {
+    /// A read whose answer never came (its window closed meanwhile) is started again.
+    const LOST: std::time::Duration = std::time::Duration::from_secs(10);
+
+    pub(super) const fn new() -> Self {
+        Kept { value: None, reading: None, stale: false }
+    }
+
+    /// What is on the disk has changed (an extension installed, a report
+    /// deleted, a profile made): the next look reads it again.
+    pub(super) fn changed(&mut self) {
+        self.stale = true;
+    }
+
+    /// The answer kept (None before the first), and whether a read must be
+    /// started now — the caller starts it and hands its answer to `set`.
+    /// `again`: the one who looks was away (see `Sanaga::looks_again`).
+    pub(super) fn look(&mut self, again: bool) -> (Option<std::rc::Rc<T>>, bool) {
+        self.look_at(again, std::time::Instant::now())
+    }
+
+    fn look_at(&mut self, again: bool, now: std::time::Instant) -> (Option<std::rc::Rc<T>>, bool) {
+        self.stale |= again;
+        let reading = self.reading.is_some_and(|t| now.duration_since(t) < Self::LOST);
+        let start = (self.value.is_none() || self.stale) && !reading;
+        if start {
+            self.reading = Some(now);
+            self.stale = false;
+        }
+        (self.value.clone(), start)
+    }
+
+    pub(super) fn set(&mut self, value: T) {
+        self.value = Some(std::rc::Rc::new(value));
+        self.reading = None;
+    }
+}
+
+thread_local! {
+    /// The extensions (the built-in ones and the files of the extensions
+    /// folder, read whole): shown by Settings and by the Extensions page.
+    static EXTENSIONS: std::cell::RefCell<Kept<Vec<crate::extensions::Extension>>> = const { std::cell::RefCell::new(Kept::new()) };
+}
+
+/// An extension's file was written or removed by Sanaga.
+pub(super) fn extensions_changed() {
+    EXTENSIONS.with(|k| k.borrow_mut().changed());
+}
+
+impl Sanaga {
+    /// Is `what` (a kept read, named by its place in memory) looked at
+    /// afresh in this window: it was not asked for at the frame before
+    /// (its page has just been opened), or the window has just come back
+    /// to the front?
+    pub(super) fn looks_again(&self, what: usize) -> bool {
+        let pass = self.ctx.cumulative_pass_nr();
+        let id = egui::Id::new(("kept-seen", what));
+        let before: Option<u64> = self.ctx.data_mut(|d| {
+            let before = d.get_temp(id);
+            d.insert_temp(id, pass);
+            before
+        });
+        let opened = before.is_none_or(|b| pass > b + 1);
+        opened || self.ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(true))))
+    }
+
+    /// The kept answer of `read` — a read of the disk, run on a thread when
+    /// it has to be made (again). None until the first answer is back.
+    pub(super) fn kept<T: Send + 'static>(&self, slot: &'static std::thread::LocalKey<std::cell::RefCell<Kept<T>>>, read: fn() -> T) -> Option<std::rc::Rc<T>> {
+        let again = self.looks_again(slot as *const _ as usize);
+        let (value, start) = slot.with(|k| k.borrow_mut().look(again));
+        if start {
+            self.off_thread(read, move |_, answer| slot.with(|k| k.borrow_mut().set(answer)));
+        }
+        value
+    }
+
+    /// The extensions, as last read (none until the first read is back, a
+    /// frame or two after a page that lists them opens).
+    pub(super) fn extensions_kept(&self) -> std::rc::Rc<Vec<crate::extensions::Extension>> {
+        self.kept(&EXTENSIONS, crate::extensions::all).unwrap_or_default()
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum Section {
     General,
@@ -343,7 +444,11 @@ impl Rows<'_> {
             ui.data_mut(|d| d.insert_temp(id, used));
             ui.ctx().request_repaint();
         }
-        if click { resp.on_hover_cursor(CursorIcon::PointingHand) } else { resp }
+        if click {
+            resp.on_hover_cursor(CursorIcon::PointingHand)
+        } else {
+            resp
+        }
     }
 
     /// The next row opens a page: it is also found by what that page holds
@@ -416,7 +521,8 @@ fn switch_with(ui: &mut Ui, th: &Theme, on: &mut bool, tab_stop: bool) -> bool {
     let (r, resp) = ui.allocate_exact_size(vec2(38.0, 22.0), if tab_stop { Sense::click() } else { Sense::CLICK });
     focus_ring(ui, &resp, r.expand(2.0), 13.0, th);
     resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::CheckBox, true, *on, ""));
-    let t = ui.ctx().animate_bool_with_time(resp.id, *on, 0.14);
+    // (no slide when the system asks for no animations: see `power_step`)
+    let t = ui.ctx().animate_bool_with_time(resp.id, *on, if ui.style().animation_time == 0.0 { 0.0 } else { 0.14 });
     // (off: a grey that shows on the card in the light and the dark look —
     // the track's own colour is the card's in the dark, and left the knob
     // floating alone)
@@ -514,6 +620,31 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32, password: bool
     ui.add(TextEdit::singleline(value).hint_text(hint).desired_width(width).password(password)).changed()
 }
 
+/// A text field that counts once it is finished: what is typed stays a
+/// draft until the field is left or Enter is pressed, and only then becomes
+/// the value (true: it changed). Typed straight into the setting, a path
+/// being written was already "the sync folder" for the round that runs
+/// every half minute.
+fn finished_field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> bool {
+    let draft_id = ui.id().with(("draft", hint));
+    let mut draft: String = ui.data(|d| d.get_temp::<String>(draft_id)).unwrap_or_else(|| value.clone());
+    let r = ui.add(TextEdit::singleline(&mut draft).hint_text(hint).desired_width(width));
+    if r.lost_focus() {
+        ui.data_mut(|d| d.remove_temp::<String>(draft_id));
+        if draft != *value {
+            *value = draft;
+            return true;
+        }
+    } else if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(draft_id, draft));
+    } else {
+        // (left without a word — the page was closed while typing: the
+        // draft is dropped, the field shows the value again)
+        ui.data_mut(|d| d.remove_temp::<String>(draft_id));
+    }
+    false
+}
+
 /// A choice drawn as a small picture of the window (where the tabs and the
 /// address bar go). `tabs`: 0 top, 1 bottom, 2 left, 3 right, 9 not shown;
 /// `bar`: 0 top, 1 bottom, 2 floating, 9 not shown.
@@ -525,7 +656,21 @@ pub(super) fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar:
     let pic = Rect::from_min_size(r.min + vec2(4.0, 4.0), vec2(92.0, 58.0));
     let p = ui.painter();
     p.rect_filled(pic, CornerRadius::same(8), th.page);
-    p.rect_stroke(pic, CornerRadius::same(8), Stroke::new(if selected { 2.5 } else { 1.0 }, if selected { th.accent } else if resp.hovered() { th.sub } else { th.border }), egui::StrokeKind::Outside);
+    p.rect_stroke(
+        pic,
+        CornerRadius::same(8),
+        Stroke::new(
+            if selected { 2.5 } else { 1.0 },
+            if selected {
+                th.accent
+            } else if resp.hovered() {
+                th.sub
+            } else {
+                th.border
+            },
+        ),
+        egui::StrokeKind::Outside,
+    );
     let tabs_col = th.accent.gamma_multiply(0.55);
     let bar_col = th.sub.gamma_multiply(0.55);
     let mut area = pic.shrink(5.0);
@@ -580,6 +725,13 @@ fn xdg_default_browser(general: bool) -> String {
     cmd.output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
 }
 
+/// This computer's name, as the sync shows it. Read once: its file was
+/// opened at every frame of the Sync settings.
+fn this_computer() -> &'static String {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(crate::sync::device_name)
+}
+
 fn default_browser_is_sanaga() -> bool {
     // Omarchy says itself which browser its routing entry opens
     if let Ok(o) = std::process::Command::new("omarchy-cmd-default-browser").output() {
@@ -605,6 +757,8 @@ fn launcher_installed() -> bool {
 enum Act {
     Go(&'static str),
     MakeDefault,
+    /// Choose the folder downloads go to (the system's folder window).
+    ChooseDownloadDir,
     ClearHistory,
     SyncNow,
     /// Set the sync folder's secret phrase (true) or forget it here (false).
@@ -752,7 +906,12 @@ impl Sanaga {
                 if enabled && resp.hovered() {
                     ui.painter().circle_filled(r.center(), 13.0, th.track);
                 }
-                icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(13.0, 13.0)), if k == 0 { Icon::Back } else { Icon::Forward }, if enabled { th.text } else { th.sub.gamma_multiply(0.45) });
+                icons::paint(
+                    ui.painter(),
+                    Rect::from_center_size(r.center(), vec2(13.0, 13.0)),
+                    if k == 0 { Icon::Back } else { Icon::Forward },
+                    if enabled { th.text } else { th.sub.gamma_multiply(0.45) },
+                );
                 let resp = resp.tip(if k == 0 { tr("Précédent") } else { tr("Suivant") });
                 if resp.clicked() {
                     if k == 0 {
@@ -876,6 +1035,8 @@ impl Sanaga {
 
     fn settings_content(&mut self, ui: &mut Ui, th: &Theme, acts: &mut Vec<Act>) {
         let mut changed = false;
+        // (the sync folder's field was finished: Enter, or the field left)
+        let mut sync_dir_set = false;
         let web_ok = self.web_ok;
         let sync = self.sync_status.clone();
         let profile = if self.store.profile.is_empty() { tr("Personnel").to_string() } else { self.store.profile.clone() };
@@ -908,7 +1069,7 @@ impl Sanaga {
         let login_list = self.store.logins.clone();
         let permissions = self.store.permissions.clone();
         let identities = self.store.identities.clone();
-        let extensions = crate::extensions::all();
+        let extensions = self.extensions_kept();
         let ext_on = self.store.extensions_on.clone();
         let mobile_on = self.tb("mobile");
         let confirm_key = egui::Id::new("settings-confirm-delete");
@@ -919,7 +1080,8 @@ impl Sanaga {
         site_words.sort();
         site_words.dedup();
         let account_words: Vec<String> = login_list.iter().map(|(site, user)| format!("{} {user}", host_of(site))).collect();
-        let profile_words = Store::profiles();
+        // (the other profiles' folder names; the first of the list is the main profile)
+        let profile_words: Vec<String> = self.profiles_kept().iter().skip(1).map(|p| p.key.clone()).collect();
         let restorable = self.store.settings.differs_from_origin(self.settings_section.slug());
         let now = ui.input(|i| i.time);
         let confirm_clear = self.settings_confirm.is_some_and(|t| now - t < 4.0);
@@ -987,6 +1149,67 @@ impl Sanaga {
                 if rows.link(ui, tr("Revoir la présentation de Sanaga"), tr("Les premiers réglages, pas à pas"), "") {
                     acts.push(Act::Onboarding);
                 }
+            });
+        }
+
+        if show.shows(Section::General, tr("Téléchargements"), &[tr("Dossier des téléchargements"), tr("Toujours demander où enregistrer les fichiers")]) {
+            any = true;
+            // (what is shown costs no look at the disk at every frame: the
+            // folder chosen as it was chosen, else the system's, found once)
+            let folder = if st.download_dir.trim().is_empty() { crate::net::system_download_dir().to_string_lossy().to_string() } else { st.download_dir.clone() };
+            group(ui, th, tr("Téléchargements"), |ui, rows| {
+                rows.row(ui, tr("Dossier des téléchargements"), &folder, false, |ui| {
+                    // (right to left: the button to choose comes last)
+                    if !st.download_dir.is_empty() && ui.button(tr("Dossier du système")).clicked() {
+                        st.download_dir.clear();
+                        changed = true;
+                    }
+                    if ui.button(tr("Choisir…")).clicked() {
+                        acts.push(Act::ChooseDownloadDir);
+                    }
+                });
+                changed |= rows.switch(ui, tr("Toujours demander où enregistrer les fichiers"), "", &mut st.download_ask);
+            });
+        }
+        if show.shows(Section::General, tr("Réseau"), &[tr("Proxy"), tr("Mises à jour"), tr("Chercher une nouvelle version une fois par jour")]) {
+            any = true;
+            // (0 the system's, 1 none, 2 an address; the address field shows
+            // as soon as "an address" is chosen, before anything is typed)
+            let custom_id = egui::Id::new("settings-proxy-custom");
+            let custom_open = ui.data(|d| d.get_temp::<bool>(custom_id)).unwrap_or(false);
+            let mode = match st.proxy.trim() {
+                "" if custom_open => 2u8,
+                "" => 0,
+                "none" => 1,
+                _ => 2,
+            };
+            let wrong = crate::guard::proxy_choice(&st.proxy).is_none();
+            group(ui, th, tr("Réseau"), |ui, rows| {
+                rows.row(ui, tr("Proxy"), tr("Par où passent les pages et les demandes de Sanaga"), false, |ui| {
+                    if let Some(m) = popup(ui, "proxy", mode, &[(0u8, tr("Celui du système")), (1, tr("Aucun (connexion directe)")), (2, tr("Une adresse"))]) {
+                        ui.data_mut(|d| d.insert_temp(custom_id, m == 2));
+                        let before = st.proxy.clone();
+                        match m {
+                            0 => st.proxy.clear(),
+                            1 => st.proxy = "none".into(),
+                            // (the address typed before, if there was one)
+                            _ if mode != 2 => st.proxy.clear(),
+                            _ => {}
+                        }
+                        changed |= st.proxy != before;
+                    }
+                });
+                if mode == 2 {
+                    rows.row(ui, tr("Adresse du proxy"), if wrong { tr("Cette adresse n'est pas celle d'un proxy : rien ne part tant qu'elle n'est pas corrigée.") } else { "" }, false, |ui| {
+                        changed |= finished_field(ui, &mut st.proxy, "socks5://127.0.0.1:9050", 240.0);
+                    });
+                }
+                changed |= rows.switch(
+                    ui,
+                    tr("Chercher une nouvelle version une fois par jour"),
+                    tr("Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul"),
+                    &mut st.update_check,
+                );
             });
         }
 
@@ -1190,10 +1413,21 @@ impl Sanaga {
                         changed = true;
                     }
                 }
-                changed |= rows.switch(ui, tr("Proposer de traduire les pages dans une autre langue"), tr("Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord"), &mut st.translate_offer);
+                changed |= rows.switch(
+                    ui,
+                    tr("Proposer de traduire les pages dans une autre langue"),
+                    tr("Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord"),
+                    &mut st.translate_offer,
+                );
                 rows.row(ui, tr("Traduire vers"), "", false, |ui| {
                     let ctx = ui.ctx().clone();
-                    let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&super::translate::shown_name(&ctx, super::translate::target("").2)]) } else { super::translate::shown_name(&ctx, super::translate::target(code).2) };
+                    let label = |code: &str| {
+                        if code.is_empty() {
+                            tf("Langue de Sanaga ({})", &[&super::translate::shown_name(&ctx, super::translate::target("").2)])
+                        } else {
+                            super::translate::shown_name(&ctx, super::translate::target(code).2)
+                        }
+                    };
                     egui::ComboBox::from_id_salt("translate-to").selected_text(label(&st.translate_to)).width(220.0).show_ui(ui, |ui| {
                         if ui.selectable_label(st.translate_to.is_empty(), label("")).clicked() && !st.translate_to.is_empty() {
                             st.translate_to.clear();
@@ -1218,12 +1452,72 @@ impl Sanaga {
         }
 
         // ---------------- Privacy ----------------
-        if show.shows(Section::Privacy, tr("Suivi"), &[tr("Bloquer les publicités et les traceurs"), tr("Empêcher le suivi intersites"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")]) {
+        if show.shows(
+            Section::Privacy,
+            tr("Suivi"),
+            &[
+                tr("Bloquer les publicités et les traceurs"),
+                tr("Empêcher le suivi intersites"),
+                tr("HTTPS d'abord"),
+                tr("Avertir avant un site dangereux"),
+                tr("Effacer les données"),
+                tr("Paramètres des sites"),
+                tr("Sécurité"),
+            ],
+        ) {
             any = true;
             group(ui, th, "", |ui, rows| {
                 changed |= rows.switch(ui, tr("Bloquer les publicités et les traceurs"), tr("Les demandes vers les régies publicitaires et les traceurs ne partent jamais"), &mut st.blocker);
-                changed |= rows.switch(ui, tr("Listes de blocage complètes"), tr("EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)"), &mut st.block_lists);
+                changed |=
+                    rows.switch(ui, tr("Listes de blocage complètes"), tr("EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)"), &mut st.block_lists);
                 changed |= rows.switch(ui, tr("Empêcher le suivi intersites"), "", &mut st.itp);
+                changed |= rows.switch(
+                    ui,
+                    tr("Avertir avant un site dangereux"),
+                    tr("Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée"),
+                    &mut st.safe_sites,
+                );
+                // (encrypted DNS: off, one of the resolvers offered, or an address)
+                let dns_custom_id = egui::Id::new("settings-doh-custom");
+                let dns_custom_open = ui.data(|d| d.get_temp::<bool>(dns_custom_id)).unwrap_or(false);
+                let known = crate::doh::RESOLVERS.iter().position(|r| r.1 == st.doh.trim());
+                let dns_mode: usize = match (st.doh.trim(), known) {
+                    ("", _) if dns_custom_open => 99,
+                    ("", _) => 0,
+                    (_, Some(k)) => k + 1,
+                    _ => 99,
+                };
+                let dns_note = if st.doh.trim().is_empty() {
+                    tr("Le nom des sites visités est demandé en clair au réseau (le DNS du système)")
+                } else if !crate::doh::usable(&st.doh) {
+                    tr("Cette adresse n'est pas celle d'un résolveur (https://…) : le DNS du système est utilisé.")
+                } else if !crate::net::goes_direct() {
+                    tr("Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.")
+                } else {
+                    tr("Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau")
+                };
+                rows.row(ui, tr("DNS chiffré"), dns_note, false, |ui| {
+                    let mut options: Vec<(usize, &str)> = vec![(0, tr("Désactivé"))];
+                    options.extend(crate::doh::RESOLVERS.iter().enumerate().map(|(k, r)| (k + 1, r.0)));
+                    options.push((99, tr("Une adresse")));
+                    if let Some(m) = popup(ui, "doh", dns_mode, &options) {
+                        ui.data_mut(|d| d.insert_temp(dns_custom_id, m == 99));
+                        let before = st.doh.clone();
+                        match m {
+                            0 => st.doh.clear(),
+                            99 if dns_mode != 99 => st.doh.clear(),
+                            99 => {}
+                            k => st.doh = crate::doh::RESOLVERS[k - 1].1.to_string(),
+                        }
+                        changed |= st.doh != before;
+                    }
+                });
+                if dns_mode == 99 {
+                    rows.row(ui, tr("Adresse du résolveur"), "", false, |ui| {
+                        changed |= finished_field(ui, &mut st.doh, "https://dns.example/dns-query", 260.0);
+                    });
+                }
+                changed |= rows.switch(ui, tr("HTTPS d'abord"), tr("Les sites sont demandés en https ; en http seulement s'ils n'ont pas https"), &mut st.https_first);
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });
             footnote(ui, th, tr("Les traceurs publicitaires ne peuvent plus vous suivre d'un site à l'autre (comme dans Safari). Le Rapport de confidentialité de la page d'accueil montre ceux qui ont été tenus à l'écart. S'applique aux nouveaux onglets."));
@@ -1262,7 +1556,14 @@ impl Sanaga {
             });
             footnote(ui, th, tr("Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site."));
             group(ui, th, tr("Données de navigation"), |ui, rows| {
-                let clear_words = [tr("Période"), tr("Historique de navigation et téléchargements"), tr("Cookies et données des sites (vous serez déconnecté de la plupart des sites)"), tr("Images et fichiers en cache"), tr("La dernière heure"), tr("Depuis toujours")];
+                let clear_words = [
+                    tr("Période"),
+                    tr("Historique de navigation et téléchargements"),
+                    tr("Cookies et données des sites (vous serez déconnecté de la plupart des sites)"),
+                    tr("Images et fichiers en cache"),
+                    tr("La dernière heure"),
+                    tr("Depuis toujours"),
+                ];
                 if rows.reaches(&clear_words).link(ui, tr("Effacer les données"), tr("Historique, cookies, cache…"), "") {
                     acts.push(Act::Go("sanaga://clear"));
                 }
@@ -1364,7 +1665,11 @@ impl Sanaga {
                 });
                 changed |= rows.switch(ui, tr("Charger les images"), "", &mut st.images);
             });
-            footnote(ui, th, tr("Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais."));
+            footnote(
+                ui,
+                th,
+                tr("Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais."),
+            );
             group(ui, th, tr("Moteur d'affichage des pages"), |ui, rows| {
                 if rows.choice(ui, "WebKit", tr("Sites complets avec JavaScript, vidéos et applications (recommandé)"), st.webkit) && !st.webkit {
                     st.webkit = true;
@@ -1384,13 +1689,17 @@ impl Sanaga {
             let state = if !sync.error.is_empty() {
                 sync.error.clone()
             } else if let Some(t) = sync.last {
-                tf("Dernière synchronisation {} · autres appareils : {} · cet ordinateur : {}", &[&store::relative_time(t), &sync.devices.len(), &crate::sync::device_name()])
+                tf("Dernière synchronisation {} · autres appareils : {} · cet ordinateur : {}", &[&store::relative_time(t), &sync.devices.len(), this_computer()])
             } else {
                 tr("Désactivée").to_string()
             };
             group(ui, th, "", |ui, rows| {
                 rows.row(ui, tr("Dossier partagé"), "", false, |ui| {
-                    changed |= field(ui, &mut st.sync_dir, "/home/vous/Nextcloud", 260.0, false);
+                    // (the folder counts once its path is finished: at
+                    // every letter typed a round started with the path so
+                    // far — typing /home/me/Nextcloud synced into /home/me)
+                    sync_dir_set = finished_field(ui, &mut st.sync_dir, "/home/vous/Nextcloud", 260.0);
+                    changed |= sync_dir_set;
                 });
                 if rows.action(ui, tr("Synchroniser maintenant"), &state, tr("Synchroniser")) {
                     acts.push(Act::SyncNow);
@@ -1437,7 +1746,7 @@ impl Sanaga {
                 if rows.switch(ui, tr("Simulateur mobile"), tr("Intégrée à Sanaga"), &mut m) {
                     acts.push(Act::ToggleMobile);
                 }
-                for e in &extensions {
+                for e in extensions.iter() {
                     let mut on = ext_on.contains(&e.id);
                     let sub = if e.builtin { tr("Intégrée à Sanaga").to_string() } else { e.description.clone() };
                     let id = e.id.clone();
@@ -1525,8 +1834,10 @@ impl Sanaga {
                         changed_more = true;
                     }
                 });
-                changed_more |= rows.switch(ui, tr("Toujours afficher les URL en entier"), tr("Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome"), &mut st.full_urls);
-                changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
+                changed_more |=
+                    rows.switch(ui, tr("Toujours afficher les URL en entier"), tr("Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome"), &mut st.full_urls);
+                changed_more |=
+                    rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));
             let current = self.store.settings.app_icon as usize;
@@ -1576,7 +1887,11 @@ impl Sanaga {
                 changed_more |= self.buttons_settings(ui, th);
             });
             ui.add_space(6.0);
-            footnote(ui, th, tr("Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page."));
+            footnote(
+                ui,
+                th,
+                tr("Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page."),
+            );
         }
         if show.shows(Section::Privacy, tr("Conteneurs"), &[tr("Conteneur"), tr("Comptes séparés")]) {
             any = true;
@@ -1639,7 +1954,11 @@ impl Sanaga {
             let sure = asked.is_some_and(|t| now - t < 5.0);
             ui.add_space(8.0);
             group(ui, th, "", |ui, rows| {
-                let sub = if sure { tr("Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.") } else { tr("Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.") };
+                let sub = if sure {
+                    tr("Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.")
+                } else {
+                    tr("Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.")
+                };
                 if rows.action(ui, &tf("Rétablir les réglages d'origine : {}", &[&section.label()]), sub, if sure { tr("Confirmer") } else { tr("Rétablir") }) {
                     if sure {
                         ui.ctx().data_mut(|d| d.remove::<f64>(confirm_id));
@@ -1666,8 +1985,11 @@ impl Sanaga {
             crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
             // (switched on: the lists are loaded, or fetched if there are none yet)
             crate::page::prepare_lists();
+            self.apply_network_settings();
             self.store.save_settings();
-            if !self.store.settings.sync_dir.trim().is_empty() {
+            // (a round right away for a folder just given; the other
+            // settings have nothing to do with it)
+            if sync_dir_set && !self.store.settings.sync_dir.trim().is_empty() {
                 acts.push(Act::SyncNow);
             }
         }
@@ -1685,12 +2007,28 @@ impl Sanaga {
                     self.notice = Some((tr("Historique effacé.").into(), self.ctx.input(|i| i.time)));
                 }
                 Act::SyncNow => self.sync_now(),
+                Act::ChooseDownloadDir => {
+                    // (the window does not wait: the answer comes back as a
+                    // job, like the work done on other threads)
+                    let (tx, ctx) = (self.jobs_tx.clone(), self.ctx.clone());
+                    crate::shell::folder_dialog(tr("Dossier des téléchargements"), Some(&crate::net::download_dir()), move |chosen| {
+                        let Some(dir) = chosen else { return };
+                        let job: super::Job = Box::new(move |app: &mut Sanaga| {
+                            app.store.settings.download_dir = dir.to_string_lossy().to_string();
+                            app.apply_network_settings();
+                            app.store.save_settings();
+                        });
+                        let _ = tx.send(job);
+                        ctx.request_repaint();
+                    });
+                }
                 Act::Restore(sec) => {
                     if self.store.settings.restore(sec.slug()) {
                         // (applied like any change made by hand)
                         crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
                         crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
                         crate::page::prepare_lists();
+                        self.apply_network_settings();
                         self.applied_dark = None;
                         self.store.save_settings();
                         self.say(&tf("Réglages d'origine rétablis : {}.", &[&sec.label()]));
@@ -1781,6 +2119,7 @@ impl Sanaga {
         let now = self.ctx.input(|i| i.time);
         match crate::webext::install(&path) {
             Ok((name, id)) => {
+                extensions_changed();
                 // installed switched off: the person reads what it would do
                 // (sites, code) on the Extensions page, then turns it on
                 self.ext_review = Some(id);
@@ -1809,9 +2148,7 @@ impl Sanaga {
             || {
                 // 1. the general list (~/.config/mimeapps.list): what every desktop
                 //    reads, and where Omarchy's routing entry looks for the browser
-                let general = |program: &str, args: &[&str]| {
-                    std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
-                };
+                let general = |program: &str, args: &[&str]| std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success());
                 general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
                 // web links and HTML files
                 general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);
@@ -1833,6 +2170,39 @@ impl Sanaga {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_was_read_is_kept_until_it_may_have_changed() {
+        use std::time::{Duration, Instant};
+        let t0 = Instant::now();
+        let at = |ms: u64| t0 + Duration::from_millis(ms);
+        let mut k: Kept<u32> = Kept::new();
+        // the first look starts the read; the next frames wait for it
+        assert_eq!(k.look_at(true, at(0)), (None, true));
+        assert_eq!(k.look_at(false, at(16)), (None, false));
+        k.set(7);
+        // then every frame gets the answer, and nothing is read
+        for frame in 2..200 {
+            let (v, read) = k.look_at(false, at(frame * 16));
+            assert_eq!((v.as_deref(), read), (Some(&7), false));
+        }
+        // Sanaga changed what is there: read again, the old answer showing meanwhile
+        k.changed();
+        let (v, read) = k.look_at(false, at(3300));
+        assert_eq!((v.as_deref(), read), (Some(&7), true));
+        assert!(!k.look_at(false, at(3316)).1);
+        // (a change during the read is not lost)
+        k.changed();
+        k.set(8);
+        assert!(k.look_at(false, at(3332)).1);
+        k.set(9);
+        assert_eq!(k.look_at(false, at(3348)), (Some(std::rc::Rc::new(9)), false));
+        // the page is opened again, or the window comes back: read again
+        assert!(k.look_at(true, at(9000)).1);
+        // an answer that never comes back does not block the next reads for ever
+        assert!(!k.look_at(true, at(9100)).1);
+        assert!(k.look_at(false, at(9000 + 10_500)).1);
+    }
 
     #[test]
     fn searching_ignores_accents_and_capitals() {

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Looks for lag: starts the real window on a heavy profile (5 000 visits,
+# Looks for lag: starts the real window on a heavy profile (50 000 visits,
 # 400 favourites, 80 tabs, 200 saved accounts), with the system's helper
 # programs made slow (the keyring, xdg-settings… each take 2 s, as on a
 # busy or half-configured system), walks through Sanaga's features, and
@@ -30,7 +30,9 @@ data="$work/data/sanaga"
 mkdir -p "$data" "$work/slow" "$work/sync"
 
 # --- a heavy profile
-awk 'BEGIN { for (i = 0; i < 5000; i++) printf "%d\thttps://site%d.example/page/%d?q=%d\tPage %d of site %d — a fairly long title, as real ones are\n", 1760000000 + i * 60, i % 300, i, i, i, i % 300 }' > "$data/history.tsv"
+# (the history as earlier versions wrote it: taken into history.db at the
+# first start; 50,000 visits, ten times what was kept before)
+awk 'BEGIN { for (i = 0; i < 50000; i++) printf "%d\thttps://site%d.example/page/%d?q=%d\tPage %d of site %d — a fairly long title, as real ones are\n", 1760000000 + i * 60, i % 300, i, i, i, i % 300 }' > "$data/history.tsv"
 awk 'BEGIN { for (i = 0; i < 400; i++) printf "https://favourite%d.example/\tFavourite number %d\n", i, i }' > "$data/bookmarks.tsv"
 awk 'BEGIN { for (i = 0; i < 200; i++) printf "https://read%d.example/article\tArticle to read %d\n", i, i }' > "$data/reading.tsv"
 awk 'BEGIN { for (i = 0; i < 200; i++) printf "https://login%d.example\tuser%d@example.com\n", i, i }' > "$data/logins.tsv"

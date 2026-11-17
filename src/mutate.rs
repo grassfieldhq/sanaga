@@ -6,9 +6,60 @@
 
 /// Pieces that readers of HTML, JSON, filter lists and archives trip over.
 const TOKENS: &[&[u8]] = &[
-    b"<", b">", b"</", b"<!--", b"-->", b"<script>", b"</script>", b"<a href=", b"&", b"&#", b"&#x", b";", b"\"", b"'", b"\\", b"\\u", b"{", b"}", b"[", b"]", b":", b",", b"/*", b"*/", b"//",
-    b"||", b"^", b"$", b"@@", b"|", b"*", b"domain=", b"~", b"##", b"\n", b"\r\n", b"\t", b"\0", b"\xff", b"\xfe\xff", b"\xef\xbb\xbf", b"\xf0\x9f\x91\x8d", b"\xc3", b"PK\x03\x04", b"PK\x01\x02",
-    b"PK\x05\x06", b"\xff\xff\xff\xff", b"\x00\x00\x00\x80", b"__MSG_", b"content_scripts", b"manifest.json", b"-1", b"1e999", b"99999999999999999999",
+    b"<",
+    b">",
+    b"</",
+    b"<!--",
+    b"-->",
+    b"<script>",
+    b"</script>",
+    b"<a href=",
+    b"&",
+    b"&#",
+    b"&#x",
+    b";",
+    b"\"",
+    b"'",
+    b"\\",
+    b"\\u",
+    b"{",
+    b"}",
+    b"[",
+    b"]",
+    b":",
+    b",",
+    b"/*",
+    b"*/",
+    b"//",
+    b"||",
+    b"^",
+    b"$",
+    b"@@",
+    b"|",
+    b"*",
+    b"domain=",
+    b"~",
+    b"##",
+    b"\n",
+    b"\r\n",
+    b"\t",
+    b"\0",
+    b"\xff",
+    b"\xfe\xff",
+    b"\xef\xbb\xbf",
+    b"\xf0\x9f\x91\x8d",
+    b"\xc3",
+    b"PK\x03\x04",
+    b"PK\x01\x02",
+    b"PK\x05\x06",
+    b"\xff\xff\xff\xff",
+    b"\x00\x00\x00\x80",
+    b"__MSG_",
+    b"content_scripts",
+    b"manifest.json",
+    b"-1",
+    b"1e999",
+    b"99999999999999999999",
 ];
 
 /// xorshift: the same damaged inputs at every run (a failure can be found again).
@@ -22,7 +73,11 @@ impl Rng {
         self.0
     }
     fn below(&mut self, n: usize) -> usize {
-        if n == 0 { 0 } else { (self.next() >> 11) as usize % n }
+        if n == 0 {
+            0
+        } else {
+            (self.next() >> 11) as usize % n
+        }
     }
 }
 

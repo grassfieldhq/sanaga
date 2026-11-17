@@ -14,6 +14,10 @@ pub struct Theme {
     pub omnibox_hover: Color32,
     pub text: Color32,
     pub sub: Color32,
+    /// The title of a tab that is not the one shown, on the tab bar's
+    /// track: `sub` was too pale there (3.9:1 — under the 4.5:1 a text
+    /// needs to be read comfortably; see tools/contrast.py).
+    pub tab_text: Color32,
     pub accent: Color32,
     pub link: Color32,
     pub visited: Color32,
@@ -103,7 +107,11 @@ pub fn accent_in_use_of_system() -> usize {
 
 pub fn accent(dark: bool) -> Color32 {
     let a = ACCENTS[accent_in_use().min(ACCENTS.len() - 1)];
-    if dark { a.2 } else { a.1 }
+    if dark {
+        a.2
+    } else {
+        a.1
+    }
 }
 
 pub fn theme(dark: bool, private: bool) -> Theme {
@@ -128,6 +136,7 @@ fn base_theme(dark: bool, private: bool) -> Theme {
             omnibox_hover: c(0x3E, 0x3C, 0x37),
             text: c(0xF8, 0xF5, 0xF0),
             sub: c(0xA8, 0xA5, 0x9E),
+            tab_text: c(0xC8, 0xC5, 0xBE),
             accent: c(0x4F, 0xB3, 0x6B),
             link: c(0x6C, 0xAE, 0xFF),
             visited: c(0xC4, 0x9B, 0xFF),
@@ -166,6 +175,7 @@ fn base_theme(dark: bool, private: bool) -> Theme {
             omnibox_hover: c(0xDE, 0xDC, 0xD6),
             text: c(0x1D, 0x1B, 0x18),
             sub: c(0x6B, 0x68, 0x62),
+            tab_text: c(0x5C, 0x59, 0x53),
             accent: c(0x19, 0x5E, 0x3F),
             link: c(0x00, 0x5F, 0xC8),
             visited: c(0x7D, 0x3C, 0xB5),
@@ -186,19 +196,68 @@ fn base_theme(dark: bool, private: bool) -> Theme {
 }
 
 /// The colours of profiles, groups and badges.
-pub const PALETTE: [Color32; 8] = [
-        c(0x0E, 0x7C, 0x66),
-        c(0x1A, 0x5F, 0xD0),
-        c(0xD9, 0x5B, 0x1F),
-        c(0x7B, 0x3F, 0xC4),
-        c(0xC2, 0x2E, 0x5E),
-        c(0x0F, 0x86, 0xA8),
-        c(0x4F, 0x8A, 0x10),
-        c(0xB0, 0x7A, 0x00),
-    ];
+pub const PALETTE: [Color32; 8] =
+    [c(0x0E, 0x7C, 0x66), c(0x1A, 0x5F, 0xD0), c(0xD9, 0x5B, 0x1F), c(0x7B, 0x3F, 0xC4), c(0xC2, 0x2E, 0x5E), c(0x0F, 0x86, 0xA8), c(0x4F, 0x8A, 0x10), c(0xB0, 0x7A, 0x00)];
 
 pub fn badge_color(seed: &str) -> Color32 {
     const P: [Color32; 8] = PALETTE;
     let h = seed.bytes().fold(7u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
     P[(h % 8) as usize]
+}
+
+/// How much two colours stand out from each other, from 1 (the same) to 21
+/// (black on white), as WCAG 2 measures it. A text needs 4.5 against what
+/// is behind it. Both colours opaque.
+pub fn contrast(a: Color32, b: Color32) -> f32 {
+    fn luminance(c: Color32) -> f32 {
+        let lin = |v: u8| {
+            let v = v as f32 / 255.0;
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    }
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A translucent colour (as egui keeps it: already multiplied by its
+    /// opacity) drawn over an opaque one.
+    fn over(top: Color32, under: Color32) -> Color32 {
+        let keep = 1.0 - top.a() as f32 / 255.0;
+        let mix = |t: u8, u: u8| (t as f32 + u as f32 * keep).round().min(255.0) as u8;
+        Color32::from_rgb(mix(top.r(), under.r()), mix(top.g(), under.g()), mix(top.b(), under.b()))
+    }
+
+    #[test]
+    fn contrast_is_measured_as_wcag_does() {
+        assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 0.01);
+        assert!((contrast(Color32::WHITE, Color32::WHITE) - 1.0).abs() < 0.01);
+        // (a pair with a published value: #767676 on white is 4.54)
+        assert!((contrast(c(0x76, 0x76, 0x76), Color32::WHITE) - 4.54).abs() < 0.01);
+    }
+
+    /// The titles of the tabs, shown or not, hovered or not, can be read in
+    /// the three looks (light, dark, private window): 4.5:1 at least
+    /// against the bar, the track and the pill put on one another.
+    #[test]
+    fn tab_titles_stand_out_from_the_tab_bar() {
+        for (look, t) in [("light", base_theme(false, false)), ("dark", base_theme(true, false)), ("private", base_theme(true, true))] {
+            let track = over(t.track, t.toolbar);
+            let hovered = over(t.pill.gamma_multiply(0.45), track);
+            let shown = over(t.pill, track);
+            assert!(contrast(t.tab_text, track) >= 4.5, "{look}: a tab not shown, {:.2}", contrast(t.tab_text, track));
+            assert!(contrast(t.tab_text, hovered) >= 4.5, "{look}: a tab not shown under the pointer, {:.2}", contrast(t.tab_text, hovered));
+            assert!(contrast(t.text, shown) >= 4.5, "{look}: the tab shown, {:.2}", contrast(t.text, shown));
+            // (the vertical tab list: titles and group names on the list's own colour)
+            assert!(contrast(t.text, t.strip) >= 4.5 && contrast(t.sub, t.strip) >= 4.5, "{look}: the vertical tab list");
+        }
+    }
 }

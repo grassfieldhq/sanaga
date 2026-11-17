@@ -2,61 +2,144 @@
 //! inside Sanaga's window. Each tab with a web page owns one WebKit view.
 
 use super::*;
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 use crate::page::{PageSignal, PageView};
 use crate::store;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use webkit6::prelude::*;
 
 pub(super) enum WebEvent {
-    Load { tab: u64, finished: bool, url: String },
-    Title { tab: u64, title: String },
+    Load {
+        tab: u64,
+        finished: bool,
+        url: String,
+    },
+    Title {
+        tab: u64,
+        title: String,
+    },
     /// The page's address changed (pushState, #anchor, or a load).
-    Uri { tab: u64, url: String },
-    NewTab { tab: u64, url: String },
+    Uri {
+        tab: u64,
+        url: String,
+    },
+    NewTab {
+        tab: u64,
+        url: String,
+    },
     Shortcut(String),
     /// A page closed itself (a sign-in window when done): its tab closes.
-    CloseTab { tab: u64 },
+    CloseTab {
+        tab: u64,
+    },
     /// Texts of a page to translate (or "done").
-    Translate { tab: u64, msg: String },
+    Translate {
+        tab: u64,
+        msg: String,
+    },
     /// Text typed in a form and not sent yet (true), or sent / page left.
-    FormDirty { tab: u64, dirty: bool },
+    FormDirty {
+        tab: u64,
+        dirty: bool,
+    },
     /// The page stopped working (true: it used too much memory).
-    Crashed { tab: u64, memory: bool },
+    Crashed {
+        tab: u64,
+        memory: bool,
+    },
     /// A message for the person (e.g. a screenshot was saved).
     Notice(String),
     /// A link clicked in a source page: show that file's source.
-    ViewSource { tab: u64, url: String },
+    ViewSource {
+        tab: u64,
+        url: String,
+    },
     /// Login seen / login form found by the page script.
-    Password { tab: u64, msg: String },
-    DownloadDone { url: String, path: Option<std::path::PathBuf>, ok: bool },
+    Password {
+        tab: u64,
+        msg: String,
+    },
+    DownloadDone {
+        url: String,
+        path: Option<std::path::PathBuf>,
+        ok: bool,
+    },
     /// A site started a download by itself, or several at once: ask first.
-    DownloadAsk { site: String },
+    DownloadAsk {
+        site: String,
+    },
     /// Privacy report: trackers kept from following the person.
     Privacy(Vec<(String, usize)>),
     /// The text of a page, for its summary.
-    PageText { tab: u64, text: String },
+    PageText {
+        tab: u64,
+        text: String,
+    },
     /// A page tool (right-click menu, or an answer of a tool's script).
-    Tool { tab: u64, what: String, arg: String },
+    Tool {
+        tab: u64,
+        what: String,
+        arg: String,
+    },
     /// A link Ctrl+clicked / middle-clicked / Shift+clicked (see PageSignal::OpenLink).
-    OpenLink { tab: u64, url: String, how: u8 },
+    OpenLink {
+        tab: u64,
+        url: String,
+        how: u8,
+    },
     /// The page did not load.
-    LoadFailed { tab: u64, url: String, kind: crate::page::LoadError, detail: String },
+    LoadFailed {
+        tab: u64,
+        url: String,
+        kind: crate::page::LoadError,
+        detail: String,
+    },
     /// The page asks something (alert, confirm, prompt, login…).
-    Dialog { tab: u64, key: u64 },
+    Dialog {
+        tab: u64,
+        key: u64,
+    },
     /// A link to a protected site (Netflix…), stopped before loading.
-    Protected { tab: u64, url: String },
+    Protected {
+        tab: u64,
+        url: String,
+    },
     /// A click inside a page (split view: that page becomes the tab in use).
-    PageClicked { tab: u64 },
+    PageClicked {
+        tab: u64,
+    },
     /// How far a page is scrolled, as a share of its height (mobile preview side by side).
-    Scrolled { tab: u64, share: f32 },
+    Scrolled {
+        tab: u64,
+        share: f32,
+    },
     /// The language a page says it is written in ("en", "pt-br"…).
-    PageLanguage { tab: u64, lang: String },
+    PageLanguage {
+        tab: u64,
+        lang: String,
+    },
+    /// The link under the mouse in this tab's page.
+    Hover {
+        tab: u64,
+        url: Option<String>,
+    },
+    /// This tab's page fills the screen (a video), or no longer does.
+    PageFullscreen {
+        tab: u64,
+        on: bool,
+    },
     /// Find in page: how many matches the engine found in this tab.
-    Found { tab: u64, count: u32 },
+    Found {
+        tab: u64,
+        count: u32,
+    },
     /// Find in page: the place of the match shown, and Sanaga's own count
     /// of them for a new search.
-    FoundAt { tab: u64, at: u32, of: Option<u32> },
+    FoundAt {
+        tab: u64,
+        at: u32,
+        of: Option<u32>,
+    },
 }
 
 /// Forwards Sanaga's keyboard shortcuts while the page has the keyboard.
@@ -83,19 +166,17 @@ const LANG_JS: &str = r#"(function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tell); else tell();
 })();"#;
 
+/// Escape ends a tool of Sanaga's that is at work in the page (removing an
+/// element…). Every other shortcut is read by Sanaga from the keyboard
+/// itself (page.rs): this script used to cancel Ctrl+A, B, I, Y… for the
+/// page — select all, bold, italic, redo — although Sanaga has no use for
+/// them, and took Ctrl+S, K, F… from web applications that have their own.
 const SHORTCUT_JS: &str = r#"
 window.addEventListener('keydown', function (e) {
-  if (!e.isTrusted) return;
-  var k = (e.key || '').toLowerCase();
-  var ctrl = e.ctrlKey || e.metaKey;
-  var ours = (ctrl && ['t','w','l','r','d','h','j','f','n','tab','=','+','-','0','q','b','p','u','i','\\','|','o','s','a','k','e','delete','m','y','pagedown','pageup'].indexOf(k) >= 0)
-    || (e.altKey && (k === 'arrowleft' || k === 'arrowright' || k === 'home'))
-    || k === 'f5' || k === 'f6' || k === 'f9' || k === 'f11' || k === 'f12'
-    || (k === 'escape' && window.__sanagaTool);
-  if (!ours || !window.ipc) return;
+  if (!e.isTrusted || (e.key || '').toLowerCase() !== 'escape' || !window.__sanagaTool || !window.ipc) return;
   e.preventDefault();
   e.stopPropagation();
-  window.ipc.postMessage((ctrl ? 'c' : '') + (e.shiftKey ? 's' : '') + (e.altKey ? 'a' : '') + ':' + k);
+  window.ipc.postMessage(':escape');
 }, true);
 "#;
 
@@ -132,62 +213,12 @@ document.addEventListener('click', function (e) {
 /// others are only asked from Sanaga's menus). Each one is still checked
 /// against what the person started (see `page_tool`).
 fn page_may_answer(what: &str) -> bool {
-    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow") || (cfg!(debug_assertions) && what == "probe")
+    // ("no-webrtc": the engine has no video calls — it was filtered out
+    // here, so call sites were never handed to a browser that has them)
+    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow" | "danger-allow" | "no-webrtc") || (cfg!(debug_assertions) && what == "probe")
 }
 
-fn shortcut_name(msg: &str) -> Option<&'static str> {
-    let (mods, key) = msg.split_once(':')?;
-    let c = mods.contains('c');
-    let s = mods.contains('s');
-    let a = mods.contains('a');
-    Some(match (c, s, a, key) {
-        (true, true, _, "n") => "private",
-        (true, true, _, "t") => "reopen",
-        (true, true, _, "b") => "bmbar",
-        (true, true, _, "r") => "reader",
-        (true, true, _, "\\") | (true, true, _, "|") => "overview",
-        (true, true, _, "l") => "sidebar",
-        (true, true, _, "o") => "overview",
-        (true, true, _, "f") => "contacts",
-        (true, true, _, "a") => "tabsearch",
-        (true, false, false, "k") => "tabsearch",
-        (true, true, _, "e") => "split",
-        (true, true, _, "delete") => "cleardata",
-        (true, false, false, "s") => "savepage",
-        (true, false, true, "i") => "inspector",
-        (true, true, _, "i") => "inspector",
-        (_, _, _, "f12") => "inspector",
-        (true, true, _, "m") => "devices",
-        (_, _, _, "f9") => "focus",
-        (true, true, _, "y") => "summary",
-        (_, _, _, "escape") => "esc",
-        (true, false, false, "p") => "print",
-        (true, false, false, "u") => "source",
-        (_, _, _, "f11") => "fullscreen",
-        (true, true, _, "d") => "readinglist",
-        (true, true, _, "tab") => "prev",
-        (true, _, _, "pagedown") => "tabright",
-        (true, _, _, "pageup") => "tableft",
-        (true, false, _, "t") => "new",
-        (true, false, _, "n") => "window",
-        (true, _, _, "w") => "close",
-        (true, false, _, "tab") => "next",
-        (true, _, _, "l") | (_, _, _, "f6") => "addr",
-        (true, _, _, "r") | (_, _, _, "f5") => "reload",
-        (_, _, true, "arrowleft") => "back",
-        (_, _, true, "arrowright") => "fwd",
-        (_, _, true, "home") => "home",
-        (true, _, _, "d") => "bookmark",
-        (true, _, _, "h") => "history",
-        (true, _, _, "j") => "downloads",
-        (true, _, _, "f") => "find",
-        (true, _, _, "=") | (true, _, _, "+") => "zin",
-        (true, _, _, "-") => "zout",
-        (true, _, _, "0") => "zreset",
-        (true, _, _, "q") => "quit",
-        _ => return None,
-    })
-}
+use crate::page::shortcut_name;
 
 static PAGE_INPUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -203,10 +234,7 @@ pub(super) fn watch_page_input(w: &PageView, tab: u64, tx: std::sync::mpsc::Send
             let _ = tx.send(WebEvent::PageClicked { tab });
             ctx.request_repaint();
         }
-        if matches!(
-            ev.event_type(),
-            E::MotionNotify | E::ButtonPress | E::ButtonRelease | E::Scroll | E::KeyPress | E::KeyRelease | E::TouchBegin | E::TouchUpdate | E::TouchEnd | E::EnterNotify
-        ) {
+        if matches!(ev.event_type(), E::MotionNotify | E::ButtonPress | E::ButtonRelease | E::Scroll | E::KeyPress | E::KeyRelease | E::TouchBegin | E::TouchUpdate | E::TouchEnd | E::EnterNotify) {
             PAGE_INPUT.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         gtk::glib::Propagation::Proceed
@@ -248,7 +276,7 @@ impl PageMaker {
     /// The engine of a container: its own cookies, logins and site data.
     pub(super) fn container_engine(&self, name: &str) -> Option<crate::page::Engine> {
         let base = self.base.as_ref()?;
-        let safe: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
+        let safe = super::containers::folder_name(name);
         let e = crate::page::profile_context(&base.join("containers").join(safe));
         crate::page::follow_downloads(&e);
         Some(e)
@@ -290,6 +318,8 @@ impl PageMaker {
                 PageSignal::LoadFailed(url, kind, detail) => WebEvent::LoadFailed { tab: id, url, kind, detail },
                 PageSignal::Dialog(key) => WebEvent::Dialog { tab: id, key },
                 PageSignal::Protected(url) => WebEvent::Protected { tab: id, url },
+                PageSignal::Hover(url) => WebEvent::Hover { tab: id, url },
+                PageSignal::Fullscreen(on) => WebEvent::PageFullscreen { tab: id, on },
                 PageSignal::Found(count) => WebEvent::Found { tab: id, count },
                 PageSignal::FoundAt(at, of) => WebEvent::FoundAt { tab: id, at, of },
                 PageSignal::Message(body) => {
@@ -360,7 +390,13 @@ impl Sanaga {
             // (GTK runs WebKit on its own: these ticks only refresh Sanaga's
             // own state, e.g. the loading bar and the sound icon)
             let idle = if self.low_power_active() { 3000 } else { 1000 };
-            let wait = if self.tabs.iter().any(|t| t.loading) { 100 } else if now < self.web_busy_until { 250 } else { idle };
+            let wait = if self.tabs.iter().any(|t| t.loading) {
+                100
+            } else if now < self.web_busy_until {
+                250
+            } else {
+                idle
+            };
             if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
                 eprintln!("tick t={now:.2} gtk_events={n} x={activity} web_event={got_event} loading={}", self.tabs.iter().any(|t| t.loading));
             }
@@ -378,7 +414,22 @@ impl Sanaga {
                     return;
                 }
                 t.loading = !finished;
+                // A load that ends with no address showed no page (it
+                // failed, or became a download): the tab keeps its address
+                // and its error page's mark, and nothing is a visit.
+                if finished && url.is_empty() {
+                    self.shown_tabs.remove(&tab);
+                    return;
+                }
                 if !finished {
+                    self.shown_tabs.insert(tab);
+                    // another page: the title of the one before is not its
+                    // title (a picture, a PDF or a text file has none, and
+                    // was listed in the history under the last page's)
+                    let (shown, new) = (super::chrome::same_page_key(&t.entries[t.idx].url), super::chrome::same_page_key(&url));
+                    if shown != new {
+                        t.entries[t.idx].title.clear();
+                    }
                     // a new page: nothing typed in it yet
                     t.form_dirty = false;
                     // its saved accounts may be offered again
@@ -441,7 +492,11 @@ impl Sanaga {
                     let private = t.private;
                     let title = t.entries[t.idx].title.clone();
                     let error_page = self.error_tabs.remove(&tab);
-                    if !private && !url.starts_with("about:") && !error_page {
+                    // (a page was really shown by this load: a download
+                    // started from a page ends a load of its own, under the
+                    // page's address, and is no second visit)
+                    let shown = self.shown_tabs.remove(&tab);
+                    if !private && !url.starts_with("about:") && !error_page && shown {
                         self.store.add_visit(&url, &title);
                         self.visited.insert(url);
                     }
@@ -523,6 +578,24 @@ impl Sanaga {
                 }
             }
             WebEvent::PageLanguage { tab, lang } => self.page_language(tab, &lang),
+            WebEvent::Hover { tab, url } => {
+                if self.tabs.get(self.active).is_some_and(|t| t.id == tab) {
+                    self.web_hover = url;
+                }
+            }
+            WebEvent::PageFullscreen { tab, on } => {
+                if on {
+                    // Sanaga's bars go while the page fills the screen
+                    // (what they were is remembered for the way back)
+                    if self.page_fullscreen.is_none() {
+                        self.page_fullscreen = Some((tab, self.focus_mode));
+                        self.focus_mode = true;
+                        self.menu_open = false;
+                    }
+                } else if let Some((_, before)) = self.page_fullscreen.take_if(|(t, _)| *t == tab) {
+                    self.focus_mode = before;
+                }
+            }
             WebEvent::Found { tab, count } => {
                 // (only a new search counts the matches: going to the next
                 // one, the engine answers "1" — the one it went to)
@@ -547,7 +620,8 @@ impl Sanaga {
                 // mobile preview side by side: the phone follows the page
                 if let Some(c) = self.companion_of(tab) {
                     if let Some(w) = &self.tabs[c].web {
-                        let _ = w.evaluate_own(&format!("(function(){{var d=document.documentElement;window.scrollTo(0,{:.4}*Math.max(0,d.scrollHeight-window.innerHeight));}})();", share.clamp(0.0, 1.0)));
+                        let _ = w
+                            .evaluate_own(&format!("(function(){{var d=document.documentElement;window.scrollTo(0,{:.4}*Math.max(0,d.scrollHeight-window.innerHeight));}})();", share.clamp(0.0, 1.0)));
                     }
                 }
             }
@@ -582,11 +656,8 @@ impl Sanaga {
                 // only from Sanaga's own source page (Ctrl+U), never from web
                 // content: the tab must show a view-source address, and its
                 // view the page Sanaga made for it (about:blank, no site)
-                let own_source_page = self
-                    .tabs
-                    .iter()
-                    .find(|t| t.id == tab)
-                    .is_some_and(|t| t.url().starts_with("view-source:") && t.web.as_ref().and_then(|w| w.uri()).as_deref() == Some("about:blank"));
+                let own_source_page =
+                    self.tabs.iter().find(|t| t.id == tab).is_some_and(|t| t.url().starts_with("view-source:") && t.web.as_ref().and_then(|w| w.uri()).as_deref() == Some("about:blank"));
                 if !own_source_page {
                     return;
                 }
@@ -637,7 +708,24 @@ impl Sanaga {
             }
             self.ensure_engine();
         }
-        let mut overlay = self.menu_open || self.suggest_open || self.share_open || self.overview_open || self.tab_search_open || self.bm_popover || self.bm_undo.is_some() || self.translate_ask || self.identity_ask || self.site_panel || self.container_ask.is_some() || self.overflow_open || self.switcher.is_some() || self.ai_menu_open || self.profile_open || self.group_editor.is_some() || self.shown_dialog().is_some() || egui::Popup::is_any_open(&self.ctx);
+        let mut overlay = self.menu_open
+            || self.suggest_open
+            || self.share_open
+            || self.overview_open
+            || self.tab_search_open
+            || self.bm_popover
+            || self.bm_undo.is_some()
+            || self.translate_ask
+            || self.identity_ask
+            || self.site_panel
+            || self.container_ask.is_some()
+            || self.overflow_open
+            || self.switcher.is_some()
+            || self.ai_menu_open
+            || self.profile_open
+            || self.group_editor.is_some()
+            || self.shown_dialog().is_some()
+            || egui::Popup::is_any_open(&self.ctx);
         // A menu or a panel over a page: the interface is drawn again in a
         // see-through layer above the page, which stays alive under it
         // (shell.rs). One frame after the menu opens: by then the interface
@@ -727,13 +815,11 @@ impl Sanaga {
         };
         let zf = self.ctx.zoom_factor();
         let win = self.ctx.content_rect();
-        let insets = [
-            (content.left() - win.left()) * zf,
-            (content.top() + 1.0 - win.top()) * zf,
-            (win.right() - content.right()) * zf,
-            (win.bottom() - content.bottom()) * zf,
-        ]
-        .map(|v| v.round().max(0.0) as i32);
+        // (a page that fills the screen starts at the very top: no line
+        // of the interface is left above it)
+        let line = if self.page_fullscreen.is_some() { 0.0 } else { 1.0 };
+        let insets = [(content.left() - win.left()) * zf, (content.top() + line - win.top()) * zf, (win.right() - content.right()) * zf, (win.bottom() - content.bottom()) * zf]
+            .map(|v| v.round().max(0.0) as i32);
         crate::shell::set_page_area(insets);
         let active = self.active;
         // Split view: the tab in use and its companion side by side, each in
@@ -761,12 +847,15 @@ impl Sanaga {
                 t.web_pending = Some(t.url().to_string());
             }
         }
+        // (addresses on a port browsers refuse: the engine shows a blank
+        // page and says nothing, so Sanaga says it — see below)
+        let mut blocked: Vec<(u64, String)> = Vec::new();
         for i in 0..self.tabs.len() {
             let show = (i == active || Some(i) == partner) && matches!(self.tabs[i].view, View::Web) && !overlay;
             if self.tabs[i].web.is_none() {
                 // A tab's page only starts when the tab is shown (100 open tabs
                 // don't mean 100 running pages).
-                if i != active && Some(i) != partner {
+                if i != active && Some(i) != partner && !std::mem::take(&mut self.tabs[i].load_behind) {
                     if self.tabs[i].web_pending.is_some() {
                         self.tabs[i].loading = false;
                     }
@@ -787,16 +876,40 @@ impl Sanaga {
                     }
                 }
                 self.prepare_view(i, &w, show);
-                load_into(&w, &url, by_person);
+                if crate::guard::restricted_port(&url) {
+                    blocked.push((self.tabs[i].id, url.clone()));
+                } else {
+                    // (a tab brought back or reopened: its page comes with
+                    // the pages it had before and after it)
+                    let restored = self.tabs[i].saved_state.take().is_some_and(|state| !url.starts_with(super::source::HTML_MARK) && w.restore_state(&state));
+                    if !restored {
+                        load_into(&w, &url, by_person);
+                    }
+                }
                 self.tabs[i].web = Some(w);
                 self.tabs[i].web_shown = show;
                 self.tabs[i].web_zoom = 1.0;
                 continue;
             }
             let tab = &mut self.tabs[i];
+            // A tab that now shows something else than its web page (one of
+            // Sanaga's own pages, the Reader, a protected site's notice):
+            // the page ends. Only hidden, it went on running under what is
+            // shown — its sound, its camera and microphone, its messages —
+            // with nothing on screen to stop it. Going back loads it again.
+            if tab.web.is_some() && tab.web_pending.is_none() && !matches!(tab.view, View::Web) {
+                tab.web = None;
+                tab.web_shown = false;
+                tab.audio = false;
+                continue;
+            }
             let Some(w) = &tab.web else { continue };
             if let Some(url) = tab.web_pending.take() {
-                load_into(w, &url, std::mem::take(&mut tab.web_by_person));
+                if crate::guard::restricted_port(&url) {
+                    blocked.push((tab.id, url));
+                } else {
+                    load_into(w, &url, std::mem::take(&mut tab.web_by_person));
+                }
             }
             if show != tab.web_shown {
                 let _ = w.set_visible(show);
@@ -804,17 +917,30 @@ impl Sanaga {
             }
             if show {
                 let place = match halves {
-                    Some((left, right, left_index)) => if i == left_index { left } else { right },
+                    Some((left, right, left_index)) => {
+                        if i == left_index {
+                            left
+                        } else {
+                            right
+                        }
+                    }
                     None => insets,
                 };
                 crate::shell::place_view(&w.webview(), place);
             }
             // in the simulator the page is scaled with the drawn device
-            let want = tab.zoom * if i == active { dev_scale } else { 1.0 };
+            // (there the tab's own zoom is left out: at 125 % a phone 393
+            // points wide was given 314 to the page, under a bar that
+            // still said 393)
+            let simulated = i == active && self.device.is_some();
+            let want = if simulated { dev_scale } else { tab.zoom };
             if (want - tab.web_zoom).abs() > 0.001 {
                 let _ = w.zoom(want as f64);
                 tab.web_zoom = want;
             }
+        }
+        for (tab, url) in blocked {
+            self.show_load_error(tab, &url, crate::page::LoadError::BlockedPort, "");
         }
     }
 
@@ -847,7 +973,6 @@ impl Sanaga {
         }
         super::plus::watch_permissions(w, self.tabs[i].id, self.perm_queue.clone(), self.ctx.clone());
         watch_page_input(w, self.tabs[i].id, self.web_tx.clone(), self.ctx.clone());
-        self.run_pending_clear(w);
         // (the keyboard goes to the tab in use, not to its companion in a split view)
         if show && i == self.active {
             use gtk::prelude::WidgetExt;
@@ -990,6 +1115,7 @@ impl Sanaga {
             let path = crate::extensions::folder().join(name);
             if path.parent() == Some(crate::extensions::folder().as_path()) {
                 let _ = std::fs::remove_file(path);
+                super::settings::extensions_changed();
             }
         }
         self.store.extensions_on.retain(|x| x != id);
@@ -1031,7 +1157,14 @@ impl Sanaga {
         PageMaker {
             ctx: self.web_context.clone(),
             base: self.web_dir.clone(),
-            scripts: Rc::new(vec![SHORTCUT_JS.to_string(), MEDIA_JS.to_string(), LANG_JS.to_string(), SOURCE_LINKS_JS.to_string(), ERROR_ACTIONS_JS.to_string(), super::accounts::PASSWORD_JS.to_string()]),
+            scripts: Rc::new(vec![
+                SHORTCUT_JS.to_string(),
+                MEDIA_JS.to_string(),
+                LANG_JS.to_string(),
+                SOURCE_LINKS_JS.to_string(),
+                ERROR_ACTIONS_JS.to_string(),
+                super::accounts::PASSWORD_JS.to_string(),
+            ]),
             tx: self.web_tx.clone(),
             repaint: self.ctx.clone(),
             popups: self.popups.clone(),

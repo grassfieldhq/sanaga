@@ -153,6 +153,17 @@ jobs:
           su builder -c "cd /tmp/pkg && makepkg --noconfirm --nodeps"
           mkdir -p dist
           for f in /tmp/pkg/sanaga-[0-9]*.pkg.tar.zst; do cp "$f" dist/; done
+      # The PKGBUILD as it goes to the AUR: the tag's source with its
+      # checksum in place of SKIP (a tag moved afterwards is then refused).
+      # A failure here does not stop the release: the package above is built.
+      - name: PKGBUILD for the AUR (with the checksum of the tag's source)
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/aur
+          cp packaging/arch/PKGBUILD /tmp/aur/PKGBUILD
+          chown -R builder /tmp/aur
+          su builder -c "cd /tmp/aur && makepkg -g > sums && grep -q '^sha256sums=' sums && ! grep -q SKIP sums && sed -i '/^sha256sums=/d' PKGBUILD && cat sums >> PKGBUILD"
+          cp /tmp/aur/PKGBUILD dist/PKGBUILD
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: arch
@@ -170,7 +181,8 @@ jobs:
       - name: Rust sources for the offline build
         run: |
           python3 -m venv /tmp/venv
-          /tmp/venv/bin/pip install -q aiohttp tomlkit pyyaml
+          # (fixed versions: the same tools at every release)
+          /tmp/venv/bin/pip install -q aiohttp==3.10.11 tomlkit==0.13.2 PyYAML==6.0.2
           # (a fixed version of the generator, not whatever master holds today)
           curl -sSfL -o /tmp/flatpak-cargo-generator.py https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/9d86d336a39b9af38b86f114b6ce5820fe260f91/cargo/flatpak-cargo-generator.py
           /tmp/venv/bin/python /tmp/flatpak-cargo-generator.py Cargo.lock -o packaging/flatpak/cargo-sources.json
@@ -202,7 +214,7 @@ jobs:
       - name: Collect the packages
         run: |
           mkdir -p dist
-          find artifacts -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*.flatpak' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          find artifacts -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*.flatpak' -o -name '*.tar.gz' -o -name 'PKGBUILD' \) -exec cp {} dist/ \;
           (cd dist && sha256sum * > SHA256SUMS)
           ls -l dist
       # Each package gets a signed statement that it was built by this

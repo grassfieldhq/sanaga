@@ -14,17 +14,19 @@ impl Sanaga {
         let mut hide = false;
         let full = ui.max_rect();
         // right-click on the empty bar, or the small button at its right end, hides it
-        let bg = ui.interact(full, egui::Id::new("bookmarks-bar-bg"), Sense::click());
+        // (the pointer only, not the keyboard: see `bar_sense`)
+        let bg = ui.interact(full, egui::Id::new("bookmarks-bar-bg"), Sense::CLICK);
         bg.menu_on_press(|ui| {
             if menu_item_keys(ui, Icon::StarFilled, tr("Masquer la barre des favoris"), tr("Ctrl+Maj+B")) {
                 hide = true;
             }
         });
         let hr = Rect::from_center_size(pos2(full.right() - 22.0, full.center().y), vec2(22.0, 22.0));
-        let hresp = ui.interact(hr, egui::Id::new("bookmarks-bar-hide"), Sense::click());
+        let hresp = ui.interact(super::toolbar::click_area(hr.center()), egui::Id::new("bookmarks-bar-hide"), Sense::click());
         if hresp.hovered() {
             ui.painter().rect_filled(hr, CornerRadius::same(5), th.omnibox_hover);
         }
+        super::chrome::focus_ring(ui, &hresp, hr, 5.0, th);
         icons::paint(ui.painter(), hr.shrink(6.0), Icon::Close, th.sub);
         if hresp.tip(tr("Masquer la barre des favoris (Ctrl+Maj+B)\nPour la réafficher : menu principal ou Ctrl+Maj+B")).clicked() {
             hide = true;
@@ -37,7 +39,8 @@ impl Sanaga {
             }
             for (k, b) in self.store.bookmarks.iter().enumerate() {
                 let title: String = if b.title.chars().count() > 22 { format!("{}…", b.title.chars().take(21).collect::<String>()) } else { b.title.clone() };
-                let galley = ui.painter().layout_no_wrap(title, FontId::proportional(12.5), th.text);
+                // (a right-to-left name: its words in the order they are seen)
+                let galley = ui.painter().layout_no_wrap(crate::bidi::visual(&title).into_owned(), FontId::proportional(12.5), th.text);
                 let w = galley.size().x + 34.0;
                 if ui.available_width() < w + 40.0 {
                     break;
@@ -46,9 +49,12 @@ impl Sanaga {
                 if resp.hovered() {
                     ui.painter().rect_filled(r, CornerRadius::same(12), th.omnibox_hover);
                 }
+                // (the keyboard is on this favourite: Enter opens it)
+                super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 12.0, th);
                 site_badge(ui.painter(), pos2(r.left() + 13.0, r.center().y), 7.0, &b.url, &b.title);
                 ui.painter().galley(pos2(r.left() + 25.0, r.center().y - galley.size().y / 2.0), galley, th.text);
                 let resp = resp.tip(format!("{}\n{}", b.title, b.url));
+                super::toolbar::named(&resp, egui::accesskit::Role::Link, if b.title.is_empty() { &b.url } else { &b.title });
                 if resp.middle_clicked() || (resp.clicked() && ui.input(|i| i.modifiers.command)) {
                     go = Some((b.url.clone(), true));
                 } else if resp.clicked() {
@@ -87,9 +93,8 @@ impl Sanaga {
         }
         if let Some(k) = edit {
             // on the favourites page, its line open for editing
-            if let Some(b) = self.store.bookmarks.get(k) {
-                self.bm_edit = (b.title.clone(), b.url.clone());
-                self.bm_editing = Some(k);
+            if self.store.bookmarks.get(k).is_some() {
+                self.edit_bookmark(k);
                 self.open_tab("sanaga://bookmarks", false);
             }
         }
@@ -132,13 +137,7 @@ impl Sanaga {
             icons::paint(ui.painter(), r, Icon::Search, th.sub);
             ui.add_space(6.0);
             let id = egui::Id::new("find-input");
-            let resp = ui.add(
-                TextEdit::singleline(&mut self.find_query)
-                    .id(id)
-                    .hint_text(tr("Rechercher dans la page"))
-                    .desired_width(260.0)
-                    .background_color(th.omnibox),
-            );
+            let resp = ui.add(TextEdit::singleline(&mut self.find_query).id(id).hint_text(tr("Rechercher dans la page")).desired_width(260.0).background_color(th.omnibox));
             if self.focus_find {
                 resp.request_focus();
                 self.focus_find = false;

@@ -7,10 +7,10 @@ use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, Layout, Margin, RichText, Sense, TextEdit};
+use gtk::glib::prelude::*;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use gtk::glib::prelude::*;
 use webkit6::prelude::*;
 
 /// A site asking for the camera, microphone, location or notifications.
@@ -25,12 +25,30 @@ pub(super) struct PermAsk {
 
 pub(super) type PermQueue = Rc<RefCell<VecDeque<PermAsk>>>;
 
+impl PermAsk {
+    /// The name the answer is remembered under. A site's cookies inside
+    /// another page ("storage") are remembered for that site only: one
+    /// "always allow" for a comment box did not let every other site
+    /// embedded in the same page use its cookies there.
+    fn remembered_kind(&self) -> String {
+        if self.kind == "storage" {
+            let asking: String = self.asking.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-').collect();
+            format!("storage:{}", asking.to_ascii_lowercase())
+        } else {
+            self.kind.to_string()
+        }
+    }
+}
+
 pub(super) fn kind_label(kind: &str) -> &'static str {
+    // ("storage:site": the cookies of one site embedded in the page)
+    let kind = if kind.starts_with("storage:") { "storage" } else { kind };
     match kind {
         "camera" => tr("votre caméra"),
         "micro" => tr("votre micro"),
         "camera+micro" => tr("votre caméra et votre micro"),
         "location" => tr("votre position"),
+        "screen" => tr("votre écran (partage d'écran)"),
         "notifications" => tr("vous envoyer des notifications"),
         "storage" => tr("ses cookies sur ce site (connexion)"),
         _ => tr("un accès"),
@@ -43,11 +61,17 @@ use crate::guard::sign_in_provider;
 pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: PermQueue, ctx: egui::Context) {
     w.webview().connect_permission_request(move |wv, req| {
         let kind: &'static str = if let Some(m) = req.downcast_ref::<webkit6::UserMediaPermissionRequest>() {
-            match (m.is_for_video_device(), m.is_for_audio_device()) {
-                (true, true) => "camera+micro",
-                (true, false) => "camera",
-                (false, true) => "micro",
-                _ => return false,
+            // (sharing the screen in a call: asked each time, never
+            // remembered — it used to be refused without a word)
+            if webkit6::functions::user_media_permission_is_for_display_device(m) {
+                "screen"
+            } else {
+                match (m.is_for_video_device(), m.is_for_audio_device()) {
+                    (true, true) => "camera+micro",
+                    (true, false) => "camera",
+                    (false, true) => "micro",
+                    _ => return false,
+                }
             }
         } else if req.is::<webkit6::GeolocationPermissionRequest>() {
             "location"
@@ -67,18 +91,19 @@ pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: Perm
                 req.allow();
                 return true;
             }
-            let site = wv.uri().map(|u| u.to_string()).and_then(|u| url::Url::parse(&u).ok()).map(|p| p.origin().ascii_serialization()).unwrap_or_default();
+            let site = url::Url::parse(&crate::page::shown_uri(wv)).ok().map(|p| p.origin().ascii_serialization()).unwrap_or_default();
             queue.borrow_mut().push_back(PermAsk { tab, site, kind: "storage", req: req.clone(), asking });
             ctx.request_repaint();
             return true;
         } else {
             return false; // anything else: WebKit's default (refused)
         };
-        let site = wv.uri().map(|u| {
-            let u = u.to_string();
-            url::Url::parse(&u).ok().map(|p| p.origin().ascii_serialization()).unwrap_or(u)
-        });
-        queue.borrow_mut().push_back(PermAsk { tab, site: site.unwrap_or_default(), kind, req: req.clone(), asking: String::new() });
+        // (the page that asks is the one shown: while another page is on
+        // its way, the view's address is already that one's, and its
+        // "always allow" would answer for the page being left)
+        let shown = crate::page::shown_uri(wv);
+        let site = url::Url::parse(&shown).ok().map(|p| p.origin().ascii_serialization()).unwrap_or(shown);
+        queue.borrow_mut().push_back(PermAsk { tab, site, kind, req: req.clone(), asking: String::new() });
         ctx.request_repaint();
         true
     });
@@ -126,10 +151,16 @@ fn translate_text() -> &'static str {
     }
 }
 
+/// The longest text the address bar's calculator reads.
+const MAX_SUM: usize = 256;
+
 /// A small calculator for the address bar: "12*(3+4)", "2^10", "15% * 80".
 pub fn calculate(q: &str) -> Option<f64> {
     let s: String = q.trim().trim_start_matches('=').replace(',', ".").replace('×', "*").replace('÷', "/").chars().filter(|c| !c.is_whitespace()).collect();
-    if s.is_empty() || !s.chars().any(|c| "+-*/^%".contains(c)) || !s.chars().all(|c| c.is_ascii_digit() || "+-*/^%.()".contains(c)) {
+    // (a sum someone types is short; brackets and minus signs are read one
+    // inside the other, so a pasted text of thousands of them would use up
+    // the stack and end Sanaga)
+    if s.is_empty() || s.len() > MAX_SUM || !s.chars().any(|c| "+-*/^%".contains(c)) || !s.chars().all(|c| c.is_ascii_digit() || "+-*/^%.()".contains(c)) {
         return None;
     }
     let b = s.as_bytes();
@@ -218,12 +249,13 @@ impl Sanaga {
         if let Some(req) = self.tabs.get_mut(active).and_then(|t| t.lite_pending.take()) {
             let private = self.tabs[active].private;
             self.tabs[active].loading = true;
-            let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+            let agent = if private { &self.private_agent } else { &self.agent }.for_address(&req.url);
             net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
         }
+        let mut source_again = None;
         if let Some(t) = self.tabs.get_mut(active) {
-            // a tab shown again counts as a revisit (Chrome keeps often
-            // revisited tabs awake: see MECHANICS.md)
+            // a tab shown again counts as a revisit (a tab often come back
+            // to is kept awake)
             if t.id != self.saver_last_tab {
                 if t.last_active > 0.0 {
                     t.revisits = t.revisits.saturating_add(1);
@@ -233,16 +265,25 @@ impl Sanaga {
             t.last_active = now;
             if t.sleeping && matches!(t.view, View::Web) && t.web.is_none() && t.web_pending.is_none() {
                 t.sleeping = false;
-                t.loading = true;
-                t.web_pending = Some(t.url().to_string());
-                // (woken from sleep: not a new request of the person's)
-                t.web_by_person = false;
+                if t.url().starts_with("view-source:") {
+                    // (a page's source is made by Sanaga: asked for again
+                    // below, the engine cannot open that address itself)
+                    source_again = Some(t.url().to_string());
+                } else {
+                    t.loading = true;
+                    t.web_pending = Some(t.url().to_string());
+                    // (woken from sleep: not a new request of the person's)
+                    t.web_by_person = false;
+                }
             }
         }
+        if let Some(url) = source_again {
+            self.navigate(active, url, None, false);
+        }
         // (minutes before an inactive tab sleeps, most pages kept running at
-        // once, revisits above which the timer leaves a tab awake). The three
-        // levels are Chrome's (MECHANICS.md): 6 h - 2 h × level, revisits
-        // 5 / 15 / 15. The energy saver mode is Sanaga's own: 5 min.
+        // once, revisits above which the timer leaves a tab awake). Three
+        // levels: 6 h, 4 h and 2 h, revisits 5 / 15 / 15. The energy saver
+        // mode: 5 min.
         let (minutes, cap, max_revisits) = if self.low_power_active() {
             (5.0, 3, u32::MAX)
         } else {
@@ -293,7 +334,9 @@ impl Sanaga {
                 ask.req.deny();
                 continue;
             }
-            match self.store.permission(&ask.site, ask.kind) {
+            // (sharing the screen is never answered from memory)
+            let remembered = if ask.kind == "screen" { None } else { self.store.permission(&ask.site, &ask.remembered_kind()) };
+            match remembered {
                 Some(true) => ask.req.allow(),
                 Some(false) => ask.req.deny(),
                 // notification requests: refused quietly unless the person
@@ -319,6 +362,8 @@ impl Sanaga {
         let mut answer: Option<(bool, bool)> = None; // (allow, remember)
         let text = if ask.kind == "storage" {
             tf("{} souhaite utiliser ses cookies sur {} (souvent pour vous connecter).", &[&ask.asking, &host_of(&ask.site)])
+        } else if ask.kind == "notifications" {
+            tf("{} souhaite vous envoyer des notifications.", &[&host_of(&ask.site)])
         } else {
             tf("{} souhaite accéder à {}.", &[&host_of(&ask.site), &kind_label(ask.kind)])
         };
@@ -337,7 +382,7 @@ impl Sanaga {
                     answer = Some((true, false));
                 }
                 let b = egui::Button::new(RichText::new(tr("Toujours autoriser")).color(Color32::WHITE)).fill(th.accent);
-                if ui.add(b).clicked() {
+                if ask.kind != "screen" && ui.add(b).clicked() {
                     answer = Some((true, true));
                 }
             });
@@ -349,8 +394,11 @@ impl Sanaga {
                 } else {
                     ask.req.deny();
                 }
-                if remember {
-                    self.store.set_permission(&ask.site, ask.kind, Some(allow));
+                // (a private tab's answers are for this time only: the
+                // site's name would stay on the disk)
+                let private = self.tabs.iter().any(|t| t.id == ask.tab && t.private);
+                if remember && !private && ask.kind != "screen" {
+                    self.store.set_permission(&ask.site, &ask.remembered_kind(), Some(allow));
                 }
             }
         }
@@ -391,7 +439,7 @@ impl Sanaga {
                     if !self.light_download_sites.iter().any(|(p, s)| *p == private && *s == site) {
                         self.light_download_sites.push((private, site));
                     }
-                    let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+                    let agent = if private { &self.private_agent } else { &self.agent }.for_address(&req.url);
                     net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
                 }
             }
@@ -420,10 +468,31 @@ impl Sanaga {
     pub(super) fn clear_browsing_data(&mut self, period: u64, history: bool, cookies: bool, cache: bool) {
         let since = if period == 0 { 0 } else { crate::store::now().saturating_sub(period) };
         if history {
-            self.store.clear_history_since(since);
-            self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
+            // (the links coloured as visited follow the history: see `follow_visited`)
+            self.visited.clear();
             self.store.downloads.retain(|d| d.time < since);
         }
+        // The sites visited in that period are asked of the history before
+        // their visits are forgotten: their cookies are the ones to remove
+        // (see `clear_site_data`). Asked, and the visits forgotten, off the
+        // window's thread; the rest follows when the answer is there.
+        let hist = self.store.history.clone();
+        let by_site = period != 0 && cookies;
+        self.off_thread(
+            move || {
+                let visited = if by_site { hist.sites_since(since) } else { Default::default() };
+                if history {
+                    hist.clear_since(since);
+                }
+                visited
+            },
+            move |app, visited| app.clear_site_data(period, cookies, cache, visited),
+        );
+    }
+
+    /// The second half of `clear_browsing_data`: cookies, site data and
+    /// cache. `visited`: the sites visited in the period.
+    fn clear_site_data(&mut self, period: u64, cookies: bool, cache: bool, visited: HashSet<String>) {
         let mut types = webkit6::WebsiteDataTypes::empty();
         if cookies {
             types |= webkit6::WebsiteDataTypes::COOKIES
@@ -437,27 +506,63 @@ impl Sanaga {
             types |= webkit6::WebsiteDataTypes::MEMORY_CACHE | webkit6::WebsiteDataTypes::DISK_CACHE;
         }
         if !types.is_empty() {
+            // This window's own data (the profile's, or a guest window's),
+            // and each container's. It used to be whatever the first tab
+            // with a page happened to use: with a private or a container
+            // tab first, the profile kept its cookies and cache while the
+            // message said they were gone; containers were never cleared.
+            self.ensure_engine();
+            let mut sessions: Vec<webkit6::NetworkSession> = self.web_context.iter().map(|e| e.session.clone()).collect();
+            if let Some(base) = &self.web_dir {
+                for c in &self.store.containers {
+                    let dir = base.join("containers").join(super::containers::folder_name(&c.name));
+                    // (a container never used has nothing, and no folder yet)
+                    if dir.is_dir() {
+                        sessions.push(crate::page::profile_context(&dir).session);
+                    }
+                }
+            }
             let span = glib_timespan(period);
-            match self.tabs.iter().find_map(|t| t.web.as_ref()).and_then(|w| w.webview().network_session()).and_then(|s| s.website_data_manager()) {
-                Some(dm) => dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {}),
-                None => self.pending_clear = Some((types.bits(), period)),
+            for dm in sessions.iter().filter_map(|s| s.website_data_manager()) {
+                if period == 0 || !cookies {
+                    dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {});
+                    continue;
+                }
+                // The engine cannot remove cookies "since a time" (it says
+                // so, and removes none): for a period, the cookies and site
+                // data of the sites visited in it are removed, site by
+                // site. They used to stay, under "Browsing data cleared".
+                let cache = types & (webkit6::WebsiteDataTypes::MEMORY_CACHE | webkit6::WebsiteDataTypes::DISK_CACHE);
+                if !cache.is_empty() {
+                    dm.clear(cache, span, None::<&webkit6::gio::Cancellable>, |_| {});
+                }
+                let of_sites = types & !cache;
+                let (dm2, visited) = (dm.clone(), visited.clone());
+                dm.fetch(of_sites, None::<&webkit6::gio::Cancellable>, move |found| {
+                    let Ok(found) = found else { return };
+                    // (a record is named after its site: "example.org" for
+                    // www.example.org and accounts.example.org alike)
+                    let theirs: Vec<webkit6::WebsiteData> =
+                        found.into_iter().filter(|d| d.name().is_some_and(|n| visited.iter().any(|h| h == n.as_str() || h.ends_with(&format!(".{n}")) || n.ends_with(&format!(".{h}"))))).collect();
+                    if !theirs.is_empty() {
+                        let list: Vec<&webkit6::WebsiteData> = theirs.iter().collect();
+                        dm2.remove(of_sites, &list, None::<&webkit6::gio::Cancellable>, |_| {});
+                    }
+                });
             }
         }
         self.notice = Some((tr("Données de navigation effacées.").into(), self.ctx.input(|i| i.time)));
     }
 
-    /// Data clearing asked while no web page was open: done with the first one.
-    pub(super) fn run_pending_clear(&mut self, w: &crate::page::PageView) {
-        if let Some((bits, period)) = self.pending_clear.take() {
-            if let Some(dm) = w.webview().network_session().and_then(|s| s.website_data_manager()) {
-                dm.clear(webkit6::WebsiteDataTypes::from_bits_truncate(bits), glib_timespan(period), None::<&webkit6::gio::Cancellable>, |_| {});
-            }
-        }
-    }
-
     pub(super) fn page_clear_data(&mut self, ui: &mut Ui, th: &Theme) {
         let mut go = false;
-        let periods = [(3600u64, tr("La dernière heure")), (86_400, tr("Les dernières 24 heures")), (7 * 86_400, tr("Les 7 derniers jours")), (28 * 86_400, tr("Les 4 dernières semaines")), (0, tr("Depuis toujours"))];
+        let periods = [
+            (3600u64, tr("La dernière heure")),
+            (86_400, tr("Les dernières 24 heures")),
+            (7 * 86_400, tr("Les 7 derniers jours")),
+            (28 * 86_400, tr("Les 4 dernières semaines")),
+            (0, tr("Depuis toujours")),
+        ];
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Effacer les données de navigation"));
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
@@ -505,7 +610,9 @@ impl Sanaga {
             ui.label(RichText::new(tr("Réglages par site")).size(15.0).family(bold()).color(th.text));
             ui.add_space(6.0);
             if site_prefs.is_empty() {
-                ui.label(RichText::new(tr("JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…")).size(12.5).color(th.sub));
+                ui.label(
+                    RichText::new(tr("JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…")).size(12.5).color(th.sub),
+                );
             }
             for (host, p) in &site_prefs {
                 ui.horizontal(|ui| {
@@ -583,6 +690,13 @@ impl Sanaga {
         let screen = ctx.content_rect();
         let pos = pos2(screen.center().x - w / 2.0, screen.top() + 60.0);
         let q = self.tab_search_q.trim().to_lowercase();
+        // (the visited pages that answer the text: asked of the history
+        // when the text changes or the history does, on a thread of their
+        // own — it was a walk through 6,000 visits at every frame)
+        if !q.is_empty() {
+            let typed = q.clone();
+            self.history_ask(|app| &mut app.hist.palette, (self.store.history.version(), q.clone()), move |h| h.suggest(&typed, 12));
+        }
         // the lines: (what it does, icon address or "", title, small text)
         let mut lines: Vec<(Pick, String, String, String)> = Vec::new();
         for (i, t) in self.tabs.iter().enumerate() {
@@ -606,14 +720,19 @@ impl Sanaga {
                 }
             }
             let mut seen: HashSet<String> = self.tabs.iter().map(|t| super::chrome::same_page_key(t.url())).collect();
-            let bm = self.store.bookmarks.iter().map(|b| (&b.url, &b.title, true));
-            let hist = self.store.history.iter().rev().take(6000).map(|v| (&v.url, &v.title, false));
+            let bm = self.store.bookmarks.iter().filter(|b| b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q)).map(|b| (&b.url, &b.title, true));
+            // (the visited pages that answer the text — the best first, as
+            // under the address bar — were asked of the history when the
+            // text changed: see below; those of the answer before stay
+            // while they still answer it)
+            let words = crate::history::words_of(&q);
+            let hist = self.hist.palette.got.iter().filter(|h| crate::history::matches(&words, &h.url, &h.title)).map(|h| (&h.url, &h.title, false));
             let mut pages = 0;
             for (u, t, fav) in bm.chain(hist) {
                 if pages >= 7 {
                     break;
                 }
-                if (u.to_lowercase().contains(&q) || t.to_lowercase().contains(&q)) && seen.insert(super::chrome::same_page_key(u)) {
+                if seen.insert(super::chrome::same_page_key(u)) {
                     let (site, rest) = super::toolbar::display_url(u, false);
                     let kind = if fav { tr("Favori") } else { tr("Historique") };
                     lines.push((Pick::Go(u.clone()), u.clone(), if t.is_empty() { u.clone() } else { t.clone() }, format!("{kind} · {site}{rest}")));
@@ -659,9 +778,17 @@ impl Sanaga {
                         self.palette_sel = 0;
                     }
                     ui.add_space(6.0);
-                    egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                    // (the list takes the room its lines need, up to 400 points,
+                    // also when lines are added after it was shorter — the
+                    // visited pages come a moment after the text: it stayed
+                    // cut at the height of before, to be scrolled)
+                    egui::ScrollArea::vertical().max_height(400.0).min_scrolled_height(400.0).show(ui, |ui| {
                         for (k, (what, icon, title, sub)) in lines.iter().enumerate() {
                             let (r, rr) = ui.allocate_exact_size(vec2(w - 20.0, 38.0), Sense::click());
+                            // (for screen readers: a line of the list, with its
+                            // words, and whether it is the one Enter would take)
+                            super::toolbar::named(&rr, egui::accesskit::Role::ListBoxOption, &if sub.is_empty() { title.clone() } else { format!("{title} — {sub}") });
+                            ui.ctx().accesskit_node_builder(rr.id, |node| node.set_selected(k == sel));
                             if k == sel {
                                 ui.painter().rect_filled(r, CornerRadius::same(6), th.accent.gamma_multiply(0.16));
                                 if down || up {
@@ -746,12 +873,16 @@ impl Sanaga {
 pub(super) fn put_to_sleep(t: &mut Tab) {
     // WebKit keeps a closed page's process around: end it explicitly so the
     // memory really comes back (each tab's page runs in its own process).
+    // (dropping the page ends its process, unless another page lives in it)
     if let Some(w) = t.web.take() {
-        w.webview().terminate_web_process();
         drop(w);
     }
     t.sleeping = true;
     t.web_shown = false;
+    // (a page that was still loading will never say it finished: without
+    // this the tab kept its spinner, and the whole interface kept
+    // redrawing for it, until the tab was shown again)
+    t.loading = false;
 }
 
 fn glib_timespan(period_secs: u64) -> webkit6::glib::TimeSpan {
@@ -781,6 +912,11 @@ mod tests {
         assert_eq!(calculate("1,5 + 1"), Some(2.5));
         assert_eq!(calculate("wikipedia.org"), None);
         assert_eq!(calculate("2024"), None);
+        // a pasted text of thousands of brackets or minus signs is not a sum
+        // (read one inside the other, they used up the stack)
+        assert_eq!(calculate(&format!("{}1+1", "(".repeat(60_000))), None);
+        assert_eq!(calculate(&format!("{}1", "-".repeat(400_000))), None);
+        assert_eq!(calculate(&format!("{}1+1{}", "(".repeat(100), ")".repeat(100))), Some(2.0));
         assert_eq!(format_number(2.5), "2,5");
     }
 

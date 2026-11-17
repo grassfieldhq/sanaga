@@ -8,6 +8,11 @@ use crate::crash::{self, Kind};
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Color32, Label, Layout, Margin, RichText, Sense};
 
+thread_local! {
+    /// The reports kept on this computer, as last read (see `Kept`).
+    static REPORTS: std::cell::RefCell<super::settings::Kept<Vec<crash::Report>>> = const { std::cell::RefCell::new(super::settings::Kept::new()) };
+}
+
 /// What the bar after an abrupt end offers.
 pub(super) struct CrashNotice {
     /// The tabs of the last run, when they were not reopened by themselves
@@ -16,14 +21,17 @@ pub(super) struct CrashNotice {
 }
 
 impl Sanaga {
-    /// The last run of this profile ended without closing (`since`: when it
-    /// had started). Keep a word of it when no report says more, and tell
-    /// the person at the top of the window.
-    pub(super) fn note_abrupt_end(&mut self, since: std::time::SystemTime, lost_tabs: Vec<String>) {
+    /// The last run of this profile ended without closing (`ended`: when it
+    /// had started and what is known of its end). Keep a word of it when no
+    /// report says more, and tell the person at the top of the window.
+    pub(super) fn note_abrupt_end(&mut self, ended: crash::Abrupt, lost_tabs: Vec<String>) {
         let root = Store::root_dir();
+        let since = ended.started;
         let explained = crash::list(&root).iter().any(|r| r.kind == Kind::Interface && std::fs::metadata(&r.path).and_then(|m| m.modified()).is_ok_and(|t| t >= since));
         if !explained {
-            crash::write(&root, Kind::Abrupt, &crate::page::engine_version(), "");
+            // (what is known of that run's end: a signal, the computer or
+            // the session stopped with Sanaga open — or nothing more)
+            crash::write(&root, Kind::Abrupt, &crate::page::engine_version(), &ended.detail());
         }
         self.crash_notice = Some(CrashNotice { lost_tabs });
     }
@@ -99,7 +107,12 @@ impl Sanaga {
     /// `sanaga://crashes`: the reports kept on this computer.
     pub(super) fn page_crashes(&mut self, ui: &mut Ui, th: &Theme) {
         let root = Store::root_dir();
-        let reports = crash::list(&root);
+        // (read when the page opens and after a report is deleted, on a
+        // thread — not at every frame: each of the twenty files kept was
+        // opened and read sixty times a second)
+        let read = self.kept(&REPORTS, || crash::list(&Store::root_dir()));
+        let known = read.is_some();
+        let reports = read.unwrap_or_default();
         let now = ui.input(|i| i.time);
         let mut remove: Option<std::path::PathBuf> = None;
         let mut remove_all = false;
@@ -117,13 +130,13 @@ impl Sanaga {
             });
             ui.add(Label::new(RichText::new(tr("Quand Sanaga ou une page s'arrête sans prévenir, un court rapport est gardé ici, sur cet ordinateur. Rien n'est envoyé tout seul : vous le lisez, puis vous choisissez de l'envoyer ou non. Il ne contient ni l'adresse des pages, ni votre nom.")).color(th.sub)).wrap());
             ui.add_space(16.0);
-            if reports.is_empty() {
+            if known && reports.is_empty() {
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(RichText::new(tr("Aucun rapport : rien ne s'est arrêté.")).color(th.sub));
                 });
             }
-            for r in &reports {
+            for r in reports.iter() {
                 let what = match r.kind {
                     Kind::Interface => tr("Sanaga s'est arrêté"),
                     Kind::Page => tr("Une page a cessé de fonctionner"),
@@ -156,7 +169,14 @@ impl Sanaga {
                 ui.add_space(8.0);
             }
             ui.add_space(4.0);
-            ui.add(Label::new(RichText::new(tr("« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez.")).size(12.0).color(th.sub)).wrap());
+            ui.add(
+                Label::new(
+                    RichText::new(tr("« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez."))
+                        .size(12.0)
+                        .color(th.sub),
+                )
+                .wrap(),
+            );
             ui.add_space(30.0);
         });
         if let Some((path, text)) = copy {
@@ -165,9 +185,11 @@ impl Sanaga {
         }
         if let Some(p) = remove {
             crash::remove(&root, &p);
+            REPORTS.with(|k| k.borrow_mut().changed());
         }
         if remove_all {
             crash::remove_all(&root);
+            REPORTS.with(|k| k.borrow_mut().changed());
         }
         if let Some(u) = send {
             self.open_tab(&u, false);

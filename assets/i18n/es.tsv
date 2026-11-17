@@ -1236,3 +1236,49 @@ Enregistrer l'audio sous…	Guardar audio como…
 Rechercher la sélection sur le Web	Buscar la selección en la Web
 Copier le lien vers ce passage	Copiar enlace a este pasaje
 Lien copié	Enlace copiado
+{} souhaite vous envoyer des notifications.	{} quiere enviarle notificaciones.
+Onglet privé : la page n'est pas envoyée à un service en ligne.	Pestaña privada: la página no se envía a un servicio en línea.
+Ce dossier est chiffré, mais un fichier non chiffré y a été déposé ({}) : il n'est pas lu. Supprimez-le du dossier.	Esta carpeta está cifrada, pero se ha dejado en ella un archivo sin cifrar ({}): no se lee. Elimínelo de la carpeta.
+Téléchargement en cours — Ctrl+J pour le suivre ou l'arrêter.	Descarga en curso: Ctrl+J para seguirla o detenerla.
+Sanaga est déjà ouvert avec ce profil.	Sanaga ya está abierto con este perfil.
+votre écran (partage d'écran)	su pantalla (compartir pantalla)
+Ce site utilise la caméra, le micro ou l'écran — cliquer pour arrêter	Este sitio usa la cámara, el micrófono o la pantalla: haga clic para detenerlo
+Rechercher une nouvelle version	Buscar una nueva versión
+Sanaga {} est disponible.	Sanaga {} está disponible.
+Voir la nouvelle version	Ver la nueva versión
+Sanaga est à jour.	Sanaga está actualizado.
+Vérification impossible (pas de connexion ?).	No se pudo comprobar (¿sin conexión?).
+Sanaga {} est disponible (voir la page À propos).	Sanaga {} está disponible (vea la página Acerca de).
+Dossier des téléchargements	Carpeta de descargas
+Toujours demander où enregistrer les fichiers	Preguntar siempre dónde guardar los archivos
+Dossier du système	Carpeta del sistema
+Choisir…	Elegir…
+Proxy	Proxy
+Mises à jour	Actualizaciones
+Chercher une nouvelle version une fois par jour	Buscar una nueva versión una vez al día
+Par où passent les pages et les demandes de Sanaga	Por dónde pasan las páginas y las peticiones de Sanaga
+Celui du système	El del sistema
+Aucun (connexion directe)	Ninguno (conexión directa)
+Une adresse	Una dirección
+Adresse du proxy	Dirección del proxy
+Cette adresse n'est pas celle d'un proxy : rien ne part tant qu'elle n'est pas corrigée.	Esta dirección no es la de un proxy: no se envía nada hasta que se corrija.
+Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul	Una sola petición al día a la página de versiones de Sanaga (github.com); nada se instala solo
+HTTPS d'abord	HTTPS primero
+Les sites sont demandés en https ; en http seulement s'ils n'ont pas https	Los sitios se piden por https; por http solo si no tienen https
+Enregistrer sous	Guardar como
+Ce site est signalé comme dangereux	Este sitio está señalado como peligroso
+{} figure sur une liste de sites d'hameçonnage ou de logiciels malveillants : il peut imiter un site que vous connaissez pour prendre vos mots de passe, ou installer un programme nuisible.	{} figura en una lista de sitios de phishing o de software malicioso: puede imitar un sitio que conoce para robar sus contraseñas, o instalar un programa dañino.
+Revenez en lieu sûr, sauf si vous êtes certain que ce signalement est une erreur.	Vuelva a un lugar seguro, salvo si está seguro de que este aviso es un error.
+Les listes viennent de malware-filter (OpenPhish, PhishTank, URLhaus) ; elles sont consultées sur cet ordinateur, l'adresse n'est envoyée nulle part. Sanaga ne se souviendra de votre choix que jusqu'à sa fermeture.	Las listas vienen de malware-filter (OpenPhish, PhishTank, URLhaus); se consultan en este ordenador, la dirección no se envía a ninguna parte. Sanaga solo recordará su elección hasta que se cierre.
+Avertir avant un site dangereux	Avisar antes de un sitio peligroso
+Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing y software malicioso: listas descargadas una vez al día (malware-filter), consultadas en este ordenador — no se envía ninguna dirección
+1 visite	1 visita
+{} visites	{} visitas
+Le nom des sites visités est demandé en clair au réseau (le DNS du système)	El nombre de los sitios visitados se pide a la red sin cifrar (el DNS del sistema)
+Cette adresse n'est pas celle d'un résolveur (https://…) : le DNS du système est utilisé.	Esta dirección no es la de un resolvedor (https://…): se usa el DNS del sistema.
+Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.	Se usa un proxy: es él quien encuentra la dirección de los sitios.
+Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau	El nombre de los sitios visitados se pide por https a este resolvedor, ya no sin cifrar a la red
+DNS chiffré	DNS cifrado
+Adresse du résolveur	Dirección del resolvedor
+Sanaga — barres et menus	Sanaga — barras y menús
+L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.	No se pudo abrir el historial: las páginas visitadas esta vez no se guardarán.

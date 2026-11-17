@@ -20,7 +20,11 @@ const TRANSLATE_JS: &str = r#"(function () {
       var p = n.parentElement;
       if (!p || skip.test(p.tagName) || p.isContentEditable || p.closest('[translate=no],.notranslate')) return NodeFilter.FILTER_REJECT;
       var t = n.nodeValue.trim();
-      if (t.length < 2 || !/[A-Za-zÀ-ÿЀ-ӿ؀-ۿ一-鿿]/.test(t)) return NodeFilter.FILTER_REJECT;
+      // (a text with letters of any alphabet — only Latin, Cyrillic, Arabic
+      // and Chinese characters used to count: a Korean, Hindi, Greek, Hebrew
+      // or Thai page had nothing to translate and was called translated;
+      // a single text longer than a whole batch is left as it is)
+      if (t.length < 2 || t.length > 5000 || !/\p{L}/u.test(t)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     }
   });
@@ -29,8 +33,12 @@ const TRANSLATE_JS: &str = r#"(function () {
   function next() {
     var s = window.__sanagaTr, out = [], size = 0, from = s.pos;
     if (s.stopped) return;
-    while (s.pos < s.nodes.length && out.length < 80 && size < 5000) {
+    // (a batch stays under 5000 characters: it used to stop only after
+    // passing them, and a batch ending on a long paragraph was refused as
+    // too large — the translation then waited for ever)
+    while (s.pos < s.nodes.length && out.length < 80) {
       var t = s.nodes[s.pos].nodeValue.trim();
+      if (out.length && size + t.length > 5000) break;
       out.push(t); size += t.length; s.pos++;
     }
     window.ipc.postMessage(out.length ? 'tr:' + from + '\n' + JSON.stringify(out) : 'tr:done');
@@ -95,7 +103,11 @@ pub(super) fn lang_in_sentence(code: &str) -> &'static str {
 /// are both "pt". Empty when it is not a language code.
 pub(super) fn main_language(code: &str) -> String {
     let main = code.trim().split(['-', '_']).next().unwrap_or("").to_ascii_lowercase();
-    if (2..=3).contains(&main.len()) && main.chars().all(|c| c.is_ascii_lowercase()) { main } else { String::new() }
+    if (2..=3).contains(&main.len()) && main.chars().all(|c| c.is_ascii_lowercase()) {
+        main
+    } else {
+        String::new()
+    }
 }
 
 /// At most this many batches of a page are translated (80 texts or 5000
@@ -226,6 +238,10 @@ impl Sanaga {
             return;
         }
         let Some(t) = self.tabs.iter().find(|t| t.id == tab) else { return };
+        // (not offered in a private tab: translating sends the page away)
+        if t.private {
+            return;
+        }
         let host = host_of(t.url());
         // (a page already being translated, or a translation service's own page)
         if st.translate_skip.contains(&host) || self.translation.as_ref().is_some_and(|x| x.tab == tab) || host.starts_with("translate.google.") {
@@ -235,7 +251,9 @@ impl Sanaga {
     }
 
     pub(super) fn translate_offer_visible(&self) -> bool {
-        !self.focus_mode && !self.translation_bar_visible() && self.translate_offered.as_ref().is_some_and(|(tab, _)| self.tabs.get(self.active).is_some_and(|a| a.id == *tab && matches!(a.view, View::Web)))
+        !self.focus_mode
+            && !self.translation_bar_visible()
+            && self.translate_offered.as_ref().is_some_and(|(tab, _)| self.tabs.get(self.active).is_some_and(|a| a.id == *tab && matches!(a.view, View::Web)))
     }
 
     /// "This page is not in French." — translate it, not now, or never on this site.
@@ -368,6 +386,11 @@ impl Sanaga {
     }
 
     fn translate_with_google(&mut self) {
+        // (a private tab's address is not handed to a translation service)
+        if self.tabs.get(self.active).is_some_and(|t| t.private) {
+            self.notice = Some((tr("Onglet privé : la page n'est pas envoyée à un service en ligne.").into(), self.ctx.input(|i| i.time)));
+            return;
+        }
         if let Some((u, _)) = self.current_page() {
             let enc: String = url::form_urlencoded::byte_serialize(u.as_bytes()).collect();
             let a = self.active;
@@ -376,6 +399,12 @@ impl Sanaga {
     }
 
     fn translate_with_ai(&mut self) {
+        let tab = self.tabs.get(self.active).map(|t| t.id).unwrap_or(0);
+        // (a private tab's text only goes to a model on this computer)
+        if self.ai_provider() != Provider::Local && self.page_text_provider(tab) == Provider::Local {
+            self.notice = Some((tr("Onglet privé : la page n'est pas envoyée à un service en ligne.").into(), self.ctx.input(|i| i.time)));
+            return;
+        }
         let provider = self.ai_provider();
         if provider == Provider::Local {
             self.notice = Some((tr("Choisissez d'abord une IA dans Paramètres › Intelligence.").into(), self.ctx.input(|i| i.time)));
@@ -420,7 +449,13 @@ impl Sanaga {
             self.translation_state(tab, TrState::Done);
             return;
         }
-        let Some((from, texts)) = read_batch(msg) else { return };
+        let Some((from, texts)) = read_batch(msg) else {
+            // (a batch that cannot be read ends the translation with a
+            // word, instead of leaving it "in progress" for ever)
+            self.stop_translation(tab);
+            self.translation_state(tab, TrState::Stopped(tr("La traduction s'arrête ici : la page est très longue.").into()));
+            return;
+        };
         if self.translate_batches >= MAX_BATCHES {
             self.stop_translation(tab);
             self.translation_state(tab, TrState::Stopped(tr("La traduction s'arrête ici : la page est très longue.").into()));

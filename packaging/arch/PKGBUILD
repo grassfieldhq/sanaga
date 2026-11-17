@@ -2,15 +2,16 @@
 # The video codecs YouTube & co. need come in as dependencies: nothing to
 # install by hand.
 pkgname=sanaga
-pkgver=0.4.0
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="A fast, light web browser built on WebKitGTK: containers, network ad blocker, per-site settings, mobile simulator"
 arch=('x86_64' 'aarch64')
 url="https://github.com/grassfieldhq/sanaga"
 license=('MIT')
 depends=(
-  'gtk4'
-  'webkitgtk-6.0'
+  # (the oldest versions the code can use)
+  'gtk4>=4.14'
+  'webkitgtk-6.0>=2.48'
   # WebKit's page sandbox
   'bubblewrap'
   'xdg-dbus-proxy'
@@ -36,6 +37,10 @@ makedepends=('cargo' 'git')
 # (makepkg's link-time optimisation breaks the C parts of Rust crates)
 options=('!lto')
 source=("git+https://github.com/grassfieldhq/sanaga.git#tag=${pkgver}")
+# Before publishing to the AUR, run `updpkgsums` (pacman 6.1 and later
+# check a git source too): it replaces SKIP by the checksum of the tag's
+# source, so a tag moved afterwards is refused. The release workflow makes
+# that file ("PKGBUILD" among the release's files).
 sha256sums=('SKIP')
 
 prepare() {

@@ -21,7 +21,8 @@ impl Sanaga {
         let mut finish = false;
         let mut import = false;
         let mut make_default = false;
-        let card_w = (full.width() - 48.0).min(620.0);
+        // (never less than nothing: a window still without its size)
+        let card_w = (full.width() - 48.0).clamp(0.0, 620.0);
         let found_ai = crate::ai_cli::installed();
         let sources = crate::import::chrome_family_sources();
         ui.vertical_centered(|ui| {
@@ -162,7 +163,15 @@ impl Sanaga {
                                 let names: Vec<String> = sources.iter().map(|(n, _)| n.to_string()).collect();
                                 ui.label(RichText::new(tf("Trouvés : {}", &[&names.join(", ")])).size(14.0).color(th.text));
                                 ui.add_space(12.0);
-                                if ui.add(egui::Button::new(RichText::new(tr("Importer maintenant")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(180.0, 34.0)).corner_radius(CornerRadius::same(10))).clicked() {
+                                if ui
+                                    .add(
+                                        egui::Button::new(RichText::new(tr("Importer maintenant")).color(Color32::WHITE))
+                                            .fill(th.accent)
+                                            .min_size(vec2(180.0, 34.0))
+                                            .corner_radius(CornerRadius::same(10)),
+                                    )
+                                    .clicked()
+                                {
                                     import = true;
                                 }
                             }
@@ -172,7 +181,17 @@ impl Sanaga {
                             let mut choice = |ui: &mut Ui, key: &str, label: &str| {
                                 let chosen = st.ai == key;
                                 let (r, resp) = ui.allocate_exact_size(vec2(card_w * 0.8, 40.0), Sense::click());
-                                ui.painter().rect_filled(r, CornerRadius::same(10), if chosen { th.accent.gamma_multiply(0.14) } else if resp.hovered() { th.card } else { Color32::TRANSPARENT });
+                                ui.painter().rect_filled(
+                                    r,
+                                    CornerRadius::same(10),
+                                    if chosen {
+                                        th.accent.gamma_multiply(0.14)
+                                    } else if resp.hovered() {
+                                        th.card
+                                    } else {
+                                        Color32::TRANSPARENT
+                                    },
+                                );
                                 ui.painter().rect_stroke(r, CornerRadius::same(10), Stroke::new(1.0, if chosen { th.accent } else { th.border }), egui::StrokeKind::Inside);
                                 ui.painter().text(pos2(r.left() + 16.0, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
                                 if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
@@ -190,7 +209,10 @@ impl Sanaga {
                         }
                         _ => {
                             title(ui, Icon::StarFilled, tr("Tout est prêt"), tr("Faites de Sanaga votre navigateur, ou gardez celui de maintenant."));
-                            if ui.add(egui::Button::new(RichText::new(tr("Définir par défaut")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(180.0, 34.0)).corner_radius(CornerRadius::same(10))).clicked() {
+                            if ui
+                                .add(egui::Button::new(RichText::new(tr("Définir par défaut")).color(Color32::WHITE)).fill(th.accent).min_size(vec2(180.0, 34.0)).corner_radius(CornerRadius::same(10)))
+                                .clicked()
+                            {
                                 make_default = true;
                             }
                             ui.add_space(8.0);

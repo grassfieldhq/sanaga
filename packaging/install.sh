@@ -56,11 +56,37 @@ mkdir -p "$APPS"
 # the launcher calls the installed program by its full path, and shows the
 # icon by its full path too (every launcher finds it, even without an icon
 # theme cache)
-sed -e "s|^Exec=sanaga|Exec=$BIN|" -e "s|^Icon=sanaga$|Icon=$ICONS/256x256/apps/sanaga.png|" packaging/sanaga.desktop > "$APPS/sanaga.desktop"
+# (a path with a space or a sign in it is written the way launchers read
+# it: between quotes, with \ before " ` $ and \ — and never through sed,
+# where & and | in the path would mean something else)
+quoted() {
+    printf '"%s"' "$(printf '%s' "$1" | sed -e 's/[\\"`$]/\\&/g')"
+}
+EXEC="$(quoted "$BIN")"
+ICON="$ICONS/256x256/apps/sanaga.png"
+while IFS= read -r line; do
+    case "$line" in
+        "Exec=sanaga") printf 'Exec=%s\n' "$EXEC" ;;
+        "Exec=sanaga "*) printf 'Exec=%s %s\n' "$EXEC" "${line#Exec=sanaga }" ;;
+        "Icon=sanaga") printf 'Icon=%s\n' "$ICON" ;;
+        *) printf '%s\n' "$line" ;;
+    esac
+done < packaging/sanaga.desktop > "$APPS/sanaga.desktop"
 chmod 644 "$APPS/sanaga.desktop"
 refresh
 
 echo "Sanaga installed: $BIN"
+
+# The pages run walled off from the rest of the computer: the web engine
+# needs these two programs for it, and shows no page without them.
+for tool in bwrap xdg-dbus-proxy; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "Warning: '$tool' is not installed: Sanaga cannot show web pages without it." >&2
+        echo "  Debian / Ubuntu: sudo apt install bubblewrap xdg-dbus-proxy" >&2
+        echo "  Fedora:          sudo dnf install bubblewrap xdg-dbus-proxy" >&2
+        echo "  Arch:            sudo pacman -S bubblewrap xdg-dbus-proxy" >&2
+    fi
+done
 case ":$PATH:" in
     *":$PREFIX/bin:"*) ;;
     *) echo "Note: $PREFIX/bin is not in your PATH; the launcher still works." ;;

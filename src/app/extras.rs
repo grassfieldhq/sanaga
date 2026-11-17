@@ -2,10 +2,10 @@
 //! inspector, full screen, web apps ("Add to Dock"), per-site zoom and the
 //! privacy report (cross-site tracking prevention).
 
+use super::chrome::site_badge;
 use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
-use super::chrome::site_badge;
 use eframe::egui::{Align2, Color32, Margin, RichText, Sense};
 use webkit6::prelude::*;
 
@@ -76,10 +76,7 @@ impl Sanaga {
         }
         let host = host_of(&u);
         let exe = std::env::current_exe().ok()?;
-        let dir = std::env::var_os("XDG_DATA_HOME")
-            .map(std::path::PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share")))?
-            .join("applications");
+        let dir = std::env::var_os("XDG_DATA_HOME").map(std::path::PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share")))?.join("applications");
         std::fs::create_dir_all(&dir).ok()?;
         let safe: String = host.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
         let name = if title.trim().is_empty() { host.clone() } else { title.replace(['\n', '\r'], " ") };
@@ -102,7 +99,8 @@ impl Sanaga {
     pub(super) fn remember_zoom(&mut self) {
         let t = &self.tabs[self.active];
         let host = host_of(t.url());
-        if t.url().starts_with("http") {
+        // (a private tab's zoom is for that tab: the site's name is not kept)
+        if t.url().starts_with("http") && !t.private {
             let z = t.zoom;
             self.store.set_site_zoom(&host, z);
         }
@@ -125,10 +123,7 @@ impl Sanaga {
         let tx = self.web_tx.clone();
         dm.itp_summary(None::<&webkit6::gio::Cancellable>, move |res| {
             if let Ok(list) = res {
-                let mut out: Vec<(String, usize)> = list
-                    .iter()
-                    .filter_map(|tp| tp.domain().map(|d| (d.to_string(), tp.first_parties().len())))
-                    .collect();
+                let mut out: Vec<(String, usize)> = list.iter().filter_map(|tp| tp.domain().map(|d| (d.to_string(), tp.first_parties().len()))).collect();
                 out.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
                 let _ = tx.send(web::WebEvent::Privacy(out));
             }
@@ -197,14 +192,8 @@ impl Sanaga {
                         ui.label(RichText::new(tr("Envoyer vers")).size(11.5).family(bold()).color(th.sub));
                         ui.add_space(8.0);
                         // e-mail, then sites: round buttons (initials, no logos)
-                        let targets: [(&'static str, &str, Option<Icon>); 6] = [
-                            ("mail", tr("E-mail"), Some(Icon::Mail)),
-                            ("wa", "WhatsApp", None),
-                            ("tg", "Telegram", None),
-                            ("x", "X", None),
-                            ("fb", "Facebook", None),
-                            ("in", "LinkedIn", None),
-                        ];
+                        let targets: [(&'static str, &str, Option<Icon>); 6] =
+                            [("mail", tr("E-mail"), Some(Icon::Mail)), ("wa", "WhatsApp", None), ("tg", "Telegram", None), ("x", "X", None), ("fb", "Facebook", None), ("in", "LinkedIn", None)];
                         let cw = iw / targets.len() as f32;
                         let (row, _) = ui.allocate_exact_size(vec2(iw, 66.0), Sense::hover());
                         for (k, (id, label, icon)) in targets.iter().enumerate() {
@@ -245,7 +234,13 @@ impl Sanaga {
                             let resp = ui.interact(r, egui::Id::new(("share-tile", *id)), if *enabled { Sense::click() } else { Sense::hover() });
                             let fill = if *enabled && resp.hovered() { th.omnibox_hover } else { th.omnibox };
                             ui.painter().rect_filled(r, CornerRadius::same(10), fill);
-                            let ink = if !*enabled { th.sub.gamma_multiply(0.6) } else if *on { th.accent } else { th.text };
+                            let ink = if !*enabled {
+                                th.sub.gamma_multiply(0.6)
+                            } else if *on {
+                                th.accent
+                            } else {
+                                th.text
+                            };
                             icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 20.0, r.center().y), vec2(15.0, 15.0)), *icon, ink);
                             let clip = Rect::from_min_max(pos2(r.left() + 36.0, r.top()), pos2(r.right() - 6.0, r.bottom()));
                             ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, *label, FontId::proportional(12.5), ink);
@@ -267,7 +262,9 @@ impl Sanaga {
                 });
         });
         let share_rect = self.share_rect;
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) || (ctx.input(|i| i.pointer.any_pressed()) && !ctx.pointer_interact_pos().map(|p| area.response.rect.contains(p) || share_rect.contains(p)).unwrap_or(false)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+            || (ctx.input(|i| i.pointer.any_pressed()) && !ctx.pointer_interact_pos().map(|p| area.response.rect.contains(p) || share_rect.contains(p)).unwrap_or(false))
+        {
             self.share_open = false;
         }
         if copied {
@@ -333,6 +330,15 @@ impl Sanaga {
             crate::shell::toast(None);
             return;
         }
+        // Said to screen readers too: the message is drawn (or shown by a
+        // label over the page) with nothing telling a reader that it
+        // appeared. A "polite" live region is read out when it appears and
+        // when its words change, without taking the keyboard.
+        ctx.accesskit_node_builder(egui::Id::new("notice-said"), |node| {
+            node.set_role(egui::accesskit::Role::Status);
+            node.set_live(egui::accesskit::Live::Polite);
+            node.set_label(msg.clone());
+        });
         // in the window, above the page (the page would hide a drawn one)
         if crate::shell::toast(Some(msg)) {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));

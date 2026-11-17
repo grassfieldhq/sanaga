@@ -12,8 +12,13 @@ type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 #[derive(Clone, Debug)]
 pub enum Kind {
     /// Chrome-family profile folder, and the names its key may have in the keyring.
-    Chromium { profile: PathBuf, keyring_apps: Vec<&'static str> },
-    Firefox { profile: PathBuf },
+    Chromium {
+        profile: PathBuf,
+        keyring_apps: Vec<&'static str>,
+    },
+    Firefox {
+        profile: PathBuf,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -131,7 +136,12 @@ fn derive_key(secret: &[u8]) -> [u8; 16] {
 }
 
 /// Chrome's saved-password encryption on Linux ("v10" / "v11" + AES-128-CBC).
-pub fn decrypt_chrome(blob: &[u8], keys: &[[u8; 16]], strip_domain_hash: bool) -> Option<String> {
+/// What comes out is the password, whole. (Chrome's *cookies* carry a
+/// 32-byte hash of their site before the value since version 24 of the
+/// cookies database; saved passwords — the `Login Data` database, whose own
+/// version number passed 24 years ago — never did. Taking those 32 bytes
+/// off here cut the start of every password of 32 bytes or more.)
+pub fn decrypt_chrome(blob: &[u8], keys: &[[u8; 16]]) -> Option<String> {
     if blob.len() < 3 {
         return None;
     }
@@ -142,8 +152,6 @@ pub fn decrypt_chrome(blob: &[u8], keys: &[[u8; 16]], strip_domain_hash: bool) -
     for k in keys {
         let mut buf = data.to_vec();
         let Ok(plain) = Aes128CbcDec::new(k.into(), &[b' '; 16].into()).decrypt_padded_mut::<Pkcs7>(&mut buf) else { continue };
-        // recent Chrome puts a 32-byte hash of the site before the password
-        let plain = if strip_domain_hash && plain.len() >= 32 { &plain[32..] } else { plain };
         if let Ok(s) = std::str::from_utf8(plain) {
             return Some(s.to_string());
         }
@@ -162,6 +170,11 @@ fn chromium_keys(apps: &[&str]) -> Vec<[u8; 16]> {
     keys
 }
 
+/// The visits taken from another browser at most, the newest first. The
+/// history itself has no limit: this one only keeps an import of many
+/// years of browsing from holding the computer's memory while it is read.
+const MAX_VISITS: usize = 500_000;
+
 fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool, passwords: bool, out: &mut Imported) {
     if bookmarks {
         match std::fs::read_to_string(profile.join("Bookmarks")) {
@@ -172,12 +185,17 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
     if history {
         match open_copy(&profile.join("History")) {
             Ok((db, tmp)) => {
-                let rows = db
-                    .prepare("SELECT url, title, last_visit_time FROM urls WHERE hidden = 0 ORDER BY last_visit_time DESC LIMIT 5000")
-                    .and_then(|mut st| {
-                        st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?)))
-                            .map(|it| it.flatten().collect::<Vec<_>>())
-                    });
+                // Every visit, so that Sanaga knows how often each page
+                // was visited (it took the last visit of 5,000 pages); a
+                // database without the table of visits gives the last
+                // visit of each page.
+                let read = |sql: &str| {
+                    db.prepare(sql).and_then(|mut st| {
+                        st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>())
+                    })
+                };
+                let rows = read(&format!("SELECT u.url, u.title, v.visit_time FROM visits v JOIN urls u ON u.id = v.url WHERE u.hidden = 0 ORDER BY v.visit_time DESC LIMIT {MAX_VISITS}"))
+                    .or_else(|_| read(&format!("SELECT url, title, last_visit_time FROM urls WHERE hidden = 0 ORDER BY last_visit_time DESC LIMIT {MAX_VISITS}")));
                 match rows {
                     Ok(rows) => {
                         for (url, title, t) in rows {
@@ -199,20 +217,16 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
     if passwords {
         match open_copy(&profile.join("Login Data")) {
             Ok((db, tmp)) => {
-                let version: i64 = db.query_row("SELECT value FROM meta WHERE key = 'version'", [], |r| r.get::<_, String>(0)).ok().and_then(|v| v.parse().ok()).unwrap_or(0);
                 let keys = chromium_keys(apps);
                 let rows = db
                     .prepare("SELECT origin_url, username_value, password_value FROM logins WHERE blacklisted_by_user = 0")
-                    .and_then(|mut st| {
-                        st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Vec<u8>>(2)?)))
-                            .map(|it| it.flatten().collect::<Vec<_>>())
-                    });
+                    .and_then(|mut st| st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Vec<u8>>(2)?))).map(|it| it.flatten().collect::<Vec<_>>()));
                 match rows {
                     Ok(rows) => {
                         let mut failed = 0;
                         for (origin, user, blob) in rows {
                             let Some(site) = site_of(&origin) else { continue };
-                            match decrypt_chrome(&blob, &keys, version >= 24) {
+                            match decrypt_chrome(&blob, &keys) {
                                 Some(p) if !p.is_empty() => out.logins.push((site, user, p)),
                                 _ => failed += 1,
                             }
@@ -242,12 +256,16 @@ fn firefox_import(profile: &Path, bookmarks: bool, history: bool, out: &mut Impo
         }
     };
     if history {
-        let rows = db
-            .prepare("SELECT url, title, last_visit_date FROM moz_places WHERE last_visit_date IS NOT NULL AND hidden = 0 ORDER BY last_visit_date DESC LIMIT 5000")
-            .and_then(|mut st| {
-                st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?)))
-                    .map(|it| it.flatten().collect::<Vec<_>>())
-            });
+        // (every visit, as for Chrome; without the table of visits, the
+        // last visit of each page)
+        let read = |sql: &str| {
+            db.prepare(sql).and_then(|mut st| {
+                st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>())
+            })
+        };
+        let rows =
+            read(&format!("SELECT p.url, p.title, v.visit_date FROM moz_historyvisits v JOIN moz_places p ON p.id = v.place_id WHERE p.hidden = 0 ORDER BY v.visit_date DESC LIMIT {MAX_VISITS}"))
+                .or_else(|_| read(&format!("SELECT url, title, last_visit_date FROM moz_places WHERE last_visit_date IS NOT NULL AND hidden = 0 ORDER BY last_visit_date DESC LIMIT {MAX_VISITS}")));
         match rows {
             Ok(rows) => {
                 for (url, title, t) in rows {
@@ -358,11 +376,17 @@ mod tests {
     #[test]
     fn chrome_passwords_round_trip() {
         let blob = chrome_encrypt(b"peanuts", b"motdepasse123");
-        assert_eq!(decrypt_chrome(&blob, &[derive_key(b"peanuts")], false).as_deref(), Some("motdepasse123"));
-        // newer format with the 32-byte site hash in front
-        let with_hash = [vec![7u8; 32], b"secret".to_vec()].concat();
-        let blob = chrome_encrypt(b"peanuts", &with_hash);
-        assert_eq!(decrypt_chrome(&blob, &[derive_key(b"wrong"), derive_key(b"peanuts")], true).as_deref(), Some("secret"));
+        assert_eq!(decrypt_chrome(&blob, &[derive_key(b"peanuts")]).as_deref(), Some("motdepasse123"));
+        // a long password (a phrase, a generated one) comes out whole, with
+        // the right key found among several
+        let just = "x".repeat(32);
+        for long in ["un mot de passe de trente-trois o", "une phrase de passe bien plus longue que trente-deux caractères !", just.as_str()] {
+            assert!(long.len() >= 32);
+            let blob = chrome_encrypt(b"peanuts", long.as_bytes());
+            assert_eq!(decrypt_chrome(&blob, &[derive_key(b"wrong"), derive_key(b"peanuts")]).as_deref(), Some(long));
+        }
+        // very old, never encrypted
+        assert_eq!(decrypt_chrome(b"en clair", &[]).as_deref(), Some("en clair"));
     }
 
     #[test]
@@ -376,13 +400,52 @@ mod tests {
         drop(h);
         let l = rusqlite::Connection::open(dir.join("Login Data")).unwrap();
         l.execute_batch("CREATE TABLE meta(key TEXT, value TEXT); INSERT INTO meta VALUES ('version', '40'); CREATE TABLE logins(origin_url TEXT, username_value TEXT, password_value BLOB, blacklisted_by_user INTEGER DEFAULT 0);").unwrap();
-        let blob = chrome_encrypt(b"peanuts", &[vec![1u8; 32], b"pa55".to_vec()].concat());
-        l.execute("INSERT INTO logins(origin_url, username_value, password_value) VALUES ('https://example.org/login', 'ana', ?1)", [blob]).unwrap();
+        // (the database says version 40, as today's Chrome: its passwords
+        // are stored as they are, short or long)
+        let long = "Une phrase de passe de plus de 32 octets, entière";
+        l.execute("INSERT INTO logins(origin_url, username_value, password_value) VALUES ('https://example.org/login', 'ana', ?1)", [chrome_encrypt(b"peanuts", b"pa55")]).unwrap();
+        l.execute("INSERT INTO logins(origin_url, username_value, password_value) VALUES ('https://long.example/', 'bo', ?1)", [chrome_encrypt(b"peanuts", long.as_bytes())]).unwrap();
         drop(l);
         let mut out = Imported::default();
         chromium_import(&dir, &[], false, true, true, &mut out);
         assert_eq!(out.history, vec![(1_704_067_200, "https://example.org/".into(), "Exemple".into())]);
-        assert_eq!(out.logins, vec![("https://example.org".into(), "ana".into(), "pa55".into())]);
+        assert_eq!(out.logins, vec![("https://example.org".into(), "ana".into(), "pa55".into()), ("https://long.example".into(), "bo".into(), long.into())]);
+        assert!(out.problems.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn every_visit_is_taken_when_the_browser_kept_them() {
+        let dir = std::env::temp_dir().join(format!("sanaga-migrate-visits-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(dir.join("firefox"));
+        let chrome_time = |secs: i64| (secs + 11_644_473_600) * 1_000_000;
+        // Chrome: a page visited three times, a hidden one
+        let h = rusqlite::Connection::open(dir.join("History")).unwrap();
+        h.execute_batch("CREATE TABLE urls(id INTEGER PRIMARY KEY, url TEXT, title TEXT, last_visit_time INTEGER, hidden INTEGER DEFAULT 0); CREATE TABLE visits(id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER);")
+            .unwrap();
+        h.execute("INSERT INTO urls(id, url, title, last_visit_time) VALUES (1, 'https://example.org/', 'Exemple', ?1)", [chrome_time(300)]).unwrap();
+        h.execute("INSERT INTO urls(id, url, title, last_visit_time, hidden) VALUES (2, 'https://hidden.example/', 'Hidden', ?1, 1)", [chrome_time(400)]).unwrap();
+        for (url, secs) in [(1, 100), (1, 200), (1, 300), (2, 400)] {
+            h.execute("INSERT INTO visits(url, visit_time) VALUES (?1, ?2)", [url, chrome_time(secs)]).unwrap();
+        }
+        drop(h);
+        let mut out = Imported::default();
+        chromium_import(&dir, &[], false, true, false, &mut out);
+        assert_eq!(out.history.iter().map(|v| (v.0, v.1.as_str())).collect::<Vec<_>>(), [(300, "https://example.org/"), (200, "https://example.org/"), (100, "https://example.org/")]);
+        // Firefox: the same
+        let f = rusqlite::Connection::open(dir.join("firefox").join("places.sqlite")).unwrap();
+        f.execute_batch(
+            "CREATE TABLE moz_places(id INTEGER PRIMARY KEY, url TEXT, title TEXT, last_visit_date INTEGER, hidden INTEGER DEFAULT 0); CREATE TABLE moz_historyvisits(id INTEGER PRIMARY KEY, place_id INTEGER, visit_date INTEGER);
+             INSERT INTO moz_places(id, url, title, last_visit_date) VALUES (1, 'https://example.org/', 'Exemple', 200000000);
+             INSERT INTO moz_historyvisits(place_id, visit_date) VALUES (1, 100000000), (1, 200000000);",
+        )
+        .unwrap();
+        drop(f);
+        let mut out = Imported::default();
+        firefox_import(&dir.join("firefox"), false, true, &mut out);
+        assert_eq!(out.history, vec![(200, "https://example.org/".into(), "Exemple".into()), (100, "https://example.org/".into(), "Exemple".into())]);
+        assert!(out.problems.is_empty(), "{:?}", out.problems);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

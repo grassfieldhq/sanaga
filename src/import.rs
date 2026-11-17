@@ -8,17 +8,11 @@ use std::path::PathBuf;
 pub fn chrome_family_sources() -> Vec<(String, PathBuf)> {
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else { return Vec::new() };
     let config = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home.join(".config"));
-    [
-        ("Google Chrome", "google-chrome"),
-        ("Chromium", "chromium"),
-        ("Brave", "BraveSoftware/Brave-Browser"),
-        ("Microsoft Edge", "microsoft-edge"),
-        ("Vivaldi", "vivaldi"),
-    ]
-    .iter()
-    .map(|(n, d)| (n.to_string(), config.join(d).join("Default").join("Bookmarks")))
-    .filter(|(_, p)| p.is_file())
-    .collect()
+    [("Google Chrome", "google-chrome"), ("Chromium", "chromium"), ("Brave", "BraveSoftware/Brave-Browser"), ("Microsoft Edge", "microsoft-edge"), ("Vivaldi", "vivaldi")]
+        .iter()
+        .map(|(n, d)| (n.to_string(), config.join(d).join("Default").join("Bookmarks")))
+        .filter(|(_, p)| p.is_file())
+        .collect()
 }
 
 // ---- a tiny JSON reader, enough for bookmark files ----

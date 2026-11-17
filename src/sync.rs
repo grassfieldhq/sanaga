@@ -24,11 +24,7 @@ pub struct SyncStatus {
 }
 
 pub fn device_name() -> String {
-    std::fs::read_to_string("/etc/hostname")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "cet-ordinateur".into())
+    std::fs::read_to_string("/etc/hostname").ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| "cet-ordinateur".into())
 }
 
 // ------------------------------------------------------------- secret phrase
@@ -112,17 +108,44 @@ pub fn set_secret(profile: &str, new: Option<&str>) -> bool {
 const MAGIC: &[u8; 8] = b"SANAGA\x01\n";
 const SALT_FILE: &str = "sel.bin";
 
+/// A file of the shared folder, as it is. None: it is not there yet — no
+/// such file, or an empty one (a file the service that carries the folder
+/// has listed and not brought yet, a copy cut short: Sanaga never writes an
+/// empty file there, see `write_shared`). Anything else that keeps it from
+/// being read — a disk or network error, a refusal — is an error, and the
+/// round stops there. (Read as "not there yet", this computer published
+/// its own lists as the folder's, and the other computers removed what was
+/// missing from them.)
+fn read_folder_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
+    match std::fs::read(path) {
+        Ok(data) if data.is_empty() => Ok(None),
+        Ok(data) => Ok(Some(data)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{} : {e}", path.display())),
+    }
+}
+
+/// Does the folder hold sealed files (lists, or the tabs of a computer)?
+fn has_sealed_files(dir: &Path) -> bool {
+    [dir.to_path_buf(), dir.join("appareils")].iter().filter_map(|d| std::fs::read_dir(d).ok()).flat_map(|rd| rd.flatten()).any(|e| e.file_name().to_string_lossy().ends_with(".enc"))
+}
+
 /// The key of this folder: from the phrase and the folder's salt (made by
 /// the first computer that encrypts, then shared with the folder).
 fn folder_key(dir: &Path, phrase: &str) -> Result<[u8; 32], String> {
     use chacha20poly1305::aead::{rand_core::RngCore, OsRng};
     let salt_path = dir.join(SALT_FILE);
-    let salt = match std::fs::read(&salt_path) {
-        Ok(s) if s.len() >= 16 => s,
+    let salt = match read_folder_file(&salt_path)? {
+        Some(s) if s.len() >= 16 => s,
+        // No salt, in a folder that already holds sealed files: theirs has
+        // not arrived yet, or was lost. A new one would make another key,
+        // and once carried to the other computers it would lock every one
+        // of them out of the folder: none is made.
+        _ if has_sealed_files(dir) => return Err(format!("{} : {}", salt_path.display(), std::io::Error::from(std::io::ErrorKind::NotFound))),
         _ => {
             let mut s = vec![0u8; 16];
             OsRng.fill_bytes(&mut s);
-            crate::store::write_atomic(&salt_path, &s).map_err(|e| e.to_string())?;
+            crate::store::write_quietly(&salt_path, &s).map_err(|e| e.to_string())?;
             s
         }
     };
@@ -177,29 +200,135 @@ fn name_of(p: &Path) -> String {
     p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
 }
 
-/// A file of the shared folder (None: not there yet). A sealed file needs
-/// the phrase; a plain one left from before encryption is still read.
-fn read_shared(plain: &Path, key: Option<&[u8; 32]>) -> Result<Option<String>, String> {
-    if let Ok(data) = std::fs::read(sealed_path(plain)) {
+/// A list of the shared folder (None: not there yet). A sealed file needs
+/// the phrase. A plain one is read when the folder is not encrypted, and
+/// once when encryption has just been switched on (the list of before,
+/// sealed in the same round: see `write_shared`). After that — `sealed_before`:
+/// this computer has already sealed or opened this list in this folder — a
+/// plain file is refused: only someone without the phrase can have put it
+/// there (in place of the sealed one, removed), and merging it would hand
+/// its content, sealed, to every computer.
+fn read_shared(plain: &Path, key: Option<&[u8; 32]>, sealed_before: bool) -> Result<Option<String>, String> {
+    if let Some(data) = read_folder_file(&sealed_path(plain))? {
         let Some(key) = key else { return Err(crate::i18n::tr("Ce dossier est chiffré : saisissez sa phrase secrète.").into()) };
         return match unseal(key, &name_of(plain), &data) {
             Some(text) => Ok(Some(String::from_utf8_lossy(&text).to_string())),
             None => Err(crate::i18n::tr("Phrase secrète incorrecte pour ce dossier.").into()),
         };
     }
-    Ok(std::fs::read_to_string(plain).ok())
+    let Some(data) = read_folder_file(plain)? else { return Ok(None) };
+    if key.is_some() && sealed_before {
+        return Err(crate::i18n::tf("Ce dossier est chiffré, mais un fichier non chiffré y a été déposé ({}) : il n'est pas lu. Supprimez-le du dossier.", &[&name_of(plain)]));
+    }
+    // (a file that is not text: half arrived, or damaged — not an empty list)
+    String::from_utf8(data).map(Some).map_err(|e| format!("{} : {e}", plain.display()))
+}
+
+/// The tabs another computer published (None: nothing to show). In an
+/// encrypted folder only sealed files count: every computer that has the
+/// phrase seals its tabs, so a plain file there comes from someone who
+/// does not have it — and what it lists would be shown as the tabs of one
+/// of the person's own computers, to click.
+fn read_tabs(plain: &Path, key: Option<&[u8; 32]>) -> Option<String> {
+    match key {
+        Some(key) => {
+            let data = read_folder_file(&sealed_path(plain)).ok()??;
+            Some(String::from_utf8_lossy(&unseal(key, &name_of(plain), &data)?).to_string())
+        }
+        None => String::from_utf8(read_folder_file(plain).ok()??).ok(),
+    }
 }
 
 /// Write a file of the shared folder: sealed when there is a key (and its
-/// plain copy from before goes), plain otherwise.
+/// plain copy from before goes), plain otherwise. Never an empty file: an
+/// empty list is one line break, so that a list emptied on purpose is told
+/// from a file that has not arrived (see `read_folder_file`). The windows
+/// are not told: this is not the profile's data.
 fn write_shared(plain: &Path, key: Option<&[u8; 32]>, text: &str) -> std::io::Result<()> {
+    let text = if text.is_empty() { "\n" } else { text };
     match key {
         Some(key) => {
-            crate::store::write_atomic(&sealed_path(plain), seal(key, &name_of(plain), text.as_bytes()))?;
+            crate::store::write_quietly(&sealed_path(plain), seal(key, &name_of(plain), text.as_bytes()))?;
             let _ = std::fs::remove_file(plain);
             Ok(())
         }
-        None => crate::store::write_atomic(plain, text),
+        None => crate::store::write_quietly(plain, text),
+    }
+}
+
+// ------------------------------------------- what is remembered of a folder
+
+/// What this computer remembers of one sync folder. Kept in the profile
+/// (`sync-base/<folder>/`), never in the folder itself, and apart for each
+/// folder:
+///
+/// - each list as it was after the last round with *that* folder (the base
+///   of the merge: what is in it and gone from one side was removed
+///   there). It used to be kept once for the profile: after the sync
+///   folder was changed in Settings, the base made with the old folder was
+///   used against the new one, and every favourite of this computer that
+///   the new folder did not hold was taken for "removed on another
+///   computer" — and removed here.
+/// - the lists this computer has sealed or opened there (see `read_shared`).
+struct Memory {
+    dir: PathBuf,
+    /// Where version 0.4.0 kept its one base (`sync-base/`).
+    before: PathBuf,
+    /// The shared folder, as written in `folder.txt` for whoever looks.
+    folder: String,
+}
+
+impl Memory {
+    /// `shared`: this profile's folder inside the sync folder, as the
+    /// settings name it (not followed through links: what is inside the
+    /// folder must not be able to pass it off as another one).
+    fn of(local_dir: &Path, shared: &Path) -> Memory {
+        use sha1::Digest;
+        let folder = shared.to_string_lossy().to_string();
+        let name: String = sha1::Sha1::digest(folder.as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect();
+        let before = local_dir.join("sync-base");
+        Memory { dir: before.join(name), before, folder }
+    }
+
+    /// The list `file` as it was after the last round with this folder.
+    fn base(&self, file: &str) -> Option<Vec<Item>> {
+        std::fs::read(self.dir.join(file)).ok().map(|b| parse(&String::from_utf8_lossy(&b)))
+    }
+
+    fn keep_base(&self, file: &str, text: &str) {
+        let _ = std::fs::create_dir_all(&self.dir);
+        if !self.dir.join("folder.txt").exists() {
+            let _ = crate::store::write_quietly(&self.dir.join("folder.txt"), format!("{}\n", self.folder));
+        }
+        let _ = crate::store::write_quietly(&self.dir.join(file), text);
+        // (the base of 0.4.0, made with a folder nothing names: never used
+        // again, and not left for an earlier version to use against
+        // another folder)
+        let _ = std::fs::remove_file(self.before.join(file));
+    }
+
+    fn sealed(&self) -> Vec<String> {
+        std::fs::read_to_string(self.dir.join("sealed.txt")).map(|t| t.lines().map(str::to_string).collect()).unwrap_or_default()
+    }
+
+    /// Has this computer sealed or opened the list `file` in this folder?
+    fn was_sealed(&self, file: &str) -> bool {
+        self.sealed().iter().any(|f| f == file)
+    }
+
+    /// Remember that `file` is sealed in this folder (`now`), or that the
+    /// folder is not encrypted any more (the person took the phrase off).
+    fn note_sealed(&self, file: &str, now: bool) {
+        let mut list = self.sealed();
+        if list.iter().any(|f| f == file) == now {
+            return;
+        }
+        list.retain(|f| f != file);
+        if now {
+            list.push(file.to_string());
+        }
+        let _ = std::fs::create_dir_all(&self.dir);
+        let _ = crate::store::write_quietly(&self.dir.join("sealed.txt"), list.iter().map(|f| format!("{f}\n")).collect::<String>());
     }
 }
 
@@ -282,14 +411,27 @@ fn merge(base: Option<&[Item]>, local: &[Item], remote: &[Item]) -> Vec<Item> {
 }
 
 /// Merge one list file with the folder's. Gives this computer's new list
-/// when it changed.
-fn exchange(local: &Path, base: &Path, remote: &Path, key: Option<&[u8; 32]>) -> Result<Option<Vec<Item>>, String> {
-    let local_text = std::fs::read_to_string(local).ok();
-    let remote_text = read_shared(remote, key)?;
+/// when it changed. An error (a list that cannot be read, here or in the
+/// folder; a wrong phrase; a plain file in an encrypted folder) comes
+/// before anything is written.
+fn exchange(local: &Path, memory: &Memory, remote: &Path, key: Option<&[u8; 32]>) -> Result<Option<Vec<Item>>, String> {
+    let name = name_of(local);
+    // this computer's list, read as the window reads it (store.rs): not
+    // there, nothing yet; there and unreadable, the round stops
+    let local_text = match std::fs::read(local) {
+        Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(format!("{} : {e}", local.display())),
+    };
+    let remote_text = read_shared(remote, key, memory.was_sealed(&name))?;
     // the base only counts when both sides are there: a list file that is
     // missing (a new folder, a profile started again) removes nothing
     let base_list = match (&local_text, &remote_text) {
-        (Some(_), Some(_)) => std::fs::read_to_string(base).ok().map(|t| parse(&t)),
+        (Some(_), Some(_)) => memory.base(&name),
+        // no list here and none there: nothing to exchange. (Nothing is
+        // put in the folder: a list written from no list at all would read
+        // there as "emptied on purpose", and empty the other computers'.)
+        (None, None) => return Ok(None),
         _ => None,
     };
     let l = parse(local_text.as_deref().unwrap_or(""));
@@ -301,15 +443,15 @@ fn exchange(local: &Path, base: &Path, remote: &Path, key: Option<&[u8; 32]>) ->
     if remote_stale {
         write_shared(remote, key, &text).map_err(|e| e.to_string())?;
     }
+    // (from here on, in an encrypted folder, this list is a sealed one)
+    memory.note_sealed(&name, key.is_some());
     let changed = merged != l;
-    // (this computer's own files: in order with the window's saves of them)
+    // (this computer's own file: in order with the window's saves of it,
+    // and the windows are told — of this file only)
     if changed {
         crate::store::write_in_order(local, &text).map_err(|e| e.to_string())?;
     }
-    if let Some(dir) = base.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    let _ = crate::store::write_in_order(base, &text);
+    memory.keep_base(&name, &text);
     Ok(changed.then_some(merged))
 }
 
@@ -343,6 +485,17 @@ pub fn rejoin(before: &[Item], now: &[Item], synced: &[Item]) -> Vec<Item> {
 
 /// One sync round (call it on a thread). Gives this computer's lists that changed.
 pub fn sync(job: &SyncJob, status: &mut SyncStatus) -> Synced {
+    let folder = job.folder.trim();
+    // (the keyring is still being asked for the phrase: next round. No
+    // folder, or one that is not there, is said without asking it)
+    if !folder.is_empty() && Path::new(folder).is_dir() && !secret_ready(&job.profile) {
+        return Synced::default();
+    }
+    sync_with(job, phrase().as_deref(), status)
+}
+
+/// A sync round with the secret phrase in hand (None: the folder is not encrypted).
+fn sync_with(job: &SyncJob, phrase: Option<&str>, status: &mut SyncStatus) -> Synced {
     let mut synced = Synced::default();
     let folder = job.folder.trim();
     if folder.is_empty() {
@@ -355,10 +508,6 @@ pub fn sync(job: &SyncJob, status: &mut SyncStatus) -> Synced {
         return synced;
     }
     let local_dir = &job.local_dir;
-    // (the keyring is still being asked for the phrase: next round)
-    if !secret_ready(&job.profile) {
-        return synced;
-    }
     // what the window is still saving is on the disk before it is read
     crate::store::flush_saves();
     let profile = if job.profile.is_empty() { "Personnel" } else { job.profile.as_str() };
@@ -368,8 +517,8 @@ pub fn sync(job: &SyncJob, status: &mut SyncStatus) -> Synced {
         status.error = crate::i18n::tr("Impossible d'écrire dans le dossier de synchronisation.").into();
         return synced;
     }
-    let key = match phrase() {
-        Some(p) => match folder_key(&dir, &p) {
+    let key = match phrase {
+        Some(p) => match folder_key(&dir, p) {
             Ok(k) => Some(k),
             Err(e) => {
                 status.error = e;
@@ -379,12 +528,14 @@ pub fn sync(job: &SyncJob, status: &mut SyncStatus) -> Synced {
         None => None,
     };
     status.encrypted = key.is_some();
+    let memory = Memory::of(local_dir, &dir);
     for f in ["bookmarks.tsv", "reading.tsv"] {
-        match exchange(&local_dir.join(f), &local_dir.join("sync-base").join(f), &dir.join(f), key.as_ref()) {
+        match exchange(&local_dir.join(f), &memory, &dir.join(f), key.as_ref()) {
             Ok(list) if f == "bookmarks.tsv" => synced.bookmarks = list,
             Ok(list) => synced.reading = list,
             Err(e) => {
-                // (a wrong or missing phrase: nothing was written anywhere)
+                // (a wrong or missing phrase, a list that cannot be read:
+                // nothing of this list was written anywhere)
                 status.error = e;
                 return synced;
             }
@@ -398,11 +549,11 @@ pub fn sync(job: &SyncJob, status: &mut SyncStatus) -> Synced {
     if let Ok(rd) = std::fs::read_dir(&devices_dir) {
         for e in rd.flatten() {
             let file = name_of(&e.path());
-            let Some(name) = file.strip_suffix(".tsv.enc").or_else(|| file.strip_suffix(".tsv")) else { continue };
+            let Some(name) = file.strip_suffix(if key.is_some() { ".tsv.enc" } else { ".tsv" }) else { continue };
             if name == me || devices.iter().any(|d| d.0 == name) {
                 continue;
             }
-            let Ok(Some(text)) = read_shared(&devices_dir.join(format!("{name}.tsv")), key.as_ref()) else { continue };
+            let Some(text) = read_tabs(&devices_dir.join(format!("{name}.tsv")), key.as_ref()) else { continue };
             let list: Vec<(String, String)> = text.lines().filter_map(|l| l.split_once('\t').map(|(u, t)| (u.to_string(), t.to_string()))).collect();
             if !list.is_empty() {
                 devices.push((name.to_string(), list));
@@ -463,14 +614,14 @@ mod tests {
             std::fs::create_dir_all(d).unwrap();
         }
         let f = "bookmarks.tsv";
-        let round = |pc: &Path, key: Option<&[u8; 32]>| exchange(&pc.join(f), &pc.join("base").join(f), &shared.join(f), key).unwrap().is_some();
+        let round = |pc: &Path, key: Option<&[u8; 32]>| exchange(&pc.join(f), &Memory::of(pc, &shared), &shared.join(f), key).unwrap().is_some();
         std::fs::write(pc1.join(f), "a\tA\nb\tB\n").unwrap();
         std::fs::write(pc2.join(f), "c\tC\n").unwrap();
         assert!(!round(&pc1, None)); // the folder was empty: pc1 publishes
         assert!(round(&pc2, None)); // pc2 gets a and b, keeps c
         assert_eq!(std::fs::read_to_string(pc2.join(f)).unwrap(), "c\tC\na\tA\nb\tB\n");
         assert!(round(&pc1, None)); // pc1 gets c
-        // pc1 removes b; pc2 adds d meanwhile
+                                    // pc1 removes b; pc2 adds d meanwhile
         assert_eq!(std::fs::read_to_string(pc1.join(f)).unwrap(), "c\tC\na\tA\nb\tB\n"); // one order for both
         std::fs::write(pc1.join(f), "c\tC\na\tA\n").unwrap();
         std::fs::write(pc2.join(f), "c\tC\na\tA\nb\tB\nd\tD\n").unwrap();
@@ -499,14 +650,212 @@ mod tests {
         assert!(!round(&pc2, Some(&key)));
         let wrong = folder_key(&shared, "autre phrase").unwrap();
         assert_ne!(wrong, key);
-        assert!(exchange(&pc2.join(f), &pc2.join("base").join(f), &shared.join(f), Some(&wrong)).is_err());
-        assert!(exchange(&pc2.join(f), &pc2.join("base").join(f), &shared.join(f), None).is_err());
+        assert!(exchange(&pc2.join(f), &Memory::of(&pc2, &shared), &shared.join(f), Some(&wrong)).is_err());
+        assert!(exchange(&pc2.join(f), &Memory::of(&pc2, &shared), &shared.join(f), None).is_err());
         assert_eq!(std::fs::read(sealed_path(&shared.join(f))).unwrap(), sealed);
         // a sealed file can't be passed off as another, nor changed
         assert!(unseal(&key, "reading.tsv", &sealed).is_none());
         let mut changed = sealed.clone();
         *changed.last_mut().unwrap() ^= 1;
         assert!(unseal(&key, f, &changed).is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A new, empty folder for a test, with the folders `names` in it.
+    fn temp<const N: usize>(test: &str, names: [&str; N]) -> (PathBuf, [PathBuf; N]) {
+        let root = std::env::temp_dir().join(format!("sanaga-sync-{test}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dirs = names.map(|n| root.join(n));
+        for d in &dirs {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        (root, dirs)
+    }
+
+    fn job(local: &Path, folder: &Path) -> SyncJob {
+        SyncJob { folder: folder.to_string_lossy().to_string(), local_dir: local.to_path_buf(), profile: String::new(), open_tabs: vec![("https://tab.example/".into(), "Tab".into())] }
+    }
+
+    /// The addresses of a list file, in order.
+    fn urls(file: &Path) -> Vec<String> {
+        parse(&std::fs::read_to_string(file).unwrap()).into_iter().map(|i| i.0).collect()
+    }
+
+    #[test]
+    fn changing_the_sync_folder_removes_nothing() {
+        let (root, [pc, x, y]) = temp("folders", ["pc", "x", "y"]);
+        let f = "bookmarks.tsv";
+        let mut status = SyncStatus::default();
+        std::fs::write(pc.join(f), "a\tA\nb\tB\nc\tC\n").unwrap();
+        // a round with folder X, empty: this computer's favourites go there
+        sync_with(&job(&pc, &x), None, &mut status);
+        assert_eq!((status.error.as_str(), urls(&x.join("Sanaga/Personnel").join(f))), ("", vec!["a".to_string(), "b".into(), "c".into()]));
+        // the person chooses folder Y, which holds two others: nothing of
+        // this computer is "gone from the folder" — the lists are joined
+        std::fs::create_dir_all(y.join("Sanaga/Personnel")).unwrap();
+        std::fs::write(y.join("Sanaga/Personnel").join(f), "x\tX\ny\tY\n").unwrap();
+        let synced = sync_with(&job(&pc, &y), None, &mut status);
+        assert_eq!((status.error.as_str(), urls(&pc.join(f))), ("", vec!["a".to_string(), "b".into(), "c".into(), "x".into(), "y".into()]));
+        assert_eq!(synced.bookmarks.map(|l| l.len()), Some(5));
+        assert_eq!(urls(&y.join("Sanaga/Personnel").join(f)).len(), 5);
+        // with Y from now on, what another computer removes there is removed here
+        std::fs::write(y.join("Sanaga/Personnel").join(f), "a\tA\nb\tB\nc\tC\nx\tX\n").unwrap();
+        sync_with(&job(&pc, &y), None, &mut status);
+        assert_eq!(urls(&pc.join(f)), ["a", "b", "c", "x"]);
+        // back to X, where another computer removed "c" meanwhile: what
+        // was agreed with X the last time still counts for X
+        std::fs::write(x.join("Sanaga/Personnel").join(f), "a\tA\nb\tB\n").unwrap();
+        sync_with(&job(&pc, &x), None, &mut status);
+        assert_eq!(urls(&pc.join(f)), ["a", "b", "x"]);
+        assert_eq!(urls(&x.join("Sanaga/Personnel").join(f)), ["a", "b", "x"]);
+        // the base version 0.4.0 left (made with a folder nothing names) is not used, and goes
+        let (_, [old, z]) = temp("folders-before", ["old", "z"]);
+        std::fs::create_dir_all(old.join("sync-base")).unwrap();
+        std::fs::write(old.join(f), "a\tA\nb\tB\n").unwrap();
+        std::fs::write(old.join("sync-base").join(f), "a\tA\nb\tB\n").unwrap();
+        std::fs::create_dir_all(z.join("Sanaga/Personnel")).unwrap();
+        std::fs::write(z.join("Sanaga/Personnel").join(f), "z\tZ\n").unwrap();
+        sync_with(&job(&old, &z), None, &mut status);
+        assert_eq!(urls(&old.join(f)), ["a", "b", "z"]);
+        assert!(!old.join("sync-base").join(f).exists());
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(old.parent().unwrap());
+    }
+
+    #[test]
+    fn an_encrypted_folder_refuses_plain_files() {
+        let (root, [pc1, pc2, shared]) = temp("plain", ["pc1", "pc2", "shared"]);
+        let f = "bookmarks.tsv";
+        let dir = shared.join("Sanaga/Personnel");
+        let mut status = SyncStatus::default();
+        // a folder that was not encrypted: pc2 put its favourites and its tabs there
+        std::fs::write(pc2.join(f), "b\tB\n").unwrap();
+        sync_with(&job(&pc2, &shared), None, &mut status);
+        assert!(status.error.is_empty() && dir.join(f).exists() && !status.encrypted);
+        // encryption is switched on at pc1: the plain list of before is
+        // read this once, and sealed
+        std::fs::write(pc1.join(f), "a\tA\n").unwrap();
+        sync_with(&job(&pc1, &shared), Some("une phrase"), &mut status);
+        assert_eq!((status.error.as_str(), urls(&pc1.join(f))), ("", vec!["a".to_string(), "b".into()]));
+        assert!(status.encrypted && !dir.join(f).exists() && sealed_path(&dir.join(f)).exists());
+        // someone who can write in the folder, without the phrase: the
+        // sealed list removed, a plain one in its place, and tabs to click
+        let sealed = std::fs::read(sealed_path(&dir.join(f))).unwrap();
+        std::fs::remove_file(sealed_path(&dir.join(f))).unwrap();
+        std::fs::write(dir.join(f), "https://evil.example/\tMa banque\n").unwrap();
+        std::fs::write(dir.join("appareils/portable.tsv"), "https://evil.example/\tMa banque\n").unwrap();
+        let synced = sync_with(&job(&pc1, &shared), Some("une phrase"), &mut status);
+        assert!(status.error.contains(f), "{}", status.error);
+        assert!(synced.bookmarks.is_none() && urls(&pc1.join(f)) == ["a", "b"]);
+        // nothing of it was sealed for the other computers
+        assert!(!sealed_path(&dir.join(f)).exists() && urls(&dir.join(f)) == ["https://evil.example/"]);
+        // the plain file gone and the sealed one back: all is well again,
+        // and the plain tabs are still not shown as a computer's
+        std::fs::remove_file(dir.join(f)).unwrap();
+        std::fs::write(sealed_path(&dir.join(f)), &sealed).unwrap();
+        sync_with(&job(&pc1, &shared), Some("une phrase"), &mut status);
+        assert_eq!(status.error, "");
+        assert!(status.devices.is_empty(), "{:?}", status.devices);
+        // the tabs of a computer that has the phrase are sealed, and shown;
+        // the second computer, given the phrase, reads the sealed list
+        let key = folder_key(&dir, "une phrase").unwrap();
+        write_shared(&dir.join("appareils/bureau.tsv"), Some(&key), "https://t.example/\tT\n").unwrap();
+        sync_with(&job(&pc2, &shared), Some("une phrase"), &mut status);
+        assert_eq!((status.error.as_str(), urls(&pc2.join(f))), ("", vec!["a".to_string(), "b".into()]));
+        assert_eq!(status.devices, vec![("bureau".to_string(), vec![("https://t.example/".to_string(), "T".to_string())])]);
+        // (in a folder that is not encrypted, plain tabs are a computer's)
+        let (_, [pc3, open]) = temp("plain-open", ["pc3", "open"]);
+        std::fs::create_dir_all(open.join("Sanaga/Personnel/appareils")).unwrap();
+        std::fs::write(open.join("Sanaga/Personnel/appareils/portable.tsv"), "https://p.example/\tP\n").unwrap();
+        sync_with(&job(&pc3, &open), None, &mut status);
+        assert_eq!(status.devices.iter().map(|d| d.0.as_str()).collect::<Vec<_>>(), ["portable"]);
+        let _ = std::fs::remove_dir_all(pc3.parent().unwrap());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_list_that_cannot_be_read_is_not_an_empty_list() {
+        let (root, [pc, shared]) = temp("unread", ["pc", "shared"]);
+        let f = "bookmarks.tsv";
+        let (local, remote) = (pc.join(f), shared.join(f));
+        let memory = Memory::of(&pc, &shared);
+        let round = || exchange(&local, &memory, &remote, None);
+        std::fs::write(&local, "a\tA\nb\tB\n").unwrap();
+        assert!(round().unwrap().is_none());
+        // the folder's list has not arrived yet (listed, still empty): it
+        // is not "everything was removed" — nothing is removed here, and
+        // this computer's list goes to the folder
+        std::fs::write(&remote, "").unwrap();
+        assert!(round().unwrap().is_none());
+        assert_eq!((urls(&local), urls(&remote)), (vec!["a".to_string(), "b".into()], vec!["a".to_string(), "b".into()]));
+        // it cannot be read (here: a folder in its place; on a real disk, an
+        // error of the disk or the network): an error, and nothing written
+        std::fs::remove_file(&remote).unwrap();
+        std::fs::create_dir(&remote).unwrap();
+        assert!(round().is_err());
+        std::fs::remove_dir(&remote).unwrap();
+        // half arrived, cut inside a character: not text yet
+        std::fs::write(&remote, b"a\tA\nc\tCaf\xc3").unwrap();
+        assert!(round().is_err());
+        assert_eq!((urls(&local), std::fs::read(&remote).unwrap()), (vec!["a".to_string(), "b".into()], b"a\tA\nc\tCaf\xc3".to_vec()));
+        // this computer's own list cannot be read: the same
+        std::fs::write(&remote, "a\tA\nb\tB\nc\tC\n").unwrap();
+        std::fs::remove_file(&local).unwrap();
+        std::os::unix::fs::symlink(f, &local).unwrap();
+        assert!(round().is_err());
+        assert_eq!(urls(&remote), ["a", "b", "c"]);
+        std::fs::remove_file(&local).unwrap();
+        std::fs::write(&local, "a\tA\nb\tB\n").unwrap();
+        assert_eq!(round().unwrap().map(|l| l.len()), Some(3));
+        // a list emptied on purpose on another computer is one line break,
+        // not an empty file: that one does empty this computer's
+        std::fs::write(&remote, "\n").unwrap();
+        assert_eq!(round().unwrap(), Some(Vec::new()));
+        // and this computer writes it so
+        assert_eq!(std::fs::read_to_string(&remote).unwrap(), "\n");
+        std::fs::remove_file(&remote).unwrap();
+        assert!(round().unwrap().is_none());
+        assert_eq!(std::fs::read_to_string(&remote).unwrap(), "\n");
+
+        // the salt of an encrypted folder: one that cannot be read, or has
+        // not arrived while sealed files are there, is never replaced
+        let key = folder_key(&shared, "une phrase").unwrap();
+        let salt = std::fs::read(shared.join(SALT_FILE)).unwrap();
+        exchange(&local, &memory, &remote, Some(&key)).unwrap();
+        std::fs::write(shared.join(SALT_FILE), "").unwrap();
+        assert!(folder_key(&shared, "une phrase").is_err());
+        assert_eq!(std::fs::read(shared.join(SALT_FILE)).unwrap(), b"");
+        std::fs::remove_file(shared.join(SALT_FILE)).unwrap();
+        std::fs::create_dir(shared.join(SALT_FILE)).unwrap();
+        assert!(folder_key(&shared, "une phrase").is_err());
+        std::fs::remove_dir(shared.join(SALT_FILE)).unwrap();
+        std::fs::write(shared.join(SALT_FILE), &salt).unwrap();
+        assert_eq!(folder_key(&shared, "une phrase").unwrap(), key);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_windows_are_told_of_the_profiles_files_only() {
+        let (root, [pc, shared]) = temp("told", ["pc", "shared"]);
+        let f = "bookmarks.tsv";
+        let mut status = SyncStatus::default();
+        std::fs::write(pc.join(f), "a\tA\n").unwrap();
+        // rounds that write in the folder and in what is remembered of it,
+        // and leave this computer's lists as they are: no window reads its
+        // profile again
+        let told = crate::store::told_here();
+        sync_with(&job(&pc, &shared), None, &mut status);
+        sync_with(&job(&pc, &shared), Some("une phrase"), &mut status);
+        sync_with(&job(&pc, &shared), Some("une phrase"), &mut status);
+        assert_eq!(status.error, "");
+        assert!(sealed_path(&shared.join("Sanaga/Personnel").join(f)).exists() && shared.join("Sanaga/Personnel").join(SALT_FILE).exists());
+        assert_eq!(crate::store::told_here(), told);
+        // a round that changes this computer's favourites: told
+        let key = folder_key(&shared.join("Sanaga/Personnel"), "une phrase").unwrap();
+        write_shared(&shared.join("Sanaga/Personnel").join(f), Some(&key), "a\tA\nn\tN\n").unwrap();
+        let synced = sync_with(&job(&pc, &shared), Some("une phrase"), &mut status);
+        assert_eq!(synced.bookmarks.map(|l| l.len()), Some(2));
+        assert!(crate::store::told_here() > told);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

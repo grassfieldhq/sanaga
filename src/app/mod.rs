@@ -1,46 +1,48 @@
 //! The Sanaga window: shared state, the frame loop and the screenshot mode.
 
 mod accounts;
-mod chrome;
-mod devices;
-mod myframes;
-mod scene;
-mod recorder;
-mod source;
-mod menus;
-mod nav;
-mod plus;
-mod profiles;
-mod pages;
-mod settings;
-mod layout;
-mod tabbar;
-mod siteid;
-mod onboarding;
-mod translate;
-mod mainmenu;
-mod sidebar;
 mod bookmarks;
 mod buttons;
-mod groups;
-mod dialogs;
-mod errors;
-mod switcher;
-mod media;
+mod chrome;
 mod containers;
 mod crashes;
-mod sitepanel;
-mod tools;
-mod intelligence;
+mod devices;
+mod dialogs;
+mod errors;
 mod extras;
+mod groups;
+mod hist;
 mod importer;
+mod intelligence;
+mod layout;
+mod mainmenu;
+mod media;
+mod menus;
+mod myframes;
+mod nav;
+mod network;
+mod onboarding;
+mod pages;
+mod plus;
+mod profiles;
+mod recorder;
 mod render;
-mod start;
-mod tabs;
-mod toolbar;
-mod web;
 #[cfg(test)]
 mod robust;
+mod scene;
+mod settings;
+mod sidebar;
+mod siteid;
+mod sitepanel;
+mod source;
+mod start;
+mod switcher;
+mod tabbar;
+mod tabs;
+mod toolbar;
+mod tools;
+mod translate;
+mod web;
 
 pub use web::web_engine_available;
 
@@ -206,6 +208,12 @@ struct Tab {
     /// Show the whole page (menus, sidebars) instead of the main content.
     full: bool,
     web: Option<crate::page::PageView>,
+    /// The state its page gets when it is made (a tab brought back at the
+    /// start, or reopened after being closed): its back and forward pages.
+    saved_state: Option<Vec<u8>>,
+    /// Opened behind the tab in use by the person (middle click, Ctrl+click):
+    /// its page loads at once, without waiting to be shown.
+    load_behind: bool,
     web_pending: Option<String>,
     /// The person asked for `web_pending` now (not a restored or woken tab).
     web_by_person: bool,
@@ -224,6 +232,8 @@ struct Tab {
     /// Sound: muted by the person / currently playing.
     muted: bool,
     audio: bool,
+    /// Its page is using the camera or the microphone, or sharing the screen.
+    capturing: bool,
     /// Picture of the page for the tab overview.
     thumb: Option<TextureHandle>,
     /// Memory saver: when the tab was last shown, and whether its page was put to sleep.
@@ -298,7 +308,11 @@ fn page_name(url: &str) -> String {
         Some(path) => {
             let name = path.split(['?', '#']).next().unwrap_or("").trim_end_matches('/').rsplit('/').next().unwrap_or("");
             let name = percent_encoding::percent_decode_str(name).decode_utf8_lossy().to_string();
-            if name.is_empty() { "/".to_string() } else { name }
+            if name.is_empty() {
+                "/".to_string()
+            } else {
+                name
+            }
         }
         None => host_of(url),
     }
@@ -378,13 +392,16 @@ pub fn input_to_url(s: &str, engine: Engine, home: &str) -> String {
     }
     let no_space = !t.contains(char::is_whitespace);
     let hostish = t.split(['/', '?', '#']).next().unwrap_or("");
-    let looks_host = hostish.contains('.')
-        && !hostish.ends_with('.')
-        && !hostish.starts_with('.')
-        && hostish.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == ':');
+    let looks_host = hostish.contains('.') && !hostish.ends_with('.') && !hostish.starts_with('.') && hostish.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == ':');
     if no_space && (looks_host || hostish.starts_with("localhost")) {
         let scheme = if hostish.starts_with("localhost") || hostish.starts_with("127.") { "http" } else { "https" };
-        return format!("{scheme}://{t}");
+        let address = format!("{scheme}://{t}");
+        // (https is Sanaga's guess: a site that only has http is still
+        // reached, see page::https_first)
+        if scheme == "https" {
+            crate::page::note_schemeless(&address);
+        }
+        return address;
     }
     engine.search_url(t)
 }
@@ -418,8 +435,8 @@ pub struct Sanaga {
     tabs: Vec<Tab>,
     active: usize,
     next_id: u64,
-    agent: ureq::Agent,
-    private_agent: ureq::Agent,
+    agent: net::Clients,
+    private_agent: net::Clients,
     tx: Sender<NetMsg>,
     rx: Receiver<NetMsg>,
     images: HashMap<String, ImgSlot>,
@@ -446,8 +463,34 @@ pub struct Sanaga {
     suggest_open: bool,
     suggest_rect: Rect,
     hover_url: Option<String>,
+    /// The link under the mouse in the web page shown.
+    web_hover: Option<String>,
+    /// "Look for a new version" (About page): None not asked, Some(None)
+    /// being asked, then the newest version or what went wrong.
+    update_check: Option<Option<Result<String, String>>>,
+    /// The proxy Sanaga's own network clients were made for (see
+    /// `net::proxy_generation`), and when a new version was last looked for.
+    proxy_seen: u64,
+    update_looked_at: f64,
+    /// Whether the history's file could be opened, once known (said once
+    /// when it could not).
+    history_checked: Option<bool>,
+    /// The tab the person asked to close while its page held typed text,
+    /// and when (see `ask_close_tab`).
+    close_asked: Option<(u64, f64)>,
+    /// The text field of Sanaga's that had the keyboard when this frame
+    /// began (the address field, the search of a page…), if any.
+    typing_at_frame_start: Option<egui::Id>,
+    /// How many downloads were under way at the last frame.
+    downloads_seen: usize,
+    /// The tab whose page fills the screen (a video's full-screen button),
+    /// and whether the focus mode was on before.
+    page_fullscreen: Option<(u64, bool)>,
     history_filter: String,
     closed: Vec<String>,
+    /// The state of the last tabs closed (address, state): a tab reopened
+    /// gets its back and forward pages again.
+    closed_states: Vec<(String, Vec<u8>)>,
     mem: (f64, u64),
     downloads_bar: bool,
     pages_loaded: u64,
@@ -576,12 +619,21 @@ pub struct Sanaga {
     /// of the Favourites page, the row being dragged.
     bm_editing: Option<usize>,
     bm_edit: (String, String),
+    /// The address of the favourite being edited when its editing began:
+    /// its line is found again by it after favourites were removed or moved.
+    bm_editing_url: String,
+    /// The address of the favourite the star's bubble was opened for.
+    bm_pop_url: String,
+    /// Tabs to close once the current step is over (by their number).
+    close_later: Vec<u64>,
     bm_undo: Option<(usize, crate::store::Bookmark, f64)>,
     bm_popover: bool,
     bm_pop_title: String,
     bm_filter: String,
     bm_drag: Option<usize>,
-    pw_shown: Option<(usize, String)>,
+    /// A password shown on the passwords page: its account (site, user),
+    /// the password, and when it was shown (it hides again by itself).
+    pw_shown: Option<((String, String), String, f64)>,
     new_profile_name: String,
     new_profile_color: u8,
     /// A guest window (`--guest`): nothing is kept.
@@ -624,7 +676,6 @@ pub struct Sanaga {
     sync_at: f64,
     perm_queue: plus::PermQueue,
     perm_current: Option<plus::PermAsk>,
-    pending_clear: Option<(u32, u64)>,
     tab_search_open: bool,
     tab_search_q: String,
     clear_period: u64,
@@ -702,6 +753,10 @@ pub struct Sanaga {
     last_dialog_host: String,
     silenced_sites: HashSet<String>,
     error_tabs: HashSet<u64>,
+    /// Tabs whose page was shown (committed) and whose load has not ended
+    /// yet: only such a load counts as a visit when it ends (a load that
+    /// failed, or became a download, shows no page).
+    shown_tabs: HashSet<u64>,
     /// Tabs showing Sanaga's error page: for what failure, on which host
     /// (its buttons are accepted from there only).
     error_pages: HashMap<u64, errors::ErrorPage>,
@@ -719,9 +774,9 @@ pub struct Sanaga {
     asked_once: HashSet<&'static str>,
     keyring_there: Option<bool>,
     sync_running: bool,
-    /// The new tab page's "frequently visited", and what it was worked out
-    /// from (visits, favourites): worked out again only when those change.
-    frequent: (u64, Vec<(String, usize, String)>),
+    /// What the window shows of the history (suggestions, the history
+    /// page, the sidebar, "frequently visited"…): see hist.rs.
+    hist: hist::Shown,
     /// The menus and panels that were open at the last frame (one at a time:
     /// see `one_panel_at_a_time`).
     panels_open: u32,
@@ -797,7 +852,14 @@ impl Sanaga {
         // `--automation`: a guest window that test software may drive
         let automation = guest && urls.iter().any(|u| u == "automation:");
         let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:" && u != "invite:" && u != "automation:").collect();
-        let store = if screenshot.is_some() || guest { Store::ephemeral() } else { Store::load_profile(&profile) };
+        let mut store = if screenshot.is_some() || guest { Store::ephemeral() } else { Store::load_profile(&profile) };
+        // (a guest window reaches the network the way its owner set it)
+        if guest && !automation {
+            Store::peek_network(&profile, &mut store.settings);
+        }
+        // (told before anything can ask the network: nothing leaves around
+        // the proxy or in clear during the first frames)
+        network::tell(&store.settings);
         crate::stage("data read");
         // WebKit keeps cookies and site data per profile
         let web_dir = store.data_dir().map(|d| d.join("webkit"));
@@ -813,8 +875,15 @@ impl Sanaga {
         crate::i18n::set_language(&store.settings.language);
         if screenshot.is_none() {
             let lang = crate::i18n::language();
-            unsafe {
-                std::env::set_var("LANGUAGE", lang);
+            // (only when it changes: the environment must not be written
+            // while other threads may read it, and every new window used
+            // to write it again)
+            if std::env::var("LANGUAGE").ok().as_deref() != Some(lang) {
+                // SAFETY: the first window sets it before the engine and
+                // its threads start; later windows find it set already.
+                unsafe {
+                    std::env::set_var("LANGUAGE", lang);
+                }
             }
         }
         // site icons (loaded by WebKit with their pages): kept in Sanaga's
@@ -833,8 +902,8 @@ impl Sanaga {
             tabs: Vec::new(),
             active: 0,
             next_id: 1,
-            agent: net::agent(),
-            private_agent: net::agent(),
+            agent: net::Clients::new(),
+            private_agent: net::Clients::new(),
             tx,
             rx,
             images: HashMap::new(),
@@ -857,8 +926,18 @@ impl Sanaga {
             suggest_open: false,
             suggest_rect: Rect::NOTHING,
             hover_url: None,
+            web_hover: None,
+            update_check: None,
+            proxy_seen: 0,
+            update_looked_at: f64::NEG_INFINITY,
+            history_checked: None,
+            close_asked: None,
+            typing_at_frame_start: None,
+            downloads_seen: 0,
+            page_fullscreen: None,
             history_filter: String::new(),
             closed: Vec::new(),
+            closed_states: Vec::new(),
             mem: (-10.0, 0),
             downloads_bar: false,
             pages_loaded: 0,
@@ -939,6 +1018,9 @@ impl Sanaga {
             group_renaming: None,
             bm_editing: None,
             bm_edit: (String::new(), String::new()),
+            bm_editing_url: String::new(),
+            bm_pop_url: String::new(),
+            close_later: Vec::new(),
             bm_undo: None,
             bm_popover: false,
             bm_pop_title: String::new(),
@@ -973,7 +1055,6 @@ impl Sanaga {
             sync_at: -100.0,
             perm_queue: Default::default(),
             perm_current: None,
-            pending_clear: None,
             tab_search_open: false,
             tab_search_q: String::new(),
             clear_period: 3600,
@@ -997,7 +1078,7 @@ impl Sanaga {
             asked_once: HashSet::new(),
             keyring_there: None,
             sync_running: false,
-            frequent: (u64::MAX, Vec::new()),
+            hist: Default::default(),
             panels_open: 0,
             crash_notice: None,
             crash_copied: None,
@@ -1033,12 +1114,12 @@ impl Sanaga {
             last_dialog_host: String::new(),
             silenced_sites: HashSet::new(),
             error_tabs: HashSet::new(),
+            shown_tabs: HashSet::new(),
             error_pages: HashMap::new(),
             group_editor: None,
             group_label_rects: Vec::new(),
         };
         crate::stage("app state made");
-        app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
         if app.screenshot.is_some() {
             let st = std::env::var("SANAGA_SHOT_STATE").unwrap_or_default();
@@ -1115,6 +1196,7 @@ impl Sanaga {
         // the tab that was shown when Sanaga closed
         let mut shown_at: Option<usize> = None;
         let first_tab = app.tabs.len();
+        let mut kept_states: Vec<(String, Vec<u8>)> = app.tab_states_file().and_then(|f| std::fs::read(f).ok()).map(|b| tabs::unpack_states(&b)).unwrap_or_default();
         for line in start {
             let mut parts = line.split('\t');
             let u = parts.next().unwrap_or("").to_string();
@@ -1148,6 +1230,13 @@ impl Sanaga {
             };
             let u = input_to_url(&u, app.store.settings.engine, &app.store.settings.home);
             let i = app.open_tab(&u, false);
+            // (the state kept for this address at the last close, if any)
+            if let Some(k) = kept_states.iter().position(|(address, _)| *address == u) {
+                let (_, state) = kept_states.remove(k);
+                if let Some(t) = app.tabs.get_mut(i) {
+                    t.saved_state = Some(state);
+                }
+            }
             app.tabs[i].pinned = pinned;
             if app.store.containers.iter().any(|c| c.name == container) {
                 app.tabs[i].container = container;
@@ -1249,6 +1338,7 @@ impl Sanaga {
         // the network blocker of ads and trackers, compiled once
         crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
         crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
+        self.apply_network_settings();
         if let Some(d) = &self.web_dir {
             crate::page::prepare_filters(&d.join("filters"));
         }
@@ -1402,7 +1492,13 @@ impl Sanaga {
             return None;
         }
         let me = self.tabs.get(self.active)?;
-        let other = if me.id == a { b } else if me.id == b { a } else { return None };
+        let other = if me.id == a {
+            b
+        } else if me.id == b {
+            a
+        } else {
+            return None;
+        };
         let i = self.tabs.iter().position(|t| t.id == other)?;
         (matches!(me.view, View::Web) && matches!(self.tabs[i].view, View::Web)).then_some(i)
     }
@@ -1473,7 +1569,12 @@ impl Sanaga {
             self.notice = Some((tr("La vue partagée montre deux pages web : ouvrez-en une d'abord.").into(), now));
             return;
         };
-        let other = self.tabs.iter().enumerate().filter(|(i, t)| *i != self.active && matches!(t.view, View::Web) && t.private == me.private && t.group == me.group).max_by(|a, b| a.1.last_active.partial_cmp(&b.1.last_active).unwrap_or(std::cmp::Ordering::Equal));
+        let other = self
+            .tabs
+            .iter()
+            .enumerate()
+            .filter(|(i, t)| *i != self.active && matches!(t.view, View::Web) && t.private == me.private && t.group == me.group)
+            .max_by(|a, b| a.1.last_active.partial_cmp(&b.1.last_active).unwrap_or(std::cmp::Ordering::Equal));
         match other {
             Some((_, t)) => self.split = Some((me.id, t.id)),
             None => self.notice = Some((tr("Ouvrez une deuxième page web pour la vue partagée.").into(), now)),
@@ -1493,6 +1594,39 @@ impl Sanaga {
     pub fn on_close(&mut self) {
         self.store.settle_history(true);
         self.save_session();
+        self.save_tab_states();
+    }
+
+    /// Where the tabs' states of this window are kept between two runs.
+    fn tab_states_file(&self) -> Option<std::path::PathBuf> {
+        let dir = self.store.data_dir()?;
+        Some(if self.slot == 0 { dir.join("session-state.bin") } else { dir.join(format!("session-state-{}.bin", self.slot)) })
+    }
+
+    /// Sanaga closes: what each tab's page held — the pages before and
+    /// after it, where they were scrolled to — is kept for the next start.
+    /// (A tab used to come back as one address: no way back, the page at
+    /// its top.) Never a private tab's; a tab that slept through the whole
+    /// run keeps the state it was given.
+    fn save_tab_states(&self) {
+        if self.screenshot.is_some() || self.app_mode {
+            return;
+        }
+        let Some(file) = self.tab_states_file() else { return };
+        let states: Vec<(String, Vec<u8>)> = self
+            .tabs
+            .iter()
+            .filter(|t| !t.private && !t.entries.is_empty())
+            .filter_map(|t| {
+                let state = t.web.as_ref().filter(|_| matches!(t.view, View::Web)).and_then(|w| w.session_state()).or_else(|| t.saved_state.clone())?;
+                Some((t.url().to_string(), state))
+            })
+            .collect();
+        if states.is_empty() {
+            let _ = std::fs::remove_file(&file);
+        } else {
+            let _ = crate::store::write_quietly(&file, tabs::pack_states(&states));
+        }
     }
 
     /// This window closes while others stay open: its tabs are not reopened
@@ -1508,9 +1642,29 @@ impl Sanaga {
         crate::page::remove_download_sink(self.slot);
     }
 
+    /// This window is closed for good while Sanaga goes on: its pages end
+    /// (each page's engine process with it).
+    pub fn release_pages(&mut self) {
+        // (their questions still waiting get "no" first: the engine waits
+        // for a page that waits for an answer)
+        for (_, key) in self.dialogs.drain(..) {
+            crate::page::answer_dialog(key, false, "", "");
+        }
+        for t in &mut self.tabs {
+            t.web = None;
+            t.web_shown = false;
+        }
+        self.popups.borrow_mut().clear();
+        crate::page::note_private_tabs(self.slot, 0);
+    }
+
     /// "profil:NAME" for windows of the same profile (nothing for the main one).
     pub fn profile_marker(&self) -> Vec<String> {
-        if self.store.profile.is_empty() { Vec::new() } else { vec![format!("profil:{}", self.store.profile)] }
+        if self.store.profile.is_empty() {
+            Vec::new()
+        } else {
+            vec![format!("profil:{}", self.store.profile)]
+        }
     }
 
     /// A new window was asked for (with these addresses; none = the home page).
@@ -1540,6 +1694,15 @@ impl Sanaga {
     pub(super) fn new_window(&mut self, mut urls: Vec<String>) {
         if !self.store.profile.is_empty() {
             urls.push(format!("profil:{}", self.store.profile));
+        }
+        // (a window opened from a guest window is a guest window too: it
+        // used to open on the main profile — its cookies, favourites,
+        // history and passwords)
+        if self.guest {
+            urls.push("invite:".into());
+            if self.automation {
+                urls.push("automation:".into());
+            }
         }
         self.window_request = Some(urls);
     }
@@ -1629,7 +1792,15 @@ impl Sanaga {
 
     /// Close whatever menu or floating panel is open; false when none was.
     pub(super) fn close_panels(&mut self) -> bool {
-        let any = self.share_open || self.ai_menu_open || self.profile_open || self.overflow_open || self.site_panel || self.bm_popover || self.translate_ask || self.container_ask.is_some() || self.group_editor.is_some();
+        let any = self.share_open
+            || self.ai_menu_open
+            || self.profile_open
+            || self.overflow_open
+            || self.site_panel
+            || self.bm_popover
+            || self.translate_ask
+            || self.container_ask.is_some()
+            || self.group_editor.is_some();
         self.share_open = false;
         self.ai_menu_open = false;
         self.profile_open = false;
@@ -1687,14 +1858,21 @@ impl Sanaga {
         self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 
-    /// Another window changed the saved data (favourites, settings, history,
-    /// passwords…): read it again so this window shows the same.
+    /// Another window changed the saved data (favourites, settings,
+    /// passwords…): read it again so this window shows the same. (Not for
+    /// the history: its windows share one, and a page visited is no reason
+    /// to read the whole profile again.)
     fn follow_other_windows(&mut self) {
         let now = crate::store::CHANGES.load(Ordering::Relaxed);
         if now == self.store_seen || self.screenshot.is_some() {
             return;
         }
         self.store_seen = now;
+        // (a guest window has no saved data to read again: reading "the
+        // profile" here gave it the main profile's, to read and to write)
+        if self.guest {
+            return;
+        }
         let downloads = std::mem::take(&mut self.store.downloads);
         let profile = self.store.profile.clone();
         self.store.settle_history(true);
@@ -1703,7 +1881,6 @@ impl Sanaga {
         self.store.first_run = false;
         crate::i18n::set_language(&self.store.settings.language);
         self.applied_dark = None;
-        self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
     }
 
     /// One frame of Sanaga's interface (drawn by eframe for screenshots, by
@@ -1870,12 +2047,14 @@ impl Sanaga {
                         }
                         "title" => eprintln!("live title {}", self.tabs[self.active].title()),
                         "tabs" => {
-                            let list: Vec<String> = self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
+                            let list: Vec<String> =
+                                self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
                             eprintln!("live tabs {}", list.join(" | "));
                         }
                         "address" => {
                             let focused = self.ctx.memory(|m| m.has_focus(egui::Id::new("address-bar")));
-                            eprintln!("live address {:?} focused={focused}", self.tabs[self.active].address);
+                            let secure = self.tabs[self.active].web.as_ref().map(|w| w.secure());
+                            eprintln!("live address {:?} focused={focused} secure={secure:?}", self.tabs[self.active].address);
                         }
                         a if a.starts_with("key:") => {
                             if let Some(key) = egui::Key::from_name(&a[4..]) {
@@ -1941,16 +2120,19 @@ impl Sanaga {
 
     fn frame_body(&mut self, ui: &mut Ui) {
         self.frame += 1;
+        self.typing_at_frame_start = if self.ctx.egui_wants_keyboard_input() { self.ctx.memory(|m| m.focused()) } else { None };
         let frame_start = std::time::Instant::now();
         if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
             eprintln!("frame t={:.2}", ui.input(|i| i.time));
         }
         self.apply_style();
         self.store.settle_history(false);
+        self.follow_visited();
         // The keyboard alone: in one of Sanaga's own pages (settings,
         // history…), the first Tab goes to the page's first control, not
         // to the window's toolbar (which comes after the page's last one).
-        if self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Internal(_))) && ui.ctx().memory(|m| m.focused().is_none()) && ui.input(|i| i.key_pressed(Key::Tab) && !i.modifiers.any()) {
+        if self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Internal(_))) && ui.ctx().memory(|m| m.focused().is_none()) && ui.input(|i| i.key_pressed(Key::Tab) && !i.modifiers.any())
+        {
             ui.ctx().memory_mut(|m| m.request_focus(egui::Id::new("page-start")));
         }
         self.finish_jobs();
@@ -1968,6 +2150,27 @@ impl Sanaga {
         // test aids (debug builds only: not in a release build)
         self.test_hooks(ui, &ctx0, now);
         self.memory_saver_step(now);
+        self.follow_edited_bookmark();
+        // a download that starts says so (in the window in use): it used
+        // to say nothing until it was over, however long it took
+        let under_way = crate::page::downloads_under_way();
+        if under_way > self.downloads_seen && crate::page::ACTIVE_WINDOW.load(Ordering::Relaxed) == self.slot {
+            self.notice = Some((tr("Téléchargement en cours — Ctrl+J pour le suivre ou l'arrêter.").into(), now));
+        }
+        self.downloads_seen = under_way;
+        // tabs whose closing was put off until the step that asked for it
+        // was over (see `protected_site`)
+        for id in std::mem::take(&mut self.close_later) {
+            if let Some(i) = self.tabs.iter().position(|t| t.id == id) {
+                if self.tabs.len() > 1 {
+                    self.close_tab(i);
+                } else {
+                    self.navigate(i, "sanaga://newtab".into(), None, true);
+                }
+            }
+        }
+        // (the private session ends with the last private tab)
+        crate::page::note_private_tabs(self.slot, self.tabs.iter().filter(|t| t.private).count());
         if self.frame == 1 {
             crate::stage("f: before steps");
         }
@@ -1977,6 +2180,7 @@ impl Sanaga {
         }
         self.recording_step();
         self.permission_step();
+        self.network_step(now);
         if self.screenshot.is_none() && !self.store.settings.sync_dir.trim().is_empty() && now - self.sync_at > 30.0 {
             self.sync_at = now;
             self.sync_now();
@@ -2023,6 +2227,10 @@ impl Sanaga {
             let title = format!("{} - Sanaga", self.tabs[self.active].title());
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         }
+        // For screen readers the interface is a window of its own, beside
+        // the page's: it says what it is (it had no name: "frame", and
+        // nothing else).
+        ctx.accesskit_node_builder(egui::accesskit_root_id(), |node| node.set_label(tr("Sanaga — barres et menus")));
 
         self.power_step(now);
         if self.frame == 1 {
@@ -2111,20 +2319,17 @@ impl Sanaga {
         }
         // the sidebar slides in and out (its content keeps its width and
         // is uncovered, instead of being squeezed)
-        let slide = ctx.animate_bool_with_time(egui::Id::new("sidebar-slide"), self.sidebar_open && !self.focus_mode, 0.16);
+        // (in place at once when the system asks for no animations)
+        let slide = ctx.animate_bool_with_time(egui::Id::new("sidebar-slide"), self.sidebar_open && !self.focus_mode, if self.reduce_motion() { 0.0 } else { 0.16 });
         if slide > 0.0 {
             let eased = slide * slide * (3.0 - 2.0 * slide);
-            egui::Panel::left("sidebar")
-                .exact_size((264.0 * eased).max(1.0))
-                .show_separator_line(false)
-                .frame(Frame::NONE.fill(th.page))
-                .show(ui, |ui| {
-                    let shown = ui.max_rect();
-                    let whole = Rect::from_min_max(pos2(shown.right() - 264.0, shown.top()), shown.right_bottom());
-                    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(whole));
-                    inner.set_clip_rect(shown);
-                    self.sidebar(&mut inner, &th);
-                });
+            egui::Panel::left("sidebar").exact_size((264.0 * eased).max(1.0)).show_separator_line(false).frame(Frame::NONE.fill(th.page)).show(ui, |ui| {
+                let shown = ui.max_rect();
+                let whole = Rect::from_min_max(pos2(shown.right() - 264.0, shown.top()), shown.right_bottom());
+                let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(whole));
+                inner.set_clip_rect(shown);
+                self.sidebar(&mut inner, &th);
+            });
         }
         if self.summary.is_some() && !self.focus_mode {
             // (its left edge can be dragged: wider to read, narrower for the page)
@@ -2173,6 +2378,24 @@ impl Sanaga {
             crate::stage("f: pages placed");
         }
 
+        // a page that fills the screen leaves it when its tab is no longer
+        // the one shown (closed, another tab chosen with the keyboard)
+        if let Some((tab, before)) = self.page_fullscreen {
+            if self.tabs.get(self.active).is_none_or(|t| t.id != tab) {
+                self.page_fullscreen = None;
+                self.focus_mode = before;
+                if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+                    w.leave_fullscreen();
+                }
+            }
+        }
+        // where the link under the mouse goes: shown above the web page,
+        // at its bottom left (the page covers what the interface draws)
+        let shown_web = self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Web) && t.web_shown);
+        if !shown_web {
+            self.web_hover = None;
+        }
+        crate::shell::status(self.web_hover.as_deref().filter(|_| self.page_fullscreen.is_none()));
         // link preview bubble, bottom-left
         if let Some(u) = &self.hover_url {
             let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("status")));
@@ -2186,8 +2409,22 @@ impl Sanaga {
         }
 
         if self.tabs.iter().any(|t| t.loading) {
-            // (with the screen's own refresh: the loading bar moves smoothly)
-            ctx.request_repaint();
+            if self.shown_dialog().is_some() {
+                // A page's question is waiting: its engine process stands
+                // still until it is answered, and each drawing of the
+                // window waits for that page. Drawn at every refresh, the
+                // window did nothing else — closing it never got its turn.
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            } else if self.tabs[self.active].loading || self.split_partner().is_some_and(|i| self.tabs[i].loading) {
+                // (with the screen's own refresh: the loading bar moves smoothly)
+                ctx.request_repaint();
+            } else {
+                // Only tabs behind are loading: all that shows it is the
+                // small wheel in their tab, which turns well enough ten
+                // times a second. Drawn at every refresh, a tab that never
+                // finishes loading kept the whole window busy for nothing.
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            }
         }
         if !ctx.input(|i| i.pointer.primary_down()) {
             crate::desktop::end_move();

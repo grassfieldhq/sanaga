@@ -130,9 +130,19 @@ impl Summary {
 }
 
 pub(super) enum AiDone {
-    Summary { tab: u64, run: u64, result: Result<String, String>, by: String, fallback: String },
+    Summary {
+        tab: u64,
+        run: u64,
+        result: Result<String, String>,
+        by: String,
+        fallback: String,
+    },
     /// A part of a summary, as the model writes it.
-    SummaryPiece { tab: u64, run: u64, text: String },
+    SummaryPiece {
+        tab: u64,
+        run: u64,
+        text: String,
+    },
     Extension(u64, Result<(String, String), String>),
     /// A part of an extension's code, as the model writes it.
     ExtensionPiece(u64, String),
@@ -141,7 +151,12 @@ pub(super) enum AiDone {
     Logins(Vec<(String, String)>),
     /// A batch of a page's texts, translated (from its place in the page,
     /// for the translation `generation` of that tab).
-    Translation { tab: u64, from: usize, generation: u64, result: Result<Vec<String>, String> },
+    Translation {
+        tab: u64,
+        from: usize,
+        generation: u64,
+        result: Result<Vec<String>, String>,
+    },
 }
 
 #[derive(Default)]
@@ -189,6 +204,18 @@ impl Sanaga {
         }
     }
 
+    /// The model a page's text may go to: the one chosen in Settings, or —
+    /// for a private tab — only one that runs on this computer. (A private
+    /// tab's page was sent to the online service like any other.)
+    pub(super) fn page_text_provider(&self, tab: u64) -> Provider {
+        let provider = self.ai_provider();
+        let private = self.tabs.iter().any(|t| t.id == tab && t.private);
+        match provider {
+            Provider::Claude { .. } | Provider::Cli { .. } if private => Provider::Local,
+            p => p,
+        }
+    }
+
     /// The model chosen in Settings › Intelligence (with its key, for Claude).
     pub(super) fn ai_provider(&self) -> Provider {
         let st = &self.store.settings;
@@ -197,11 +224,7 @@ impl Sanaga {
         }
         match st.ai.as_str() {
             "ollama" => {
-                let model = if !st.ai_model.is_empty() {
-                    st.ai_model.clone()
-                } else {
-                    self.ai_models.as_ref().and_then(|m| m.first().cloned()).unwrap_or_else(|| "llama3.2".into())
-                };
+                let model = if !st.ai_model.is_empty() { st.ai_model.clone() } else { self.ai_models.as_ref().and_then(|m| m.first().cloned()).unwrap_or_else(|| "llama3.2".into()) };
                 Provider::Ollama { model }
             }
             // (a window without a profile folder, such as a guest window,
@@ -242,7 +265,7 @@ impl Sanaga {
         }
         let (title, body) = text.split_once('\n').map(|(a, b)| (a.to_string(), b.to_string())).unwrap_or_default();
         let fallback = ai::local_summary(&body, 6);
-        let provider = self.ai_provider();
+        let provider = self.page_text_provider(tab);
         if let Some(s) = self.summary.as_mut() {
             if !title.trim().is_empty() {
                 s.title = title.trim().to_string();
@@ -339,9 +362,11 @@ impl Sanaga {
                             }
                             match crate::store::write_atomic(&path, &text) {
                                 Ok(()) => {
+                                    super::settings::extensions_changed();
                                     // installed switched off: the person reads it first
                                     let id = format!("fichier:{}", path.file_name().unwrap_or_default().to_string_lossy());
-                                    self.ext_form.status = tf("« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.", &[&self.ext_form.name]);
+                                    self.ext_form.status =
+                                        tf("« {} » est écrite mais désactivée. Lisez son code et les sites où elle agit, puis activez-la si elle vous convient.", &[&self.ext_form.name]);
                                     self.ext_form.matches = crate::extensions::matches_in(&text);
                                     self.ext_form.pending = Some(id);
                                     self.ext_form.code = text;
@@ -379,12 +404,15 @@ impl Sanaga {
             return;
         }
         let profile = self.store.profile.clone();
-        self.off_thread(move || crate::keyring::lookup(&profile, ai::KEY_SITE, "claude").is_some_and(|k| !k.is_empty()), |app, known| {
-            // (a key saved or forgotten meanwhile is what counts)
-            if app.ai_key_known.is_none() {
-                app.ai_key_known = Some(known);
-            }
-        });
+        self.off_thread(
+            move || crate::keyring::lookup(&profile, ai::KEY_SITE, "claude").is_some_and(|k| !k.is_empty()),
+            |app, known| {
+                // (a key saved or forgotten meanwhile is what counts)
+                if app.ai_key_known.is_none() {
+                    app.ai_key_known = Some(known);
+                }
+            },
+        );
     }
 
     /// Read the saved accounts from the system keyring (in the background).
@@ -548,7 +576,12 @@ impl Sanaga {
             ui.add(TextEdit::singleline(&mut f.name).hint_text(tr("Ex. : YouTube sans distractions")).desired_width(f32::INFINITY));
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Ce qu'elle doit faire")).family(bold()).color(th.text));
-            ui.add(TextEdit::multiline(&mut f.description).hint_text(tr("Ex. : masquer les Shorts et les vidéos recommandées à droite, et agrandir le lecteur.")).desired_rows(5).desired_width(f32::INFINITY));
+            ui.add(
+                TextEdit::multiline(&mut f.description)
+                    .hint_text(tr("Ex. : masquer les Shorts et les vidéos recommandées à droite, et agrandir le lecteur."))
+                    .desired_rows(5)
+                    .desired_width(f32::INFINITY),
+            );
             ui.add_space(10.0);
             ui.label(RichText::new(tr("Sur quels sites")).family(bold()).color(th.text));
             ui.add(TextEdit::singleline(&mut f.sites).hint_text(tr("youtube.com — vide : tous les sites")).desired_width(f32::INFINITY));
@@ -647,7 +680,11 @@ impl Sanaga {
                 });
             }
             ui.add_space(10.0);
-            ui.label(RichText::new(tr("Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions.")).size(12.0).color(th.sub));
+            ui.label(
+                RichText::new(tr("Les extensions créées sont de simples fichiers dans le dossier des extensions : vous pouvez les désactiver ou les supprimer dans Extensions."))
+                    .size(12.0)
+                    .color(th.sub),
+            );
         });
         if let Some(tab) = try_on {
             if let Some(id) = self.ext_form.pending.clone() {

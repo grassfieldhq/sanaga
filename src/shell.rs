@@ -35,6 +35,9 @@ struct Host {
     /// Sanaga's short messages ("Link copied"…), above the page: drawn by
     /// the interface they would be hidden under it.
     toast: gtk::Label,
+    /// The address of the link under the mouse, at the bottom left of the
+    /// page, above it.
+    status: gtk::Label,
     /// The mobile simulator's drawn device, above the page (clicks go through).
     device_frame: gtk::DrawingArea,
     device_pic: Rc<RefCell<Option<gtk::cairo::ImageSurface>>>,
@@ -48,6 +51,11 @@ struct Host {
     wanted: Cell<bool>,
     /// Waiting for the screen's next refresh.
     ticking: Cell<bool>,
+    /// The one timer that stands in for the screen's refresh is running.
+    fallback: Cell<bool>,
+    /// How many frames this window's interface ran (the timer above only
+    /// steps in when none ran since it was set).
+    frames: Cell<u64>,
     /// The window's number (0 = the first window).
     slot: usize,
 }
@@ -96,6 +104,7 @@ fn run_window(slot: usize) {
     let found = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| (x.host.clone(), x.gui.upgrade(), x.input.clone(), x.im.clone())));
     let Some((host, Some(gui), input, im)) = found else { return };
     host.wanted.set(false);
+    host.frames.set(host.frames.get().wrapping_add(1));
     let Ok(mut g) = gui.try_borrow_mut() else {
         // (busy: a dialog of this window is open) try again shortly
         let h = Rc::downgrade(&host);
@@ -114,11 +123,19 @@ fn run_window(slot: usize) {
             g.app.open_from_outside(arrived);
         }
     }
+    let dropped = std::mem::take(&mut input.borrow_mut().dropped);
+    if !dropped.is_empty() {
+        g.app.open_dropped(dropped);
+    }
+    let commands = std::mem::take(&mut input.borrow_mut().commands);
+    for name in commands {
+        g.app.run_command(name);
+    }
     let area = host.area.clone();
     update(&mut g, &area, &input, &host, &im);
     // Ctrl+N, a tab moved to a new window
     if let Some(urls) = g.app.take_window_request() {
-        glib::idle_add_local_once(move || {
+        glib::timeout_add_local_once(Duration::ZERO, move || {
             open_window(urls);
         });
     }
@@ -404,6 +421,35 @@ pub fn toast(text: Option<&str>) -> bool {
     true
 }
 
+/// Show where the link under the mouse goes, at the bottom left of the page
+/// and above it (None hides it). False when there is no GTK window.
+pub fn status(text: Option<&str>) -> bool {
+    let Some(h) = host() else { return false };
+    let l = &h.status;
+    match text {
+        Some(t) => {
+            let [left, _, _, bottom] = h.insets.get();
+            if l.margin_bottom() != bottom || l.margin_start() != left {
+                l.set_margin_bottom(bottom);
+                l.set_margin_start(left);
+            }
+            if l.text() != t {
+                l.set_text(t);
+            }
+            if !l.is_visible() {
+                l.set_visible(true);
+                raise_overlays(&h);
+            }
+        }
+        None => {
+            if l.is_visible() {
+                l.set_visible(false);
+            }
+        }
+    }
+    true
+}
+
 /// The arrow at the page's edge while swiping (`dir` 0 hides it).
 fn show_swipe(h: &Host, dir: i32, progress: f64) {
     let l = &h.swipe_hint;
@@ -443,7 +489,13 @@ pub fn set_page_area(insets: [i32; 4]) {
     }
     h.insets.set(insets);
     for c in children(&h.overlay) {
-        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.top.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() && c != *h.toast.upcast_ref::<gtk::Widget>() {
+        if c != *h.area.upcast_ref::<gtk::Widget>()
+            && c != *h.top.upcast_ref::<gtk::Widget>()
+            && c != *h.swipe_hint.upcast_ref::<gtk::Widget>()
+            && c != *h.device_frame.upcast_ref::<gtk::Widget>()
+            && c != *h.toast.upcast_ref::<gtk::Widget>()
+            && c != *h.status.upcast_ref::<gtk::Widget>()
+        {
             apply_insets(&c, insets);
         }
     }
@@ -512,16 +564,21 @@ pub fn widget_texture(w: &impl IsA<gtk::Widget>) -> Option<gdk::Texture> {
     parent.snapshot_child(w, &snap);
     let node = snap.to_node()?;
     let renderer = w.native()?.renderer()?;
+    // (GTK renders a node at one pixel per point: on a dense screen the
+    // picture is asked for at the screen's own scale, so it is as large,
+    // and as sharp, as the page it stands for)
+    let scale = w.scale_factor().max(1) as f32;
+    if scale > 1.0 {
+        let scaled = gtk::gsk::TransformNode::new(&node, Some(&gtk::gsk::Transform::new().scale(scale, scale)));
+        return Some(renderer.render_texture(&scaled, None));
+    }
     Some(renderer.render_texture(&node, None))
 }
 
 /// Is Ctrl held down right now? (The keyboard's real state, even while a
 /// page had the keyboard.)
 pub fn ctrl_held() -> Option<bool> {
-    gdk::Display::default()
-        .and_then(|d| d.default_seat())
-        .and_then(|s| s.keyboard())
-        .map(|k| k.modifier_state().contains(gdk::ModifierType::CONTROL_MASK))
+    gdk::Display::default().and_then(|d| d.default_seat()).and_then(|s| s.keyboard()).map(|k| k.modifier_state().contains(gdk::ModifierType::CONTROL_MASK))
 }
 
 /// Can menus be drawn over the living page (the layer above the pages works)?
@@ -616,6 +673,29 @@ fn save_shot(window: &gtk::Window, path: &str) {
     }
 }
 
+/// Ask the person where to save a file, without waiting: `then` is told the
+/// place chosen (`None`: they closed the window). The window proposes
+/// `name` in `folder`, and asks itself before replacing a file.
+pub fn save_dialog(name: &str, folder: Option<&std::path::Path>, then: impl FnOnce(Option<std::path::PathBuf>) + 'static) {
+    let dialog = gtk::FileDialog::builder().title(crate::i18n::tr("Enregistrer sous")).modal(true).initial_name(name).build();
+    if let Some(folder) = folder {
+        dialog.set_initial_folder(Some(&gtk::gio::File::for_path(folder)));
+    }
+    let parent = host().map(|h| h.window.clone());
+    dialog.save(parent.as_ref(), None::<&gtk::gio::Cancellable>, move |res| then(res.ok().and_then(|f| f.path())));
+}
+
+/// Ask the person for a folder, without waiting: `then` is told the one
+/// chosen (`None`: they closed the window).
+pub fn folder_dialog(title: &str, start: Option<&std::path::Path>, then: impl FnOnce(Option<std::path::PathBuf>) + 'static) {
+    let dialog = gtk::FileDialog::builder().title(title).modal(true).build();
+    if let Some(start) = start {
+        dialog.set_initial_folder(Some(&gtk::gio::File::for_path(start)));
+    }
+    let parent = host().map(|h| h.window.clone());
+    dialog.select_folder(parent.as_ref(), None::<&gtk::gio::Cancellable>, move |res| then(res.ok().and_then(|f| f.path())));
+}
+
 /// Ask a file of the person (blocking until they answer): the system's file
 /// dialog (GTK 4 only has an asynchronous one, so a small loop waits).
 pub fn choose_file(title: &str, patterns: &[&str], filter_name: &str, save_as: Option<&str>) -> Option<std::path::PathBuf> {
@@ -663,6 +743,25 @@ struct Input {
     device: Option<gdk::Device>,
     /// The keyboard went from Sanaga's interface to a page.
     chrome_lost_focus: bool,
+    /// Links, files or words dropped on the interface (from a page, the file
+    /// manager, another program), not opened yet.
+    dropped: Vec<String>,
+    /// Shortcuts by name that only the window sees (the keyboard's play /
+    /// pause keys), not run yet.
+    commands: Vec<&'static str>,
+}
+
+impl Drop for Gui {
+    /// A window closed between a frame made and that frame drawn still
+    /// holds picture changes (a font just found, an icon) that will never
+    /// be sent to its graphics context — which goes with the window. They
+    /// are let go of: the library takes changes dropped unsent for a
+    /// mistake, and stopped Sanaga (debug builds) when the other window was
+    /// closed at that moment.
+    fn drop(&mut self) {
+        self.delta.clear();
+        self.delta_top.clear();
+    }
 }
 
 /// Screen readers (Orca…) read Sanaga's interface through AT-SPI: egui
@@ -711,11 +810,7 @@ impl accesskit::DeactivationHandler for A11yDeactivate {
 fn new_a11y(ctx: &egui::Context) -> A11y {
     let on = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let actions = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let adapter = accesskit_unix::Adapter::new(
-        A11yActivate { on: on.clone(), ctx: ctx.clone() },
-        A11yAction { actions: actions.clone(), ctx: ctx.clone() },
-        A11yDeactivate { on: on.clone() },
-    );
+    let adapter = accesskit_unix::Adapter::new(A11yActivate { on: on.clone(), ctx: ctx.clone() }, A11yAction { actions: actions.clone(), ctx: ctx.clone() }, A11yDeactivate { on: on.clone() });
     A11y { adapter, on, actions }
 }
 
@@ -744,13 +839,7 @@ struct Gui {
 
 fn modifiers_of(state: gdk::ModifierType) -> Modifiers {
     let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
-    Modifiers {
-        alt: state.contains(gdk::ModifierType::ALT_MASK),
-        ctrl,
-        shift: state.contains(gdk::ModifierType::SHIFT_MASK),
-        mac_cmd: false,
-        command: ctrl,
-    }
+    Modifiers { alt: state.contains(gdk::ModifierType::ALT_MASK), ctrl, shift: state.contains(gdk::ModifierType::SHIFT_MASK), mac_cmd: false, command: ctrl }
 }
 
 fn key_of(kv: gdk::Key) -> Option<egui::Key> {
@@ -814,6 +903,24 @@ fn gl_loader() -> Result<impl Fn(&str) -> *const std::ffi::c_void, String> {
     })
 }
 
+/// The screen's refresh may never come (the window is hidden, the screen is
+/// off): a fifth of a second after a frame was asked for, the frame runs
+/// anyway if none ran meanwhile (`seen`: the frames run when the timer was
+/// set). While frames go on being asked for, the timer goes on watching.
+fn refresh_fallback(slot: usize, seen: u64) {
+    glib::timeout_add_local_once(Duration::from_millis(200), move || {
+        let Some(h) = WINDOWS.with(|w| w.borrow().iter().find(|x| x.host.slot == slot).map(|x| x.host.clone())) else { return };
+        if !h.wanted.get() {
+            h.fallback.set(false);
+        } else if h.frames.get() == seen {
+            h.fallback.set(false);
+            run_window(slot);
+        } else {
+            refresh_fallback(slot, h.frames.get());
+        }
+    });
+}
+
 /// Ask for the next frame in `delay` (keeps the earliest request).
 fn schedule(host: &Rc<Host>, delay: Duration) {
     if delay.is_zero() {
@@ -834,11 +941,11 @@ fn schedule(host: &Rc<Host>, delay: Duration) {
                 glib::ControlFlow::Break
             });
         }
-        glib::timeout_add_local_once(Duration::from_millis(200), move || {
-            if WINDOWS.with(|w| w.borrow().iter().any(|x| x.host.slot == slot && x.host.wanted.get())) {
-                run_window(slot);
-            }
-        });
+        // (one such timer per window, however many frames ask: a new one at
+        // every frame made the frames multiply while a page was loading)
+        if !host.fallback.replace(true) {
+            refresh_fallback(slot, host.frames.get());
+        }
         return;
     }
     let next = &host.next;
@@ -879,7 +986,42 @@ fn instance_socket(urls: &[String]) -> Option<std::path::PathBuf> {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     crate::store::Store::root_dir().hash(&mut h);
     profile.hash(&mut h);
-    Some(crate::store::runtime_dir()?.join(format!("sanaga-{:016x}.sock", h.finish())))
+    match crate::store::runtime_dir() {
+        Some(dir) => Some(dir.join(format!("sanaga-{:016x}.sock", h.finish()))),
+        // No runtime folder (XDG_RUNTIME_DIR not set: some sessions, a
+        // remote shell): the profile's own folder, closed to other users.
+        // Without a socket each launch became a Sanaga of its own on the
+        // same profile, each rewriting its files from what it had in memory.
+        None => {
+            let sock = crate::store::Store::profile_dir(profile).join("instance.sock");
+            // (the system takes socket paths of about a hundred bytes)
+            (sock.as_os_str().len() < 100).then_some(sock)
+        }
+    }
+}
+
+/// One Sanaga at a time writes a profile: this one's lock on it, held for
+/// as long as it runs (the system lets go of it when Sanaga ends, however
+/// it ends).
+static PROFILE_LOCK: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
+
+/// Take the profile for this Sanaga. False when another Sanaga has it.
+fn lock_profile(urls: &[String]) -> bool {
+    use std::os::unix::io::AsRawFd;
+    let profile = urls.iter().find_map(|u| u.strip_prefix("profil:")).unwrap_or("");
+    let dir = crate::store::Store::profile_dir(profile);
+    crate::store::ensure_private_dir(&dir);
+    let Ok(file) = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(dir.join("lock")) else {
+        // (a folder that cannot be written: nothing will be saved either)
+        return true;
+    };
+    // SAFETY: a valid descriptor; the lock ends with the file, kept in
+    // `PROFILE_LOCK` until Sanaga ends.
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return false;
+    }
+    let _ = PROFILE_LOCK.set(file);
+    true
 }
 
 // (message limits and checks: see guard.rs, testable without GTK)
@@ -950,6 +1092,8 @@ fn incoming(text: String, profile: Vec<String>) {
 }
 
 fn quit_main() {
+    // (no page is left waiting for an answer: see `dismiss_dialogs`)
+    crate::page::dismiss_dialogs();
     MAIN.with(|m| {
         if let Some(l) = m.borrow().as_ref() {
             l.quit();
@@ -977,10 +1121,28 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     // screenshot never talks to a running Sanaga)
     let sock = instance_socket(&urls);
     // (a guest window keeps nothing and runs on its own too)
-    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:") || u == "invite:") && sock.is_some();
-    if let Some(sock) = sock.as_ref().filter(|_| single) {
-        if forward_to_running(sock, &urls) {
+    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:") || u == "invite:");
+    if single {
+        if sock.as_ref().is_some_and(|sock| forward_to_running(sock, &urls)) {
             return Ok(());
+        }
+        // No Sanaga answered: this one takes the profile. If another has
+        // it all the same — two launches at the same moment, each finding
+        // nobody and both starting; one that no longer answers; a profile
+        // whose folder is too deep for a socket — the addresses are handed
+        // to it as soon as it listens, and this launch ends rather than
+        // write the same files beside it.
+        if !lock_profile(&urls) {
+            for _ in 0..40 {
+                std::thread::sleep(Duration::from_millis(100));
+                if sock.as_ref().is_some_and(|sock| forward_to_running(sock, &urls)) {
+                    return Ok(());
+                }
+            }
+            // (said and ended here: an error returned would start the
+            // plain window without a web engine, on the same profile)
+            eprintln!("{}", crate::i18n::tr("Sanaga est déjà ouvert avec ce profil."));
+            std::process::exit(1);
         }
     }
     glib::set_prgname(Some("sanaga"));
@@ -1001,6 +1163,7 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
         css.load_from_string(
             "#sanaga-swipe { background: rgba(255,255,255,0.97); color: #1a73e8; border-radius: 999px; padding: 6px 15px 9px 15px; font-size: 24px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
              #sanaga-swipe.ready { background: #1a73e8; color: white; }
+             #sanaga-status { background: rgba(245,245,246,0.97); color: #303034; border-top-right-radius: 8px; padding: 3px 10px; font-size: 12px; box-shadow: 0 0 0 1px rgba(0,0,0,0.12); }
              #sanaga-toast { background: rgba(30,30,32,0.92); color: white; border-radius: 999px; padding: 8px 18px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.28); }",
         );
         gtk::style_context_add_provider_for_display(&display, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -1014,18 +1177,17 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
             // only this user (the folder is closed already)
             let _ = std::fs::set_permissions(sock, std::fs::Permissions::from_mode(0o600));
             let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
-            // (accepting never waits for a peer: a slow or silent one can't
-            // hold up the others)
-            let _ = listener.set_nonblocking(true);
+            // (the thread sleeps until another launch connects: it used to
+            // wake twenty times a second to look, for as long as Sanaga was
+            // open. Each connection is read on a thread of its own, with a
+            // deadline: a slow or silent peer can't hold up the others.)
             std::thread::Builder::new()
                 .name("sanaga-instance".into())
                 .spawn(move || loop {
                     let stream = match listener.accept() {
                         Ok((s, _)) => s,
-                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            std::thread::sleep(Duration::from_millis(50));
-                            continue;
-                        }
+                        // (interrupted, or no file left to open one more:
+                        // not a loop that spins)
                         Err(_) => {
                             std::thread::sleep(Duration::from_millis(200));
                             continue;
@@ -1035,7 +1197,6 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
                     if !same_user(&stream) || READERS.load(std::sync::atomic::Ordering::Relaxed) >= MAX_READERS {
                         continue;
                     }
-                    let _ = stream.set_nonblocking(false);
                     READERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let profile = profile.clone();
                     let started = std::thread::Builder::new().name("sanaga-instance-read".into()).spawn(move || {
@@ -1155,7 +1316,14 @@ fn watch_stalls(limit: Duration) {
                 ANSWERED.store(n, Ordering::Relaxed);
                 let [layout, paint] = COSTS.with(|c| c.replace([Duration::ZERO; 2]));
                 if late >= limit {
-                    eprintln!("stall {} ms at {:.1} s after {} (layout {} ms, painting {} ms)", late.as_millis(), asked.duration_since(started).as_secs_f64(), if what.is_empty() { "start" } else { &what }, layout.as_millis(), paint.as_millis());
+                    eprintln!(
+                        "stall {} ms at {:.1} s after {} (layout {} ms, painting {} ms)",
+                        late.as_millis(),
+                        asked.duration_since(started).as_secs_f64(),
+                        if what.is_empty() { "start" } else { &what },
+                        layout.as_millis(),
+                        paint.as_millis()
+                    );
                 }
             });
             let mut shown = false;
@@ -1249,7 +1417,7 @@ fn last_used_window() -> Option<Rc<Host>> {
 
 /// Close one window: its tabs are saved; if other windows stay open, they are
 /// not reopened next time (as in Chrome). The last window quits Sanaga.
-fn close_window(host: &Rc<Host>, gui: &RefCell<Gui>) {
+fn close_window(host: &Rc<Host>, gui: &Rc<RefCell<Gui>>) {
     let others = WINDOWS.with(|w| w.borrow().iter().filter(|x| !Rc::ptr_eq(&x.host, host)).count());
     if let Ok(mut g) = gui.try_borrow_mut() {
         g.app.on_close();
@@ -1264,6 +1432,43 @@ fn close_window(host: &Rc<Host>, gui: &RefCell<Gui>) {
     }
     if others == 0 {
         quit_main();
+        return;
+    }
+    // Sanaga goes on with its other windows: this one's pages end now
+    // (once GTK is done closing it)
+    let (host, gui) = (host.clone(), Rc::downgrade(gui));
+    glib::timeout_add_local_once(Duration::ZERO, move || release_window(host, gui));
+}
+
+/// A closed window lets go of everything: its pages end (their engine
+/// processes with them) and its parts are taken apart. GTK only frees a
+/// window nothing refers to any more, and this one's own handlers refer to
+/// it and to its interface, which holds the pages: left alone, they all
+/// stayed — a video went on playing with no window to stop it — until
+/// Sanaga quit.
+fn release_window(host: Rc<Host>, gui: std::rc::Weak<RefCell<Gui>>) {
+    if let Some(g) = gui.upgrade() {
+        match g.try_borrow_mut() {
+            Ok(mut g) => g.app.release_pages(),
+            // (its interface is busy: a file dialog it opened is still up)
+            Err(_) => {
+                glib::timeout_add_local_once(Duration::from_millis(200), move || release_window(host, gui));
+                return;
+            }
+        }
+    }
+    // Taking a part apart drops its handlers, and with them what they held
+    // (the interface, this very window).
+    // SAFETY: GTK takes a widget apart this way itself when it frees it;
+    // the only risk is using the widget afterwards, and nothing does: the
+    // window is closed, it is no longer in the list of windows, and its
+    // handlers, timers and frames all look it up there first.
+    unsafe {
+        // (from the outside in: each part lets go of the ones it holds)
+        host.window.run_dispose();
+        host.overlay.run_dispose();
+        host.top.run_dispose();
+        host.area.run_dispose();
     }
 }
 
@@ -1369,8 +1574,18 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     toast.set_can_target(false);
     toast.set_wrap(true);
     toast.set_max_width_chars(70);
+    // where a link goes, at the bottom left of the page (clicks go through)
+    let status = gtk::Label::new(None);
+    status.set_widget_name("sanaga-status");
+    status.set_halign(gtk::Align::Start);
+    status.set_valign(gtk::Align::End);
+    status.set_visible(false);
+    status.set_can_target(false);
+    status.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+    status.set_max_width_chars(90);
     overlay.add_overlay(&device_frame);
     overlay.add_overlay(&swipe_hint);
+    overlay.add_overlay(&status);
     overlay.add_overlay(&top);
     overlay.add_overlay(&toast);
     let host_rc = Rc::new(Host {
@@ -1383,6 +1598,7 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         insets: Cell::new([0, 88, 0, 0]),
         swipe_hint,
         toast,
+        status,
         device_frame,
         device_pic,
         nav: Cell::new(0),
@@ -1391,6 +1607,8 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         next: Rc::new(Cell::new(None)),
         wanted: Cell::new(false),
         ticking: Cell::new(false),
+        fallback: Cell::new(false),
+        frames: Cell::new(0),
         slot,
     });
     // (the window being made is the one the interface talks to while it starts)
@@ -1405,7 +1623,22 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     crate::stage("window built");
     let app = Sanaga::new(&ctx, urls, SHOT_JOB.with(|s| s.borrow_mut().take()));
     crate::stage("app ready");
-    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, failed_frames: 0, frame: None, delta: Default::default(), painter_top: None, delta_top: Default::default(), free_top: Vec::new() }));
+    let gui = Rc::new(RefCell::new(Gui {
+        a11y: new_a11y(&ctx),
+        app,
+        ctx: ctx.clone(),
+        gl: None,
+        painter: None,
+        start: Instant::now(),
+        cursor: egui::CursorIcon::Default,
+        text_focus: false,
+        failed_frames: 0,
+        frame: None,
+        delta: Default::default(),
+        painter_top: None,
+        delta_top: Default::default(),
+        free_top: Vec::new(),
+    }));
     crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
 
@@ -1414,10 +1647,32 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     WINDOWS.with(|w| w.borrow_mut().push(Win { host: host_rc.clone(), gui: Rc::downgrade(&gui), input: input.clone(), im: im.clone() }));
     let waker = Wake { area: area.clone(), host: Rc::downgrade(&host_rc) };
     im.set_client_widget(Some(&area));
+    // What is being composed (a dead key waiting for its letter, the
+    // syllables of a Chinese, Japanese or Korean input method) shows in the
+    // field while it is typed. Only the finished text used to arrive: those
+    // were typed blind in every field of Sanaga's.
+    let composing = Rc::new(Cell::new(false));
+    {
+        let (input, area, composing) = (input.clone(), waker.clone(), composing.clone());
+        im.connect_preedit_changed(move |im| {
+            let (text, _, _) = im.preedit_string();
+            let text = text.to_string();
+            // (nothing shown and nothing to show: not a composition)
+            if text.is_empty() && !composing.get() {
+                return;
+            }
+            composing.set(!text.is_empty());
+            input.borrow_mut().events.push(Event::Ime(egui::ImeEvent::Preedit { text, active_range_chars: None }));
+            area.queue_render();
+        });
+    }
     {
         let (input, area) = (input.clone(), waker.clone());
         im.connect_commit(move |_, text| {
-            input.borrow_mut().events.push(Event::Text(text.to_string()));
+            // (the end of a composition replaces what was shown of it; a
+            // plain character is plain text, as before)
+            let event = if composing.replace(false) { Event::Ime(egui::ImeEvent::Commit(text.to_string())) } else { Event::Text(text.to_string()) };
+            input.borrow_mut().events.push(event);
             area.queue_render();
         });
     }
@@ -1447,7 +1702,13 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
                 use glow::HasContext;
                 unsafe {
-                    eprintln!("GL {} | {} | GLSL {} | es={}", gl.get_parameter_string(glow::VERSION), gl.get_parameter_string(glow::RENDERER), gl.get_parameter_string(glow::SHADING_LANGUAGE_VERSION), area.uses_es());
+                    eprintln!(
+                        "GL {} | {} | GLSL {} | es={}",
+                        gl.get_parameter_string(glow::VERSION),
+                        gl.get_parameter_string(glow::RENDERER),
+                        gl.get_parameter_string(glow::SHADING_LANGUAGE_VERSION),
+                        area.uses_es()
+                    );
                 }
             }
             match egui_glow::Painter::new(gl.clone(), "", None, true) {
@@ -1607,7 +1868,8 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             let (input, a) = (input0.clone(), waker.clone());
             scroll.connect_scroll(move |c, dx, dy| {
                 // a mouse wheel moves by lines, a touchpad by points
-                let (unit, delta) = if c.unit() == gdk::ScrollUnit::Wheel { (egui::MouseWheelUnit::Line, vec2(-dx as f32, -dy as f32)) } else { (egui::MouseWheelUnit::Point, vec2(-dx as f32, -dy as f32) * 1.0) };
+                let (unit, delta) =
+                    if c.unit() == gdk::ScrollUnit::Wheel { (egui::MouseWheelUnit::Line, vec2(-dx as f32, -dy as f32)) } else { (egui::MouseWheelUnit::Point, vec2(-dx as f32, -dy as f32) * 1.0) };
                 let mut i = input.borrow_mut();
                 i.modifiers = modifiers_of(c.current_event_state());
                 let modifiers = i.modifiers;
@@ -1622,8 +1884,19 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
         let keys = gtk::EventControllerKey::new();
         keys.set_im_context(Some(&im));
         let (input, a) = (input0.clone(), waker.clone());
-        keys.connect_key_pressed(move |_, kv, _, state| {
+        keys.connect_key_pressed(move |c, kv, keycode, state| {
+            // (the keyboard's play / pause keys, when the desktop has not
+            // kept them for itself)
+            if let Some(name) = crate::page::media_key(kv) {
+                input.borrow_mut().commands.push(name);
+                a.queue_render();
+                return glib::Propagation::Stop;
+            }
             let modifiers = modifiers_of(state);
+            // (a shortcut is named after a Latin letter, whatever alphabet
+            // the keyboard is set to: Ctrl+C, V, T, W, L… on a Russian or
+            // Greek keyboard; text itself comes through the input method)
+            let kv = if modifiers.ctrl || modifiers.alt { crate::page::shortcut_key(c.widget().map(|w| w.display()).as_ref(), kv, keycode) } else { kv };
             let key = key_of(kv);
             {
                 let mut i = input.borrow_mut();
@@ -1652,10 +1925,11 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             glib::Propagation::Stop
         });
         let (input, a) = (input0.clone(), waker.clone());
-        keys.connect_key_released(move |_, kv, _, state| {
+        keys.connect_key_released(move |c, kv, keycode, state| {
             // (GTK gives the state from before this key: a modifier let go
             // is still in it)
             let mut modifiers = modifiers_of(state);
+            let kv = if modifiers.ctrl || modifiers.alt { crate::page::shortcut_key(c.widget().map(|w| w.display()).as_ref(), kv, keycode) } else { kv };
             match kv.name().as_deref() {
                 Some("Control_L" | "Control_R") => {
                     modifiers.ctrl = false;
@@ -1673,6 +1947,49 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             a.queue_render();
         });
         area.add_controller(keys);
+    }
+    {
+        // A link, a file or words dropped on the interface (the tab bar, the
+        // toolbar, the side panel) open in new tabs. (Dropped on a page,
+        // they are the page's: the engine handles them.)
+        let drop = gtk::DropTarget::new(glib::Type::INVALID, gdk::DragAction::COPY | gdk::DragAction::LINK);
+        drop.set_types(&[gdk::FileList::static_type(), String::static_type()]);
+        let (input, a) = (input.clone(), area.clone());
+        drop.connect_drop(move |_, value, _, _| {
+            let items: Vec<String> = if let Ok(files) = value.get::<gdk::FileList>() {
+                files.files().iter().map(|f| f.uri().to_string()).collect()
+            } else if let Ok(text) = value.get::<String>() {
+                vec![text]
+            } else {
+                Vec::new()
+            };
+            if items.is_empty() {
+                return false;
+            }
+            input.borrow_mut().dropped.extend(items);
+            a.queue_render();
+            true
+        });
+        area.add_controller(drop);
+    }
+    {
+        // A key pressed in a page that the page did not use comes back up
+        // to the window: Sanaga's shortcuts are read from it there (find,
+        // reload, zoom, the address field…). A web application that uses
+        // the key itself (Ctrl+S, Ctrl+K, Ctrl+F in an editor) keeps it.
+        let left = gtk::EventControllerKey::new();
+        left.set_propagation_phase(gtk::PropagationPhase::Bubble);
+        let win = window.downgrade();
+        left.connect_key_pressed(move |_, kv, keycode, state| {
+            use webkit6::prelude::*;
+            let focused = win.upgrade().and_then(|w| gtk::prelude::RootExt::focus(&w));
+            let page = focused.and_then(|w| if w.is::<webkit6::WebView>() { Some(w) } else { w.ancestor(webkit6::WebView::static_type()) }).and_then(|w| w.downcast::<webkit6::WebView>().ok());
+            match page {
+                Some(view) if crate::page::key_left_by_page(&view, kv, keycode, state) => glib::Propagation::Stop,
+                _ => glib::Propagation::Proceed,
+            }
+        });
+        window.add_controller(left);
     }
     {
         let focus = gtk::EventControllerFocus::new();
@@ -1711,6 +2028,10 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
 
     crate::stage("before present");
     window.present();
+    // (a window opened later gets what the first one got from the desktop)
+    if slot > 0 {
+        crate::desktop::hide_desktop_titlebar();
+    }
     crate::stage("presented");
     area.grab_focus();
     waker.queue_render();
@@ -1720,6 +2041,13 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
 
 fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc<Host>, im: &gtk::IMMulticontext) {
     if g.painter.is_none() {
+        return;
+    }
+    // (the window has not been given its size yet — on Wayland the first
+    // frames come before it, one pixel wide: nothing is laid out in that;
+    // looked at again shortly, the size comes with the window's first show)
+    if area.width() < 32 || area.height() < 32 {
+        schedule(host, Duration::from_millis(100));
         return;
     }
     let scale = area.scale_factor().max(1) as f32;
@@ -1812,8 +2140,15 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
                 std::process::abort();
             }
             // (the frame the error cut short is closed, so that the
-            // interface can start the next one; what it had drawn is dropped)
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(ctx.end_pass())));
+            // interface can start the next one; what it had drawn is
+            // dropped — but not the pictures it made: the next frames
+            // count on them, and they are sent with the next one)
+            if let Ok(mut cut) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ctx.end_pass())) {
+                if g.painter_top.is_some() {
+                    g.delta_top.append(cut.textures_delta.clone());
+                }
+                g.delta.append(std::mem::take(&mut cut.textures_delta));
+            }
             g.app.after_error(g.failed_frames);
             schedule(host, Duration::from_millis(50));
             return;
@@ -1886,6 +2221,8 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
                     if let (Some(top), Some(dev)) = (&toplevel, &i.device) {
                         top.begin_move(dev, b.max(1) as i32, x, y, t);
                     }
+                    drop(i);
+                    let_go(input, x, y);
                 }
                 ViewportCommand::BeginResize(dir) => {
                     use egui::ResizeDirection as D;
@@ -1904,6 +2241,8 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
                     if let Some(top) = &toplevel {
                         top.begin_resize(edge, i.device.as_ref(), b.max(1) as i32, x, y, t);
                     }
+                    drop(i);
+                    let_go(input, x, y);
                 }
                 ViewportCommand::Maximized(true) => win.maximize(),
                 ViewportCommand::Maximized(false) => win.unmaximize(),
@@ -1932,11 +2271,13 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
     }
     if close {
         if g.app.take_quit_all() {
-            glib::idle_add_local_once(quit_all);
+            // (not "when idle": a window that keeps drawing is never idle,
+            // and the request to close then waited for ever — see below)
+            glib::timeout_add_local_once(Duration::ZERO, quit_all);
         } else {
             // close this window (as its close button does), once this frame is done
             let win = host.window.clone();
-            glib::idle_add_local_once(move || win.close());
+            glib::timeout_add_local_once(Duration::ZERO, move || win.close());
         }
         return;
     }
@@ -1948,6 +2289,16 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
         let win = host.window.clone();
         glib::idle_add_local_once(move || save_shot(&win, &path));
     }
+}
+
+/// The desktop takes the mouse over to move or resize the window: the
+/// button's release never reaches Sanaga. The interface is told the button
+/// was let go, or it went on believing the bar was being dragged (no
+/// hover, no close buttons on the tabs) until the next click.
+fn let_go(input: &Rc<RefCell<Input>>, x: f64, y: f64) {
+    let mut i = input.borrow_mut();
+    let modifiers = i.modifiers;
+    i.events.push(Event::PointerButton { pos: pos2(x as f32, y as f32), button: PointerButton::Primary, pressed: false, modifiers });
 }
 
 /// The layer above the pages gets the pictures the interface made or let

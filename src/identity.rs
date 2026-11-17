@@ -222,9 +222,7 @@ fn find_handoffs() -> (Option<String>, Vec<(String, &'static str)>) {
     }
     dirs.push("/var/lib/flatpak/exports/bin".into());
     // a program in PATH is started by its name, a Flatpak by its launcher's path
-    let find = |p: &str| {
-        dirs.iter().map(|d| d.join(p)).find(|f| f.is_file()).map(|f| if f.to_string_lossy().contains("/flatpak/exports/") { f.to_string_lossy().to_string() } else { p.to_string() })
-    };
+    let find = |p: &str| dirs.iter().map(|d| d.join(p)).find(|f| f.is_file()).map(|f| if f.to_string_lossy().contains("/flatpak/exports/") { f.to_string_lossy().to_string() } else { p.to_string() });
     let spotify = ["spotify", "spotify-launcher", "com.spotify.Client"].iter().find_map(|p| find(p));
     let mut browsers: Vec<(String, &'static str)> = Vec::new();
     for (p, name) in [

@@ -13,7 +13,7 @@ Legend: ✅ works · 🔧 a fault was found and fixed in this review · ⚠️ k
 | Internal pages (history, downloads, favourites, passwords, extensions, profiles, clear data, sites, import, create an extension, welcome tour, about) | each opened, picture checked | ✅ |
 | Page source (Ctrl+U) | Arabic Wikipedia page | 🔧 **crash fixed**: the source view stopped Sanaga on text in non-Latin alphabets (a cut inside a character). Now covered by a test. |
 | Light engine (Reader, simplified pages) | test with odd pages: mixed alphabets, broken tags, cut entities, unclosed comments | ✅ (new robustness test) |
-| Reader, page summary without AI | Arabic Wikipedia page | ✅ no crash · ⚠️ right-to-left text (Arabic, Hebrew) is drawn in left-to-right word order in Sanaga's own Reader and summary (pages shown by WebKit are correct) |
+| Reader, page summary without AI | Arabic Wikipedia page | ✅ no crash · ✅ right-to-left text (Arabic, Hebrew) reads right, set against the right, in Sanaga's own Reader and Light engine as in the pages shown by WebKit |
 | Downloads of files a page can't show | real download | ✅ · 🔧 **security audit (2026-11-08)**: safe file names (no folder can be chosen, .desktop/.service made inert, never an overwrite), "where from" extended attributes, and Safari's question when a site downloads by itself or several files at once — code changed, **not re-checked live yet** |
 | PDF reader | local PDF | ✅ (WebKit's viewer: search, zoom, print) |
 | Archived version (Internet Archive) | menu, address checked | ✅ |
@@ -97,8 +97,8 @@ above that touches these features must be checked again before release.
 
 ## Known limits
 
-- Right-to-left text in Sanaga's own Reader / summary (see above).
-- Emoji in Sanaga's own interface need Noto Color Emoji to be in colour (black and white otherwise).
+- Right-to-left text in a field being typed in (the address bar): each word is right, the words follow one another from left to right until the text is shown elsewhere.
+- Emoji in Sanaga's own interface need a colour emoji font on the system to be in colour (black and white otherwise).
 - DRM video (Netflix, Spotify web) can't play in WebKitGTK.
 - Extensions needing a background page or a pop-up are not supported.
 - Keep on top and placing the floating video need Hyprland.

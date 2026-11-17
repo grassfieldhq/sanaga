@@ -68,7 +68,11 @@ fn a_models_answer_is_read_whatever_it_holds() {
 
 #[test]
 fn saved_settings_are_read_whatever_the_file_holds() {
-    let seeds: [&[u8]; 3] = [b"exemple.fr\tjs=0,fonts=1,dark=1,font=Inter,zap=.ad|#x\n", b"// @name x\n// @match *://youtube.com/*\n// @include *://*.youtube.com/*\nalert(1)", br##"{"accent": {"color": "#1a73e8"}, "appearance": "dark", "auto": {"from": 19}}"##];
+    let seeds: [&[u8]; 3] = [
+        b"exemple.fr\tjs=0,fonts=1,dark=1,font=Inter,zap=.ad|#x\n",
+        b"// @name x\n// @match *://youtube.com/*\n// @include *://*.youtube.com/*\nalert(1)",
+        br##"{"accent": {"color": "#1a73e8"}, "appearance": "dark", "auto": {"from": 19}}"##,
+    ];
     run(&seeds, 20_000, |d| {
         let t = text(d);
         for line in t.lines() {

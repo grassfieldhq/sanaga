@@ -1,8 +1,8 @@
 //! Safari-style tab features: pinned tabs, tab groups, sound control,
 //! duplicate / close others, and the tab overview with page thumbnails.
 
-use super::chrome::{menu_item, menu_item_dot, menu_item_keys, menu_sub, site_badge};
 use super::chrome::Fit as _;
+use super::chrome::{menu_item, menu_item_dot, menu_item_keys, menu_sub, site_badge};
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, RichText, ScrollArea, Sense};
@@ -47,6 +47,44 @@ pub(super) fn surface_to_full_image(s: gtk::gdk::Texture) -> Option<egui::ColorI
     Some(egui::ColorImage::from_rgba_unmultiplied([w, h], &px))
 }
 
+/// The states of a window's tabs as one file: a first line, then for each
+/// tab its address and its state, each after its length (4 bytes).
+pub(super) fn pack_states(states: &[(String, Vec<u8>)]) -> Vec<u8> {
+    let mut out = STATES_MARK.to_vec();
+    for (address, state) in states {
+        for part in [address.as_bytes(), state.as_slice()] {
+            out.extend_from_slice(&(part.len() as u32).to_le_bytes());
+            out.extend_from_slice(part);
+        }
+    }
+    out
+}
+
+const STATES_MARK: &[u8] = b"sanaga tab states 1\n";
+
+/// Reads such a file. Whatever does not fit the format ends the reading:
+/// the tabs after it come back as their address alone.
+pub(super) fn unpack_states(file: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let mut out = Vec::new();
+    let Some(mut rest) = file.strip_prefix(STATES_MARK) else { return out };
+    let mut part = |limit: usize| -> Option<Vec<u8>> {
+        let (len, after) = rest.split_first_chunk::<4>()?;
+        let len = u32::from_le_bytes(*len) as usize;
+        if len > limit || len > after.len() {
+            return None;
+        }
+        let (bytes, after) = after.split_at(len);
+        rest = after;
+        Some(bytes.to_vec())
+    };
+    while out.len() < 500 {
+        let Some(address) = part(8192).and_then(|a| String::from_utf8(a).ok()) else { break };
+        let Some(state) = part(crate::page::MAX_STATE) else { break };
+        out.push((address, state));
+    }
+    out
+}
+
 fn ow_limit(w: usize) -> usize {
     // keep a card-like ratio: no taller than 3/4 of the width
     (w * 3 / 4).max(1)
@@ -65,7 +103,50 @@ pub(super) const GROUP_COLORS: [(&str, Color32); 9] = [
     ("Orange", Color32::from_rgb(0xFA, 0x90, 0x3E)),
 ];
 
+/// The ink for a text written on a group's colour: white, or a dark ink on
+/// the light colours (yellow, orange) — whichever stands out more. White
+/// on the yellow was 3.1:1, on the orange 2.3:1: hard to read.
+pub(super) fn ink_on(colour: Color32) -> Color32 {
+    let dark = Color32::from_rgb(0x1D, 0x1B, 0x18);
+    if crate::theme::contrast(Color32::WHITE, colour) >= crate::theme::contrast(dark, colour) {
+        Color32::WHITE
+    } else {
+        dark
+    }
+}
+
+/// A group's colour under the pointer: a little further from its ink
+/// (darker under white ink, lighter under dark ink), so that the name
+/// stands out more there, never less. (It was made paler, which took the
+/// white names under 4.5:1.)
+pub(super) fn group_hover(colour: Color32) -> Color32 {
+    let to = if ink_on(colour) == Color32::WHITE { 0.0 } else { 255.0 };
+    let mix = |v: u8| (v as f32 * 0.85 + to * 0.15).round() as u8;
+    Color32::from_rgb(mix(colour.r()), mix(colour.g()), mix(colour.b()))
+}
+
 impl Sanaga {
+    /// May this tab leave for a window of its own (the menu's line, or the
+    /// tab dragged out of the tab bar)? Not the only tab, not a private one
+    /// (its session stays in this window).
+    pub(super) fn can_move_to_window(&self, i: usize) -> bool {
+        self.tabs.len() > 1 && self.tabs.get(i).is_some_and(|t| !t.private)
+    }
+
+    /// The tab's page opens again in a new window, and leaves this one.
+    pub(super) fn move_tab_to_window(&mut self, i: usize) {
+        if !self.can_move_to_window(i) {
+            return;
+        }
+        let url = self.tabs[i].url().to_string();
+        self.new_window(vec![url]);
+        self.close_tab(i);
+    }
+
+    /// A tab dragged this far (points) out of the tab bar leaves for a
+    /// window of its own when it is let go.
+    pub(super) const TEAR_OFF: f32 = 60.0;
+
     /// Tabs of the current group, pinned first (indices into `self.tabs`).
     /// All tabs in tab-bar order: pinned first, then each group's tabs kept
     /// together where its first tab is (like Chrome).
@@ -194,6 +275,7 @@ impl Sanaga {
                 let t = self.tabs.remove(i);
                 if !t.private && !t.entries.is_empty() {
                     self.closed.push(t.url().to_string());
+                    self.keep_closed_state(&t);
                 }
             } else {
                 if self.tabs[i].group > g {
@@ -314,12 +396,7 @@ impl Sanaga {
         let keep_id = self.tabs[keep].id;
         let order = self.visible_tabs();
         let pos = order.iter().position(|&i| i == keep).unwrap_or(0);
-        let doomed: Vec<u64> = order
-            .iter()
-            .enumerate()
-            .filter(|(k, &i)| self.tabs[i].id != keep_id && !self.tabs[i].pinned && (!only_right || *k > pos))
-            .map(|(_, &i)| self.tabs[i].id)
-            .collect();
+        let doomed: Vec<u64> = order.iter().enumerate().filter(|(k, &i)| self.tabs[i].id != keep_id && !self.tabs[i].pinned && (!only_right || *k > pos)).map(|(_, &i)| self.tabs[i].id).collect();
         for id in doomed {
             if let Some(i) = self.tabs.iter().position(|t| t.id == id) {
                 self.close_tab(i);
@@ -391,11 +468,8 @@ impl Sanaga {
             self.duplicate_tab(i);
             done = true;
         }
-        if self.tabs.len() > 1 && !self.tabs[i].private && menu_item(ui, Icon::Share, tr("Déplacer vers une nouvelle fenêtre")) {
-            // the page opens again in the new window, and leaves this one
-            let url = self.tabs[i].url().to_string();
-            self.new_window(vec![url]);
-            self.close_tab(i);
+        if self.can_move_to_window(i) && menu_item(ui, Icon::Share, tr("Déplacer vers une nouvelle fenêtre")) {
+            self.move_tab_to_window(i);
             return true;
         }
         if menu_item(ui, Icon::Touch, if pinned { tr("Désépingler") } else { tr("Épingler") }) {
@@ -566,6 +640,13 @@ impl Sanaga {
         }
         for t in &mut self.tabs {
             t.audio = t.web.as_ref().map(|w| w.webview().is_playing_audio()).unwrap_or(false);
+            // (a site allowed to could record from a tab out of sight
+            // with no sign of it anywhere)
+            t.capturing = t.web.as_ref().is_some_and(|w| {
+                use webkit6::MediaCaptureState::None as Off;
+                let v = w.webview();
+                v.camera_capture_state() != Off || v.microphone_capture_state() != Off || v.display_capture_state() != Off
+            });
         }
     }
 
@@ -617,9 +698,7 @@ impl Sanaga {
                     match &tab.thumb {
                         Some(tex) => {
                             p.rect_filled(thumb, CornerRadius::same(12), th.card);
-                            egui::Image::from_texture(egui::load::SizedTexture::new(tex.id(), thumb.size()))
-                                .corner_radius(CornerRadius::same(12))
-                                .paint_at(ui, thumb);
+                            egui::Image::from_texture(egui::load::SizedTexture::new(tex.id(), thumb.size())).corner_radius(CornerRadius::same(12)).paint_at(ui, thumb);
                         }
                         None => {
                             p.rect_filled(thumb, CornerRadius::same(12), th.card);
@@ -631,7 +710,13 @@ impl Sanaga {
                         ui.painter().rect_filled(badge, CornerRadius::same(10), Color32::from_black_alpha(150));
                         ui.painter().text(badge.center(), Align2::CENTER_CENTER, tr("En veille"), FontId::proportional(11.0), Color32::WHITE);
                     }
-                    let ring = if active { Stroke::new(3.0, th.accent) } else if resp.hovered() { Stroke::new(2.0, th.border) } else { Stroke::new(0.8, th.border) };
+                    let ring = if active {
+                        Stroke::new(3.0, th.accent)
+                    } else if resp.hovered() {
+                        Stroke::new(2.0, th.border)
+                    } else {
+                        Stroke::new(0.8, th.border)
+                    };
                     ui.painter().rect_stroke(thumb, CornerRadius::same(12), ring, egui::StrokeKind::Outside);
                     let title = tab.title();
                     site_badge(ui.painter(), pos2(r.left() + 9.0, thumb.bottom() + 17.0), 7.0, tab.url(), &title);
@@ -661,5 +746,42 @@ impl Sanaga {
             self.overview_open = false;
             self.open_tab("sanaga://newtab", false);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{pack_states, unpack_states};
+
+    /// A group's name can be read on its colour, under the pointer too.
+    #[test]
+    fn group_names_stand_out_from_their_colour() {
+        use super::{group_hover, ink_on, GROUP_COLORS};
+        use crate::theme::contrast;
+        for (name, colour) in GROUP_COLORS {
+            let ink = ink_on(colour);
+            assert!(contrast(ink, colour) >= 4.5, "{name}: {:.2}", contrast(ink, colour));
+            let hover = group_hover(colour);
+            assert!(contrast(ink, hover) > contrast(ink, colour), "{name} under the pointer");
+        }
+        // (dark ink on the light colours, white on the others)
+        assert_eq!(ink_on(GROUP_COLORS[3].1), ink_on(GROUP_COLORS[8].1));
+        assert_ne!(ink_on(GROUP_COLORS[3].1), ink_on(GROUP_COLORS[1].1));
+    }
+
+    #[test]
+    fn tab_states_are_read_back_as_written() {
+        let states = vec![("https://a.example/".to_string(), vec![1u8, 2, 3]), ("https://b.example/é".to_string(), vec![0u8; 5000])];
+        assert_eq!(unpack_states(&pack_states(&states)), states);
+        assert!(unpack_states(&pack_states(&[])).is_empty());
+        // another file, or one cut short: what was whole is kept, never more
+        assert!(unpack_states(b"something else").is_empty());
+        let mut cut = pack_states(&states);
+        cut.truncate(cut.len() - 10);
+        assert_eq!(unpack_states(&cut), states[..1]);
+        // a length that lies about what follows
+        let mut lie = pack_states(&states[..1]);
+        lie.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(unpack_states(&lie), states[..1]);
     }
 }

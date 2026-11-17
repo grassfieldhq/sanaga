@@ -7,6 +7,7 @@
 //! and opens in its own windows.
 
 use super::chrome::Fit as _;
+use super::settings::Kept;
 use super::*;
 use crate::icons::{self, Icon};
 use crate::store::{ProfileInfo, Store};
@@ -17,6 +18,20 @@ const GUEST: &str = "\u{1}guest";
 
 /// Signs offered as a profile picture (only those Sanaga's font can draw).
 const SIGNS: [&str; 24] = ["★", "☀", "☂", "☕", "♥", "♣", "♠", "♦", "♪", "⚡", "⚽", "✈", "✿", "❄", "☘", "⚓", "☯", "✉", "⌂", "♞", "☎", "✂", "⛰", "☾"];
+
+thread_local! {
+    /// The profiles of this computer (name, colour, sign and picture of
+    /// each, read from its folder): the profile menu, the profiles page
+    /// and the search of the settings show them.
+    static PROFILES: std::cell::RefCell<Kept<Vec<ProfileInfo>>> = const { std::cell::RefCell::new(Kept::new()) };
+    /// When each profile picture was last written (None: no picture there).
+    static PICTURES: std::cell::RefCell<std::collections::HashMap<std::path::PathBuf, Kept<Option<std::time::SystemTime>>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// When the picture at `path` was last written; None when there is none.
+fn written_at(path: &std::path::Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok()
+}
 
 /// A profile's colour: the one chosen, or one picked from its name.
 pub(super) fn profile_color(info: &ProfileInfo) -> Color32 {
@@ -73,12 +88,64 @@ impl Sanaga {
             key.clone()
         };
         let photo = Store::profile_dir(&key).join("avatar.png");
-        ProfileInfo { key, name, color: st.profile_color, emoji: st.profile_emoji.trim().to_string(), photo: photo.exists().then_some(photo) }
+        ProfileInfo { key, name, color: st.profile_color, emoji: st.profile_emoji.trim().to_string(), photo: self.picture_stamp(&photo).is_some().then_some(photo) }
+    }
+
+    /// The profiles of this computer, the main one first, as last read
+    /// (see `Kept`: read on a thread when the menu or the page opens, not
+    /// at every frame they are shown).
+    pub(super) fn profiles_kept(&self) -> std::rc::Rc<Vec<ProfileInfo>> {
+        self.kept(&PROFILES, Store::all_profiles).unwrap_or_default()
+    }
+
+    /// When the picture at `path` was last written (None: no picture).
+    /// Every window draws its profile's picture at every frame, and asked
+    /// the disk each time whether the file was still there and still the
+    /// same. Asked once now, and again (on a thread) when the window comes
+    /// back to the front or when Sanaga changes a picture.
+    fn picture_stamp(&self, path: &std::path::Path) -> Option<std::time::SystemTime> {
+        let again = self.ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(true))));
+        let (known, read) = PICTURES.with(|k| {
+            let mut k = k.borrow_mut();
+            if !k.contains_key(path) {
+                k.insert(path.to_path_buf(), Kept::new());
+            }
+            k.get_mut(path).map(|kept| kept.look(again)).unwrap_or((None, false))
+        });
+        let keep = |path: &std::path::Path, stamp| {
+            PICTURES.with(|k| {
+                if let Some(kept) = k.borrow_mut().get_mut(path) {
+                    kept.set(stamp);
+                }
+            })
+        };
+        match known {
+            Some(stamp) => {
+                if read {
+                    let path = path.to_path_buf();
+                    self.off_thread(
+                        move || {
+                            let stamp = written_at(&path);
+                            (path, stamp)
+                        },
+                        move |_, (path, stamp)| keep(&path, stamp),
+                    );
+                }
+                *stamp
+            }
+            // (the first time: asked at once — one small question, once —
+            // so that the picture is there from the window's first frame)
+            None => {
+                let stamp = written_at(path);
+                keep(path, stamp);
+                stamp
+            }
+        }
     }
 
     /// A profile's photo, loaded once (again when the file changes).
     fn avatar_texture(&mut self, path: &std::path::Path) -> Option<egui::TextureId> {
-        let stamp = std::fs::metadata(path).and_then(|m| m.modified()).ok()?;
+        let stamp = self.picture_stamp(path)?;
         if let Some((t, tex)) = self.avatar_tex.get(path) {
             if *t == stamp {
                 return Some(tex.id());
@@ -122,6 +189,10 @@ impl Sanaga {
     /// (Chrome's "Work" chip). Returns the width used.
     pub(super) fn profile_button(&mut self, ui: &mut Ui, right: f32, cy: f32, th: &Theme) -> Rect {
         let info = self.me_profile();
+        // (the other profiles are read now, on a thread: the menu has them when it opens)
+        if self.first_time("profiles") {
+            self.profiles_kept();
+        }
         let named = !info.key.is_empty();
         let label = if named { Some(ui.painter().layout_no_wrap(info.name.clone(), FontId::new(12.5, bold()), th.text)) } else { None };
         let w = 32.0 + label.as_ref().map(|g| g.size().x.min(120.0) + 12.0).unwrap_or(0.0);
@@ -133,6 +204,7 @@ impl Sanaga {
         } else if resp.hovered() || self.profile_open {
             ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(10), th.omnibox_hover);
         }
+        super::chrome::focus_ring(ui, &resp, r.shrink(2.0), 14.0, th);
         let av = Rect::from_center_size(pos2(r.left() + 16.0, cy), vec2(22.0, 22.0));
         let painter = ui.painter().clone();
         self.paint_avatar(&painter, av, &info);
@@ -156,7 +228,7 @@ impl Sanaga {
         }
         let w = 320.0;
         let me = self.me_profile();
-        let others: Vec<ProfileInfo> = Store::all_profiles().into_iter().filter(|p| p.key != me.key).collect();
+        let others: Vec<ProfileInfo> = self.profiles_kept().iter().filter(|p| p.key != me.key).cloned().collect();
         let (pos, pivot, _) = super::layout::popover_place(ctx, self.profile_rect, (self.profile_rect.right() - w).max(8.0), 6.0);
         let dark = self.store.settings.dark;
         let col = profile_color(&me);
@@ -191,7 +263,10 @@ impl Sanaga {
                         ui.label(RichText::new(sub).size(12.0).color(th.sub));
                         ui.add_space(10.0);
                         if me.key != GUEST {
-                            let b = egui::Button::new(RichText::new(tr("Personnaliser le profil")).size(13.0).color(th.accent)).fill(th.accent.gamma_multiply(0.12)).corner_radius(CornerRadius::same(14)).min_size(vec2(200.0, 30.0));
+                            let b = egui::Button::new(RichText::new(tr("Personnaliser le profil")).size(13.0).color(th.accent))
+                                .fill(th.accent.gamma_multiply(0.12))
+                                .corner_radius(CornerRadius::same(14))
+                                .min_size(vec2(200.0, 30.0));
                             if ui.add(b).clicked() {
                                 act = Some(("customize", String::new()));
                             }
@@ -273,7 +348,10 @@ impl Sanaga {
                 self.profile_section = 0;
                 self.navigate(a, "sanaga://profiles".into(), None, true);
             }
-            "close" => self.run_shortcut("quit"),
+            // (each profile runs as its own Sanaga: closing it quits that
+            // one. The line used to ask for a shortcut that does not exist,
+            // and did nothing.)
+            "close" => self.quit_app(),
             _ => {}
         }
     }
@@ -283,7 +361,7 @@ impl Sanaga {
     /// profile customised (name, colour, picture).
     pub(super) fn page_profiles(&mut self, ui: &mut Ui, th: &Theme) {
         let me = self.me_profile();
-        let all = Store::all_profiles();
+        let all = self.profiles_kept();
         let mut open: Option<String> = None;
         let mut delete: Option<String> = None;
         super::pages::centered_column(ui, |ui| {
@@ -366,11 +444,15 @@ impl Sanaga {
 
             // confirming a deletion
             if let Some(key) = self.profile_delete.clone() {
-                let name = Store::profile_info(&key).name;
+                let name = all.iter().find(|p| p.key == key).map(|p| p.name.clone()).unwrap_or_else(|| key.clone());
                 section(ui, th, |ui| {
                     ui.label(RichText::new(tf("Supprimer le profil « {} » ?", &[&name])).size(15.0).family(bold()).color(th.text));
                     ui.add_space(4.0);
-                    ui.label(RichText::new(tr("Ses favoris, son historique, ses mots de passe enregistrés dans Sanaga et ses cookies seront effacés de cet ordinateur. Fermez d'abord ses fenêtres.")).size(12.5).color(th.sub));
+                    ui.label(
+                        RichText::new(tr("Ses favoris, son historique, ses mots de passe enregistrés dans Sanaga et ses cookies seront effacés de cet ordinateur. Fermez d'abord ses fenêtres."))
+                            .size(12.5)
+                            .color(th.sub),
+                    );
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
                         let b = egui::Button::new(RichText::new(tr("Supprimer")).color(Color32::WHITE)).fill(Color32::from_rgb(0xD7, 0x3A, 0x31));
@@ -379,6 +461,11 @@ impl Sanaga {
                             // (only a folder of the profiles directory)
                             if !key.is_empty() && dir.parent() == Some(Store::root_dir().join("profils").as_path()) {
                                 let _ = std::fs::remove_dir_all(&dir);
+                                PROFILES.with(|k| k.borrow_mut().changed());
+                                // (what the keyring holds for it goes too, as
+                                // the question above says)
+                                let gone = key.clone();
+                                self.off_thread(move || crate::keyring::forget_profile(&gone), |_, ()| {});
                             }
                             self.profile_delete = None;
                         }
@@ -449,6 +536,7 @@ impl Sanaga {
                         if !dir.join("settings.txt").exists() {
                             let _ = crate::store::write_atomic(&dir.join("settings.txt"), first);
                         }
+                        PROFILES.with(|k| k.borrow_mut().changed());
                         self.new_profile_name.clear();
                         self.profile_section = 0;
                         open = Some(key);
@@ -565,6 +653,7 @@ impl Sanaga {
         if drop_photo {
             let _ = std::fs::remove_file(dir.join("avatar.png"));
             self.avatar_tex.clear();
+            PICTURES.with(|k| k.borrow_mut().clear());
         }
         if pick_photo {
             if let Some(path) = crate::shell::choose_file(tr("Photo du profil"), &["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp"], tr("Images"), None) {
@@ -577,6 +666,7 @@ impl Sanaga {
                         let mut png = std::io::Cursor::new(Vec::new());
                         if sq.to_rgba8().write_to(&mut png, image::ImageFormat::Png).is_ok() && crate::store::write_atomic(&dir.join("avatar.png"), png.into_inner()).is_ok() {
                             self.avatar_tex.clear();
+                            PICTURES.with(|k| k.borrow_mut().clear());
                         }
                     }
                     Err(_) => self.notice = Some((tr("Cette image ne peut pas être lue.").into(), self.ctx.input(|i| i.time))),

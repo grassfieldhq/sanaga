@@ -1236,3 +1236,49 @@ Enregistrer l'audio sous…	Save audio as…
 Rechercher la sélection sur le Web	Search the web for the selection
 Copier le lien vers ce passage	Copy link to this passage
 Lien copié	Link copied
+{} souhaite vous envoyer des notifications.	{} wants to send you notifications.
+Onglet privé : la page n'est pas envoyée à un service en ligne.	Private tab: the page is not sent to an online service.
+Ce dossier est chiffré, mais un fichier non chiffré y a été déposé ({}) : il n'est pas lu. Supprimez-le du dossier.	This folder is encrypted, but an unencrypted file was put in it ({}): it is not read. Remove it from the folder.
+Téléchargement en cours — Ctrl+J pour le suivre ou l'arrêter.	Download under way — Ctrl+J to follow or stop it.
+Sanaga est déjà ouvert avec ce profil.	Sanaga is already open with this profile.
+votre écran (partage d'écran)	your screen (screen sharing)
+Ce site utilise la caméra, le micro ou l'écran — cliquer pour arrêter	This site is using the camera, the microphone or the screen — click to stop
+Rechercher une nouvelle version	Look for a new version
+Sanaga {} est disponible.	Sanaga {} is available.
+Voir la nouvelle version	See the new version
+Sanaga est à jour.	Sanaga is up to date.
+Vérification impossible (pas de connexion ?).	Could not check (no connection?).
+Sanaga {} est disponible (voir la page À propos).	Sanaga {} is available (see the About page).
+Dossier des téléchargements	Downloads folder
+Toujours demander où enregistrer les fichiers	Always ask where to save files
+Dossier du système	System folder
+Choisir…	Choose…
+Proxy	Proxy
+Mises à jour	Updates
+Chercher une nouvelle version une fois par jour	Look for a new version once a day
+Par où passent les pages et les demandes de Sanaga	What pages and Sanaga's own requests go through
+Celui du système	The system's
+Aucun (connexion directe)	None (direct connection)
+Une adresse	An address
+Adresse du proxy	Proxy address
+Cette adresse n'est pas celle d'un proxy : rien ne part tant qu'elle n'est pas corrigée.	This is not a proxy's address: nothing is sent until it is corrected.
+Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul	One request a day to Sanaga's releases page (github.com); nothing is installed by itself
+HTTPS d'abord	HTTPS first
+Les sites sont demandés en https ; en http seulement s'ils n'ont pas https	Sites are asked for over https; over http only when they have no https
+Enregistrer sous	Save as
+Ce site est signalé comme dangereux	This site is reported as dangerous
+{} figure sur une liste de sites d'hameçonnage ou de logiciels malveillants : il peut imiter un site que vous connaissez pour prendre vos mots de passe, ou installer un programme nuisible.	{} is on a list of phishing or malware sites: it may imitate a site you know to take your passwords, or install a harmful program.
+Revenez en lieu sûr, sauf si vous êtes certain que ce signalement est une erreur.	Go back to safety, unless you are certain this report is a mistake.
+Les listes viennent de malware-filter (OpenPhish, PhishTank, URLhaus) ; elles sont consultées sur cet ordinateur, l'adresse n'est envoyée nulle part. Sanaga ne se souviendra de votre choix que jusqu'à sa fermeture.	The lists come from malware-filter (OpenPhish, PhishTank, URLhaus); they are looked up on this computer, the address is sent nowhere. Sanaga will remember your choice only until it is closed.
+Avertir avant un site dangereux	Warn before a dangerous site
+Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing and malware: lists fetched once a day (malware-filter), looked up on this computer — no address is sent
+1 visite	1 visit
+{} visites	{} visits
+Le nom des sites visités est demandé en clair au réseau (le DNS du système)	The names of the sites visited are asked of the network in clear (the system's DNS)
+Cette adresse n'est pas celle d'un résolveur (https://…) : le DNS du système est utilisé.	This is not a resolver's address (https://…): the system's DNS is used.
+Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.	A proxy is in use: it finds the sites' addresses itself.
+Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau	The names of the sites visited are asked of this resolver over https, no longer of the network in clear
+DNS chiffré	Encrypted DNS
+Adresse du résolveur	Resolver address
+Sanaga — barres et menus	Sanaga — bars and menus
+L'historique n'a pas pu être ouvert : les pages visitées cette fois ne seront pas gardées.	The history could not be opened: the pages visited this time will not be kept.

@@ -70,18 +70,8 @@ impl CliTool {
 fn search_path() -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
     if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-        for d in [
-            ".local/bin",
-            ".claude/local",
-            ".local/share/mise/command-wrappers/bin",
-            ".local/share/mise/shims",
-            ".npm-global/bin",
-            ".volta/bin",
-            ".bun/bin",
-            ".cargo/bin",
-            ".opencode/bin",
-            "bin",
-        ] {
+        for d in [".local/bin", ".claude/local", ".local/share/mise/command-wrappers/bin", ".local/share/mise/shims", ".npm-global/bin", ".volta/bin", ".bun/bin", ".cargo/bin", ".opencode/bin", "bin"]
+        {
             dirs.push(home.join(d));
         }
     }
@@ -178,8 +168,14 @@ pub fn ask_stoppable(tool: CliTool, model: &str, system: &str, prompt: &str, sto
         }
     }
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    // (written on a thread while the outputs are read: written first, a
+    // tool that answered before reading all of a long input left both
+    // sides waiting on a full pipe, beyond the reach of Stop and of the
+    // time limit)
     if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(input.as_bytes());
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(input.as_bytes());
+        });
     }
     // read the outputs on threads (a full pipe would block the tool)
     let mut so = child.stdout.take();
@@ -227,11 +223,8 @@ pub fn ask_stoppable(tool: CliTool, model: &str, system: &str, prompt: &str, sto
     };
     if !status.success() || answer.trim().is_empty() {
         let last = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();
-        let hint = if last.to_lowercase().contains("login") || last.to_lowercase().contains("auth") {
-            crate::i18n::tf("Connectez-vous d'abord à {} dans un terminal.", &[&tool.name()])
-        } else {
-            last
-        };
+        let hint =
+            if last.to_lowercase().contains("login") || last.to_lowercase().contains("auth") { crate::i18n::tf("Connectez-vous d'abord à {} dans un terminal.", &[&tool.name()]) } else { last };
         return Err(format!("{} : {}", tool.name(), hint));
     }
     Ok(answer.trim().to_string())

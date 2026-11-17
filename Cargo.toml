@@ -1,6 +1,6 @@
 [package]
 name = "sanaga"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Sanaga — a fast, light web browser for Linux built on WebKitGTK, with a built-in mobile simulator"
@@ -29,7 +29,11 @@ path = "src/main.rs"
 maintainer = "Grassfield"
 section = "web"
 priority = "optional"
-depends = "libgtk-4-1, libwebkitgtk-6.0-4, bubblewrap, xdg-dbus-proxy, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-nice, libsecret-tools"
+# ($auto: the libraries the program is linked with, at the versions it was
+# built against; then what it starts or loads by name. The code needs
+# GTK 4.14 and WebKitGTK 2.48: an older system is refused at install time,
+# not at the first page.)
+depends = "$auto, libgtk-4-1 (>= 4.14), libwebkitgtk-6.0-4 (>= 2.48), bubblewrap, xdg-dbus-proxy, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-nice, libsecret-tools"
 recommends = "gstreamer1.0-vaapi"
 suggests = "ffmpeg, chromium"
 extended-description = "A fast, light web browser built on WebKitGTK: containers, a network blocker of ads and trackers, settings for each website, tab groups and tree tabs, a reader, and a mobile simulator for web developers."
@@ -58,8 +62,9 @@ assets = [
 ]
 
 [package.metadata.generate-rpm.requires]
-gtk4 = "*"
-"webkitgtk6.0" = "*"
+# (the oldest versions the code can use)
+gtk4 = ">= 4.14"
+"webkitgtk6.0" = ">= 2.48"
 bubblewrap = "*"
 xdg-dbus-proxy = "*"
 gstreamer1-plugins-base = "*"
@@ -73,13 +78,18 @@ hicolor-icon-theme = "*"
 
 [dependencies]
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "clipboard", "links"] }
-ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "charset", "cookies"] }
+# (socks-proxy: Sanaga's own requests go through the proxy of the settings,
+# whatever its kind — never around it)
+ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "charset", "cookies", "socks-proxy"] }
 # the interface's text: emoji in colour (the system's emoji font) with a
 # built-in black-and-white set when there is none
 epaint = { version = "0.37", default-features = false, features = ["color_fonts", "monochrome_emoji_fonts"] }
 # the system's big fonts (Chinese, Japanese, Korean, emoji) are mapped, not copied
 memmap2 = "0.9"
 url = "2.5"
+# right-to-left sentences in the interface: the order words are seen in
+# (the Unicode bidirectional algorithm; no other crate comes with it)
+unicode-bidi = { version = "0.3", default-features = false, features = ["hardcoded-data", "std"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico", "bmp"] }
 percent-encoding = "2"
 qrcode = { version = "0.14", default-features = false }
@@ -110,6 +120,9 @@ gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
 webkit6 = { version = "0.6.1", features = ["v2_48"] }
 cairo-rs = { version = "0.22", features = ["png"] }
 egui_glow = "0.37"
+# other alphabets in the interface: the system says which of its fonts has a
+# script (fontconfig), asked when a character first needs one
+egui_system_font_provider = "0.37"
 glow = "0.17"
 libloading = "0.8"
 # screen readers (Orca…): the interface described over AT-SPI

@@ -43,6 +43,11 @@ pub enum PageSignal {
     /// A link to a site whose videos need a DRM WebKit doesn't have
     /// (Netflix…): not loaded here; Sanaga opens it where it plays.
     Protected(String),
+    /// The link under the mouse (None: none any more).
+    Hover(Option<String>),
+    /// The page asked to fill the screen (a video's full-screen button),
+    /// or left it.
+    Fullscreen(bool),
     /// Find in page: how many times the words are in the page (0: nowhere).
     Found(u32),
     /// Find in page: which match is shown (1 is the first of the page), and
@@ -252,6 +257,8 @@ pub enum LoadError {
     NoFile,
     /// A port browsers never open (it belongs to other services: mail, FTP…).
     BlockedPort,
+    /// A site reported as phishing or as spreading malware (see danger.rs).
+    Dangerous,
     Other,
 }
 
@@ -304,6 +311,17 @@ pub fn dialog(key: u64) -> Option<DialogInfo> {
 
 /// Answer dialog `key`: OK / Cancel, the text typed (prompt), or the user
 /// name and password (login).
+/// Sanaga quits: every question still waiting gets "no". A page waiting for
+/// its answer holds its engine process, and the engine in turn waited for
+/// that process when the window closed — Sanaga stayed there, window gone,
+/// for more than half a minute.
+pub fn dismiss_dialogs() {
+    let keys: Vec<u64> = DIALOGS.with(|d| d.borrow().iter().map(|x| x.0).collect());
+    for key in keys {
+        answer_dialog(key, false, "", "");
+    }
+}
+
 pub fn answer_dialog(key: u64, ok: bool, text: &str, password: &str) {
     let Some((_, p, _)) = DIALOGS.with(|d| {
         let mut d = d.borrow_mut();
@@ -364,6 +382,11 @@ fn classify(e: &gtk::glib::Error) -> Option<LoadError> {
     // works, and every failure then looked like "no Internet"
     let offline = !gio::NetworkMonitor::default().is_network_available();
     let msg = e.message().to_lowercase();
+    // (encrypted DNS: Sanaga's relay says "no such host" when the resolver
+    // knows no such name — the engine only sees its proxy's answer)
+    if e.matches(gio::IOErrorEnum::HostUnreachable) && DNS_RELAY.with(|r| r.borrow().is_some()) {
+        return Some(if offline && !crate::doh::answers() { LoadError::Offline } else { LoadError::NotFound });
+    }
     if e.matches(gio::ResolverError::NotFound) || e.matches(gio::ResolverError::TemporaryFailure) || msg.contains("resolv") || msg.contains("name or service not known") {
         return Some(if offline { LoadError::Offline } else { LoadError::NotFound });
     }
@@ -425,6 +448,180 @@ thread_local! {
     /// tabs; in memory only)
     static DOWNLOAD_SITES: RefCell<Vec<(Option<NetworkSession>, String)>> = const { RefCell::new(Vec::new()) };
     static DOWNLOAD_ASK_SINKS: RefCell<Vec<(usize, AskSink)>> = const { RefCell::new(Vec::new()) };
+    /// The proxy of the settings, and the sessions it is given to (a
+    /// profile's, its containers', the private tabs').
+    static PROXY: RefCell<String> = const { RefCell::new(String::new()) };
+    /// Encrypted DNS: Sanaga's own relay (see doh.rs), given to the
+    /// sessions as their proxy while no other proxy is in use.
+    static DNS_RELAY: RefCell<Option<String>> = const { RefCell::new(None) };
+    static SESSIONS: RefCell<Vec<gtk::glib::WeakRef<NetworkSession>>> = const { RefCell::new(Vec::new()) };
+    /// "HTTPS first" (the setting); the sites that did not answer over
+    /// https since Sanaga started (asked over http straight away); and the
+    /// last https addresses Sanaga made itself from a name typed without
+    /// `http://` or `https://` (they may fall back to http too).
+    static HTTPS_FIRST: Cell<bool> = const { Cell::new(false) };
+    static HTTP_ONLY: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static SCHEMELESS: RefCell<std::collections::VecDeque<String>> = const { RefCell::new(std::collections::VecDeque::new()) };
+    /// Sites reported as dangerous that the person chose to see anyway
+    /// (until Sanaga quits).
+    static DANGER_ALLOWED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Should Sanaga warn before showing this address (a site reported as
+/// phishing or malware, which the person has not chosen to see anyway)?
+pub fn dangerous(address: &str) -> bool {
+    let host = host_of_uri(address);
+    crate::danger::listed(&host) && !DANGER_ALLOWED.with(|a| a.borrow().contains(&host))
+}
+
+/// The person chose to see this reported site anyway: no warning for it
+/// until Sanaga quits.
+pub fn allow_dangerous(host: &str) {
+    DANGER_ALLOWED.with(|a| {
+        let mut a = a.borrow_mut();
+        if !a.iter().any(|h| h == host) {
+            a.push(host.to_string());
+        }
+    });
+}
+
+/// The proxy pages go through (the settings' text: see `guard::proxy_choice`),
+/// given to every session, now and when one is made.
+pub fn set_proxy(setting: &str) {
+    if PROXY.with(|p| p.replace(setting.trim().to_string())) == setting.trim() {
+        return;
+    }
+    let sessions: Vec<NetworkSession> = SESSIONS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|w| w.upgrade().is_some());
+        s.iter().filter_map(|w| w.upgrade()).collect()
+    });
+    for session in sessions {
+        apply_proxy(&session);
+    }
+}
+
+/// Encrypted DNS: the relay the pages go through (`None`: the usual way).
+/// Given only while pages go straight to the sites: a proxy resolves the
+/// names itself.
+pub fn set_dns_relay(relay: Option<String>) {
+    if DNS_RELAY.with(|r| r.replace(relay.clone())) == relay {
+        return;
+    }
+    let sessions: Vec<NetworkSession> = SESSIONS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|w| w.upgrade().is_some());
+        s.iter().filter_map(|w| w.upgrade()).collect()
+    });
+    for session in sessions {
+        apply_proxy(&session);
+    }
+}
+
+fn apply_proxy(session: &NetworkSession) {
+    use crate::guard::ProxyChoice;
+    use webkit6::{NetworkProxyMode, NetworkProxySettings};
+    // (this computer itself is always reached directly)
+    let custom = |address: &str| NetworkProxySettings::new(Some(address), &["localhost", "127.0.0.1", "::1"]);
+    let relay = DNS_RELAY.with(|r| r.borrow().clone());
+    match crate::guard::proxy_choice(&PROXY.with(|p| p.borrow().clone())) {
+        // (no proxy in use: the names go through the encrypted DNS's relay)
+        Some(ProxyChoice::System | ProxyChoice::Direct) if relay.is_some() => session.set_proxy_settings(NetworkProxyMode::Custom, Some(&custom(relay.as_deref().unwrap_or_default()))),
+        Some(ProxyChoice::System) => session.set_proxy_settings(NetworkProxyMode::Default, None),
+        Some(ProxyChoice::Direct) => session.set_proxy_settings(NetworkProxyMode::NoProxy, None),
+        Some(ProxyChoice::Custom(address)) => session.set_proxy_settings(NetworkProxyMode::Custom, Some(&custom(&address))),
+        // not an address a proxy can have: nothing leaves by another way
+        // (a proxy nothing answers at)
+        None => session.set_proxy_settings(NetworkProxyMode::Custom, Some(&custom("http://127.0.0.1:1"))),
+    }
+}
+
+/// A session Sanaga has just made: it follows the settings' proxy.
+fn new_session(session: &NetworkSession) {
+    SESSIONS.with(|s| s.borrow_mut().push(session.downgrade()));
+    if !PROXY.with(|p| p.borrow().is_empty()) || DNS_RELAY.with(|r| r.borrow().is_some()) {
+        apply_proxy(session);
+    }
+}
+
+/// "HTTPS first": on or off (the settings).
+pub fn set_https_first(on: bool) {
+    HTTPS_FIRST.with(|h| h.set(on));
+}
+
+/// An https address Sanaga made itself from a name typed without its
+/// `https://` ("exemple.org"): if the site has no https, http is tried.
+pub fn note_schemeless(address: &str) {
+    SCHEMELESS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|a| a != address);
+        s.push_back(address.to_string());
+        while s.len() > 16 {
+            s.pop_front();
+        }
+    });
+}
+
+/// How long a site may take to start answering over https before http is
+/// tried (a site without https often does not refuse: it says nothing).
+const HTTPS_PATIENCE: Duration = Duration::from_secs(5);
+
+/// The address to ask for when the person opens `address` in this view:
+/// the https one first when the setting says so, with the http one kept to
+/// fall back on (`ViewState::https_try`).
+fn https_first(v: &WebView, st: &ViewState, address: &str) -> String {
+    *st.https_try.borrow_mut() = None;
+    if !HTTPS_FIRST.with(|h| h.get()) {
+        return address.to_string();
+    }
+    let known_http = |a: &str| HTTP_ONLY.with(|h| h.borrow().iter().any(|x| *x == host_of_uri(a)));
+    let (https, http) = match crate::guard::https_first(address) {
+        Some(https) if !known_http(address) => (https, address.to_string()),
+        Some(_) => return address.to_string(),
+        // a name typed without its scheme, which Sanaga wrote with https
+        None => match crate::guard::http_instead(address).filter(|http| SCHEMELESS.with(|s| s.borrow().iter().any(|a| a == address)) && crate::guard::https_first(http).is_some()) {
+            Some(http) if known_http(address) => return http,
+            Some(http) => (address.to_string(), http),
+            None => return address.to_string(),
+        },
+    };
+    *st.https_try.borrow_mut() = Some((https.clone(), http));
+    // (nothing after a while: http, as when the site refuses)
+    let (weak, tried) = (v.downgrade(), https.clone());
+    gtk::glib::timeout_add_local_once(HTTPS_PATIENCE, move || {
+        let Some(v) = weak.upgrade() else { return };
+        let Some(st) = view_state(&v) else { return };
+        if st.https_try.borrow().as_ref().is_some_and(|(h, _)| *h == tried) {
+            http_instead(&v, &st, &tried);
+        }
+    });
+    https
+}
+
+/// The https address tried first did not answer (refused, a certificate
+/// that is not the site's, nothing at all): its http address is asked for,
+/// and the site is asked over http until Sanaga quits. False when `failed`
+/// is not an address being tried.
+fn http_instead(v: &WebView, st: &ViewState, failed: &str) -> bool {
+    let tried = st.https_try.borrow().as_ref().is_some_and(|(https, _)| https == failed || host_of_uri(https) == host_of_uri(failed));
+    if !tried {
+        return false;
+    }
+    let Some((_, http)) = st.https_try.take() else { return false };
+    http_only(&host_of_uri(&http));
+    v.load_uri(&http);
+    true
+}
+
+/// This site has no https (or its https sends back to http): it is asked
+/// over http until Sanaga quits.
+fn http_only(host: &str) {
+    HTTP_ONLY.with(|h| {
+        let mut h = h.borrow_mut();
+        if !h.iter().any(|x| x == host) {
+            h.push(host.to_string());
+        }
+    });
 }
 
 /// What Sanaga follows for one open page.
@@ -443,6 +640,28 @@ struct ViewState {
     typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
+    /// This page was opened by another one, or opened one itself: they
+    /// share an engine process.
+    related: Cell<bool>,
+    /// How this page speaks to the interface (for a key the page left
+    /// unused, which comes back through the window).
+    tell: RefCell<Option<Rc<dyn Fn(PageSignal)>>>,
+    /// The page shown is Sanaga's own error page (set when it is shown,
+    /// from `error_next` set when it is asked for).
+    error_shown: Cell<bool>,
+    error_next: Cell<bool>,
+    /// The site whose settings the view has now (see `apply_site`).
+    site: RefCell<String>,
+    /// How the page shown was received: 0 not known or not over HTTPS,
+    /// 1 with a certificate the system trusts, 2 with one it does not
+    /// (the person chose to go on).
+    tls: Cell<u8>,
+    /// The address asked for again so that its site's settings count from
+    /// the start of its page (never twice for the same address).
+    asked_again: RefCell<String>,
+    /// "HTTPS first": the https address being tried in place of the http
+    /// one asked for, and that http one (until a page is shown or it fails).
+    https_try: RefCell<Option<(String, String)>>,
     /// The engine process the page runs in, as it told Sanaga (see
     /// page-helper/): when it started, and its number as it sees it.
     process: Cell<Option<(u64, u32)>>,
@@ -513,8 +732,7 @@ pub fn answer_downloads(site: &str, allow: bool) {
                     d.push((p.session.clone(), p.site.clone()));
                 }
             });
-            let path = choose_destination(&p.download, &p.suggested, &p.uri);
-            *p.dest.borrow_mut() = Some(path);
+            choose_destination(&p.download, &p.suggested, &p.uri, &p.dest, &p.denied);
         } else {
             p.denied.set(true);
             p.download.cancel();
@@ -726,6 +944,208 @@ fn apply_site(v: &WebView, host: &str) {
     }
 }
 
+/// Would `host`'s settings change something a page's process only takes
+/// when it starts (JavaScript on or off, the video formats)?
+fn starts_with_process(v: &WebView, host: &str) -> bool {
+    let prefs = crate::site_prefs::for_host(host);
+    WebViewExt::settings(v).is_some_and(|st| {
+        st.enables_javascript_markup() != prefs.js || st.media_content_types_requiring_hardware_support().map(|g| g.to_string()) != crate::codecs::hardware_only_types(is_video_site(host))
+    })
+}
+
+/// The address of the page a view really shows (the one its scripts, its
+/// dialogs and its requests belong to). While another page is on its way,
+/// `uri()` already gives that one's address for a navigation Sanaga
+/// started, and the page still shown would speak under its name.
+pub fn shown_uri(v: &WebView) -> String {
+    let committed = view_state(v).map(|s| s.committed.borrow().clone()).unwrap_or_default();
+    if committed.is_empty() {
+        v.uri().map(|u| u.to_string()).unwrap_or_default()
+    } else {
+        committed
+    }
+}
+
+// ------------------------------------------------------------ keyboard shortcuts
+
+/// The key a shortcut is read from. Shortcuts are named after Latin
+/// letters: on a keyboard set to another alphabet (Russian, Greek, Arabic,
+/// Hebrew…) the key pressed gives another letter, and Ctrl+T, Ctrl+W or
+/// Ctrl+L did nothing. The key then counts as the Latin letter it gives in
+/// another layout of the same keyboard, or as the letter printed on that
+/// key of a QWERTY keyboard; a key whose digit needs Shift (French AZERTY)
+/// counts as that digit.
+pub fn shortcut_key(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, keycode: u32) -> gtk::gdk::Key {
+    let ascii = |k: gtk::gdk::Key| k.to_unicode().filter(|c| c.is_ascii() && !c.is_ascii_control());
+    // (arrows, F keys, Tab… and keys that already give a Latin character)
+    if keyval.to_unicode().is_none() || ascii(keyval).is_some() {
+        return keyval;
+    }
+    let others = display.and_then(|d| d.map_keycode(keycode)).unwrap_or_default();
+    if let Some((_, k)) = others.iter().find(|(at, k)| at.level() == 0 && ascii(*k).is_some_and(|c| c.is_ascii_alphabetic())) {
+        return *k;
+    }
+    if let Some((_, k)) = others.iter().find(|(_, k)| ascii(*k).is_some_and(|c| c.is_ascii_digit())) {
+        return *k;
+    }
+    qwerty_letter(keycode).and_then(|c| gtk::gdk::Key::from_name(c.to_string())).unwrap_or(keyval)
+}
+
+/// The letter printed on this key of a QWERTY keyboard (`keycode`: the
+/// key's number as GTK gives it, the kernel's plus 8).
+fn qwerty_letter(keycode: u32) -> Option<char> {
+    let rows: [(u32, &str); 3] = [(24, "qwertyuiop"), (38, "asdfghjkl"), (52, "zxcvbnm")];
+    rows.iter().find_map(|(first, letters)| keycode.checked_sub(*first).and_then(|k| letters.chars().nth(k as usize)))
+}
+
+/// A key press as a shortcut message ("cs:t" = Ctrl+Shift+T, ":f5").
+fn shortcut_message(display: Option<&gtk::gdk::Display>, keyval: gtk::gdk::Key, keycode: u32, state: gtk::gdk::ModifierType) -> Option<String> {
+    use gtk::gdk::ModifierType as M;
+    let key = shortcut_key(display, keyval, keycode).to_lower();
+    let name = key.name()?;
+    let key: String = match name.as_str() {
+        "Tab" | "ISO_Left_Tab" | "KP_Tab" => "tab".into(),
+        "Delete" | "KP_Delete" => "delete".into(),
+        "Page_Down" | "KP_Page_Down" => "pagedown".into(),
+        "Page_Up" | "KP_Page_Up" => "pageup".into(),
+        "Left" | "KP_Left" => "arrowleft".into(),
+        "Right" | "KP_Right" => "arrowright".into(),
+        "Home" | "KP_Home" => "home".into(),
+        "KP_Add" => "+".into(),
+        "KP_Subtract" => "-".into(),
+        "KP_0" => "0".into(),
+        "F3" | "F5" | "F6" | "F9" | "F11" | "F12" => name.to_lowercase(),
+        // the keyboard's own play / pause keys
+        "AudioPlay" => "mediaplay".into(),
+        "AudioPause" | "AudioStop" => "mediapause".into(),
+        _ => key.to_unicode().filter(|c| c.is_ascii_graphic())?.to_ascii_lowercase().to_string(),
+    };
+    let flag = |m: M, c: &'static str| if state.contains(m) { c } else { "" };
+    Some(format!("{}{}{}:{key}", flag(M::CONTROL_MASK, "c"), flag(M::SHIFT_MASK, "s"), flag(M::ALT_MASK, "a")))
+}
+
+/// The shortcuts that are Sanaga's whatever the page does with the key
+/// (as in every browser: a page cannot keep its own tab from closing).
+/// The others go to the page first, and to Sanaga if the page leaves them.
+fn reserved_shortcut(name: &str) -> bool {
+    // (back, forward and home too: the engine takes Alt+arrow for a
+    // sideways scroll of the page and never hands the key back)
+    matches!(name, "new" | "window" | "private" | "reopen" | "close" | "next" | "prev" | "tabright" | "tableft" | "quit" | "back" | "fwd" | "home") || name.starts_with("tab")
+}
+
+/// A key the page was given and did not use (the engine hands it back to
+/// the window): one of Sanaga's shortcuts? True when it was, and ran.
+/// This also holds when the key was pressed in a frame of another site
+/// inside the page, where Sanaga's own script never ran.
+pub fn key_left_by_page(view: &WebView, keyval: gtk::gdk::Key, keycode: u32, state: gtk::gdk::ModifierType) -> bool {
+    let Some(st) = view_state(view) else { return false };
+    let Some(msg) = shortcut_message(Some(&view.display()), keyval, keycode, state) else { return false };
+    // (Escape belongs to the page, except for a tool of Sanaga's at work
+    // in it: its script says so)
+    if msg.ends_with(":escape") || shortcut_name(&msg).is_none() {
+        return false;
+    }
+    let tell = st.tell.borrow().clone();
+    match tell {
+        Some(tell) => {
+            tell(PageSignal::Message(msg));
+            true
+        }
+        None => false,
+    }
+}
+
+/// The play / pause key of the keyboard, pressed while Sanaga's interface
+/// has the keyboard: the shortcut it names. (Pressed in a page, the page
+/// has it first, then it comes back like any other key: `key_left_by_page`.)
+pub fn media_key(keyval: gtk::gdk::Key) -> Option<&'static str> {
+    match keyval.name()?.as_str() {
+        "AudioPlay" => Some("mediaplay"),
+        "AudioPause" | "AudioStop" => Some("mediapause"),
+        _ => None,
+    }
+}
+
+/// What the play / pause key does in a page: the sound or video that plays
+/// is paused; with "play", the first one that can play starts when none
+/// does. (Next and previous are the desktop's: the engine publishes each
+/// page that plays as a media player — MPRIS — with the page's own
+/// commands.)
+pub const MEDIA_KEY_JS: &str = "(function(play){var m=Array.prototype.slice.call(document.querySelectorAll('video,audio'));var on=m.filter(function(x){return !x.paused&&!x.ended});if(on.length){on.forEach(function(x){x.pause()});return}if(play&&m.length){var p=m[0].play();if(p&&p.catch)p.catch(function(){})}})";
+
+/// Which of Sanaga's shortcuts a message names.
+pub fn shortcut_name(msg: &str) -> Option<&'static str> {
+    let (mods, key) = msg.split_once(':')?;
+    let c = mods.contains('c');
+    let s = mods.contains('s');
+    let a = mods.contains('a');
+    Some(match (c, s, a, key) {
+        // Ctrl+1…8: that tab; Ctrl+9: the last one
+        (true, false, false, "1") => "tab1",
+        (true, false, false, "2") => "tab2",
+        (true, false, false, "3") => "tab3",
+        (true, false, false, "4") => "tab4",
+        (true, false, false, "5") => "tab5",
+        (true, false, false, "6") => "tab6",
+        (true, false, false, "7") => "tab7",
+        (true, false, false, "8") => "tab8",
+        (true, false, false, "9") => "tablast",
+        // Ctrl+F5, Shift+F5: load again without the cache
+        (true, _, _, "f5") | (false, true, _, "f5") => "hardreload",
+        // F3, Ctrl+G: the next match of the search; with Shift: the one before
+        (_, true, _, "f3") | (true, true, _, "g") => "findprev",
+        (_, false, _, "f3") | (true, false, _, "g") => "findnext",
+        (false, false, true, "d") => "addr",
+        (_, _, _, "mediaplay") => "mediaplay",
+        (_, _, _, "mediapause") => "mediapause",
+        (true, true, _, "n") => "private",
+        (true, true, _, "t") => "reopen",
+        (true, true, _, "b") => "bmbar",
+        (true, true, _, "r") => "reader",
+        (true, true, _, "\\") | (true, true, _, "|") => "overview",
+        (true, true, _, "l") => "sidebar",
+        (true, true, _, "o") => "overview",
+        (true, true, _, "f") => "contacts",
+        (true, true, _, "a") => "tabsearch",
+        (true, false, false, "k") => "tabsearch",
+        (true, true, _, "e") => "split",
+        (true, true, _, "delete") => "cleardata",
+        (true, false, false, "s") => "savepage",
+        (true, false, true, "i") => "inspector",
+        (true, true, _, "i") => "inspector",
+        (_, _, _, "f12") => "inspector",
+        (true, true, _, "m") => "devices",
+        (_, _, _, "f9") => "focus",
+        (true, true, _, "y") => "summary",
+        (_, _, _, "escape") => "esc",
+        (true, false, false, "p") => "print",
+        (true, false, false, "u") => "source",
+        (_, _, _, "f11") => "fullscreen",
+        (true, true, _, "d") => "readinglist",
+        (true, true, _, "tab") => "prev",
+        (true, _, _, "pagedown") => "tabright",
+        (true, _, _, "pageup") => "tableft",
+        (true, false, _, "t") => "new",
+        (true, false, _, "n") => "window",
+        (true, _, _, "w") => "close",
+        (true, false, _, "tab") => "next",
+        (true, _, _, "l") | (_, _, _, "f6") => "addr",
+        (true, _, _, "r") | (_, _, _, "f5") => "reload",
+        (_, _, true, "arrowleft") => "back",
+        (_, _, true, "arrowright") => "fwd",
+        (_, _, true, "home") => "home",
+        (true, _, _, "d") => "bookmark",
+        (true, _, _, "h") => "history",
+        (true, _, _, "j") => "downloads",
+        (true, _, _, "f") => "find",
+        (true, _, _, "=") | (true, _, _, "+") => "zin",
+        (true, _, _, "-") => "zout",
+        (true, _, _, "0") => "zreset",
+        (true, _, _, "q") => "quit",
+        _ => return None,
+    })
+}
+
 /// Sites that offer every video in H.264 as well (see codecs.rs).
 fn is_video_site(host: &str) -> bool {
     let h = host.trim_start_matches("www.").trim_start_matches("m.").trim_start_matches("music.");
@@ -804,14 +1224,106 @@ fn release(p: &Path) {
 }
 
 /// Where a download goes: the Downloads folder, under a safe, free name
-/// made from WebKit's suggestion. WebKit creates the file only if nothing
-/// is there (it never replaces a file).
-fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str) -> PathBuf {
+/// made from WebKit's suggestion (WebKit creates the file only if nothing
+/// is there: it never replaces a file) — or where the person says, when
+/// the settings ask them each time.
+fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str, dest: &Rc<RefCell<Option<PathBuf>>>, denied: &Rc<Cell<bool>>) {
     let path = crate::net::download_destination(suggested, uri, is_reserved);
-    reserve(&path);
-    download.set_allow_overwrite(false);
+    if !crate::net::download_asks() {
+        reserve(&path);
+        start_writing(download, &path, false);
+        *dest.borrow_mut() = Some(path);
+        return;
+    }
+    // "Ask where to save each file": the system's own window, with the name
+    // and the folder Sanaga would have used. The download waits meanwhile
+    // (the engine has asked where to put it and goes on once told).
+    let (download, dest, denied) = (download.clone(), dest.clone(), denied.clone());
+    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    crate::shell::save_dialog(&name, path.parent(), move |chosen| match chosen {
+        Some(path) => {
+            // (a file already there: the window asked before replacing it)
+            start_writing(&download, &path, true);
+            *dest.borrow_mut() = Some(path);
+        }
+        None => {
+            denied.set(true);
+            download.cancel();
+        }
+    });
+}
+
+/// The download starts writing its file at `path`; from here on it is
+/// listed as under way (how far it is, a way to stop it).
+fn start_writing(download: &webkit6::Download, path: &Path, replace: bool) {
+    RUNNING.with(|r| r.borrow_mut().push(Running { download: download.clone(), path: path.to_path_buf(), stopped: false }));
+    download.set_allow_overwrite(replace);
     download.set_destination(&path.to_string_lossy());
-    path
+}
+
+/// The most a page's kept state may weigh.
+pub const MAX_STATE: usize = 1 << 20;
+
+/// A download under way.
+struct Running {
+    download: webkit6::Download,
+    path: PathBuf,
+    /// The person stopped it.
+    stopped: bool,
+}
+
+thread_local! {
+    /// The downloads under way, for the downloads page: until now a
+    /// download said nothing between its start and its end, however long.
+    static RUNNING: RefCell<Vec<Running>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A download under way, as the downloads page shows it.
+pub struct DownloadProgress {
+    pub path: PathBuf,
+    /// Bytes received so far, and the size the site announced (0: not told).
+    pub received: u64,
+    pub total: u64,
+}
+
+/// The downloads under way (oldest first).
+pub fn running_downloads() -> Vec<DownloadProgress> {
+    RUNNING.with(|r| {
+        r.borrow()
+            .iter()
+            .filter(|d| !d.stopped)
+            .map(|d| DownloadProgress { path: d.path.clone(), received: d.download.received_data_length(), total: d.download.response().map(|x| x.content_length()).unwrap_or(0) })
+            .collect()
+    })
+}
+
+/// How many downloads are under way.
+pub fn downloads_under_way() -> usize {
+    RUNNING.with(|r| r.borrow().iter().filter(|d| !d.stopped).count())
+}
+
+/// Stop a download under way (the part already received is removed).
+pub fn stop_download(path: &Path) {
+    let found = RUNNING.with(|r| {
+        r.borrow_mut().iter_mut().find(|d| d.path == path && !d.stopped).map(|d| {
+            d.stopped = true;
+            d.download.clone()
+        })
+    });
+    if let Some(download) = found {
+        download.cancel();
+    }
+}
+
+/// A download ended: it is no longer under way. True when the person had
+/// stopped it.
+fn download_ended(download: &webkit6::Download) -> bool {
+    RUNNING.with(|r| {
+        let mut r = r.borrow_mut();
+        let stopped = r.iter().any(|d| d.download == *download && d.stopped);
+        r.retain(|d| d.download != *download);
+        stopped
+    })
 }
 
 /// The engine of a profile folder (made once, then shared by the windows).
@@ -825,6 +1337,7 @@ pub fn profile_context(dir: &Path) -> Engine {
     let d = dir.to_string_lossy().to_string();
     limit_network();
     let session = NetworkSession::new(Some(&d), Some(&d));
+    new_session(&session);
     if let Some(cm) = session.cookie_manager() {
         cm.set_persistent_storage(&dir.join("cookies").to_string_lossy(), CookiePersistentStorage::Text);
     }
@@ -931,6 +1444,7 @@ fn limit_network() {
 pub fn ephemeral_engine() -> Engine {
     limit_network();
     let session = NetworkSession::new_ephemeral();
+    new_session(&session);
     accept_cookies(&session);
     enable_favicons(&session);
     let engine = Engine { ctx: new_context(), session };
@@ -961,6 +1475,30 @@ pub fn private_engine(base: Option<&Engine>) -> Engine {
     Engine { ctx: base.map(|e| e.ctx.clone()).unwrap_or_default(), session: private_session() }
 }
 
+thread_local! {
+    /// How many private tabs each window has (see `note_private_tabs`).
+    static PRIVATE_TABS: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Each window says how many private tabs it has. When the last private
+/// tab of all windows is closed, the private session ends: its cookies and
+/// sign-ins are gone, as closing a private window does in other browsers.
+/// (It used to last until Sanaga quit: a private tab opened hours later
+/// was still signed in.)
+pub fn note_private_tabs(window: usize, count: usize) {
+    let none_left = PRIVATE_TABS.with(|t| {
+        let mut t = t.borrow_mut();
+        t.retain(|(w, _)| *w != window);
+        if count > 0 {
+            t.push((window, count));
+        }
+        t.is_empty()
+    });
+    if none_left {
+        PRIVATE.with(|p| p.borrow_mut().take());
+    }
+}
+
 /// The session shared by private tabs.
 fn private_session() -> NetworkSession {
     PRIVATE.with(|p| {
@@ -968,6 +1506,7 @@ fn private_session() -> NetworkSession {
             .get_or_insert_with(|| {
                 limit_network();
                 let s = NetworkSession::new_ephemeral();
+                new_session(&s);
                 accept_cookies(&s);
                 enable_favicons(&s);
                 s
@@ -999,7 +1538,10 @@ pub fn enable_spell_checking(ctx: &WebContext) {
 /// Where downloads go, and who is told when one ends.
 pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<PathBuf>, bool) + 'static) {
     let done = Rc::new(done);
-    session.connect_download_started(move |_, download| {
+    session.connect_download_started(move |session, download| {
+        // (a private tab's, or a guest window's: nothing says where its
+        // downloads came from)
+        let keeps_nothing = session.is_ephemeral();
         if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
             eprintln!("download started {:?}", download.request().and_then(|r| r.uri()));
         }
@@ -1034,7 +1576,15 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                 if download_needs_ask(fresh, false, allowed) {
                     // the download waits (WebKit 2.40+) until the person answers
                     PENDING_DOWNLOADS.with(|q| {
-                        q.borrow_mut().push(PendingDownload { download: download.clone(), session, suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                        q.borrow_mut().push(PendingDownload {
+                            download: download.clone(),
+                            session,
+                            suggested: suggested.to_string(),
+                            uri,
+                            site: site.clone(),
+                            dest: d2.clone(),
+                            denied: denied2.clone(),
+                        })
                     });
                     ask_downloads(site);
                     return true;
@@ -1045,8 +1595,7 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                     state.typed.set(None);
                 }
             }
-            let path = choose_destination(download, suggested, &uri);
-            *d2.borrow_mut() = Some(path);
+            choose_destination(download, suggested, &uri, &d2, &denied2);
             true
         });
         let f2 = failed.clone();
@@ -1063,11 +1612,18 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
             if let Some(p) = &path {
                 release(p);
             }
+            if download_ended(download) {
+                // stopped by the person: nothing to show, nothing left behind
+                if let Some(p) = &path {
+                    let _ = std::fs::remove_file(p);
+                }
+                return;
+            }
             if denied.get() {
                 return; // the person said no: nothing to show
             }
             let ok = !*failed.borrow();
-            if let (true, Some(p)) = (ok, &path) {
+            if let (true, Some(p), false) = (ok, &path, keeps_nothing) {
                 // where it came from (after redirections), for the file manager
                 let from = download.response().and_then(|r| r.uri()).map(|u| u.to_string()).unwrap_or_else(|| uri.clone());
                 if let Err(e) = crate::net::mark_download(p, &from, &referrer) {
@@ -1113,6 +1669,32 @@ pub struct PageView {
     find_fresh: std::rc::Rc<std::cell::Cell<bool>>,
     /// WebKit's own identity (user agent) for this page.
     default_ua: String,
+    state: Rc<ViewState>,
+}
+
+impl PageView {
+    /// How far the page being loaded has come (0 to 1), as the engine
+    /// estimates it.
+    pub fn load_progress(&self) -> f32 {
+        self.view.estimated_load_progress() as f32
+    }
+
+    /// Leave the full screen a page asked for (the page is asked to: the
+    /// engine gives the browser no call of its own for it).
+    pub fn leave_fullscreen(&self) {
+        let _ = self.evaluate_own("if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();");
+    }
+
+    /// Was the page shown received over HTTPS with a certificate the
+    /// system trusts (true), or with one it does not, after the person
+    /// chose to go on (false)? None: not over HTTPS, or not known yet.
+    pub fn secure(&self) -> Option<bool> {
+        match self.state.tls.get() {
+            1 => Some(true),
+            2 => Some(false),
+            _ => None,
+        }
+    }
 }
 
 impl PageView {
@@ -1120,7 +1702,16 @@ impl PageView {
     /// `opener`: the page that opened this one (its windows share the engine).
     /// `popups`: makes the pages this one opens; without it they open as new tabs.
     /// `automation`: the page belongs to a window driven by test software.
-    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, automation: bool, on: impl Fn(PageSignal) + 'static) -> PageView {
+    pub fn new(
+        engine: Option<&Engine>,
+        private: bool,
+        own: &[&str],
+        page: &[&str],
+        opener: Option<&WebView>,
+        popups: Option<PopupMaker>,
+        automation: bool,
+        on: impl Fn(PageSignal) + 'static,
+    ) -> PageView {
         let ucm = UserContentManager::new();
         add_scripts(&ucm, own, page);
         let on = Rc::new(on);
@@ -1132,10 +1723,14 @@ impl PageView {
             let text = value.to_str().to_string();
             let Some(view) = me2.borrow().as_ref().and_then(|w| w.upgrade()) else { return };
             let current = view.uri().map(|u| u.to_string()).unwrap_or_default();
-            let Some(body) = message_body(&text, &current) else { return };
+            // (Sanaga's own error page is shown under the address that
+            // failed, but is a blank document to itself: its buttons speak
+            // as "about:blank")
+            let own_error_page = text.starts_with("about:blank\n") && view_state(&view).is_some_and(|s| s.error_shown.get());
+            let Some(body) = message_body(&text, if own_error_page { "about:blank" } else { &current }) else { return };
             // a shortcut only follows a real key press in the page (seen by
             // GTK, not claimed by a script)
-            if is_shortcut_message(body) && !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW)) {
+            if is_shortcut_message(body) && (body != ":escape" || !view_state(&view).is_some_and(|s| s.key_at.get().is_some_and(|t| t.elapsed() <= KEY_WINDOW))) {
                 return;
             }
             o(PageSignal::Message(body.to_string()));
@@ -1165,14 +1760,35 @@ impl PageView {
         let view = b.build();
         VIEWS.with(|v| v.borrow_mut().push(view.downgrade()));
         let state = Rc::new(ViewState::default());
+        // (a page opened by another shares its engine process: neither is
+        // ended alone — see `alone_in_its_process`)
+        if let Some(o) = opener {
+            state.related.set(true);
+            if let Some(theirs) = view_state(o) {
+                theirs.related.set(true);
+            }
+        }
         VIEW_STATES.with(|s| s.borrow_mut().push((view.downgrade(), state.clone())));
         *me.borrow_mut() = Some(view.downgrade());
         // real key presses in the page (they vouch for forwarded shortcuts)
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let st = state.clone();
-        keys.connect_key_pressed(move |_, _, _, _| {
+        let (st, o) = (state.clone(), on.clone());
+        *state.tell.borrow_mut() = Some(on.clone() as Rc<dyn Fn(PageSignal)>);
+        keys.connect_key_pressed(move |c, keyval, keycode, mods| {
             st.key_at.set(Some(Instant::now()));
+            // Sanaga's own shortcuts (new tab, close tab, next tab…) are
+            // read here, from the keyboard, before the page sees the key:
+            // they work in a frame of another site, on a page that no
+            // longer answers, and on a keyboard set to another alphabet.
+            // Every other key goes to the page; the ones it leaves come
+            // back through the window (`key_left_by_page`).
+            if let Some(msg) = shortcut_message(c.widget().map(|w| w.display()).as_ref(), keyval, keycode, mods) {
+                if shortcut_name(&msg).is_some_and(reserved_shortcut) {
+                    o(PageSignal::Message(msg));
+                    return gtk::glib::Propagation::Stop;
+                }
+            }
             gtk::glib::Propagation::Proceed
         });
         view.add_controller(keys);
@@ -1192,6 +1808,12 @@ impl PageView {
                 if std::env::var_os("SANAGA_TEST_POPUPS").is_some() {
                     st.set_javascript_can_open_windows_automatically(true);
                 }
+                // (a camera, a microphone and a screen made up by the engine:
+                // to try the questions and the capture sign on a machine
+                // that has none)
+                if std::env::var_os("SANAGA_MOCK_CAPTURE").is_some() {
+                    st.set_enable_mock_capture_devices(true);
+                }
             }
             // (clipboard: WebKit's default, a page reads it only on a user gesture)
             st.set_enable_page_cache(true);
@@ -1204,10 +1826,33 @@ impl PageView {
         view.connect_load_changed(move |v, ev| {
             let uri = v.uri().map(|u| u.to_string()).unwrap_or_default();
             match ev {
-                // website settings: before the new page is made
-                LoadEvent::Started | LoadEvent::Redirected => apply_site(v, &host_of_uri(&uri)),
+                // website settings: before the new page is made. (Right
+                // for an address Sanaga opens itself, a reload, back and
+                // forward; for a link or a form of the page, the engine
+                // still gives the page being left here — see the response
+                // below, which knows where the page really comes from.)
+                LoadEvent::Started | LoadEvent::Redirected => {
+                    let host = host_of_uri(&uri);
+                    apply_site(v, &host);
+                    *st.site.borrow_mut() = host;
+                    st.tls.set(0);
+                }
                 LoadEvent::Committed => {
                     *st.committed.borrow_mut() = uri.clone();
+                    st.error_shown.set(st.error_next.replace(false));
+                    // the padlock: what the engine says of the certificate
+                    // this very page came with (never for Sanaga's own
+                    // error page, shown under the address that failed)
+                    st.tls.set(match v.tls_info() {
+                        _ if st.error_shown.get() => 0,
+                        Some((_, problems)) if problems.is_empty() => 1,
+                        Some(_) => 2,
+                        None => 0,
+                    });
+                    st.asked_again.borrow_mut().clear();
+                    // (the https address answered — or sent on to another
+                    // page: nothing to fall back from any more)
+                    *st.https_try.borrow_mut() = None;
                     // a new page: its downloads need its own actions
                     st.gesture.set(None);
                     st.typed.set(None);
@@ -1246,6 +1891,29 @@ impl PageView {
             let o = on.clone();
             find.connect_failed_to_find_text(move |_| o(PageSignal::Found(0)));
         }
+        // where the link under the mouse goes (told when it changes)
+        let o = on.clone();
+        let over: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+        view.connect_mouse_target_changed(move |_, hit, _| {
+            let link = if hit.context_is_link() { hit.link_uri().map(|u| u.to_string()) } else { None };
+            if *over.borrow() != link {
+                *over.borrow_mut() = link.clone();
+                o(PageSignal::Hover(link));
+            }
+        });
+        // a video's full-screen button: the engine makes the window fill
+        // the screen; Sanaga takes its own bars away (they used to stay,
+        // the video filling only the page's place under them)
+        let o = on.clone();
+        view.connect_enter_fullscreen(move |_| {
+            o(PageSignal::Fullscreen(true));
+            false
+        });
+        let o = on.clone();
+        view.connect_leave_fullscreen(move |_| {
+            o(PageSignal::Fullscreen(false));
+            false
+        });
         // the page's icon, as WebKit loaded it
         let o = on.clone();
         view.connect_favicon_notify(move |v| {
@@ -1298,6 +1966,18 @@ impl PageView {
                             return true;
                         }
                     }
+                    // a link to the mail program, the phone, a torrent
+                    // program (mailto:, tel:, sms:, magnet:), clicked by the
+                    // person: the system opens it, the page stays. (The
+                    // engine cannot load such an address: the page was
+                    // replaced by an error page.)
+                    if a.is_user_gesture() {
+                        if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::guard::system_link(u)) {
+                            decision.ignore();
+                            gtk::gio::AppInfo::launch_default_for_uri_async(&u, None::<&gtk::gio::AppLaunchContext>, None::<&gtk::gio::Cancellable>, |_| {});
+                            return true;
+                        }
+                    }
                     let m = a.modifiers();
                     let ctrl = m & gtk::gdk::ModifierType::CONTROL_MASK.bits() != 0;
                     let shift = m & gtk::gdk::ModifierType::SHIFT_MASK.bits() != 0;
@@ -1311,7 +1991,13 @@ impl PageView {
                     let page = v.uri().map(|u| u.to_string()).unwrap_or_default();
                     if a.navigation_type() == webkit6::NavigationType::LinkClicked && (ctrl || middle || shift) && a.is_user_gesture() {
                         if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::guard::link_may_open_elsewhere(u, &page)) {
-                            let how = if (ctrl || middle) && shift { 1 } else if ctrl || middle { 0 } else { 2 };
+                            let how = if (ctrl || middle) && shift {
+                                1
+                            } else if ctrl || middle {
+                                0
+                            } else {
+                                2
+                            };
                             decision.ignore();
                             o(PageSignal::OpenLink(u, how));
                             return true;
@@ -1324,13 +2010,96 @@ impl PageView {
             if kind == webkit6::PolicyDecisionType::Response {
                 if let Some(r) = decision.downcast_ref::<webkit6::ResponsePolicyDecision>() {
                     if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
-                        eprintln!("response {:?} {:?} main={} shown={}", r.response().and_then(|x| x.mime_type()), r.response().and_then(|x| x.uri()), r.is_main_frame_main_resource(), r.is_mime_type_supported());
+                        eprintln!(
+                            "response {:?} {:?} main={} shown={}",
+                            r.response().and_then(|x| x.mime_type()),
+                            r.response().and_then(|x| x.uri()),
+                            r.is_main_frame_main_resource(),
+                            r.is_mime_type_supported()
+                        );
+                    }
+                    // A site reported as phishing or malware (wherever the
+                    // address asked for led to): nothing of it is shown or
+                    // run, Sanaga's warning takes its place.
+                    if r.is_main_frame_main_resource() {
+                        let uri = r.response().and_then(|x| x.uri()).map(|u| u.to_string()).unwrap_or_default();
+                        if dangerous(&uri) {
+                            decision.ignore();
+                            if let Some(st) = view_state(v) {
+                                *st.https_try.borrow_mut() = None;
+                            }
+                            o(PageSignal::LoadFailed(uri, LoadError::Dangerous, String::new()));
+                            return true;
+                        }
+                    }
+                    // "HTTPS first" for an address the page went to by
+                    // itself (a script, a form, a page that sends on): only
+                    // here is it known that the whole tab is going there —
+                    // a frame inside a page asks the same way before. What
+                    // came over http is not shown: https is asked, and http
+                    // again only if the site has no https.
+                    if r.is_main_frame_main_resource() {
+                        let uri = r.response().and_then(|x| x.uri()).map(|u| u.to_string()).unwrap_or_default();
+                        let get = r.request().and_then(|q| q.http_method()).is_none_or(|m| m == "GET");
+                        if let Some(st) = view_state(v).filter(|_| get && uri.starts_with("http://")) {
+                            let sent_back = st.https_try.borrow().as_ref().is_some_and(|(https, _)| host_of_uri(https) == host_of_uri(&uri));
+                            if sent_back {
+                                // (its https address sends back to http: the
+                                // site is http, and is not asked twice)
+                                *st.https_try.borrow_mut() = None;
+                                http_only(&host_of_uri(&uri));
+                            } else {
+                                let https = https_first(v, &st, &uri);
+                                if https != uri {
+                                    decision.ignore();
+                                    let weak = v.downgrade();
+                                    gtk::glib::idle_add_local_once(move || {
+                                        if let Some(v) = weak.upgrade() {
+                                            v.load_uri(&https);
+                                        }
+                                    });
+                                    return true;
+                                }
+                            }
+                        }
                     }
                     if r.is_main_frame_main_resource() && !r.is_mime_type_supported() {
                         let status = r.response().map(|x| x.status_code()).unwrap_or(200);
                         if (200..300).contains(&status) {
                             decision.download();
                             return true;
+                        }
+                    }
+                    // The page about to be shown: its site's settings
+                    // (JavaScript off, blocker, dark, fonts) are set now if
+                    // the view still has another site's — a link clicked or
+                    // a form sent in a page starts under the address of the
+                    // page being left, which got its own settings again.
+                    if r.is_main_frame_main_resource() {
+                        if let (Some(uri), Some(st)) = (r.response().and_then(|x| x.uri()).map(|u| u.to_string()), view_state(v)) {
+                            let host = host_of_uri(&uri);
+                            if *st.site.borrow() != host {
+                                // (JavaScript on or off and the video
+                                // formats are given to a page's process
+                                // when it starts, and the engine has
+                                // started one for this site already)
+                                let too_late = starts_with_process(v, &host);
+                                apply_site(v, &host);
+                                *st.site.borrow_mut() = host;
+                                // so the page is asked for again, this time
+                                // by Sanaga and under its own address (a
+                                // form being sent goes on as it is)
+                                if too_late && r.request().and_then(|q| q.http_method()).is_none_or(|m| m == "GET") && *st.asked_again.borrow() != uri {
+                                    *st.asked_again.borrow_mut() = uri.clone();
+                                    decision.ignore();
+                                    // (once the engine has dropped this
+                                    // load: asked at once, the new one
+                                    // started under the old page's address)
+                                    let v = v.clone();
+                                    gtk::glib::idle_add_local_once(move || v.load_uri(&uri));
+                                    return true;
+                                }
+                            }
                         }
                     }
                 }
@@ -1359,13 +2128,21 @@ impl PageView {
             let Some(req) = action.request() else { return false };
             let uri = req.uri().map(|u| u.to_string()).unwrap_or_default();
             let Some(host) = url::Url::parse(&uri).ok().and_then(|u| u.host_str().map(|h| h.to_string())) else { return false };
-            if !set_identity(v, &host, &default_ua) {
+            let get = req.http_method().is_none_or(|m| m == "GET");
+            // "HTTPS first" for a link of the page too (one that opens in
+            // this tab: a link aimed at a named frame stays in its frame)
+            let target = match view_state(v) {
+                Some(st) if get && action.frame_name().is_none_or(|n| n.is_empty()) => https_first(v, &st, &uri),
+                _ => uri.clone(),
+            };
+            if !set_identity(v, &host, &default_ua) && target == uri {
                 return false;
             }
-            // ask again with the new identity (a form being sent goes on as it is)
-            if req.http_method().is_none_or(|m| m == "GET") {
+            // ask again with the new identity, or over https (a form being
+            // sent goes on as it is)
+            if get {
                 decision.ignore();
-                v.load_uri(&uri);
+                v.load_uri(&target);
                 return true;
             }
             false
@@ -1447,12 +2224,16 @@ impl PageView {
         });
         // the page did not load: Sanaga's own error page (not WebKit's)
         let o = on.clone();
-        view.connect_load_failed(move |_, _, uri, e| {
+        let st = state.clone();
+        view.connect_load_failed(move |v, _, uri, e| {
             if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                 eprintln!("load failed {uri}: domain={} message={:?}", e.domain().as_str(), e.message());
             }
             match classify(e) {
+                // "HTTPS first": the site has no https, its http address is asked
+                Some(_) if http_instead(v, &st, uri) => true,
                 Some(kind) => {
+                    *st.https_try.borrow_mut() = None;
                     o(PageSignal::LoadFailed(uri.to_string(), kind, e.message().to_string()));
                     true
                 }
@@ -1460,7 +2241,14 @@ impl PageView {
             }
         });
         let o = on.clone();
-        view.connect_load_failed_with_tls_errors(move |_, uri, cert, flags| {
+        let st = state.clone();
+        view.connect_load_failed_with_tls_errors(move |v, uri, cert, flags| {
+            // "HTTPS first": https was Sanaga's idea, and what answers there
+            // is not the site (a certificate for another name): the address
+            // the person asked for is loaded, as without the setting
+            if http_instead(v, &st, uri) {
+                return true;
+            }
             let host = host_of_uri(uri);
             TLS_SEEN.with(|t| {
                 let mut t = t.borrow_mut();
@@ -1479,7 +2267,8 @@ impl PageView {
                 webkit6::ScriptDialogType::Prompt => DialogKind::Prompt(d.prompt_get_default_text().map(|t| t.to_string()).unwrap_or_default()),
                 _ => DialogKind::Leave,
             };
-            let info = DialogInfo { kind, message: d.message().map(|m| m.to_string()).unwrap_or_default(), host: host_of_uri(&v.uri().map(|u| u.to_string()).unwrap_or_default()) };
+            // (the page that speaks is the one shown, not one on its way)
+            let info = DialogInfo { kind, message: d.message().map(|m| m.to_string()).unwrap_or_default(), host: host_of_uri(&shown_uri(v)) };
             let key = keep_dialog(Pending::Script(d.clone()), info);
             o(PageSignal::Dialog(key));
             true
@@ -1524,7 +2313,7 @@ impl PageView {
                 _ => {}
             }
         });
-        PageView { view, find_fresh, default_ua: default_ua_kept }
+        PageView { view, find_fresh, default_ua: default_ua_kept, state }
     }
 
     pub fn webview(&self) -> WebView {
@@ -1560,8 +2349,17 @@ impl PageView {
         if let Some(s) = view_state(&self.view) {
             s.typed.set(by_person.then(Instant::now));
         }
-        set_identity(&self.view, &host_of_uri(url), &self.default_ua);
-        self.view.load_uri(url);
+        // (a site reported as dangerous is not even asked: the warning
+        // comes as for a page that failed)
+        if dangerous(url) {
+            if let Some(tell) = self.state.tell.borrow().clone() {
+                tell(PageSignal::LoadFailed(url.to_string(), LoadError::Dangerous, String::new()));
+                return Ok(());
+            }
+        }
+        let url = https_first(&self.view, &self.state, url);
+        set_identity(&self.view, &host_of_uri(&url), &self.default_ua);
+        self.view.load_uri(&url);
         Ok(())
     }
     /// Run a script in the page's own world (the person's buttons, site
@@ -1612,6 +2410,36 @@ impl PageView {
         self.view.reload();
         Ok(())
     }
+    /// What the engine keeps of this page: the pages before and after it
+    /// (back, forward), where each was scrolled to, what was typed in them.
+    pub fn session_state(&self) -> Option<Vec<u8>> {
+        self.view.session_state().and_then(|s| s.serialize()).map(|b| b.to_vec()).filter(|b| !b.is_empty() && b.len() <= MAX_STATE)
+    }
+
+    /// Put back a state taken with `session_state` and show its page. False
+    /// when it holds nothing to show (the address is then loaded as usual).
+    pub fn restore_state(&self, state: &[u8]) -> bool {
+        let state = webkit6::WebViewSessionState::new(&gtk::glib::Bytes::from(state));
+        self.view.restore_session_state(&state);
+        match self.view.back_forward_list().and_then(|l| l.current_item()) {
+            Some(item) => {
+                self.view.go_to_back_forward_list_item(&item);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Ask the page to close: its "leave this page?" question is asked if
+    /// it has one; the page then closes itself (`PageSignal::Close`) unless
+    /// the person chooses to stay.
+    pub fn try_close(&self) {
+        self.view.try_close();
+    }
+    /// Load the page again from the network, nothing taken from the cache.
+    pub fn reload_fresh(&self) {
+        self.view.reload_bypass_cache();
+    }
     pub fn go_back(&self) -> R<()> {
         self.view.go_back();
         Ok(())
@@ -1643,6 +2471,17 @@ impl PageView {
     }
 }
 
+impl PageView {
+    /// Show Sanaga's own page for a load that failed, under the address
+    /// that failed. Its buttons may then ask Sanaga (see `error_shown`).
+    pub fn show_error_page(&self, html: &str, url: &str) {
+        if let Some(st) = view_state(&self.view) {
+            st.error_next.set(true);
+        }
+        self.view.load_alternate_html(html, url, None);
+    }
+}
+
 impl Drop for PageView {
     fn drop(&mut self) {
         // the page leaves the window (and its engine process ends)
@@ -1651,8 +2490,36 @@ impl Drop for PageView {
         } else if self.view.parent().is_some() {
             self.view.unparent();
         }
-        self.view.terminate_web_process();
+        // (the engine keeps a closed page's process around: ending it
+        // gives the memory back at once — unless another page lives in it)
+        if alone_in_its_process(&self.view) {
+            self.view.terminate_web_process();
+        }
     }
+}
+
+/// Is this view the only one of its engine process? A page opened by
+/// another (window.open: a sign-in or payment window) runs in its opener's
+/// process: ending that process when the small window closed — or was put
+/// to sleep — ended the page that had opened it too, which stayed blank,
+/// without a word.
+fn alone_in_its_process(view: &WebView) -> bool {
+    let Some(mine) = view_state(view) else { return true };
+    let process = mine.process.get();
+    VIEW_STATES.with(|s| {
+        !s.borrow().iter().any(|(other, st)| {
+            let Some(other) = other.upgrade() else { return false };
+            if other == *view {
+                return false;
+            }
+            // (the process each page said it runs in; until both are known,
+            // a page that opened or was opened by another counts as shared)
+            match (process, st.process.get()) {
+                (Some(a), Some(b)) => a == b,
+                _ => mine.related.get() || st.related.get(),
+            }
+        })
+    })
 }
 
 /// A plain page for a small window of its own (link preview, floating

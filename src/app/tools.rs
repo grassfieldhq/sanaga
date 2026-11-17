@@ -102,6 +102,15 @@ impl Sanaga {
 
     // ------------------------------------------------------------ border
 
+    /// The system asks for no animations (GNOME: Accessibility › Reduce
+    /// animation; KDE: animation speed "instant"): what slides, grows or
+    /// turns in Sanaga's interface takes its final place at once.
+    pub(super) fn reduce_motion(&self) -> bool {
+        // (asked of GTK, which follows the desktop's setting; no GTK when
+        // Sanaga only draws a picture of itself)
+        self.web_ok && gtk::Settings::default().is_some_and(|s| !s.is_gtk_enable_animations())
+    }
+
     /// The border around the window (Settings › Appearance): drawn, and its width returned.
     pub(super) fn draw_border(&mut self, ui: &mut Ui, now: f64) -> f32 {
         let st = &self.store.settings;
@@ -111,7 +120,12 @@ impl Sanaga {
         let w = st.border_size.clamp(1, 16) as f32;
         let alpha = (st.border_alpha.clamp(10, 100) as f32 / 100.0 * 255.0) as u8;
         let accent = crate::theme::theme(st.dark, false).accent;
-        let animated = st.border == 3 && !self.low_power_active();
+        // Its colours turn only in the window in use. Each step redraws
+        // the whole interface, fifteen times a second: for a window behind
+        // another, hidden or minimised — which nobody looks at — that was
+        // work for ever, for nothing. They stand still too when the system
+        // asks for no animations.
+        let animated = st.border == 3 && !self.low_power_active() && ui.input(|i| i.focused) && !self.reduce_motion();
         // the four corners' colours: top-left, top-right, bottom-right, bottom-left
         let corners: [Color32; 4] = match st.border {
             1 => [accent; 4],
@@ -151,7 +165,7 @@ impl Sanaga {
         match self.store.settings.low_power {
             2 => true,
             1 => self.on_battery.1,
-            // Chrome's "only when the battery is at or below 20 %" (MECHANICS.md)
+            // only when the battery is at or below 20 %
             3 => self.on_battery.1 && self.battery_low,
             _ => false,
         }
@@ -159,6 +173,12 @@ impl Sanaga {
 
     /// Check from time to time whether the computer runs on its battery.
     pub(super) fn power_step(&mut self, now: f64) {
+        // "Reduce animations" of the system: the interface's own slides and
+        // fades too (menus that unfold, the switches, the overview).
+        let still = self.reduce_motion();
+        if (self.ctx.global_style().animation_time == 0.0) != still {
+            self.ctx.all_styles_mut(|s| s.animation_time = if still { 0.0 } else { egui::Style::default().animation_time });
+        }
         if now - self.on_battery.0 < 30.0 {
             return;
         }
@@ -199,7 +219,7 @@ impl Sanaga {
         // page sends by itself (a video it can't play, an answer, the error
         // page's buttons) never pull a background tab to the front
         if let Some(i) = self.tab_index(tab) {
-            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe" | "safe" | "tls-allow" | "no-webrtc") {
+            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe" | "safe" | "tls-allow" | "danger-allow" | "no-webrtc") {
                 self.active = i;
             }
         }
@@ -214,11 +234,33 @@ impl Sanaga {
             "tls-allow" => {
                 let showing = self.tab_shows(tab);
                 let ok = self.error_pages.get(&tab).is_some_and(|e| {
-                    e.shown && e.kind == crate::page::LoadError::Certificate && showing.as_deref() == Some(e.url.as_str()) && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
+                    e.shown
+                        && e.kind == crate::page::LoadError::Certificate
+                        && showing.as_deref() == Some(e.url.as_str())
+                        && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
                 });
                 if ok {
                     let host = self.error_pages.remove(&tab).map(|e| host_of(&e.url)).unwrap_or_default();
                     self.accept_certificate(tab, &host);
+                }
+            }
+            // (the same proofs as for a certificate: this tab, this very
+            // warning, its secret)
+            "danger-allow" => {
+                let showing = self.tab_shows(tab);
+                let ok = self.error_pages.get(&tab).is_some_and(|e| {
+                    e.shown
+                        && e.kind == crate::page::LoadError::Dangerous
+                        && showing.as_deref() == Some(e.url.as_str())
+                        && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
+                });
+                if ok {
+                    if let Some(e) = self.error_pages.remove(&tab) {
+                        crate::page::allow_dangerous(&host_of(&e.url));
+                        if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+                            let _ = w.load_url(&e.url, true);
+                        }
+                    }
                 }
             }
             "safe" => {
@@ -294,6 +336,9 @@ impl Sanaga {
         self.tabs[i].parent = Some(tab);
         self.tabs[i].container = container;
         self.tabs[i].group = group;
+        // (a tab behind, asked for now by the person: its page loads at
+        // once — it showed no title and no icon until it was looked at)
+        self.tabs[i].load_behind = how == 0;
         // next to the page it came from, after the links already opened from it
         let mut to = from + 1;
         while to < self.tabs.len() - 1 && self.tabs[to].parent == Some(tab) && to != i {
@@ -501,7 +546,13 @@ impl Sanaga {
         if !prefs.is_default() {
             list.push((host.clone(), prefs));
         }
-        self.store.save_site_prefs(&list);
+        // (changed from a private tab showing that site: it holds until
+        // Sanaga closes, and the site's name is not written)
+        if self.tabs.get(self.active).is_some_and(|t| t.private && crate::site_prefs::key(&host_of(t.url())) == host) {
+            crate::site_prefs::set_all(list);
+        } else {
+            self.store.save_site_prefs(&list);
+        }
         if reload {
             for t in &self.tabs {
                 if let Some(w) = &t.web {
@@ -515,13 +566,18 @@ impl Sanaga {
 }
 
 /// Does the computer run on its battery now?
-/// Chrome's energy saver threshold: "only when the battery is at or below
-/// 20 %" (Chrome 0xbfb613a, see MECHANICS.md).
+/// The energy saver's "only when the battery is low": at or below 20 %,
+/// the threshold other browsers use.
 pub(super) const LOW_BATTERY_PERCENT: u8 = 20;
 
 /// Whether the computer runs on its battery, and the battery's level (%).
 fn on_battery() -> (bool, Option<u8>) {
-    let Ok(rd) = std::fs::read_dir("/sys/class/power_supply") else { return (false, None) };
+    battery_state(std::path::Path::new("/sys/class/power_supply"))
+}
+
+/// The same, read from a folder laid out as the system's `power_supply`.
+fn battery_state(supplies: &std::path::Path) -> (bool, Option<u8>) {
+    let Ok(rd) = std::fs::read_dir(supplies) else { return (false, None) };
     let mut battery_discharging = false;
     let mut level: Option<u8> = None;
     for e in rd.flatten() {
@@ -530,7 +586,12 @@ fn on_battery() -> (bool, Option<u8>) {
         if kind.trim() == "Mains" && std::fs::read_to_string(p.join("online")).is_ok_and(|v| v.trim() == "1") {
             return (false, None);
         }
-        if kind.trim() == "Battery" {
+        // (the computer's own battery: a wireless mouse, a keyboard or a
+        // headset also show up as batteries, "Device" ones, and a desktop
+        // computer with such a mouse was taken for a laptop on battery —
+        // pages put to sleep after five minutes, for ever)
+        let of_a_device = std::fs::read_to_string(p.join("scope")).is_ok_and(|v| v.trim() == "Device");
+        if kind.trim() == "Battery" && !of_a_device {
             if std::fs::read_to_string(p.join("status")).is_ok_and(|v| v.trim() == "Discharging") {
                 battery_discharging = true;
             }
@@ -617,6 +678,41 @@ impl Sanaga {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder laid out as /sys/class/power_supply: (name, files).
+    fn supplies(name: &str, list: &[(&str, &[(&str, &str)])]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("sanaga-power-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for (supply, files) in list {
+            std::fs::create_dir_all(dir.join(supply)).unwrap();
+            for (file, text) in *files {
+                std::fs::write(dir.join(supply).join(file), format!("{text}\n")).unwrap();
+            }
+        }
+        dir
+    }
+
+    #[test]
+    fn only_the_computers_own_battery_counts() {
+        // a desktop computer with a wireless mouse at 15 %: not on battery
+        let d = supplies("desktop", &[("hidpp_battery_0", &[("type", "Battery"), ("scope", "Device"), ("status", "Discharging"), ("capacity", "15")])]);
+        assert_eq!(battery_state(&d), (false, None));
+        // a laptop unplugged, with that same mouse: its own battery's level
+        let d = supplies(
+            "laptop",
+            &[
+                ("BAT0", &[("type", "Battery"), ("status", "Discharging"), ("capacity", "64")]),
+                ("hidpp_battery_0", &[("type", "Battery"), ("scope", "Device"), ("status", "Discharging"), ("capacity", "15")]),
+                ("AC", &[("type", "Mains"), ("online", "0")]),
+            ],
+        );
+        assert_eq!(battery_state(&d), (true, Some(64)));
+        // plugged in: never "on battery"
+        let d = supplies("plugged", &[("BAT0", &[("type", "Battery"), ("scope", "System"), ("status", "Discharging"), ("capacity", "64")]), ("AC", &[("type", "Mains"), ("online", "1")])]);
+        assert_eq!(battery_state(&d), (false, None));
+        // no such folder at all
+        assert_eq!(battery_state(std::path::Path::new("/nonexistent/power")), (false, None));
+    }
 
     #[test]
     fn finds_youtube_ids() {

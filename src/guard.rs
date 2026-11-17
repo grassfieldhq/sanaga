@@ -196,6 +196,123 @@ pub fn plausible_selector(s: &str) -> bool {
     !s.is_empty() && s.len() <= 512 && !s.chars().any(|c| c.is_control() || matches!(c, '{' | '}' | '<' | '@' | ';' | '\\'))
 }
 
+/// The ports no browser connects to over HTTP (the list of the Fetch
+/// standard, which the engine follows): mail, shells, printers… A page
+/// could otherwise make the browser speak to those services.
+const RESTRICTED_PORTS: &[u16] = &[
+    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512,
+    513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669,
+    6679, 6697, 10080,
+];
+
+/// Is this a web address on a port browsers refuse? The engine then shows
+/// an empty page without a word: Sanaga shows its own page that says why.
+pub fn restricted_port(address: &str) -> bool {
+    url::Url::parse(address).ok().filter(|u| matches!(u.scheme(), "http" | "https")).and_then(|u| u.port()).is_some_and(|p| RESTRICTED_PORTS.contains(&p))
+}
+
+/// The https address to try before an http one ("HTTPS first"), when there
+/// is one worth trying: a site of the Internet named by its domain, on the
+/// usual port. Not a computer of the home or the office (an address in
+/// numbers, a single word, `.local`, `.lan`...), which rarely has https and
+/// would only be slower to reach; not another port, where https does not
+/// answer.
+pub fn https_first(address: &str) -> Option<String> {
+    let u = url::Url::parse(address.trim()).ok()?;
+    if u.scheme() != "http" || u.port().is_some() || !u.username().is_empty() {
+        return None;
+    }
+    let Some(url::Host::Domain(host)) = u.host() else { return None };
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    let last = host.rsplit('.').next().unwrap_or("");
+    let local =
+        !host.contains('.') || matches!(last, "local" | "localhost" | "lan" | "home" | "internal" | "intranet" | "corp" | "test" | "invalid" | "example" | "onion") || host.ends_with(".home.arpa");
+    if local {
+        return None;
+    }
+    Some(format!("https{}", &u.as_str()["http".len()..]))
+}
+
+/// The http address a page is asked at when its https one did not answer
+/// (the other way round of `https_first`): only for the very address that
+/// was tried, never for one a page redirected to.
+pub fn http_instead(address: &str) -> Option<String> {
+    let u = url::Url::parse(address.trim()).ok()?;
+    (u.scheme() == "https" && u.port().is_none()).then(|| format!("http{}", &u.as_str()["https".len()..]))
+}
+
+/// What the settings say of the proxy pages go through.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ProxyChoice {
+    /// The one the system is set to use (or none).
+    System,
+    /// A direct connection, whatever the system says.
+    Direct,
+    /// This one: `http://host:3128`, `socks5://host:1080`...
+    Custom(String),
+}
+
+/// The proxy named by the settings' text: "" the system's, "none" a direct
+/// connection, else a proxy's address (a bare `host:port` is an http
+/// proxy). `None`: not an address a proxy can have — nothing is sent
+/// anywhere on a guess.
+pub fn proxy_choice(setting: &str) -> Option<ProxyChoice> {
+    let t = setting.trim();
+    if t.is_empty() {
+        return Some(ProxyChoice::System);
+    }
+    if t.eq_ignore_ascii_case("none") || t.eq_ignore_ascii_case("direct") {
+        return Some(ProxyChoice::Direct);
+    }
+    let full = if t.contains("://") { t.to_string() } else { format!("http://{t}") };
+    let u = url::Url::parse(&full).ok()?;
+    let scheme = u.scheme();
+    if !matches!(scheme, "http" | "socks" | "socks4" | "socks4a" | "socks5") {
+        return None;
+    }
+    let host = u.host_str().filter(|h| !h.is_empty())?;
+    // (the port is said: a proxy has no usual one)
+    let port = u.port()?;
+    let login = match (u.username(), u.password()) {
+        ("", _) => String::new(),
+        (user, Some(pass)) => format!("{user}:{pass}@"),
+        (user, None) => format!("{user}@"),
+    };
+    Some(ProxyChoice::Custom(format!("{scheme}://{login}{host}:{port}")))
+}
+
+/// What was dropped on Sanaga's interface, as what to open: a web address
+/// or a local file as it is, anything else as words to search for (`Err`).
+/// Never one of Sanaga's own pages or commands: a page can start a drag
+/// with any text, and the person only sees a link being moved.
+pub fn dropped_item(text: &str) -> Option<Result<String, String>> {
+    // (several addresses dropped as one text: one per line, comments with #)
+    let t = text.trim();
+    if t.is_empty() || t.len() > 8192 || t.starts_with('#') {
+        return None;
+    }
+    if let Ok(u) = url::Url::parse(t) {
+        if matches!(u.scheme(), "http" | "https" | "file") && !t.chars().any(|c| c.is_control()) {
+            return Some(Ok(u.to_string()));
+        }
+    }
+    // (a path of this computer)
+    if t.starts_with('/') && !t.contains(['\n', '\r']) && Path::new(t).exists() {
+        return Some(Ok(format!("file://{t}")));
+    }
+    let words: String = t.chars().map(|c| if c.is_control() { ' ' } else { c }).take(300).collect();
+    Some(Err(words.trim().to_string()))
+}
+
+/// A link meant for another program of the computer (the mail program, the
+/// phone, a torrent program): handed to the system when the person clicks
+/// it. Only these few: any other scheme could start a program a page has
+/// no business starting.
+pub fn system_link(address: &str) -> bool {
+    let scheme = address.split_once(':').map(|(s, _)| s.to_ascii_lowercase()).unwrap_or_default();
+    matches!(scheme.as_str(), "mailto" | "tel" | "sms" | "magnet") && address.len() < 8192 && !address.chars().any(|c| c.is_control())
+}
+
 /// May a link of a page be opened elsewhere by Sanaga (Ctrl+click, middle
 /// click, "open in a private tab")? Web addresses only, or a local file from
 /// a local page: never Sanaga's own pages, scripts or other schemes.
@@ -417,8 +534,6 @@ pub fn close_files(dir: &Path) {
     }
 }
 
-
-
 /// A JavaScript string literal (for handing values to a page safely).
 pub fn js_str(s: &str) -> String {
     let mut out = String::from("\"");
@@ -440,6 +555,87 @@ pub fn js_str(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_is_dropped_is_an_address_a_file_or_words() {
+        assert_eq!(dropped_item(" https://example.org/a b "), Some(Ok("https://example.org/a%20b".to_string())));
+        assert_eq!(dropped_item("file:///tmp/x.html"), Some(Ok("file:///tmp/x.html".to_string())));
+        assert_eq!(dropped_item("/"), Some(Ok("file:///".to_string())));
+        // words: searched for, whatever they look like
+        assert_eq!(dropped_item("hello  world"), Some(Err("hello  world".to_string())));
+        for own in ["sanaga://settings", "javascript:alert(1)", "data:text/html,<p>x", "preview:https://example.org", "apercu:", "profil:other", "about:blank"] {
+            assert!(matches!(dropped_item(own), Some(Err(_))), "{own}");
+        }
+        assert_eq!(dropped_item("line one\nline two"), Some(Err("line one line two".to_string())));
+        assert_eq!(dropped_item("   "), None);
+        assert_eq!(dropped_item("# a comment of a list of addresses"), None);
+    }
+
+    #[test]
+    fn https_is_tried_first_for_sites_of_the_internet_only() {
+        assert_eq!(https_first("http://example.org/a?b=1#c").as_deref(), Some("https://example.org/a?b=1#c"));
+        assert_eq!(https_first("http://WWW.Example.org").as_deref(), Some("https://www.example.org/"));
+        for kept in [
+            "https://example.org/",
+            "http://example.org:8080/",
+            "http://localhost/",
+            "http://router/",
+            "http://192.168.1.1/",
+            "http://[::1]/",
+            "http://printer.local/",
+            "http://nas.lan/x",
+            "http://box.home.arpa/",
+            "http://abc.onion/",
+            "http://user@example.org/",
+            "file:///tmp/a",
+            "sanaga://newtab",
+            "not an address",
+        ] {
+            assert_eq!(https_first(kept), None, "{kept}");
+        }
+        assert_eq!(http_instead("https://example.org/a?b").as_deref(), Some("http://example.org/a?b"));
+        assert_eq!(http_instead("https://example.org:8443/"), None);
+        assert_eq!(http_instead("http://example.org/"), None);
+    }
+
+    #[test]
+    fn the_proxy_setting_is_an_address_or_nothing() {
+        assert_eq!(proxy_choice(""), Some(ProxyChoice::System));
+        assert_eq!(proxy_choice("  none "), Some(ProxyChoice::Direct));
+        assert_eq!(proxy_choice("proxy.example:3128"), Some(ProxyChoice::Custom("http://proxy.example:3128".into())));
+        assert_eq!(proxy_choice("socks5://127.0.0.1:9050"), Some(ProxyChoice::Custom("socks5://127.0.0.1:9050".into())));
+        assert_eq!(proxy_choice("http://awa:secret@proxy.example:8080/"), Some(ProxyChoice::Custom("http://awa:secret@proxy.example:8080".into())));
+        // no port, another kind of address, words
+        for wrong in ["proxy.example", "http://proxy.example", "ftp://proxy.example:21", "https://proxy.example:443", "my proxy", "socks5://:1080"] {
+            assert_eq!(proxy_choice(wrong), None, "{wrong}");
+        }
+    }
+
+    #[test]
+    fn links_for_other_programs() {
+        assert!(system_link("mailto:awa@example.org?subject=Bonjour"));
+        assert!(system_link("TEL:+237600000000"));
+        assert!(system_link("magnet:?xt=urn:btih:abc"));
+        assert!(!system_link("https://example.org/"));
+        assert!(!system_link("file:///etc/passwd"));
+        assert!(!system_link("javascript:alert(1)"));
+        assert!(!system_link("vscode://open?x"));
+        assert!(!system_link("mailto:a@b\nBcc: c@d"));
+        assert!(!system_link("mailto"));
+    }
+
+    #[test]
+    fn ports_browsers_refuse() {
+        assert!(restricted_port("http://localhost:6000/"));
+        assert!(restricted_port("https://example.com:25/x"));
+        assert!(restricted_port("http://127.0.0.1:6697"));
+        // ordinary ports, the default ones, other schemes
+        assert!(!restricted_port("http://localhost:8080/"));
+        assert!(!restricted_port("https://example.com/"));
+        assert!(!restricted_port("http://example.com:80/"));
+        assert!(!restricted_port("file:///etc/hosts"));
+        assert!(!restricted_port("not an address"));
+    }
 
     #[test]
     fn download_names_stay_in_the_folder() {
@@ -482,7 +678,6 @@ mod tests {
         let long = "x".repeat(400);
         assert_eq!(safe_download_name(&long).len(), MAX_NAME);
     }
-
 
     #[test]
     fn download_marks_hide_passwords() {
@@ -597,7 +792,18 @@ mod tests {
         assert_eq!(accept_forwarded("apercu:").as_deref(), Some("apercu:"));
         assert_eq!(accept_forwarded("preview:https://example.org/").as_deref(), Some("preview:https://example.org/"));
         assert_eq!(accept_forwarded("lecteur:https://example.org/").as_deref(), Some("lecteur:https://example.org/"));
-        for bad in ["javascript:alert(1)", "data:text/html,<script>x</script>", "sanaga://settings", "view-source:https://a.org", "about:config", "preview:javascript:x", "preview:apercu:", "profil:Travail", "https://a.org/\u{0}x", ""] {
+        for bad in [
+            "javascript:alert(1)",
+            "data:text/html,<script>x</script>",
+            "sanaga://settings",
+            "view-source:https://a.org",
+            "about:config",
+            "preview:javascript:x",
+            "preview:apercu:",
+            "profil:Travail",
+            "https://a.org/\u{0}x",
+            "",
+        ] {
             assert_eq!(accept_forwarded(bad), None, "{bad}");
         }
         assert_eq!(accept_forwarded(&format!("https://a.org/{}", "x".repeat(9000))), None);

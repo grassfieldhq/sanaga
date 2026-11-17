@@ -5,8 +5,8 @@
 //! selection, icons in the accent colour, and a complete right-click menu on
 //! every row. Groups are renamed in place (double-click), favourites too.
 
-use super::chrome::site_badge;
 pub(super) use super::chrome::menu_item;
+use super::chrome::site_badge;
 use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
@@ -36,7 +36,11 @@ enum Do {
 /// The neutral selection and hover fills of the rows (macOS 27 Finder).
 fn select_fill(dark: bool, strong: bool) -> Color32 {
     let a = if strong { 24 } else { 12 };
-    if dark { Color32::from_white_alpha(a) } else { Color32::from_black_alpha(a) }
+    if dark {
+        Color32::from_white_alpha(a)
+    } else {
+        Color32::from_black_alpha(a)
+    }
 }
 
 impl Sanaga {
@@ -59,7 +63,15 @@ impl Sanaga {
                 let (r, _) = ui.allocate_exact_size(vec2(13.0, 13.0), Sense::hover());
                 icons::paint(ui.painter(), r, Icon::Search, th.sub);
                 ui.add_space(2.0);
-                ui.add(TextEdit::singleline(&mut self.sidebar_filter).id(egui::Id::new("sidebar-search")).frame(Frame::NONE).font(FontId::proportional(13.0)).vertical_align(Align::Center).hint_text(RichText::new(tr("Rechercher")).color(th.sub)).desired_width(ui.available_width()));
+                ui.add(
+                    TextEdit::singleline(&mut self.sidebar_filter)
+                        .id(egui::Id::new("sidebar-search"))
+                        .frame(Frame::NONE)
+                        .font(FontId::proportional(13.0))
+                        .vertical_align(Align::Center)
+                        .hint_text(RichText::new(tr("Rechercher")).color(th.sub))
+                        .desired_width(ui.available_width()),
+                );
             });
         });
         ui.add_space(6.0);
@@ -80,6 +92,10 @@ impl Sanaga {
                     } else if resp.hovered() {
                         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
                     }
+                    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
+                    // (for screen readers: the group's name, how many tabs, and whether it is the one shown)
+                    super::toolbar::named(&resp, egui::accesskit::Role::ListBoxOption, &format!("{} — {n}", if g == 0 { tr("Onglets").to_string() } else { self.group_label(g) }));
+                    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_selected(current));
                     let ic = Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(16.0, 16.0));
                     if g == 0 {
                         icons::paint(ui.painter(), ic, Icon::Grid, th.accent);
@@ -127,7 +143,7 @@ impl Sanaga {
                             ui.horizontal(|ui| {
                                 ui.add_space(6.0);
                                 for (k, (name, col)) in super::tabs::GROUP_COLORS.iter().enumerate() {
-                                    let (cr, cresp) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::click());
+                                    let (cr, cresp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
                                     ui.painter().circle_filled(cr.center(), 7.0, *col);
                                     if self.group_colors.get(g).copied() == Some(k as u8) {
                                         ui.painter().circle_stroke(cr.center(), 9.5, Stroke::new(1.5, *col));
@@ -165,6 +181,7 @@ impl Sanaga {
                     } else if resp.hovered() {
                         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
                     }
+                    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
                     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(15.0, 15.0)), Icon::Grid, th.accent);
                     let label = title.trim_end_matches(" - Sanaga");
                     let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
@@ -175,7 +192,14 @@ impl Sanaga {
                 }
             }
             // ---------------- favourites ----------------
-            let favs: Vec<(usize, String, String)> = self.store.bookmarks.iter().enumerate().filter(|(_, b)| matches(&b.url, &b.title)).map(|(i, b)| (i, b.url.clone(), b.title.clone())).collect();
+            // (the side panel shows the first ones: thousands of favourites
+            // were copied and laid out at every frame while it was open —
+            // the Favourites page has them all, and its search)
+            const SHOWN: usize = 200;
+            let mut favs: Vec<(usize, String, String)> =
+                self.store.bookmarks.iter().enumerate().filter(|(_, b)| matches(&b.url, &b.title)).take(SHOWN + 1).map(|(i, b)| (i, b.url.clone(), b.title.clone())).collect();
+            let more_favs = favs.len() > SHOWN;
+            favs.truncate(SHOWN);
             if self.section_header(ui, th, "sb-favs", tr("Favoris"), None) {
                 if favs.is_empty() {
                     hint(ui, th, if q.is_empty() { tr("Cliquez sur l'étoile de la barre d'adresse pour ajouter une page.") } else { tr("Aucun résultat") });
@@ -213,7 +237,7 @@ impl Sanaga {
                         }
                     });
                 }
-                if q.is_empty() && link_row(ui, th, dark, Icon::StarFilled, tr("Gérer les favoris")) {
+                if (q.is_empty() || more_favs) && link_row(ui, th, dark, Icon::StarFilled, tr("Gérer les favoris")) {
                     acts.push(Do::Page("sanaga://bookmarks"));
                 }
                 ui.add_space(8.0);
@@ -230,7 +254,7 @@ impl Sanaga {
                     // a hovered item can be taken out of the list
                     if ui.rect_contains_pointer(resp.rect) {
                         let xr = Rect::from_center_size(pos2(resp.rect.right() - 16.0, resp.rect.center().y), vec2(20.0, 20.0));
-                        let xresp = ui.interact(xr, egui::Id::new(("rl-rm", &url)), Sense::click());
+                        let xresp = ui.interact(super::toolbar::click_area(xr.center()), egui::Id::new(("rl-rm", &url)), Sense::click());
                         ui.painter().circle_filled(xr.center(), 10.0, if xresp.hovered() { select_fill(dark, true) } else { th.sidebar });
                         icons::paint(ui.painter(), xr.shrink(6.0), Icon::Close, th.sub);
                         if xresp.tip(tr("Retirer de la liste de lecture")).clicked() {
@@ -252,16 +276,12 @@ impl Sanaga {
 
             // ---------------- recent history ----------------
             if self.section_header(ui, th, "sb-history", tr("Historique récent"), None) {
-                let mut seen = HashSet::new();
-                let recent: Vec<(String, String)> = self
-                    .store
-                    .history
-                    .iter()
-                    .rev()
-                    .filter(|v| matches(&v.url, &v.title) && seen.insert(v.url.clone()))
-                    .take(if q.is_empty() { 10 } else { 30 })
-                    .map(|v| (v.url.clone(), v.title.clone()))
-                    .collect();
+                // the pages visited last, each once: asked of the history
+                // when it changes or the filter does, not at every frame
+                // (shown meanwhile: the answer of before)
+                let (needle, limit) = (q.clone(), if q.is_empty() { 10 } else { 30 });
+                self.history_ask(|app| &mut app.hist.recent, (self.store.history.version(), q.clone()), move |h| h.recent_pages(&needle, limit));
+                let recent = self.hist.recent.got.clone();
                 if recent.is_empty() {
                     hint(ui, th, if q.is_empty() { tr("Aucune page visitée") } else { tr("Aucun résultat") });
                 }
@@ -288,6 +308,10 @@ impl Sanaga {
         let id = egui::Id::new(key);
         let mut open = ui.ctx().data_mut(|d| *d.get_temp_mut_or_insert_with(id, || true));
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+        // (for the keyboard and for screen readers: a heading that folds its section)
+        super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
+        super::toolbar::named(&resp, egui::accesskit::Role::Button, title);
+        ui.ctx().accesskit_node_builder(resp.id, |node| node.set_expanded(open));
         ui.painter().text(pos2(r.left() + 8.0, r.center().y + 2.0), Align2::LEFT_CENTER, title, FontId::new(11.5, bold()), th.sub);
         let hovered = ui.rect_contains_pointer(r);
         if hovered {
@@ -296,7 +320,8 @@ impl Sanaga {
         }
         if let Some((tip, acts)) = plus {
             let pr = Rect::from_center_size(pos2(r.right() - 32.0, r.center().y + 2.0), vec2(20.0, 20.0));
-            let presp = ui.interact(pr, id.with("plus"), Sense::click());
+            let presp = ui.interact(super::toolbar::click_area(pr.center()), id.with("plus"), Sense::click());
+            super::chrome::focus_ring(ui, &presp, pr, 10.0, th);
             if hovered || presp.hovered() {
                 if presp.hovered() {
                     ui.painter().circle_filled(pr.center(), 10.0, th.track);
@@ -394,7 +419,32 @@ impl Sanaga {
         }
     }
 
+    /// Open a favourite's line for editing (its name and address).
+    pub(super) fn edit_bookmark(&mut self, i: usize) {
+        if let Some(b) = self.store.bookmarks.get(i) {
+            self.bm_edit = (b.title.clone(), b.url.clone());
+            self.bm_editing_url = b.url.clone();
+            self.bm_editing = Some(i);
+        }
+    }
+
+    /// The favourite being edited is the one its editing began on, wherever
+    /// it is in the list by now: a favourite removed above it, the list put
+    /// in another order, a sync round or another window used to leave the
+    /// edit pointing at the next favourite, which "Save" then overwrote.
+    pub(super) fn follow_edited_bookmark(&mut self) {
+        let Some(i) = self.bm_editing else { return };
+        if self.store.bookmarks.get(i).is_none_or(|b| b.url != self.bm_editing_url) {
+            self.bm_editing = self.store.bookmarks.iter().position(|b| b.url == self.bm_editing_url);
+        }
+    }
+
     pub(super) fn save_bookmark_edit(&mut self, i: usize, title: String, url: String) {
+        // (only the favourite the editing began on)
+        if self.store.bookmarks.get(i).is_none_or(|b| b.url != self.bm_editing_url) {
+            self.bm_editing = None;
+            return;
+        }
         if let Some(b) = self.store.bookmarks.get_mut(i) {
             let url = url.trim();
             if !url.is_empty() {
@@ -461,6 +511,7 @@ fn page_row(ui: &mut Ui, th: &Theme, dark: bool, url: &str, title: &str, sub: &s
     if resp.hovered() {
         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
     }
+    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
     site_badge(ui.painter(), pos2(r.left() + 16.0, r.center().y), 8.0, url, title);
     let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
     let p = ui.painter().with_clip_rect(clip);
@@ -471,7 +522,10 @@ fn page_row(ui: &mut Ui, th: &Theme, dark: bool, url: &str, title: &str, sub: &s
         p.fit(pos2(clip.left(), r.top() + 13.0), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
         p.fit(pos2(clip.left(), r.top() + 29.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
     }
-    resp.tip(url).on_hover_cursor(CursorIcon::PointingHand)
+    let resp = resp.tip(url).on_hover_cursor(CursorIcon::PointingHand);
+    // (for screen readers: the page's title — the hover text is its address)
+    super::toolbar::named(&resp, egui::accesskit::Role::Link, t);
+    resp
 }
 
 /// A row leading to a page (icon in the accent colour).
@@ -480,6 +534,8 @@ fn link_row(ui: &mut Ui, th: &Theme, dark: bool, icon: Icon, label: &str) -> boo
     if resp.hovered() {
         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
     }
+    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
+    super::toolbar::named(&resp, egui::accesskit::Role::Link, label);
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(14.0, 14.0)), icon, th.accent);
     ui.painter().text(pos2(r.left() + 32.0, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), th.text);
     resp.on_hover_cursor(CursorIcon::PointingHand).clicked()
@@ -515,4 +571,3 @@ fn link_menu(ui: &mut Ui, url: &str, acts: &mut Vec<Do>) {
         acts.push(Do::Copy(url.to_string()));
     }
 }
-

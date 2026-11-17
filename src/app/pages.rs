@@ -65,58 +65,144 @@ fn list_row(ui: &mut Ui, th: &Theme, url: &str, title: &str, meta: &str, go: &mu
 }
 
 impl Sanaga {
+    /// The history page: every visit, newest first, in groups of days.
+    ///
+    /// The whole history is reachable — it showed 400 lines, then asked to
+    /// "refine the search" — and searched; and none of it is held here:
+    /// the page knows how many lines there are (`Listing`), takes the room
+    /// they need, and reads and lays out only the lines on screen, by
+    /// groups of 200 as the person scrolls (`history_rows_ask`).
     pub(super) fn page_history(&mut self, ui: &mut Ui, th: &Theme) {
+        use super::hist::CHUNK;
+        const ROW: f32 = 40.0;
+        const HEAD: f32 = 36.0;
         let mut go: Option<(String, bool)> = None;
         let mut clear = false;
-        let mut remove: Option<usize> = None;
-        let filter = self.history_filter.to_lowercase();
-        let store = &self.store;
+        let mut remove: Option<i64> = None;
+        // what is listed is asked again when the search or the history
+        // changes (a visit in any window, a line removed), not at every frame
+        let filter = self.history_filter.trim().to_lowercase();
+        let searched = filter.clone();
+        self.history_ask(|app| &mut app.hist.listing, (self.store.history.version(), filter.clone()), move |h| Arc::new(h.list(&searched, store::now())));
+        // (while a new answer is on its way, the list shown is the one before)
+        let (listing, answer) = (self.hist.listing.got.clone(), self.hist.listing.answers);
+        // (another search: its first results are shown, wherever the list
+        // of before had been scrolled to)
+        if self.hist.listed_for != filter {
+            self.hist.listed_for = filter.clone();
+            ui.scroll_to_cursor(Some(Align::TOP));
+        }
+        let mut wanted: Vec<usize> = Vec::new();
+        let mut on_screen: Option<(usize, usize)> = None;
+        let chunks = &self.hist.chunks;
         let hf = &mut self.history_filter;
+        // the keyboard alone: End goes to the oldest visit, Home to the newest
+        if !ui.ctx().egui_wants_keyboard_input() {
+            let page = ui.clip_rect().height() - ROW;
+            let (home, end, up, down) = ui.input(|i| (i.key_pressed(Key::Home), i.key_pressed(Key::End), i.key_pressed(Key::PageUp), i.key_pressed(Key::PageDown)));
+            let by = if home {
+                1.0e9
+            } else if end {
+                -1.0e9
+            } else {
+                page * (f32::from(u8::from(up)) - f32::from(u8::from(down)))
+            };
+            if by != 0.0 {
+                ui.scroll_with_delta(vec2(0.0, by));
+            }
+        }
         centered_column(ui, |ui| {
             page_title(ui, th, tr("Historique"));
             ui.horizontal(|ui| {
                 ui.add(TextEdit::singleline(hf).hint_text(tr("Rechercher dans l'historique")).desired_width(320.0));
+                if listing.total > 0 {
+                    let n = listing.total;
+                    let count = match (filter.is_empty(), n) {
+                        (true, 1) => tr("1 visite").to_string(),
+                        (true, _) => tf("{} visites", &[&n]),
+                        (false, 1) => tr("1 résultat").to_string(),
+                        (false, _) => tf("{} résultats", &[&n]),
+                    };
+                    ui.label(RichText::new(count).size(12.5).color(th.sub));
+                }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !store.history.is_empty() && super::chrome::confirm_button(ui, "clear-history", tr("Effacer l'historique")) {
+                    if (listing.total > 0 || !filter.is_empty()) && super::chrome::confirm_button(ui, "clear-history", tr("Effacer l'historique")) {
                         clear = true;
                     }
                 });
             });
             ui.add_space(12.0);
-            if store.history.is_empty() {
-                ui.label(RichText::new(tr("Les pages que vous visitez apparaîtront ici.")).color(th.sub));
+            if listing.total == 0 {
+                // (nothing said before the history has answered once)
+                if answer > 0 {
+                    ui.label(RichText::new(if filter.is_empty() { tr("Les pages que vous visitez apparaîtront ici.") } else { tr("Aucun résultat") }).color(th.sub));
+                }
                 return;
             }
-            let mut group = "";
-            let mut shown = 0;
-            for (i, v) in store.history.iter().enumerate().rev() {
-                if !filter.is_empty() && !v.url.to_lowercase().contains(&filter) && !v.title.to_lowercase().contains(&filter) {
+            // The room of every line is taken at once (the scroll bar spans
+            // the whole history); only the lines inside the window are
+            // looked up and drawn.
+            let w = ui.available_width();
+            // (a line and the gap under it, as when they were laid out one by one)
+            let pitch = ROW + ui.spacing().item_spacing.y;
+            let heads = listing.groups.iter().filter(|n| **n > 0).count();
+            let (area, _) = ui.allocate_exact_size(vec2(w, listing.total as f32 * pitch + heads as f32 * HEAD), Sense::hover());
+            let clip = ui.clip_rect();
+            let (mut y, mut first) = (area.top(), 0);
+            for (k, n) in listing.groups.iter().copied().enumerate() {
+                if n == 0 {
                     continue;
                 }
-                shown += 1;
-                if shown > 400 {
-                    ui.label(RichText::new(tr("… affinez la recherche pour voir plus de résultats")).color(th.sub));
-                    break;
+                if y + HEAD > clip.top() && y < clip.bottom() {
+                    ui.painter().text(pos2(area.left(), y + 12.0), Align2::LEFT_TOP, store::day_group_name(k), FontId::new(13.0, bold()), th.accent);
                 }
-                let g = store::day_group(v.time);
-                if g != group {
-                    group = g;
-                    ui.add_space(10.0);
-                    ui.label(RichText::new(g).size(13.0).family(bold()).color(th.accent));
-                    ui.add_space(4.0);
+                y += HEAD;
+                let from = (((clip.top() - y) / pitch).floor().max(0.0) as usize).min(n);
+                let to = (((clip.bottom() - y) / pitch).ceil().max(0.0) as usize).min(n);
+                for line in first + from..first + to {
+                    let rect = Rect::from_min_size(pos2(area.left(), y + (line - first) as f32 * pitch), vec2(w, ROW));
+                    let chunk = line / CHUNK;
+                    on_screen = Some(on_screen.map_or((chunk, chunk), |(a, b)| (a.min(chunk), b.max(chunk))));
+                    let read = chunks.get(&chunk);
+                    // (not read yet, or read for the list of before: asked for)
+                    if !read.is_some_and(|(of, _)| *of == answer) && !wanted.contains(&chunk) {
+                        wanted.push(chunk);
+                    }
+                    match read.and_then(|(_, rows)| rows.get(line % CHUNK)) {
+                        Some(row) => {
+                            let mut line_ui = ui.new_child(egui::UiBuilder::new().id_salt(("history-line", row.id)).max_rect(rect).layout(Layout::top_down(Align::Min)));
+                            let mut removed = None;
+                            list_row(&mut line_ui, th, &row.url, &row.title, &store::relative_time(row.time), &mut go, &mut removed, line);
+                            if removed.is_some() {
+                                remove = Some(row.id);
+                            }
+                        }
+                        // (on its way: its place is marked)
+                        None => {
+                            ui.painter().circle_filled(pos2(rect.left() + 20.0, rect.center().y), 9.0, th.card);
+                            ui.painter().rect_filled(Rect::from_min_size(pos2(rect.left() + 40.0, rect.center().y - 5.0), vec2(rect.width() * 0.4, 10.0)), CornerRadius::same(5), th.card);
+                        }
+                    }
                 }
-                list_row(ui, th, &v.url, &v.title, &store::relative_time(v.time), &mut go, &mut remove, i);
+                y += n as f32 * pitch;
+                first += n;
             }
         });
+        for chunk in wanted {
+            self.history_rows_ask(chunk);
+        }
+        // (the lines far from the window are let go, and read again if the
+        // person comes back to them)
+        match on_screen {
+            Some((a, b)) => self.hist.chunks.retain(|c, _| *c + 2 >= a && *c <= b + 2),
+            None => self.hist.chunks.clear(),
+        }
         if clear {
             self.store.clear_history();
             self.visited.clear();
         }
-        if let Some(i) = remove {
-            if i < self.store.history.len() {
-                self.store.history.remove(i);
-                self.store.rewrite_history();
-            }
+        if let Some(id) = remove {
+            self.store.history.remove_visit(id);
         }
         self.apply_go(go);
     }
@@ -134,8 +220,41 @@ impl Sanaga {
         let store = &self.store;
         centered_column(ui, |ui| {
             page_title(ui, th, tr("Téléchargements"));
-            if store.downloads.is_empty() {
+            // the downloads under way: how far each one is, and a way to
+            // stop it
+            let running = crate::page::running_downloads();
+            if store.downloads.is_empty() && running.is_empty() {
                 ui.label(RichText::new(tr("Les fichiers que vous téléchargez apparaîtront ici. Ils sont enregistrés dans votre dossier Téléchargements.")).color(th.sub));
+            }
+            for d in &running {
+                Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(12)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
+                        icons::paint(ui.painter(), r, Icon::Download, th.accent);
+                        ui.vertical(|ui| {
+                            let name = d.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                            ui.label(RichText::new(name).size(14.0).color(th.text));
+                            let s = if d.total > 0 { tf("{} sur {}", &[&net::human_bytes(d.received), &net::human_bytes(d.total)]) } else { net::human_bytes(d.received) };
+                            ui.label(RichText::new(s).size(12.0).color(th.sub));
+                            if d.total > 0 {
+                                let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width().min(360.0), 4.0), Sense::hover());
+                                ui.painter().rect_filled(bar, 2.0, th.border);
+                                let done = (d.received as f32 / d.total as f32).clamp(0.0, 1.0);
+                                ui.painter().rect_filled(Rect::from_min_size(bar.min, vec2(bar.width() * done, bar.height())), 2.0, th.accent);
+                            }
+                        });
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ui.button(tr("Annuler")).clicked() {
+                                crate::page::stop_download(&d.path);
+                            }
+                        });
+                    });
+                });
+                ui.add_space(6.0);
+            }
+            if !running.is_empty() {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
             }
             for d in store.downloads.iter().rev() {
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(12)).show(ui, |ui| {
@@ -145,11 +264,7 @@ impl Sanaga {
                         icons::paint(ui.painter(), r, Icon::Download, th.accent);
                         ui.vertical(|ui| {
                             ui.label(RichText::new(&d.name).size(14.0).color(th.text));
-                            let s = if d.ok {
-                                format!("{} · {} · {}", net::human_bytes(d.bytes), store::relative_time(d.time), d.path.display())
-                            } else {
-                                tf("Échec : {}", &[&d.error])
-                            };
+                            let s = if d.ok { format!("{} · {} · {}", net::human_bytes(d.bytes), store::relative_time(d.time), d.path.display()) } else { tf("Échec : {}", &[&d.error]) };
                             ui.label(RichText::new(s).size(12.0).color(th.sub));
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -195,7 +310,9 @@ impl Sanaga {
         centered_column(ui, |ui| {
             ui.add_space(26.0);
             ui.label(RichText::new(tr("Activité")).size(26.0).family(bold()).color(th.text));
-            ui.label(RichText::new(tf("{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)", &[&net::human_bytes(total), &format!("{cpu:.0}"), &running, &self.tabs.len()])).color(th.sub));
+            ui.label(
+                RichText::new(tf("{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)", &[&net::human_bytes(total), &format!("{cpu:.0}"), &running, &self.tabs.len()])).color(th.sub),
+            );
             ui.add_space(16.0);
             let card = |ui: &mut Ui, body: &mut dyn FnMut(&mut Ui)| {
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
@@ -217,7 +334,11 @@ impl Sanaga {
                             match serves.iter().position(|s| *s == Some(k)) {
                                 Some(i) => {
                                     let title: String = self.tabs[i].title().chars().take(48).collect();
-                                    if shared(k) { format!("{title} *") } else { title }
+                                    if shared(k) {
+                                        format!("{title} *")
+                                    } else {
+                                        title
+                                    }
                                 }
                                 None => tf("Page {}", &[&page]),
                             }
@@ -260,7 +381,9 @@ impl Sanaga {
             };
             ui.label(RichText::new(note).size(12.0).color(th.sub));
             if any_shared {
-                ui.label(RichText::new(tr("* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.")).size(12.0).color(th.sub));
+                ui.label(
+                    RichText::new(tr("* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.")).size(12.0).color(th.sub),
+                );
             }
             ui.add_space(18.0);
             ui.label(RichText::new(tr("Onglets")).size(15.0).family(bold()).color(th.text));
@@ -329,6 +452,7 @@ impl Sanaga {
         ];
         let mut open_welcome = false;
         let mut open_crashes = false;
+        let (mut check_update, mut open_release) = (false, false);
         let mut open_activity = false;
         centered_column(ui, |ui| {
             ui.add_space(30.0);
@@ -341,6 +465,34 @@ impl Sanaga {
                     ui.label(RichText::new("Sanaga").size(30.0).family(bold()).color(th.text));
                     ui.label(RichText::new(tf("Version {} · navigateur léger", &[&env!("CARGO_PKG_VERSION")])).color(th.sub));
                 });
+            });
+            // A new version: asked on GitHub when the person clicks, never
+            // by itself (Sanaga makes no request of its own). Until now
+            // nothing told that a newer Sanaga existed.
+            ui.add_space(12.0);
+            ui.horizontal(|ui| {
+                let asking = matches!(self.update_check, Some(None));
+                if ui.add_enabled(!asking, egui::Button::new(tr("Rechercher une nouvelle version"))).clicked() {
+                    check_update = true;
+                }
+                match &self.update_check {
+                    Some(None) => {
+                        ui.add(egui::Spinner::new().size(14.0));
+                    }
+                    Some(Some(Ok(v))) if net::is_newer(v, env!("CARGO_PKG_VERSION")) => {
+                        ui.label(RichText::new(tf("Sanaga {} est disponible.", &[v])).color(th.text));
+                        if ui.link(tr("Voir la nouvelle version")).clicked() {
+                            open_release = true;
+                        }
+                    }
+                    Some(Some(Ok(_))) => {
+                        ui.label(RichText::new(tr("Sanaga est à jour.")).color(th.sub));
+                    }
+                    Some(Some(Err(_))) => {
+                        ui.label(RichText::new(tr("Vérification impossible (pas de connexion ?).")).color(th.sub));
+                    }
+                    None => {}
+                }
             });
             ui.add_space(20.0);
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
@@ -369,6 +521,13 @@ impl Sanaga {
         });
         if open_welcome {
             self.navigate(self.active, "sanaga://welcome".into(), None, true);
+        }
+        if check_update {
+            self.update_check = Some(None);
+            self.off_thread(net::latest_release, |app, found| app.update_check = Some(Some(found)));
+        }
+        if open_release {
+            self.open_tab(net::RELEASES_PAGE, false);
         }
         if open_crashes {
             self.open_tab("sanaga://crashes", false);

@@ -45,7 +45,8 @@ impl Sanaga {
                 if ui.button(tr("Ignorer")).clicked() {
                     dismiss = true;
                 }
-                if !ways.is_empty() && ui.button(tr("Toujours ouvrir ainsi")).on_hover_text(tr("Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)")).clicked() {
+                if !ways.is_empty() && ui.button(tr("Toujours ouvrir ainsi")).on_hover_text(tr("Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)")).clicked()
+                {
                     always = true;
                 }
                 for (k, w) in ways.iter().take(2).enumerate() {
@@ -100,7 +101,17 @@ impl Sanaga {
                     for i in Identity::ALL {
                         let (r, resp) = ui.allocate_exact_size(vec2(400.0, 36.0), Sense::click());
                         let chosen = i == current;
-                        ui.painter().rect_filled(r, CornerRadius::same(9), if chosen { th.accent.gamma_multiply(0.14) } else if resp.hovered() { th.card } else { Color32::TRANSPARENT });
+                        ui.painter().rect_filled(
+                            r,
+                            CornerRadius::same(9),
+                            if chosen {
+                                th.accent.gamma_multiply(0.14)
+                            } else if resp.hovered() {
+                                th.card
+                            } else {
+                                Color32::TRANSPARENT
+                            },
+                        );
                         ui.painter().text(pos2(r.left() + 14.0, r.center().y), egui::Align2::LEFT_CENTER, i.label(), FontId::proportional(14.0), th.text);
                         if chosen {
                             ui.painter().text(pos2(r.right() - 14.0, r.center().y), egui::Align2::RIGHT_CENTER, "✓", FontId::proportional(14.0), th.accent);
@@ -148,17 +159,19 @@ impl Sanaga {
     pub(super) fn protected_site(&mut self, i: usize, url: &str) {
         let Some(service) = identity::protected_url(url) else { return };
         let now = self.ctx.input(|t| t.time);
-        if self.store.settings.drm_auto {
+        // (never for a tab brought back at the start: nobody asked for it
+        // now, and another browser was launched at every start of Sanaga)
+        if self.store.settings.drm_auto && !self.restoring {
             if let Some(w) = identity::handoffs(service).into_iter().next() {
                 identity::open_with(&w, url);
                 self.notice = Some((tf("{} s'ouvre dans {}…", &[&service, &w.name]), now));
-                // a tab opened only for it (no page in it yet) goes away
+                // a tab opened only for it (no page in it yet) goes away —
+                // once the step that opened it is over: closed here, the
+                // one that had just opened it went on with a tab that was
+                // no longer there (Sanaga stopped at its start, and the
+                // saved tabs after that one were lost)
                 if i < self.tabs.len() && self.tabs[i].entries.is_empty() {
-                    if self.tabs.len() > 1 {
-                        self.close_tab(i);
-                    } else {
-                        self.navigate(i, "sanaga://newtab".into(), None, true);
-                    }
+                    self.close_later.push(self.tabs[i].id);
                 } else if i < self.tabs.len() && self.tabs[i].url() == url {
                     // already shown here (a call site found unable to work
                     // once loaded): the tab goes back where it was

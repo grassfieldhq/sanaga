@@ -6,7 +6,114 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-17
+
+### Changed
+- Keyboard: the place where the keyboard is shows everywhere — tabs,
+  the star, favourites, the side panel's rows, the new tab's tiles, the
+  menus; the empty part of a bar no longer takes the Tab key.
+- Screen readers: tabs are tabs (the one shown is said), menu lines are
+  menu items, favourites and tiles are links named by their title, the
+  address field has a name, Sanaga's short messages are announced, the
+  interface's window says what it is, and a button that cannot be pressed
+  now (Back with nowhere to go) is still a button. Checked through the
+  accessibility bus and with Orca (`tools/a11y-tree.py`).
+- Tab titles and group names stand out at 4.5:1 at least against what is
+  behind them, in the light, dark and private looks (43 pairs were under;
+  `tools/contrast.py` computes them).
+- The small crosses and signs (a tab's close and sound, the favourites
+  bar's and the reading list's cross, a group's colours) take the click
+  24 points across.
+- With "reduce animations" set on the system, tabs, the side panel and
+  the border do not animate.
+- Sanaga's own pages no longer read the disk at every frame (Settings,
+  Extensions, Profiles, Import, the reports: up to 4,500 file calls in
+  five seconds of moving the mouse, none now); a tab loading behind no
+  longer redraws the window at the screen's rate; the animated border
+  rests when the window is not the one in use.
+- Site icons are right in every window (a second window showed blank
+  ones), and their memory is bounded.
+- Long lists (favourites, passwords, devices) lay out only the rows in
+  view: 3,000 favourites took 13 ms a frame, 0.5 ms now. A page's source
+  with thousands of scripts no longer freezes the window.
+- The history is kept in a database (`history.db` in the profile's
+  folder) instead of a text file read whole into memory. It has no limit
+  any more (it was cut at 5,000 visits, and an import could push your own
+  visits out); the history file of before is taken in once, whole, and
+  kept as `history.tsv.imported`. Clearing the history clears that copy
+  too.
+- Address bar: suggestions are ranked — sites whose name starts with what
+  you type first, then the most visited lately — and looked up when the
+  text changes, off the window's thread (they were recomputed over the
+  whole history at every frame). A site's name is completed to where you
+  really visited it (`http://nas.lan:8080`, it was always `https://name`).
+- History page: every visit can be reached and searched (it stopped at 400
+  lines); End and Home go to the oldest and the newest visit.
+- "Frequently visited" counts the visits of a whole site (each address
+  was counted apart).
+- A page visited in one window shows in the others' history without
+  their whole profile being read again.
+- Import from another browser takes every visit (it took the last visit
+  of 5,000 pages), so imported pages are ranked by how often you went.
+
 ### Added
+- Downloads: they go to the folder your desktop names (Téléchargements,
+  Descargas... wherever it is) or to one chosen in Settings › General,
+  and Sanaga can ask where to save each file.
+- A proxy setting (Settings › General › Network): the system's, none, or
+  an address (`http://host:3128`, `socks5://host:1080`). Pages and
+  Sanaga's own requests (block lists, translation, updates) all go
+  through it; this computer itself is always reached directly.
+- HTTPS first (Settings › Privacy, on): an `http://` address you open —
+  typed, a favourite, a link clicked — is asked over https; over http
+  only when the site did not answer there (refused, a certificate that is
+  not the site's, nothing after five seconds). A name typed without its
+  scheme falls back the same way; an address written with `https://`
+  never does. An address a page goes to by itself (a script, a form, a
+  page that sends on) is treated the same once its answer comes: what
+  came over http is not shown, https is asked.
+- Encrypted DNS (Settings › Privacy, off unless you choose a resolver:
+  Quad9, Cloudflare, Mullvad or an address): the names of the sites you
+  visit are asked over https instead of being sent in clear to the
+  network's DNS. Pages go through a small relay Sanaga runs on this
+  computer (the web engine has no setting for it), Sanaga's own requests
+  use the same resolver. When the resolver does not answer, nothing is
+  asked in clear instead. Not used together with a proxy.
+- A warning before a site reported as phishing or malware (Settings ›
+  Privacy, on). The lists (malware-filter's phishing-filter and
+  urlhaus-filter) are fetched once a day and looked up on this computer:
+  no address is sent anywhere. The warning has a way back and, under
+  "Advanced", a way on.
+- A link dragged from a page, a file from the file manager or words can
+  be dropped on the tab bar, the toolbar or the side panel: they open in
+  new tabs (words are searched for). A tab dragged out of the tab bar
+  gets a window of its own.
+- The keyboard's play and pause keys pause or start what plays, from a
+  page or from the interface. (A desktop that keeps these keys for itself
+  uses the media player the engine publishes for each page that plays —
+  with next and previous.)
+- Sanaga can look for a new version once a day (Settings › General, off
+  unless you ask): one request, nothing installed.
+- The address of the link under the mouse shows at the bottom left of a
+  web page.
+- A page's full-screen button (a video) fills the screen: Sanaga's bars
+  go while it lasts.
+- The bar under the address field shows how far the page has come.
+- Downloads under way are listed with what was received, the announced
+  size and a bar, and can be cancelled.
+- Ctrl+1…8 show that tab, Ctrl+9 the last one; Ctrl+F5 and Shift+F5 load
+  again without the cache; F3 and Ctrl+G go to the next match; Alt+D goes
+  to the address field.
+- A link opened in a tab behind (middle click) loads at once.
+- A tab keeps its back and forward pages across a restart, and when it
+  is reopened after being closed.
+- Closing a tab in which something was typed asks the page first (its
+  "leave this page?").
+- A tab that uses the camera, the microphone or the screen shows a red
+  camera; a click stops it. Sharing the screen is asked about instead of
+  being refused.
+- About › "Look for a new version": asks GitHub for the latest release,
+  only when clicked.
 - Find in page says which match is shown ("3/8"), not only how many
   there are.
 - A web page's right-click menu, with words selected: **Search the web
@@ -101,6 +208,9 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- `MECHANICS.md` and `mechanics.json` are removed from the tree (see the
+  audit of 16 November); the values stay in the code, described for what
+  they do.
 - Right-click menus (tab, group, tab bar, favourite, container, links):
   a symbol on each line, the shortcut at the right, sub-menus alike.
 - A web page's right-click menu is in Sanaga's language throughout (the
@@ -193,6 +303,141 @@ All notable changes to Sanaga are listed here. The format follows
   decoded; https:// and www. left out) instead of the site's name only, so
   it changes from page to page. Settings › Apparence › "Toujours afficher
   les URL en entier" shows the whole address.
+
+### Fixed (issues #4 and #5, and the audit of 16 November 2026)
+- **A page no longer shrinks when a menu opens (issue #4).** On a screen
+  with a scale of 2, the picture of the page shown under a menu was half
+  its size, in the top left corner. Every menu of 0.4.0 did this; since
+  menus open over the living page, the mobile simulator still did.
+- **"Sanaga ended without closing" says how (issue #5).** The report
+  kept after an abrupt end names the signal that ended Sanaga (a fault in
+  Sanaga or a system library, a stack that ran out), or says that the
+  computer was started again or the desktop session ended with Sanaga
+  open, and when the lost run had started.
+- **Shortcuts are read from the keyboard, not by a script in the page.**
+  Ctrl+A, B, I, Y… work again in text fields (select all, bold, italic,
+  redo); a web application that handles Ctrl+S, K, F… keeps it; Sanaga's
+  shortcuts work in a frame of another site, on a page that no longer
+  answers, and on a keyboard set to Russian, Greek, Arabic or Hebrew
+  (AZERTY: Ctrl+0 resets the zoom).
+- **Saved passwords: the list shows every account.** It was read from
+  the wrong output of the keyring tool and fell to a single account at
+  every start, the others no longer offered (they stayed in the keyring).
+- **Favourites are not replaced by the first ones when their file reads
+  badly** (one damaged byte was enough). A file that cannot be read is
+  left alone; the state before each run stays as `<file>.bak`; two
+  Sanagas on one profile can no longer put a half-written file in place.
+- **Sync:** changing the folder no longer removes this computer's
+  favourites; an encrypted folder refuses a plain file put there; a file
+  that cannot be read is not taken for an empty one; a round starts when
+  the folder's path is finished, not at each letter typed; the windows
+  no longer read the whole profile again every 30 seconds.
+- **The certificate error page's buttons work** ("Back to safety",
+  "Continue"): a site with an invalid certificate could not be opened.
+- **The padlock follows the certificate** of the page shown: none on an
+  error page, red and struck out after going on despite an invalid
+  certificate. It was drawn for any address starting with https://.
+- A site's settings (JavaScript off, video formats) apply when the site
+  is reached by a link, not only when its address is typed.
+- A guest window stays a guest: a window opened from it used the main
+  profile.
+- Private tabs: zoom, site settings, permission answers and download
+  marks are no longer written; the page is not sent to an online model
+  or translation service; the private session ends with its last tab.
+- Clear browsing data clears this window's data and every container's
+  (it cleared whatever the first tab used).
+- Closing one of several windows ends its pages (they went on running,
+  sound included, until Sanaga quit).
+- The interface no longer draws faster and faster while a page loads
+  (past 2000 frames a second after a quarter of a minute).
+- A tab showing one of Sanaga's pages or the Reader ends its web page
+  (it went on playing under it).
+- The history no longer lists loads that failed or downloads; a page
+  without a title no longer takes the title of the page before it.
+- The energy saver ignores the battery of a wireless mouse or keyboard.
+- Thousands of brackets pasted in the address bar no longer end Sanaga.
+- Editing a favourite after removing another no longer overwrites the
+  wrong one; the star's bubble no longer renames another tab's
+  favourite; a password shown stays on its own account's line and hides
+  after half a minute.
+- A protected site restored at the start no longer stops Sanaga (and
+  truncates the saved tabs) when "always open this way" is on.
+- Enter typed in the address field no longer answers a page's question.
+- Containers "A B" and "A-B" no longer share (and erase) their data;
+  deleting a profile removes its secrets from the keyring; "Close this
+  profile" quits it.
+- Vertical tabs can be dragged downwards; a button of the person's that
+  closes the tab no longer raises an error; a video recording stopped at
+  once no longer waits for ever; the simulator keeps the device's width
+  at any zoom; a page's source keeps working after its tab slept.
+- Links to the mail program, the phone or a torrent program (`mailto:`,
+  `tel:`, `sms:`, `magnet:`) are handed to the system instead of showing
+  an error page; an address on a port browsers refuse says so.
+- Translating a page with the AI works for every alphabet (a Korean,
+  Hindi, Greek, Hebrew or Thai page had "nothing to translate" and was
+  called translated) and no longer waits for ever after a long paragraph.
+- Contact AutoFill only fills fields the person can see (a page showing
+  a "name" field got the e-mail, phone and address in hidden ones).
+- An assistant run on the command line can no longer leave Sanaga and
+  itself waiting on each other with a long page.
+- A window opened by a page (sign-in, payment) no longer takes that page
+  down when it closes.
+- One Sanaga at a time writes a profile: two launches at the same moment,
+  or a session without a runtime folder, no longer give two Sanagas on
+  the same files.
+- Sanaga closes while a page's question (confirm, alert) is waiting; it
+  could stay there for more than half a minute.
+- Clear browsing data removes cookies for a period too (the engine
+  removes none "since a time": only "all time" did).
+- Hyprland: with several windows, the green button, F11 and moving by
+  the bar act on the window in use.
+- Chrome passwords of 32 characters or more are imported whole; user
+  scripts read their whole header and run on their own sites only
+  (`*://*.bank.example/*` no longer matches another site's address);
+  installing an unpacked extension reads ordinary files only, with
+  limits; the Light engine never reads a local file named by a page from
+  the network; a download's name is read properly from its header.
+- Text typed with an input method (Chinese, Japanese, Korean, dead keys)
+  shows in the field while it is being composed; it appeared only once
+  finished.
+- On Wayland the first frames come before the window has its size: they
+  are no longer laid out in a window one pixel wide (a debug build
+  reported errors of its own there, and three in a row stopped it).
+- The history's file could not be opened: said in the window, once (it
+  was only printed on the terminal).
+- "Reduce animations" is followed by the switches, the tab overview and
+  the menus that unfold; the window's three buttons take the click 20 by
+  24; the site icons kept on disk are bounded (the 3,000 used last); the
+  side panel shows the first 200 favourites instead of laying out all of
+  them at every frame.
+- A guest window reaches the network the way its owner set it: it went
+  round the proxy of the settings.
+- The proxy and the other network settings count from the very first
+  request: one made during the first frames (the daily look for a new
+  version) could leave before they were told.
+- The thread that listens for other launches of Sanaga sleeps until one
+  connects: it woke twenty times a second for as long as Sanaga was open.
+- Packages: the `.deb`, the `.rpm` and the PKGBUILD ask for the versions
+  of GTK (4.14) and WebKitGTK (2.48) the code needs; the description file
+  names the launcher the packages install; `install.sh` copes with a
+  folder whose name has spaces or signs and says when the sandbox's two
+  programs are missing; the launcher's actions are in five languages
+  ("Open with the Travail profile" gives way to "Choose a profile").
+- Right-to-left sentences (Arabic, Hebrew...) read right in the interface:
+  tab titles, favourites, the history, suggestions, the tab overview. The
+  words came one after the other from left to right; a title too long is
+  now cut where reading stops, its "…" on the left, as pages do. The
+  Reader and the Light engine set such paragraphs against the right, line
+  by line, with their links and numbers in place.
+- Arabic (and the other scripts whose letters join or stack) keeps the
+  system's font that knows how to shape it, whatever was shown before: a
+  catch-all font found earlier for another script (GNU Unifont) drew it as
+  loose letters.
+- Titles and names in other alphabets (Arabic, Hebrew, Devanagari, Chinese,
+  Cherokee...) show in the interface with whatever font the system has for
+  them (asked to fontconfig when first needed); only a fixed list of Noto
+  files in a fixed list of folders was looked at, so they often showed as
+  empty boxes. Colour emoji are found the same way.
 
 ### Fixed
 - History: a title that arrived after its page had loaded was never

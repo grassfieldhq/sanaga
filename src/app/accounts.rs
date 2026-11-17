@@ -212,12 +212,7 @@ impl Sanaga {
 
     /// Exchange favourites, reading list and open tabs with the sync folder.
     pub(super) fn sync_now(&mut self) {
-        let tabs: Vec<(String, String)> = self
-            .tabs
-            .iter()
-            .filter(|t| !t.private && !t.entries.is_empty() && t.url().starts_with("http"))
-            .map(|t| (t.url().to_string(), t.title()))
-            .collect();
+        let tabs: Vec<(String, String)> = self.tabs.iter().filter(|t| !t.private && !t.entries.is_empty() && t.url().starts_with("http")).map(|t| (t.url().to_string(), t.title())).collect();
         // one round at a time, on its own thread (the folder may be slow)
         let Some(local_dir) = self.store.data_dir().cloned() else { return };
         if self.sync_running {
@@ -285,7 +280,11 @@ impl Sanaga {
             ui.label(RichText::new(tr("Les mots de passe sont gardés dans le trousseau de votre système, pas dans les fichiers de Sanaga. Sanaga propose de les enregistrer quand vous vous connectez à un site, et de les remplir la fois suivante.")).size(13.0).color(th.sub));
             if !keyring_ok {
                 ui.add_space(6.0);
-                ui.label(RichText::new(tr("Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.")).size(13.0).color(Color32::from_rgb(0xD0, 0x40, 0x30)));
+                ui.label(
+                    RichText::new(tr("Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés."))
+                        .size(13.0)
+                        .color(Color32::from_rgb(0xD0, 0x40, 0x30)),
+                );
             }
             ui.add_space(12.0);
             ui.add(TextEdit::singleline(&mut self.pw_filter).hint_text(tr("Rechercher un site")).desired_width(320.0));
@@ -293,21 +292,67 @@ impl Sanaga {
             if self.store.logins.is_empty() {
                 ui.label(RichText::new(tr("Aucun mot de passe enregistré pour l'instant.")).color(th.sub));
             }
-            for (i, (site, user)) in self.store.logins.iter().enumerate() {
-                if !filter.is_empty() && !site.to_lowercase().contains(&filter) && !user.to_lowercase().contains(&filter) {
-                    continue;
+            // (a password shown hides again after half a minute: it stayed
+            // on screen for as long as the page did)
+            if let Some((_, _, at)) = &self.pw_shown {
+                let left = 30.0 - (ui.input(|i| i.time) - at);
+                if left <= 0.0 {
+                    self.pw_shown = None;
+                } else {
+                    ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(left));
                 }
-                Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+            }
+            // The accounts found by the search (their places in the list):
+            // worked out when the search or the list changes, not at every frame.
+            let found_id = egui::Id::new("pw-found");
+            let found: Option<Arc<Vec<usize>>> = if filter.is_empty() {
+                None
+            } else {
+                let kept: Option<(String, usize, Arc<Vec<usize>>)> = ui.data(|d| d.get_temp(found_id));
+                Some(match kept {
+                    Some((for_q, among, places)) if for_q == filter && among == self.store.logins.len() => places,
+                    _ => {
+                        let places: Arc<Vec<usize>> = Arc::new(
+                            self.store.logins.iter().enumerate().filter(|(_, (site, user))| site.to_lowercase().contains(&filter) || user.to_lowercase().contains(&filter)).map(|(i, _)| i).collect(),
+                        );
+                        ui.data_mut(|d| d.insert_temp(found_id, (filter.clone(), self.store.logins.len(), places.clone())));
+                        places
+                    }
+                })
+            };
+            let count = found.as_ref().map_or(self.store.logins.len(), |f| f.len());
+            // Only the accounts in view are laid out and drawn. They are all
+            // as high as the first one drawn at the last frame; the ones
+            // above and below the view are left as empty room.
+            let gap = ui.spacing().item_spacing.y;
+            let height_id = egui::Id::new("pw-row-height");
+            let row_height: f32 = ui.data(|d| d.get_temp(height_id)).unwrap_or(52.0);
+            let pitch = row_height + gap + 6.0;
+            let list_top = ui.cursor().top();
+            let view = ui.clip_rect();
+            let first = (((view.top() - list_top) / pitch).floor().max(0.0) as usize).min(count);
+            let end = (((view.bottom() - list_top) / pitch).ceil().max(0.0) as usize).clamp(first, count);
+            let mut measured: Option<f32> = None;
+            let before = ui.spacing().item_spacing.y;
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.add_space(first as f32 * pitch);
+            for n in first..end {
+                let i = found.as_ref().map_or(n, |f| f[n]);
+                let Some((site, user)) = self.store.logins.get(i) else { continue };
+                let row = Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = gap;
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         super::chrome::site_badge(ui.painter(), pos2(ui.cursor().left() + 10.0, ui.cursor().center().y + 6.0), 9.0, site, &host_of(site));
                         ui.add_space(26.0);
                         ui.vertical(|ui| {
                             ui.label(RichText::new(host_of(site)).size(14.0).family(bold()).color(th.text));
-                            let shown = if self.pw_shown.as_ref().map(|(k, _)| *k == i).unwrap_or(false) {
-                                self.pw_shown.as_ref().map(|(_, p)| p.clone()).unwrap_or_default()
-                            } else {
-                                "••••••••".into()
+                            // (shown on its own account's line only — it was
+                            // tied to the line's number, and showed on
+                            // another account once the list changed)
+                            let shown = match &self.pw_shown {
+                                Some(((s, u), pass, _)) if s == site && u == user => pass.clone(),
+                                _ => "••••••••".into(),
                             };
                             ui.label(RichText::new(format!("{}   {}", if user.is_empty() { "(sans identifiant)" } else { user }, shown)).size(12.5).color(th.sub));
                         });
@@ -324,7 +369,15 @@ impl Sanaga {
                         });
                     });
                 });
-                ui.add_space(6.0);
+                measured.get_or_insert(row.response.rect.height());
+                ui.add_space(gap + 6.0);
+            }
+            ui.add_space((count - end) as f32 * pitch);
+            ui.spacing_mut().item_spacing.y = before;
+            // (the height was guessed at the very first frame: drawn again with the real one)
+            if let Some(h) = measured.filter(|h| (h - row_height).abs() > 0.25) {
+                ui.data_mut(|d| d.insert_temp(height_id, h));
+                ui.ctx().request_repaint();
             }
         });
         let profile = self.store.profile.clone();
@@ -335,7 +388,10 @@ impl Sanaga {
             self.off_thread(
                 move || keyring::lookup(&p, &s2, &u2),
                 // (shown on the account's line, wherever it is by now)
-                move |app, pass| app.pw_shown = app.store.logins.iter().position(|(a, b)| *a == s && *b == u).zip(pass),
+                move |app, pass| {
+                    let now = app.ctx.input(|i| i.time);
+                    app.pw_shown = pass.map(|p| ((s, u), p, now));
+                },
             );
         }
         if let Some((s, u)) = copy.and_then(|i| self.store.logins.get(i).cloned()) {
@@ -350,7 +406,7 @@ impl Sanaga {
     }
 
     pub(super) fn page_extensions(&mut self, ui: &mut Ui, th: &Theme) {
-        let list = crate::extensions::all();
+        let list = self.extensions_kept();
         let mut toggle: Option<String> = None;
         let mut delete: Option<String> = None;
         let mut toggle_mobile = false;
@@ -436,8 +492,14 @@ impl Sanaga {
             let devices = crate::app::devices::DEVICES.len();
             let (flip, _) = row(ui, true, tr("Simulateur mobile"), &[tf("Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.", &[&devices]), tr("Intégrée à Sanaga").to_string()], None, self.tb("mobile"));
             toggle_mobile |= flip;
-            for e in &list {
-                let place = if e.builtin { String::new() } else if e.matches.is_empty() { tr("Tous les sites").to_string() } else { e.matches.join(", ") };
+            for e in list.iter() {
+                let place = if e.builtin {
+                    String::new()
+                } else if e.matches.is_empty() {
+                    tr("Tous les sites").to_string()
+                } else {
+                    e.matches.join(", ")
+                };
                 let (flip, gone) = row(ui, false, &e.name, &[e.description.clone(), place], (!e.builtin).then_some(e.id.as_str()), on.contains(&e.id));
                 if flip {
                     toggle = Some(e.id.clone());

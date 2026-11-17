@@ -148,7 +148,14 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             p.line_segment([pos2(c.x - s * 0.32, c.y - s * 0.45), pos2(c.x, c.y - s * 0.77)], Stroke::new(w, color));
             p.line_segment([pos2(c.x + s * 0.32, c.y - s * 0.45), pos2(c.x, c.y - s * 0.77)], Stroke::new(w, color));
             p.add(Shape::line(
-                vec![pos2(c.x - s * 0.3, c.y - s * 0.15), pos2(c.x - s * 0.6, c.y - s * 0.15), pos2(c.x - s * 0.6, c.y + s * 0.75), pos2(c.x + s * 0.6, c.y + s * 0.75), pos2(c.x + s * 0.6, c.y - s * 0.15), pos2(c.x + s * 0.3, c.y - s * 0.15)],
+                vec![
+                    pos2(c.x - s * 0.3, c.y - s * 0.15),
+                    pos2(c.x - s * 0.6, c.y - s * 0.15),
+                    pos2(c.x - s * 0.6, c.y + s * 0.75),
+                    pos2(c.x + s * 0.6, c.y + s * 0.75),
+                    pos2(c.x + s * 0.6, c.y - s * 0.15),
+                    pos2(c.x + s * 0.3, c.y - s * 0.15),
+                ],
                 Stroke::new(w, color),
             ));
         }
@@ -264,10 +271,12 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             let w = st.width * 0.85;
             let r = s * 0.62;
             let n = 14;
-            let pts: Vec<_> = (0..=n).map(|k| {
-                let a = std::f32::consts::PI * (0.15 + 1.45 * k as f32 / n as f32);
-                pos2(c.x + r * a.cos(), c.y - r * a.sin())
-            }).collect();
+            let pts: Vec<_> = (0..=n)
+                .map(|k| {
+                    let a = std::f32::consts::PI * (0.15 + 1.45 * k as f32 / n as f32);
+                    pos2(c.x + r * a.cos(), c.y - r * a.sin())
+                })
+                .collect();
             p.add(Shape::line(pts.clone(), Stroke::new(w, color)));
             let tip = pts[0];
             p.line_segment([tip, pos2(tip.x - s * 0.05, tip.y - s * 0.42)], Stroke::new(w, color));
@@ -283,16 +292,25 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Speaker | Icon::SpeakerMuted => {
             let w = st.width * 0.85;
             p.add(Shape::convex_polygon(
-                vec![pos2(c.x - s * 0.7, c.y - s * 0.25), pos2(c.x - s * 0.35, c.y - s * 0.25), pos2(c.x + s * 0.05, c.y - s * 0.65), pos2(c.x + s * 0.05, c.y + s * 0.65), pos2(c.x - s * 0.35, c.y + s * 0.25), pos2(c.x - s * 0.7, c.y + s * 0.25)],
+                vec![
+                    pos2(c.x - s * 0.7, c.y - s * 0.25),
+                    pos2(c.x - s * 0.35, c.y - s * 0.25),
+                    pos2(c.x + s * 0.05, c.y - s * 0.65),
+                    pos2(c.x + s * 0.05, c.y + s * 0.65),
+                    pos2(c.x - s * 0.35, c.y + s * 0.25),
+                    pos2(c.x - s * 0.7, c.y + s * 0.25),
+                ],
                 color,
                 Stroke::NONE,
             ));
             if icon == Icon::Speaker {
                 for k in [0.35, 0.65] {
-                    let pts: Vec<Pos2> = (0..=8).map(|i| {
-                        let a = -0.8 + i as f32 / 8.0 * 1.6;
-                        pos2(c.x + s * 0.05 + s * k * a.cos(), c.y + s * k * a.sin())
-                    }).collect();
+                    let pts: Vec<Pos2> = (0..=8)
+                        .map(|i| {
+                            let a = -0.8 + i as f32 / 8.0 * 1.6;
+                            pos2(c.x + s * 0.05 + s * k * a.cos(), c.y + s * k * a.sin())
+                        })
+                        .collect();
                     p.add(Shape::line(pts, Stroke::new(w, color)));
                 }
             } else {
@@ -411,10 +429,15 @@ fn f3(c: [u8; 3]) -> [f32; 3] {
 pub fn logo_svg(style_index: usize, badge: &str) -> String {
     let (_, top, bottom, wave) = ICON_STYLES[style_index.min(ICON_STYLES.len() - 1)];
     let hex = |c: [u8; 3]| format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]);
-    let pts = |k: f32| (0..=48).map(|i| {
-        let t = 0.14 + 0.72 * i as f32 / 48.0;
-        format!("{:.2},{:.2}", 8.96 + t * 238.08, 8.96 + wave_y(t, k) * 238.08)
-    }).collect::<Vec<_>>().join(" ");
+    let pts = |k: f32| {
+        (0..=48)
+            .map(|i| {
+                let t = 0.14 + 0.72 * i as f32 / 48.0;
+                format!("{:.2},{:.2}", 8.96 + t * 238.08, 8.96 + wave_y(t, k) * 238.08)
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
     let badge_svg = if badge.trim().is_empty() {
         String::new()
     } else {
@@ -522,7 +545,10 @@ pub fn window_icon(size: u32) -> egui::IconData {
                         *c = logo_top[i] + (logo_bottom[i] - logo_top[i]) * v;
                     }
                     for (k, w, wc) in waves {
-                        if (0.14..=0.86).contains(&u) || ((u - 0.14).abs() * box_size).hypot((v - wave_y(0.14, k)) * box_size) < w * box_size / 2.0 || ((u - 0.86).abs() * box_size).hypot((v - wave_y(0.86, k)) * box_size) < w * box_size / 2.0 {
+                        if (0.14..=0.86).contains(&u)
+                            || ((u - 0.14).abs() * box_size).hypot((v - wave_y(0.14, k)) * box_size) < w * box_size / 2.0
+                            || ((u - 0.86).abs() * box_size).hypot((v - wave_y(0.86, k)) * box_size) < w * box_size / 2.0
+                        {
                             let uu = u.clamp(0.14, 0.86);
                             let d = (v - wave_y(uu, k)).abs();
                             let end = ((u - uu) * box_size).hypot(d * box_size);

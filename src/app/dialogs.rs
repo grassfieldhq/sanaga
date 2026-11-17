@@ -18,6 +18,10 @@ pub(super) struct DialogState {
     count: u32,
     /// "Don't let this site show more alerts" ticked.
     silence: bool,
+    /// When the question was first shown.
+    since: f64,
+    /// The question's own text fields (answer, login), as last drawn.
+    fields: Vec<egui::Id>,
 }
 
 impl Sanaga {
@@ -54,7 +58,16 @@ impl Sanaga {
         let Some(info) = crate::page::dialog(key) else { return };
         if self.dialog_state.key != key {
             let same_site = self.last_dialog_host == info.host;
-            self.dialog_state = DialogState { key, text: if let DialogKind::Prompt(d) = &info.kind { d.clone() } else { String::new() }, password: String::new(), fresh: true, count: if same_site { self.dialog_state.count + 1 } else { 1 }, silence: false };
+            self.dialog_state = DialogState {
+                key,
+                text: if let DialogKind::Prompt(d) = &info.kind { d.clone() } else { String::new() },
+                password: String::new(),
+                fresh: true,
+                count: if same_site { self.dialog_state.count + 1 } else { 1 },
+                silence: false,
+                since: ctx.input(|i| i.time),
+                fields: Vec::new(),
+            };
             self.last_dialog_host = info.host.clone();
         }
         let screen = ctx.content_rect();
@@ -62,6 +75,13 @@ impl Sanaga {
         ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::new("dialog-dim"))).rect_filled(screen, 0.0, Color32::from_black_alpha(if self.store.settings.dark { 110 } else { 70 }));
         let w = 440.0;
         let (mut ok, mut cancel) = (false, false);
+        // (the question's own text fields, as drawn in this frame)
+        let mut fields: Vec<egui::Id> = Vec::new();
+        // Was the keyboard in a text field of Sanaga's that is not the
+        // question's own when this frame began? (Asked at the start of the
+        // frame: the address field lets go of the keyboard on the very
+        // frame where Enter is pressed in it.)
+        let typing_elsewhere = self.typing_at_frame_start.is_some_and(|f| !self.dialog_state.fields.contains(&f));
         let site = if info.host.is_empty() { tr("Cette page").to_string() } else { info.host.clone() };
         let st = &mut self.dialog_state;
         egui::Area::new(egui::Id::new("page-dialog")).order(egui::Order::Foreground).fixed_pos(pos2(screen.center().x - w / 2.0, screen.top() + 96.0)).show(ctx, |ui| {
@@ -106,6 +126,7 @@ impl Sanaga {
                             if st.fresh {
                                 r.request_focus();
                             }
+                            fields.push(r.id);
                             ui.add_space(12.0);
                         }
                         DialogKind::Login(_) => {
@@ -113,8 +134,10 @@ impl Sanaga {
                             if st.fresh {
                                 r.request_focus();
                             }
+                            fields.push(r.id);
                             ui.add_space(6.0);
-                            ui.add(TextEdit::singleline(&mut st.password).hint_text(tr("Mot de passe")).password(true).desired_width(f32::INFINITY).margin(Margin::symmetric(10, 7)));
+                            let r = ui.add(TextEdit::singleline(&mut st.password).hint_text(tr("Mot de passe")).password(true).desired_width(f32::INFINITY).margin(Margin::symmetric(10, 7)));
+                            fields.push(r.id);
                             ui.add_space(12.0);
                         }
                         _ => {}
@@ -136,14 +159,23 @@ impl Sanaga {
                             if ui.add(b).clicked() {
                                 ok = true;
                             }
-                            if !cancel_label.is_empty() && ui.add(egui::Button::new(RichText::new(cancel_label).size(13.5)).corner_radius(CornerRadius::same(10)).min_size(vec2(84.0, 32.0))).clicked() {
+                            if !cancel_label.is_empty() && ui.add(egui::Button::new(RichText::new(cancel_label).size(13.5)).corner_radius(CornerRadius::same(10)).min_size(vec2(84.0, 32.0))).clicked()
+                            {
                                 cancel = true;
                             }
                         });
                     });
                 });
         });
-        let (enter, esc) = ctx.input(|i| (i.key_pressed(Key::Enter), i.key_pressed(Key::Escape)));
+        // Enter and Escape answer the question only when they are meant for
+        // it: not the Enter that sends an address being typed in the
+        // address field (it answered the page's question too — "leave this
+        // page?" included), nor a key held down since before the question
+        // was there. The key is then used up: nothing else reads it.
+        self.dialog_state.fields = fields;
+        let just_shown = ctx.input(|i| i.time) - self.dialog_state.since < 0.4;
+        let (enter, esc) =
+            if typing_elsewhere || just_shown { (false, false) } else { ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape))) };
         if enter {
             ok = true;
         }

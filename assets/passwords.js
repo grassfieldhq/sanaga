@@ -154,12 +154,46 @@
     return pw || uf ? 'filled' : 'nofield';
   };
 
+  // Can the person see this field? Not when it, or anything it sits in, is
+  // not drawn, see-through, cut away or clipped to nothing; nor when it lies
+  // outside the page, or under something else.
+  function seen(el) {
+    if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+    var box = el.getBoundingClientRect();
+    if (box.width < 4 || box.height < 4) return false;
+    var doc = document.documentElement, x = box.left + window.scrollX, y = box.top + window.scrollY;
+    // (pages scroll down, hardly ever far to the right: a field pushed
+    // several screens to the right is one put out of sight)
+    if (x + box.width <= 0 || y + box.height <= 0 || x >= Math.min(Math.max(doc.scrollWidth, window.innerWidth), window.innerWidth * 3) || y >= Math.max(doc.scrollHeight, window.innerHeight)) return false;
+    var l = box.left, t = box.top, r = box.right, b = box.bottom;
+    for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
+      var s = getComputedStyle(n);
+      if (s.display === 'none' || s.visibility !== 'visible' || parseFloat(s.opacity) < 0.1) return false;
+      if ((s.clipPath && s.clipPath !== 'none') || (s.clip && s.clip !== 'auto')) return false;
+      if (n !== el && (s.overflowX !== 'visible' || s.overflowY !== 'visible')) {
+        var c = n.getBoundingClientRect();
+        l = Math.max(l, c.left); t = Math.max(t, c.top); r = Math.min(r, c.right); b = Math.min(b, c.bottom);
+        if (r - l < 4 || b - t < 4) return false;
+      }
+    }
+    // (in view: nothing else is drawn over its middle)
+    var cx = (l + r) / 2, cy = (t + b) / 2;
+    if (cx >= 0 && cy >= 0 && cx < window.innerWidth && cy < window.innerHeight) {
+      var top = document.elementFromPoint(cx, cy);
+      if (top && top !== el && !el.contains(top) && !top.contains(el) && top.tagName !== 'LABEL') return false;
+    }
+    return true;
+  }
+
   // --- contact AutoFill (name, e-mail, phone, address) ---
   window.__sanagaContact = function (c) {
     var map = [['name', c.name, /name|nom/i], ['email', c.email, /mail/i], ['tel', c.phone, /tel|phone/i], ['street-address', c.address, /address|adresse|rue/i]];
     var n = 0;
     document.querySelectorAll('input,textarea').forEach(function (el) {
-      if (el.type === 'password' || el.type === 'hidden' || el.value) return;
+      if (el.type === 'password' || el.type === 'hidden' || el.value || el.disabled || el.readOnly) return;
+      // only a field the person can see: a page showing a "name" field
+      // got the e-mail, phone and address too, in fields kept out of sight
+      if (!seen(el)) return;
       var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
       var key = el.name + ' ' + el.id + ' ' + (el.placeholder || '') + ' ' + el.type;
       for (var i = 0; i < map.length; i++) {

@@ -5,11 +5,16 @@
 //! with a way back (Undo), with a complete right-click menu.
 
 use super::chrome::site_badge;
-use super::sidebar::menu_item;
 use super::chrome::Fit as _;
+use super::sidebar::menu_item;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, CursorIcon, Layout, Margin, RichText, Sense, TextEdit};
+
+thread_local! {
+    /// The other browsers whose favourites can be imported (see `Kept`).
+    static IMPORT_SOURCES: std::cell::RefCell<super::settings::Kept<Vec<(String, std::path::PathBuf)>>> = const { std::cell::RefCell::new(super::settings::Kept::new()) };
+}
 
 impl Sanaga {
     /// The star of the address field: add the page (and open the bubble), or
@@ -24,6 +29,7 @@ impl Sanaga {
             self.store.toggle_bookmark(&u, &ti);
         }
         self.bm_pop_title = self.store.bookmarks.iter().find(|b| b.url == u).map(|b| b.title.clone()).unwrap_or(ti);
+        self.bm_pop_url = u;
         self.bm_popover = true;
         self.ctx.data_mut(|d| d.insert_temp(egui::Id::new("star-rect"), star));
     }
@@ -33,7 +39,14 @@ impl Sanaga {
         if !self.bm_popover {
             return;
         }
+        // (the bubble belongs to the page it was opened on: after Ctrl+W or
+        // a change of tab made with the keyboard it used to give its name
+        // to the favourite of the tab now shown, even on Escape)
         let url = self.tabs[self.active].url().to_string();
+        if url != self.bm_pop_url {
+            self.bm_popover = false;
+            return;
+        }
         let Some(i) = self.store.bookmarks.iter().position(|b| b.url == url) else {
             self.bm_popover = false;
             return;
@@ -119,9 +132,30 @@ impl Sanaga {
         let mut import: Option<std::path::PathBuf> = None;
         let mut pick_file = false;
         let mut open_import = false;
-        let sources = crate::import::chrome_family_sources();
+        // (looked for when the page opens, on a thread — not at every frame)
+        let sources = self.kept(&IMPORT_SOURCES, crate::import::chrome_family_sources).unwrap_or_default();
         let dark = self.store.settings.dark;
         let q = self.bm_filter.trim().to_lowercase();
+        // The favourites found by the search (their places in the list):
+        // worked out when the search or the list changes — not at every
+        // frame, where each favourite was put in lower case twice and
+        // copied, whether it was on screen or not.
+        let found_id = egui::Id::new("bm-found");
+        let found: Option<Arc<Vec<usize>>> = if q.is_empty() {
+            None
+        } else {
+            let kept: Option<(String, usize, Arc<Vec<usize>>)> = ui.data(|d| d.get_temp(found_id));
+            Some(match kept {
+                Some((for_q, among, places)) if for_q == q && among == self.store.bookmarks.len() => places,
+                _ => {
+                    let places: Arc<Vec<usize>> =
+                        Arc::new(self.store.bookmarks.iter().enumerate().filter(|(_, b)| b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q)).map(|(i, _)| i).collect());
+                    ui.data_mut(|d| d.insert_temp(found_id, (q.clone(), self.store.bookmarks.len(), places.clone())));
+                    places
+                }
+            })
+        };
+        let mut list_changed = false;
         super::pages::centered_column(ui, |ui| {
             ui.add_space(26.0);
             // title, number, search and import
@@ -132,7 +166,7 @@ impl Sanaga {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.menu_button(RichText::new(tr("Importer…")), |ui| {
                         ui.set_min_width(240.0);
-                        for (name, path) in &sources {
+                        for (name, path) in sources.iter() {
                             if menu_item(ui, Icon::Download, &tf("Depuis {}", &[name])) {
                                 import = Some(path.clone());
                             }
@@ -150,7 +184,13 @@ impl Sanaga {
                         ui.allocate_ui_with_layout(vec2(220.0, 28.0), Layout::left_to_right(Align::Center), |ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(13.0, 13.0), Sense::hover());
                             icons::paint(ui.painter(), r, Icon::Search, th.sub);
-                            ui.add(TextEdit::singleline(&mut self.bm_filter).frame(Frame::NONE).hint_text(RichText::new(tr("Rechercher")).color(th.sub)).vertical_align(Align::Center).desired_width(ui.available_width()));
+                            ui.add(
+                                TextEdit::singleline(&mut self.bm_filter)
+                                    .frame(Frame::NONE)
+                                    .hint_text(RichText::new(tr("Rechercher")).color(th.sub))
+                                    .vertical_align(Align::Center)
+                                    .desired_width(ui.available_width()),
+                            );
                         });
                     });
                 });
@@ -167,23 +207,54 @@ impl Sanaga {
                 });
                 return;
             }
-            let rows: Vec<(usize, String, String)> = self.store.bookmarks.iter().enumerate().filter(|(_, b)| q.is_empty() || b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q)).map(|(i, b)| (i, b.url.clone(), b.title.clone())).collect();
-            if rows.is_empty() {
+            // (the row at place `n` of what is listed: its place among all the favourites)
+            let count = found.as_ref().map_or(self.store.bookmarks.len(), |f| f.len());
+            let place = |n: usize| found.as_ref().map_or(n, |f| f[n]);
+            if count == 0 {
                 ui.label(RichText::new(tr("Aucun résultat")).color(th.sub));
             }
             let mut rects: Vec<(usize, Rect)> = Vec::new();
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::symmetric(0, 2)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 0.0;
-                for (n, (i, url, title)) in rows.iter().enumerate() {
-                    let i = *i;
+                // Only the rows in view are laid out and drawn: thousands of
+                // favourites cost what a screenful costs. Every row is ROW
+                // high, but the one being edited (its height is the one
+                // measured at the last frame); the rows above and below the
+                // view are left as empty room of the same height, so the
+                // page scrolls as if they were all there.
+                const ROW: f32 = 52.0;
+                let edit_height_id = egui::Id::new("bm-edit-height");
+                let edit_height: f32 = ui.data(|d| d.get_temp(edit_height_id)).unwrap_or(108.0);
+                let edit_at = self.bm_editing.and_then(|i| match &found {
+                    None => (i < count).then_some(i),
+                    Some(f) => f.binary_search(&i).ok(),
+                });
+                let list_top = ui.cursor().top();
+                let top_of = |n: usize| list_top + n as f32 * ROW + if edit_at.is_some_and(|e| n > e) { edit_height - ROW } else { 0.0 };
+                let view = ui.clip_rect();
+                let mut first = (((view.top() - list_top) / ROW).floor().max(0.0) as usize).min(count);
+                while first > 0 && top_of(first) > view.top() {
+                    first -= 1;
+                }
+                let mut end = first;
+                while end < count && top_of(end) < view.bottom() {
+                    end += 1;
+                }
+                ui.add_space(top_of(first) - list_top);
+                for n in first..end {
+                    let i = place(n);
+                    let Some((url, title)) = self.store.bookmarks.get(i).map(|b| (b.url.clone(), b.title.clone())) else { continue };
+                    let (url, title) = (&url, &title);
                     if self.bm_editing == Some(i) {
-                        Frame::new().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
+                        let editor = Frame::new().inner_margin(Margin::symmetric(14, 10)).show(ui, |ui| {
                             ui.spacing_mut().item_spacing.y = 6.0;
                             ui.add(TextEdit::singleline(&mut self.bm_edit.0).hint_text(tr("Nom")).desired_width(f32::INFINITY));
                             ui.add(TextEdit::singleline(&mut self.bm_edit.1).hint_text(tr("Adresse")).desired_width(f32::INFINITY));
                             ui.horizontal(|ui| {
-                                if ui.add(egui::Button::new(RichText::new(tr("Enregistrer")).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(7))).clicked() || ui.input(|x| x.key_pressed(Key::Enter)) {
+                                if ui.add(egui::Button::new(RichText::new(tr("Enregistrer")).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(7))).clicked()
+                                    || ui.input(|x| x.key_pressed(Key::Enter))
+                                {
                                     save = Some((i, self.bm_edit.0.clone(), self.bm_edit.1.clone()));
                                 }
                                 if ui.button(tr("Annuler")).clicked() || ui.input(|x| x.key_pressed(Key::Escape)) {
@@ -191,9 +262,10 @@ impl Sanaga {
                                 }
                             });
                         });
+                        ui.data_mut(|d| d.insert_temp(edit_height_id, editor.response.rect.height()));
                         continue;
                     }
-                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), Sense::click_and_drag());
+                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::click_and_drag());
                     rects.push((i, r));
                     if n > 0 {
                         ui.painter().line_segment([pos2(r.left() + 54.0, r.top()), pos2(r.right() - 14.0, r.top())], Stroke::new(1.0, th.hairline.gamma_multiply(0.6)));
@@ -263,6 +335,7 @@ impl Sanaga {
                         bookmark_menu(ui, i, url, &mut go, &mut window, &mut copy, &mut edit, &mut remove);
                     });
                 }
+                ui.add_space(top_of(count) - top_of(end));
             });
             // dragging a row: where it would land
             if let Some(from) = self.bm_drag {
@@ -288,20 +361,24 @@ impl Sanaga {
                 let b = self.store.bookmarks.remove(from);
                 self.store.bookmarks.insert(to, b);
                 self.store.save_bookmarks();
+                list_changed = true;
             }
             self.bm_drag = None;
         }
         if let Some((i, t, u)) = save {
             self.save_bookmark_edit(i, t, u);
+            list_changed = true;
         }
         if let Some(i) = edit {
-            if let Some(b) = self.store.bookmarks.get(i) {
-                self.bm_edit = (b.title.clone(), b.url.clone());
-                self.bm_editing = Some(i);
-            }
+            self.edit_bookmark(i);
         }
         if let Some(i) = remove {
             self.remove_bookmark(i);
+            list_changed = true;
+        }
+        // (what the search had found is worked out again)
+        if list_changed {
+            ui.data_mut(|d| d.remove::<(String, usize, Arc<Vec<usize>>)>(found_id));
         }
         if let Some(u) = copy {
             self.ctx.copy_text(u);
