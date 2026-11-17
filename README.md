@@ -275,7 +275,8 @@ sanaga --automation           # let test software drive it (WebDriver); keeps no
 ### Where your data is
 
 Everything stays on your computer, in `~/.local/share/sanaga/`
-(or `$XDG_DATA_HOME/sanaga/`): settings, history, bookmarks, session, site
+(or `$XDG_DATA_HOME/sanaga/`): settings, history (`history.db`, a SQLite
+database: every visit, without limit), bookmarks, session, site
 data (`webkit/`, and `webkit/containers/<name>/` for each container), website
 settings (`sites.tsv`), your toolbar buttons (`buttons.tsv`), extensions
 (`extensions/`), device frames (`cadres/`), crash reports (`crashes/`), and

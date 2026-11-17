@@ -28,6 +28,7 @@ mod frames;
 #[cfg(test)]
 mod glyphs;
 mod guard;
+mod history;
 mod html;
 mod i18n;
 mod icons;

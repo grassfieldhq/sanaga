@@ -6,6 +6,27 @@ All notable changes to Sanaga are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The history is kept in a database (`history.db` in the profile's
+  folder) instead of a text file read whole into memory. It has no limit
+  any more (it was cut at 5,000 visits, and an import could push your own
+  visits out); the history file of before is taken in once, whole, and
+  kept as `history.tsv.imported`. Clearing the history clears that copy
+  too.
+- Address bar: suggestions are ranked — sites whose name starts with what
+  you type first, then the most visited lately — and looked up when the
+  text changes, off the window's thread (they were recomputed over the
+  whole history at every frame). A site's name is completed to where you
+  really visited it (`http://nas.lan:8080`, it was always `https://name`).
+- History page: every visit can be reached and searched (it stopped at 400
+  lines); End and Home go to the oldest and the newest visit.
+- "Frequently visited" counts the visits of a whole site (each address
+  was counted apart).
+- A page visited in one window shows in the others' history without
+  their whole profile being read again.
+- Import from another browser takes every visit (it took the last visit
+  of 5,000 pages), so imported pages are ranked by how often you went.
+
 ### Added
 - Downloads: they go to the folder your desktop names (Téléchargements,
   Descargas... wherever it is) or to one chosen in Settings › General,

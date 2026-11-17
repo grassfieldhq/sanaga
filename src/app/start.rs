@@ -42,31 +42,16 @@ impl Sanaga {
         let left = ((full_w - cw) / 2.0).max(20.0);
         let favs: Vec<(String, String)> = self.store.bookmarks.iter().filter(|b| !b.url.starts_with("sanaga://")).take(12).map(|b| (b.url.clone(), b.title.clone())).collect();
         let reading: Vec<(String, String)> = self.store.reading.iter().take(5).map(|b| (b.url.clone(), b.title.clone())).collect();
-        // frequently visited: most visited addresses not already in favourites
-        // (counted again only when a page was visited or a favourite changed:
-        // not at every frame — the history can hold thousands of visits)
-        let stamp = {
-            use std::hash::{Hash, Hasher};
-            let mut h = std::collections::hash_map::DefaultHasher::new();
-            (self.store.history.len(), self.store.history.last().map(|v| (v.time, &v.url, &v.title)), self.store.bookmarks.len()).hash(&mut h);
-            self.store.bookmarks.iter().for_each(|b| b.url.hash(&mut h));
-            h.finish()
-        };
-        if self.frequent.0 != stamp {
-            let mut counts: HashMap<&str, (usize, &str)> = HashMap::new();
-            for v in &self.store.history {
-                let e = counts.entry(v.url.as_str()).or_insert((0, ""));
-                e.0 += 1;
-                if !v.title.is_empty() {
-                    e.1 = v.title.as_str();
-                }
-            }
-            let mut freq: Vec<(String, usize, String)> = counts.into_iter().filter(|(u, _)| !self.store.is_bookmarked(u)).map(|(u, (n, t))| (u.to_string(), n, t.to_string())).collect();
-            freq.sort_by(|x, y| y.1.cmp(&x.1).then(x.0.cmp(&y.0)));
-            freq.truncate(8);
-            self.frequent = (stamp, freq);
-        }
-        let freq = self.frequent.1.clone();
+        // Frequently visited: the sites that count most — every visit of a
+        // site adds up (each address used to be counted apart: a site read
+        // page after page never showed), weighted by how recent — each
+        // with its most visited page; not those already in the favourites.
+        // Asked of the history when it changes, not at every frame.
+        let wanted = 8 + favs.len();
+        self.history_ask(|app| &mut app.hist.frequent, self.store.history.version(), move |h| h.top_sites(wanted));
+        let in_favs: HashSet<String> = favs.iter().map(|(u, _)| super::chrome::same_page_key(u)).collect();
+        let freq: Vec<(String, u64, String)> =
+            (self.hist.frequent.got.iter()).filter(|s| !in_favs.contains(&super::chrome::same_page_key(&s.url))).take(8).map(|s| (s.url.clone(), s.visits, s.title.clone())).collect();
         let webkit_on = self.store.settings.webkit && (self.web_ok || self.screenshot.is_some());
         let mut show_reading = self.store.settings.ntp_reading;
         let mut show_frequent = self.store.settings.ntp_frequent;

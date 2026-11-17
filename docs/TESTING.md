@@ -117,6 +117,7 @@ inside a frame: Sanaga must go on).
 | `SANAGA_DEBUG_STALLS=30` | print every time the window did not answer for 30 ms or more (`stall … ms after <last command> (layout … ms, painting … ms)`), and each frame whose own work took 4 ms or more (`frame … ms after …`); all builds |
 | `SANAGA_DEBUG_STALL_STACKS=200` | with it: where the window's thread is during a stall of 200 ms or more |
 | `SANAGA_DEBUG_TICK=1` | print the web engine ticks |
+| `SANAGA_DEBUG_SUGGEST=1` | print the address bar's list of suggestions each time it is put together (when the text or the history's answer changes — never at every frame) |
 | `SANAGA_DEBUG_GL=1` | print the OpenGL version and errors |
 | `SANAGA_DEBUG_START=1` | print how long each step of the start took |
 | `SANAGA_DEBUG_BLOCKER=1` | print the block lists' fetch and compilation |

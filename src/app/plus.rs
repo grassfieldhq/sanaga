@@ -467,15 +467,32 @@ impl Sanaga {
     /// Erase history and site data for a period (seconds; 0 = all time).
     pub(super) fn clear_browsing_data(&mut self, period: u64, history: bool, cookies: bool, cache: bool) {
         let since = if period == 0 { 0 } else { crate::store::now().saturating_sub(period) };
-        // (the sites visited in that period, before their visits are
-        // forgotten: their cookies are the ones to remove — see below)
-        let visited: std::collections::HashSet<String> =
-            self.store.history.iter().filter(|v| v.time >= since).map(|v| host_of(&v.url).trim_start_matches("www.").to_string()).filter(|h| !h.is_empty()).collect();
         if history {
-            self.store.clear_history_since(since);
-            self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
+            // (the links coloured as visited follow the history: see `follow_visited`)
+            self.visited.clear();
             self.store.downloads.retain(|d| d.time < since);
         }
+        // The sites visited in that period are asked of the history before
+        // their visits are forgotten: their cookies are the ones to remove
+        // (see `clear_site_data`). Asked, and the visits forgotten, off the
+        // window's thread; the rest follows when the answer is there.
+        let hist = self.store.history.clone();
+        let by_site = period != 0 && cookies;
+        self.off_thread(
+            move || {
+                let visited = if by_site { hist.sites_since(since) } else { Default::default() };
+                if history {
+                    hist.clear_since(since);
+                }
+                visited
+            },
+            move |app, visited| app.clear_site_data(period, cookies, cache, visited),
+        );
+    }
+
+    /// The second half of `clear_browsing_data`: cookies, site data and
+    /// cache. `visited`: the sites visited in the period.
+    fn clear_site_data(&mut self, period: u64, cookies: bool, cache: bool, visited: HashSet<String>) {
         let mut types = webkit6::WebsiteDataTypes::empty();
         if cookies {
             types |= webkit6::WebsiteDataTypes::COOKIES
@@ -673,6 +690,13 @@ impl Sanaga {
         let screen = ctx.content_rect();
         let pos = pos2(screen.center().x - w / 2.0, screen.top() + 60.0);
         let q = self.tab_search_q.trim().to_lowercase();
+        // (the visited pages that answer the text: asked of the history
+        // when the text changes or the history does, on a thread of their
+        // own — it was a walk through 6,000 visits at every frame)
+        if !q.is_empty() {
+            let typed = q.clone();
+            self.history_ask(|app| &mut app.hist.palette, (self.store.history.version(), q.clone()), move |h| h.suggest(&typed, 12));
+        }
         // the lines: (what it does, icon address or "", title, small text)
         let mut lines: Vec<(Pick, String, String, String)> = Vec::new();
         for (i, t) in self.tabs.iter().enumerate() {
@@ -696,14 +720,19 @@ impl Sanaga {
                 }
             }
             let mut seen: HashSet<String> = self.tabs.iter().map(|t| super::chrome::same_page_key(t.url())).collect();
-            let bm = self.store.bookmarks.iter().map(|b| (&b.url, &b.title, true));
-            let hist = self.store.history.iter().rev().take(6000).map(|v| (&v.url, &v.title, false));
+            let bm = self.store.bookmarks.iter().filter(|b| b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q)).map(|b| (&b.url, &b.title, true));
+            // (the visited pages that answer the text — the best first, as
+            // under the address bar — were asked of the history when the
+            // text changed: see below; those of the answer before stay
+            // while they still answer it)
+            let words = crate::history::words_of(&q);
+            let hist = self.hist.palette.got.iter().filter(|h| crate::history::matches(&words, &h.url, &h.title)).map(|h| (&h.url, &h.title, false));
             let mut pages = 0;
             for (u, t, fav) in bm.chain(hist) {
                 if pages >= 7 {
                     break;
                 }
-                if (u.to_lowercase().contains(&q) || t.to_lowercase().contains(&q)) && seen.insert(super::chrome::same_page_key(u)) {
+                if seen.insert(super::chrome::same_page_key(u)) {
                     let (site, rest) = super::toolbar::display_url(u, false);
                     let kind = if fav { tr("Favori") } else { tr("Historique") };
                     lines.push((Pick::Go(u.clone()), u.clone(), if t.is_empty() { u.clone() } else { t.clone() }, format!("{kind} · {site}{rest}")));
@@ -749,7 +778,11 @@ impl Sanaga {
                         self.palette_sel = 0;
                     }
                     ui.add_space(6.0);
-                    egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                    // (the list takes the room its lines need, up to 400 points,
+                    // also when lines are added after it was shorter — the
+                    // visited pages come a moment after the text: it stayed
+                    // cut at the height of before, to be scrolled)
+                    egui::ScrollArea::vertical().max_height(400.0).min_scrolled_height(400.0).show(ui, |ui| {
                         for (k, (what, icon, title, sub)) in lines.iter().enumerate() {
                             let (r, rr) = ui.allocate_exact_size(vec2(w - 20.0, 38.0), Sense::click());
                             if k == sel {

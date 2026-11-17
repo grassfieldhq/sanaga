@@ -11,6 +11,7 @@ mod dialogs;
 mod errors;
 mod extras;
 mod groups;
+mod hist;
 mod importer;
 mod intelligence;
 mod layout;
@@ -770,9 +771,9 @@ pub struct Sanaga {
     asked_once: HashSet<&'static str>,
     keyring_there: Option<bool>,
     sync_running: bool,
-    /// The new tab page's "frequently visited", and what it was worked out
-    /// from (visits, favourites): worked out again only when those change.
-    frequent: (u64, Vec<(String, usize, String)>),
+    /// What the window shows of the history (suggestions, the history
+    /// page, the sidebar, "frequently visited"…): see hist.rs.
+    hist: hist::Shown,
     /// The menus and panels that were open at the last frame (one at a time:
     /// see `one_panel_at_a_time`).
     panels_open: u32,
@@ -1066,7 +1067,7 @@ impl Sanaga {
             asked_once: HashSet::new(),
             keyring_there: None,
             sync_running: false,
-            frequent: (u64::MAX, Vec::new()),
+            hist: Default::default(),
             panels_open: 0,
             crash_notice: None,
             crash_copied: None,
@@ -1108,7 +1109,6 @@ impl Sanaga {
             group_label_rects: Vec::new(),
         };
         crate::stage("app state made");
-        app.visited = app.store.history.iter().map(|v| v.url.clone()).collect();
         // test aid for screenshots: SANAGA_SHOT_STATE=dark,menu,sidebar,share,tabsearch,find,private
         if app.screenshot.is_some() {
             let st = std::env::var("SANAGA_SHOT_STATE").unwrap_or_default();
@@ -1847,8 +1847,10 @@ impl Sanaga {
         self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 
-    /// Another window changed the saved data (favourites, settings, history,
-    /// passwords…): read it again so this window shows the same.
+    /// Another window changed the saved data (favourites, settings,
+    /// passwords…): read it again so this window shows the same. (Not for
+    /// the history: its windows share one, and a page visited is no reason
+    /// to read the whole profile again.)
     fn follow_other_windows(&mut self) {
         let now = crate::store::CHANGES.load(Ordering::Relaxed);
         if now == self.store_seen || self.screenshot.is_some() {
@@ -1868,7 +1870,6 @@ impl Sanaga {
         self.store.first_run = false;
         crate::i18n::set_language(&self.store.settings.language);
         self.applied_dark = None;
-        self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
     }
 
     /// One frame of Sanaga's interface (drawn by eframe for screenshots, by
@@ -2115,6 +2116,7 @@ impl Sanaga {
         }
         self.apply_style();
         self.store.settle_history(false);
+        self.follow_visited();
         // The keyboard alone: in one of Sanaga's own pages (settings,
         // history…), the first Tab goes to the page's first control, not
         // to the window's toolbar (which comes after the page's last one).

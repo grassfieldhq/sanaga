@@ -1272,3 +1272,5 @@ Revenez en lieu sûr, sauf si vous êtes certain que ce signalement est une erre
 Les listes viennent de malware-filter (OpenPhish, PhishTank, URLhaus) ; elles sont consultées sur cet ordinateur, l'adresse n'est envoyée nulle part. Sanaga ne se souviendra de votre choix que jusqu'à sa fermeture.	The lists come from malware-filter (OpenPhish, PhishTank, URLhaus); they are looked up on this computer, the address is sent nowhere. Sanaga will remember your choice only until it is closed.
 Avertir avant un site dangereux	Warn before a dangerous site
 Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing and malware: lists fetched once a day (malware-filter), looked up on this computer — no address is sent
+1 visite	1 visit
+{} visites	{} visits

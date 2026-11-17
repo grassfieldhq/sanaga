@@ -1272,3 +1272,5 @@ Revenez en lieu sûr, sauf si vous êtes certain que ce signalement est une erre
 Les listes viennent de malware-filter (OpenPhish, PhishTank, URLhaus) ; elles sont consultées sur cet ordinateur, l'adresse n'est envoyée nulle part. Sanaga ne se souviendra de votre choix que jusqu'à sa fermeture.	As listas vêm de malware-filter (OpenPhish, PhishTank, URLhaus); são consultadas neste computador, o endereço não é enviado para lado nenhum. O Sanaga só se lembrará da sua escolha até ser fechado.
 Avertir avant un site dangereux	Avisar antes de um site perigoso
 Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing e software malicioso: listas obtidas uma vez por dia (malware-filter), consultadas neste computador — nenhum endereço é enviado
+1 visite	1 visita
+{} visites	{} visitas

@@ -68,7 +68,7 @@ try:
     call("POST", s + "/window/new", {"type": "tab"})
     check("tabs", len(call("GET", s + "/window/handles")) == 2, call("GET", s + "/window/handles"))
     # nothing of the test may land in a profile
-    kept = [f for _, _, files in os.walk(data) for f in files if f in ("history.tsv", "session.tsv", "cookies")]
+    kept = [f for _, _, files in os.walk(data) for f in files if f in ("history.db", "history.tsv", "session.tsv", "cookies")]
     check("nothing kept", not kept, kept)
 finally:
     if session:

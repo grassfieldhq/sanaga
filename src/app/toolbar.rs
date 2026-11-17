@@ -619,27 +619,9 @@ impl Sanaga {
             self.inline_typed = typed.clone();
             self.inline_done = false;
             if forward && at_end {
-                if let Some(site) = self.site_completion(&typed) {
-                    // (the rest of the name: what follows as many letters as
-                    // were typed — a typed letter may take more bytes than the
-                    // name's, e.g. the Kelvin sign for "k")
-                    let rest: String = site.chars().skip(typed.chars().count()).collect();
-                    let full = format!("{typed}{rest}");
-                    if let Some(mut state) = TextEdit::load_state(ui.ctx(), id) {
-                        let (from, to) = (egui::text::CCursor::new(typed.chars().count()), egui::text::CCursor::new(full.chars().count()));
-                        state.cursor.set_char_range(Some(egui::text::CCursorRange::two(from, to)));
-                        state.store(ui.ctx(), id);
-                        self.tabs[a].address = full;
-                        self.inline_done = true;
-                        // the site's address is looked up now (DNS), so the
-                        // page starts sooner on Enter; never for a private tab
-                        if !self.tabs[a].private {
-                            if let Some(e) = &self.web_context {
-                                e.session.prefetch_dns(&site);
-                            }
-                        }
-                    }
-                }
+                // (asked of the history off the window's thread; the field
+                // is completed when the answer comes: `complete_address`)
+                self.ask_completion(&typed);
             }
         }
         if !focused {
@@ -650,7 +632,9 @@ impl Sanaga {
             match picked {
                 Some(u) => self.activate_suggestion(&u),
                 None => {
-                    let u = input_to_url(&self.tabs[a].address, engine, &home);
+                    // (a site's name completed while typing leads where the site
+                    // was really visited: http://nas.lan:8080, not https://nas.lan)
+                    let u = self.completed_address(a).unwrap_or_else(|| input_to_url(&self.tabs[a].address, engine, &home));
                     self.navigate(a, u, None, true);
                 }
             }

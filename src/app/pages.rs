@@ -65,58 +65,144 @@ fn list_row(ui: &mut Ui, th: &Theme, url: &str, title: &str, meta: &str, go: &mu
 }
 
 impl Sanaga {
+    /// The history page: every visit, newest first, in groups of days.
+    ///
+    /// The whole history is reachable — it showed 400 lines, then asked to
+    /// "refine the search" — and searched; and none of it is held here:
+    /// the page knows how many lines there are (`Listing`), takes the room
+    /// they need, and reads and lays out only the lines on screen, by
+    /// groups of 200 as the person scrolls (`history_rows_ask`).
     pub(super) fn page_history(&mut self, ui: &mut Ui, th: &Theme) {
+        use super::hist::CHUNK;
+        const ROW: f32 = 40.0;
+        const HEAD: f32 = 36.0;
         let mut go: Option<(String, bool)> = None;
         let mut clear = false;
-        let mut remove: Option<usize> = None;
-        let filter = self.history_filter.to_lowercase();
-        let store = &self.store;
+        let mut remove: Option<i64> = None;
+        // what is listed is asked again when the search or the history
+        // changes (a visit in any window, a line removed), not at every frame
+        let filter = self.history_filter.trim().to_lowercase();
+        let searched = filter.clone();
+        self.history_ask(|app| &mut app.hist.listing, (self.store.history.version(), filter.clone()), move |h| Arc::new(h.list(&searched, store::now())));
+        // (while a new answer is on its way, the list shown is the one before)
+        let (listing, answer) = (self.hist.listing.got.clone(), self.hist.listing.answers);
+        // (another search: its first results are shown, wherever the list
+        // of before had been scrolled to)
+        if self.hist.listed_for != filter {
+            self.hist.listed_for = filter.clone();
+            ui.scroll_to_cursor(Some(Align::TOP));
+        }
+        let mut wanted: Vec<usize> = Vec::new();
+        let mut on_screen: Option<(usize, usize)> = None;
+        let chunks = &self.hist.chunks;
         let hf = &mut self.history_filter;
+        // the keyboard alone: End goes to the oldest visit, Home to the newest
+        if !ui.ctx().egui_wants_keyboard_input() {
+            let page = ui.clip_rect().height() - ROW;
+            let (home, end, up, down) = ui.input(|i| (i.key_pressed(Key::Home), i.key_pressed(Key::End), i.key_pressed(Key::PageUp), i.key_pressed(Key::PageDown)));
+            let by = if home {
+                1.0e9
+            } else if end {
+                -1.0e9
+            } else {
+                page * (f32::from(u8::from(up)) - f32::from(u8::from(down)))
+            };
+            if by != 0.0 {
+                ui.scroll_with_delta(vec2(0.0, by));
+            }
+        }
         centered_column(ui, |ui| {
             page_title(ui, th, tr("Historique"));
             ui.horizontal(|ui| {
                 ui.add(TextEdit::singleline(hf).hint_text(tr("Rechercher dans l'historique")).desired_width(320.0));
+                if listing.total > 0 {
+                    let n = listing.total;
+                    let count = match (filter.is_empty(), n) {
+                        (true, 1) => tr("1 visite").to_string(),
+                        (true, _) => tf("{} visites", &[&n]),
+                        (false, 1) => tr("1 résultat").to_string(),
+                        (false, _) => tf("{} résultats", &[&n]),
+                    };
+                    ui.label(RichText::new(count).size(12.5).color(th.sub));
+                }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !store.history.is_empty() && super::chrome::confirm_button(ui, "clear-history", tr("Effacer l'historique")) {
+                    if (listing.total > 0 || !filter.is_empty()) && super::chrome::confirm_button(ui, "clear-history", tr("Effacer l'historique")) {
                         clear = true;
                     }
                 });
             });
             ui.add_space(12.0);
-            if store.history.is_empty() {
-                ui.label(RichText::new(tr("Les pages que vous visitez apparaîtront ici.")).color(th.sub));
+            if listing.total == 0 {
+                // (nothing said before the history has answered once)
+                if answer > 0 {
+                    ui.label(RichText::new(if filter.is_empty() { tr("Les pages que vous visitez apparaîtront ici.") } else { tr("Aucun résultat") }).color(th.sub));
+                }
                 return;
             }
-            let mut group = "";
-            let mut shown = 0;
-            for (i, v) in store.history.iter().enumerate().rev() {
-                if !filter.is_empty() && !v.url.to_lowercase().contains(&filter) && !v.title.to_lowercase().contains(&filter) {
+            // The room of every line is taken at once (the scroll bar spans
+            // the whole history); only the lines inside the window are
+            // looked up and drawn.
+            let w = ui.available_width();
+            // (a line and the gap under it, as when they were laid out one by one)
+            let pitch = ROW + ui.spacing().item_spacing.y;
+            let heads = listing.groups.iter().filter(|n| **n > 0).count();
+            let (area, _) = ui.allocate_exact_size(vec2(w, listing.total as f32 * pitch + heads as f32 * HEAD), Sense::hover());
+            let clip = ui.clip_rect();
+            let (mut y, mut first) = (area.top(), 0);
+            for (k, n) in listing.groups.iter().copied().enumerate() {
+                if n == 0 {
                     continue;
                 }
-                shown += 1;
-                if shown > 400 {
-                    ui.label(RichText::new(tr("… affinez la recherche pour voir plus de résultats")).color(th.sub));
-                    break;
+                if y + HEAD > clip.top() && y < clip.bottom() {
+                    ui.painter().text(pos2(area.left(), y + 12.0), Align2::LEFT_TOP, store::day_group_name(k), FontId::new(13.0, bold()), th.accent);
                 }
-                let g = store::day_group(v.time);
-                if g != group {
-                    group = g;
-                    ui.add_space(10.0);
-                    ui.label(RichText::new(g).size(13.0).family(bold()).color(th.accent));
-                    ui.add_space(4.0);
+                y += HEAD;
+                let from = (((clip.top() - y) / pitch).floor().max(0.0) as usize).min(n);
+                let to = (((clip.bottom() - y) / pitch).ceil().max(0.0) as usize).min(n);
+                for line in first + from..first + to {
+                    let rect = Rect::from_min_size(pos2(area.left(), y + (line - first) as f32 * pitch), vec2(w, ROW));
+                    let chunk = line / CHUNK;
+                    on_screen = Some(on_screen.map_or((chunk, chunk), |(a, b)| (a.min(chunk), b.max(chunk))));
+                    let read = chunks.get(&chunk);
+                    // (not read yet, or read for the list of before: asked for)
+                    if !read.is_some_and(|(of, _)| *of == answer) && !wanted.contains(&chunk) {
+                        wanted.push(chunk);
+                    }
+                    match read.and_then(|(_, rows)| rows.get(line % CHUNK)) {
+                        Some(row) => {
+                            let mut line_ui = ui.new_child(egui::UiBuilder::new().id_salt(("history-line", row.id)).max_rect(rect).layout(Layout::top_down(Align::Min)));
+                            let mut removed = None;
+                            list_row(&mut line_ui, th, &row.url, &row.title, &store::relative_time(row.time), &mut go, &mut removed, line);
+                            if removed.is_some() {
+                                remove = Some(row.id);
+                            }
+                        }
+                        // (on its way: its place is marked)
+                        None => {
+                            ui.painter().circle_filled(pos2(rect.left() + 20.0, rect.center().y), 9.0, th.card);
+                            ui.painter().rect_filled(Rect::from_min_size(pos2(rect.left() + 40.0, rect.center().y - 5.0), vec2(rect.width() * 0.4, 10.0)), CornerRadius::same(5), th.card);
+                        }
+                    }
                 }
-                list_row(ui, th, &v.url, &v.title, &store::relative_time(v.time), &mut go, &mut remove, i);
+                y += n as f32 * pitch;
+                first += n;
             }
         });
+        for chunk in wanted {
+            self.history_rows_ask(chunk);
+        }
+        // (the lines far from the window are let go, and read again if the
+        // person comes back to them)
+        match on_screen {
+            Some((a, b)) => self.hist.chunks.retain(|c, _| *c + 2 >= a && *c <= b + 2),
+            None => self.hist.chunks.clear(),
+        }
         if clear {
             self.store.clear_history();
             self.visited.clear();
         }
-        if let Some(i) = remove {
-            if i < self.store.history.len() {
-                self.store.history.remove(i);
-                self.store.rewrite_history();
-            }
+        if let Some(id) = remove {
+            self.store.history.remove_visit(id);
         }
         self.apply_go(go);
     }
