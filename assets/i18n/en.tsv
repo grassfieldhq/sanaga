@@ -1350,3 +1350,33 @@ Historique, onglets, favoris, conversations ; chaque action vous est montrée av
 Garder les conversations sur cet ordinateur	Keep the conversations on this computer
 Pour les reprendre et les retrouver ; jamais celles des onglets privés	To go on with them and find them again; never those of private tabs
 Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	A model on this computer looks freely; with Claude, you are asked the first time it wants to search your history, your tabs or your favourites, since what it finds there is sent to it. Opening, closing, grouping, running a command: always after you agree.
+Aucune demande enregistrée ne commence ainsi.	No saved request begins like this.
+Gérer les demandes enregistrées…	Manage saved requests…
+Posez une question sur cette page… (« / » : demandes enregistrées)	Ask a question about this page… (“/”: saved requests)
+Demandes enregistrées	Saved requests
+Vos demandes fréquentes, appelées par « / » et leur nom	Your frequent requests, called with “/” and their name
+Une demande que vous faites souvent à l'assistant, gardée sous un nom : tapez « / » puis ce nom dans son champ. Ce que vous tapez ensuite part avec elle.	A request you often make to the assistant, kept under a name: type “/” then that name in its field. What you type after it goes with it.
+{} — fournie avec Sanaga	{} — provided with Sanaga
+Adapter	Adapt
+Nouvelle demande	New request
+Ouvrir le dossier…	Open the folder…
+Une fenêtre d'invité ne garde pas de demandes.	A guest window keeps no requests.
+Modifier la demande	Edit the request
+Nom (ce que vous taperez après « / »)	Name (what you will type after “/”)
+Ex. : avis	E.g.: review
+Ce qu'elle fait, en quelques mots	What it does, in a few words
+Ex. : les points faibles d'un texte	E.g.: a text's weak points
+Joindre la page affichée	Attach the page shown
+La demande, telle qu'elle part au modèle	The request, as it goes to the model
+Ex. : Relis ce texte comme un lecteur exigeant : dis ce qui n'est pas clair, ce qui manque, et ce qui est de trop.	E.g.: Read this text as a demanding reader: say what is unclear, what is missing, and what is too much.
+Écrire la demande avec l'IA	Write the request with the AI
+« /{} » est supprimée.	“/{}” is deleted.
+« /{} » est enregistrée : tapez-la dans le champ de l'assistant.	“/{}” is saved: type it in the assistant's field.
+résumer	summarise
+L'essentiel de la page en quelques points	The page's essentials in a few points
+expliquer	explain
+La page, ou la sélection, dite simplement	The page, or the selection, said simply
+comparer	compare
+Les pages jointes : ce qui les rapproche, ce qui les sépare	The attached pages: what they share, what sets them apart
+à-faire	to-do
+Ce que la page demande de faire : étapes, dates, montants	What the page asks you to do: steps, dates, amounts

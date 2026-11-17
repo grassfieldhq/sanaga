@@ -65,8 +65,7 @@ const PAGE_JS: &str = r#"(function(){
   });
 })()"#;
 
-/// What a summary asks the model (the person sees "Summarise the page").
-const SUMMARY_ASK: &str = "Summarise this page: one sentence that says what it is about, then 3 to 6 short bullet points with the key facts (start each with \"• \"). No preamble, no headings.";
+use crate::skills::SUMMARY_ASK;
 
 /// A page's text as it comes back from the page.
 #[derive(Debug, PartialEq)]
@@ -397,6 +396,7 @@ impl Sanaga {
             None => self.assistant = Some(Assistant::new(id, private)),
         }
         self.open_chats();
+        self.ensure_skills();
         self.ai_menu_open = false;
     }
 
@@ -438,7 +438,28 @@ impl Sanaga {
             return;
         }
         self.new_conversation();
+        self.ensure_skills();
         self.assistant_ask(SUMMARY_ASK.to_string(), tr("Résumer la page").to_string(), true);
+    }
+
+    /// Send what is in the field (or `typed`): a question, or a saved
+    /// request called by "/name" with what follows it.
+    pub(super) fn assistant_call(&mut self, typed: &str) {
+        let active = &self.tabs[self.active];
+        let page = (active.id, active.url().to_string());
+        let found = crate::skills::find(&self.skills, typed).map(|(s, rest)| (s.clone(), rest.to_string()));
+        let Some(a) = self.assistant.as_mut() else { return };
+        match found {
+            Some((skill, rest)) => {
+                // (its page goes with it unless the model has it already)
+                if skill.page && !a.given.contains(&page) {
+                    a.with_page = true;
+                }
+                let label = format!("/{}{}{}", skill.name, if rest.is_empty() { "" } else { " " }, rest);
+                self.assistant_ask(crate::skills::expand(&skill, &rest), label, skill.summary && rest.is_empty());
+            }
+            None => self.assistant_ask(typed.trim().to_string(), String::new(), false),
+        }
     }
 
     /// Words selected in a page, to ask about (the page's right-click menu).
@@ -986,6 +1007,7 @@ impl Sanaga {
             .filter(|t| t.id != active_id && matches!(t.view, View::Web | View::Doc(_)) && (!t.private || private) && !t.companion)
             .map(|t| (t.id, t.title(), t.url().to_string()))
             .collect();
+        let all_skills = self.skills.clone();
         let Some(a) = self.assistant.as_mut() else { return };
         // the page shown goes with the next question when the model has
         // not been given it yet (a new page, another tab)
@@ -1006,6 +1028,10 @@ impl Sanaga {
             })
             .take(7)
             .collect();
+        // "/" at the start of what is typed: the saved requests whose name begins so
+        let slash = a.input.strip_prefix('/').filter(|rest| !rest.contains(char::is_whitespace)).map(crate::skills::slug);
+        let skills_offered: Vec<&crate::skills::Skill> = slash.as_ref().map(|typed| all_skills.iter().filter(|s| s.name.starts_with(typed.as_str())).take(8).collect()).unwrap_or_default();
+        let (mut pick_skill, mut manage_skills) = (None::<String>, false);
         let lines = |c: &chat::Call| super::aitools::line(c, &titles);
         let mut steps = steps_of(&a.entries, &a.labels, &lines);
         if let Some(p) = &a.pending {
@@ -1134,8 +1160,34 @@ impl Sanaga {
                     }
                 });
             }
+            // the saved requests that can be called
+            if slash.is_some() && !working && available.is_ok() {
+                Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(4)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    for s in &skills_offered {
+                        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
+                        super::chrome::focus_ring(ui, &resp, r, 7.0, th);
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("/{}. {}", s.name, s.description)));
+                        if resp.hovered() {
+                            ui.painter().rect_filled(r, CornerRadius::same(7), th.accent.gamma_multiply(0.14));
+                        }
+                        let clip = Rect::from_min_max(pos2(r.left() + 10.0, r.top()), pos2(r.right() - 6.0, r.bottom()));
+                        ui.painter().with_clip_rect(clip).fit(pos2(r.left() + 10.0, r.top() + 12.0), egui::Align2::LEFT_CENTER, format!("/{}", s.name), FontId::new(13.0, bold()), th.text);
+                        ui.painter().with_clip_rect(clip).fit(pos2(r.left() + 10.0, r.top() + 27.0), egui::Align2::LEFT_CENTER, &s.description, FontId::proportional(11.5), th.sub);
+                        if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                            pick_skill = Some(s.name.clone());
+                        }
+                    }
+                    if skills_offered.is_empty() {
+                        ui.label(RichText::new(tr("Aucune demande enregistrée ne commence ainsi.")).size(12.0).color(th.sub));
+                    }
+                    if ui.link(RichText::new(tr("Gérer les demandes enregistrées…")).size(12.0)).clicked() {
+                        manage_skills = true;
+                    }
+                });
+            }
             ui.add_space(4.0);
-            let hint = if steps.is_empty() { tr("Posez une question sur cette page…") } else { tr("Poursuivre la conversation…") };
+            let hint = if steps.is_empty() { tr("Posez une question sur cette page… (« / » : demandes enregistrées)") } else { tr("Poursuivre la conversation…") };
             let id = egui::Id::new("assistant-input");
             let field = TextEdit::multiline(&mut a.input)
                 .id(id)
@@ -1157,6 +1209,10 @@ impl Sanaga {
                 if let Some((id, title, _)) = offered.first() {
                     pick_tab = Some((*id, title.clone()));
                 }
+            }
+            // (Enter on the beginning of a saved request's name takes the first one)
+            if enter && slash.is_some() && !skills_offered.is_empty() && !skills_offered.iter().any(|s| Some(&s.name) == slash.as_ref()) {
+                a.input = format!("/{}", skills_offered[0].name);
             }
             if resp.has_focus() && a.picker && ui.input(|i| i.key_pressed(Key::Escape)) {
                 a.picker = false;
@@ -1394,7 +1450,17 @@ impl Sanaga {
             self.summarize_page();
         } else if send {
             let text = self.assistant.as_mut().map(|a| std::mem::take(&mut a.input).trim().to_string()).unwrap_or_default();
-            self.assistant_ask(text, String::new(), false);
+            self.assistant_call(&text);
+        }
+        if let Some(name) = pick_skill {
+            // (its name in the field, ready for what the person adds — or Enter)
+            if let Some(a) = self.assistant.as_mut() {
+                a.input = format!("/{name} ");
+                a.focus = true;
+            }
+        }
+        if manage_skills {
+            self.open_tab("sanaga://skills", false);
         }
     }
 }

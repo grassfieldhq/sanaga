@@ -688,9 +688,12 @@ impl Sanaga {
         if !self.tab_search_open {
             return;
         }
+        self.ensure_skills();
         enum Pick {
             Tab(usize),
             Command(&'static str),
+            /// One of the assistant's saved requests, on the page shown.
+            Skill(String),
             Go(String),
         }
         let w = 560.0;
@@ -725,6 +728,9 @@ impl Sanaga {
                 if label.to_lowercase().contains(&q) {
                     lines.push((Pick::Command(name), String::new(), label.to_string(), tr("Commande").to_string()));
                 }
+            }
+            for s in self.skills.iter().filter(|s| s.name.contains(q.trim_start_matches('/')) || s.description.to_lowercase().contains(&q)).take(4) {
+                lines.push((Pick::Skill(s.name.clone()), String::new(), format!("/{} — {}", s.name, s.description), tr("Assistant").to_string()));
             }
             let mut seen: HashSet<String> = self.tabs.iter().map(|t| super::chrome::same_page_key(t.url())).collect();
             let bm = self.store.bookmarks.iter().filter(|b| b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q)).map(|b| (&b.url, &b.title, true));
@@ -838,6 +844,7 @@ impl Sanaga {
                     self.overview_open = false;
                 }
                 Pick::Command(name) => self.run_shortcut(name),
+                Pick::Skill(name) => self.run_skill(&name),
                 Pick::Go(url) => {
                     let a = self.active;
                     self.navigate(a, url, None, true);

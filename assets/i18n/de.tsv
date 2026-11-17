@@ -1350,3 +1350,33 @@ Historique, onglets, favoris, conversations ; chaque action vous est montrée av
 Garder les conversations sur cet ordinateur	Unterhaltungen auf diesem Computer speichern
 Pour les reprendre et les retrouver ; jamais celles des onglets privés	Um sie fortzusetzen und wiederzufinden; nie die von privaten Tabs
 Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	Ein Modell auf diesem Computer schaut frei nach; bei Claude werden Sie gefragt, wenn es zum ersten Mal in Ihrem Verlauf, Ihren Tabs oder Ihren Favoriten suchen möchte, da ihm das Gefundene gesendet wird. Öffnen, Schließen, Gruppieren, einen Befehl ausführen: immer erst nach Ihrer Zustimmung.
+Aucune demande enregistrée ne commence ainsi.	Keine gespeicherte Anfrage beginnt so.
+Gérer les demandes enregistrées…	Gespeicherte Anfragen verwalten…
+Posez une question sur cette page… (« / » : demandes enregistrées)	Stellen Sie eine Frage zu dieser Seite… („/“: gespeicherte Anfragen)
+Demandes enregistrées	Gespeicherte Anfragen
+Vos demandes fréquentes, appelées par « / » et leur nom	Ihre häufigen Anfragen, aufgerufen mit „/“ und ihrem Namen
+Une demande que vous faites souvent à l'assistant, gardée sous un nom : tapez « / » puis ce nom dans son champ. Ce que vous tapez ensuite part avec elle.	Eine Anfrage, die Sie dem Assistenten oft stellen, unter einem Namen gespeichert: Tippen Sie „/“ und diesen Namen in sein Feld. Was Sie danach tippen, wird mitgesendet.
+{} — fournie avec Sanaga	{} — mit Sanaga geliefert
+Adapter	Anpassen
+Nouvelle demande	Neue Anfrage
+Ouvrir le dossier…	Ordner öffnen…
+Une fenêtre d'invité ne garde pas de demandes.	Ein Gastfenster speichert keine Anfragen.
+Modifier la demande	Anfrage bearbeiten
+Nom (ce que vous taperez après « / »)	Name (was Sie nach „/“ tippen)
+Ex. : avis	Z. B.: urteil
+Ce qu'elle fait, en quelques mots	Was sie tut, in wenigen Worten
+Ex. : les points faibles d'un texte	Z. B.: die Schwächen eines Textes
+Joindre la page affichée	Angezeigte Seite anhängen
+La demande, telle qu'elle part au modèle	Die Anfrage, wie sie an das Modell geht
+Ex. : Relis ce texte comme un lecteur exigeant : dis ce qui n'est pas clair, ce qui manque, et ce qui est de trop.	Z. B.: Lies diesen Text wie ein anspruchsvoller Leser: Sag, was unklar ist, was fehlt und was zu viel ist.
+Écrire la demande avec l'IA	Anfrage mit der KI schreiben
+« /{} » est supprimée.	„/{}“ wurde gelöscht.
+« /{} » est enregistrée : tapez-la dans le champ de l'assistant.	„/{}“ ist gespeichert: Tippen Sie sie in das Feld des Assistenten.
+résumer	zusammenfassen
+L'essentiel de la page en quelques points	Das Wesentliche der Seite in wenigen Punkten
+expliquer	erklären
+La page, ou la sélection, dite simplement	Die Seite oder die Auswahl, einfach gesagt
+comparer	vergleichen
+Les pages jointes : ce qui les rapproche, ce qui les sépare	Die angehängten Seiten: was sie verbindet, was sie trennt
+à-faire	aufgaben
+Ce que la page demande de faire : étapes, dates, montants	Was die Seite von Ihnen verlangt: Schritte, Termine, Beträge

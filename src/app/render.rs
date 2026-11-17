@@ -96,6 +96,7 @@ impl Sanaga {
                 Internal::Sites => self.page_sites(ui, th),
                 Internal::Import => self.page_import(ui, th),
                 Internal::CreateExtension => self.page_create_extension(ui, th),
+                Internal::Skills => self.page_skills(ui, th),
                 Internal::Onboarding => self.page_onboarding(ui, th),
             });
             self.hover_url = None;

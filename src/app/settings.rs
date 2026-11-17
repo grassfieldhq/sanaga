@@ -1410,6 +1410,9 @@ impl Sanaga {
                     &mut st.ai_tools,
                 );
                 changed |= rows.switch(ui, tr("Garder les conversations sur cet ordinateur"), tr("Pour les reprendre et les retrouver ; jamais celles des onglets privés"), &mut st.keep_chats);
+                if rows.link(ui, tr("Demandes enregistrées"), tr("Vos demandes fréquentes, appelées par « / » et leur nom"), "") {
+                    acts.push(Act::Go("sanaga://skills"));
+                }
             });
             footnote(
                 ui,

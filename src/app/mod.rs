@@ -36,6 +36,7 @@ mod settings;
 mod sidebar;
 mod siteid;
 mod sitepanel;
+mod skillspage;
 mod source;
 mod start;
 mod switcher;
@@ -91,6 +92,8 @@ enum Internal {
     Sites,
     Import,
     CreateExtension,
+    /// The assistant's saved requests (`sanaga://skills`).
+    Skills,
     Onboarding,
     /// A protected site (Netflix…) opened where it plays: `sanaga://protected?u=…`.
     Protected,
@@ -143,6 +146,7 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://sites" => Internal::Sites,
         "sanaga://import" => Internal::Import,
         "sanaga://create-extension" => Internal::CreateExtension,
+        "sanaga://skills" => Internal::Skills,
         "sanaga://start" => Internal::Onboarding,
         p if p.starts_with("sanaga://protected") => Internal::Protected,
         _ => return None,
@@ -166,6 +170,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::Sites => tr("Paramètres des sites"),
         Internal::Import => tr("Importer depuis un autre navigateur"),
         Internal::CreateExtension => tr("Créer une extension"),
+        Internal::Skills => tr("Demandes enregistrées"),
         Internal::Onboarding => tr("Bienvenue dans Sanaga"),
         Internal::Protected => tr("Contenu protégé"),
     }
@@ -668,6 +673,10 @@ pub struct Sanaga {
     /// The assistant's conversations kept on this computer (opened when
     /// the assistant is first used).
     chats: Option<crate::chats::Chats>,
+    /// The assistant's saved requests (read once, and after a change), and
+    /// the form of their page.
+    skills: Vec<crate::skills::Skill>,
+    skill_form: skillspage::SkillForm,
     ai_tx: std::sync::mpsc::Sender<intelligence::AiDone>,
     ai_rx: Receiver<intelligence::AiDone>,
     ext_form: intelligence::ExtForm,
@@ -1050,6 +1059,8 @@ impl Sanaga {
             store_seen: crate::store::CHANGES.load(Ordering::Relaxed),
             assistant: None,
             chats: None,
+            skills: Vec::new(),
+            skill_form: Default::default(),
             ai_tx,
             ai_rx,
             ext_form: Default::default(),

@@ -1350,3 +1350,33 @@ Historique, onglets, favoris, conversations ; chaque action vous est montrée av
 Garder les conversations sur cet ordinateur	Guardar as conversas neste computador
 Pour les reprendre et les retrouver ; jamais celles des onglets privés	Para as retomar e reencontrar; nunca as dos separadores privados
 Un modèle sur cet ordinateur consulte librement ; avec Claude, vous êtes interrogé la première fois qu'il veut chercher dans votre historique, vos onglets ou vos favoris, puisque ce qu'il y trouve lui est envoyé. Ouvrir, fermer, grouper, lancer une commande : toujours après votre accord.	Um modelo neste computador consulta livremente; com o Claude, é-lhe perguntado da primeira vez que ele quer procurar no seu histórico, nos seus separadores ou nos seus favoritos, pois o que lá encontra é-lhe enviado. Abrir, fechar, agrupar, executar um comando: sempre com o seu acordo.
+Aucune demande enregistrée ne commence ainsi.	Nenhum pedido guardado começa assim.
+Gérer les demandes enregistrées…	Gerir os pedidos guardados…
+Posez une question sur cette page… (« / » : demandes enregistrées)	Faça uma pergunta sobre esta página… («/»: pedidos guardados)
+Demandes enregistrées	Pedidos guardados
+Vos demandes fréquentes, appelées par « / » et leur nom	Os seus pedidos frequentes, chamados com «/» e o seu nome
+Une demande que vous faites souvent à l'assistant, gardée sous un nom : tapez « / » puis ce nom dans son champ. Ce que vous tapez ensuite part avec elle.	Um pedido que faz muitas vezes ao assistente, guardado com um nome: escreva «/» e esse nome no campo dele. O que escrever a seguir segue com ele.
+{} — fournie avec Sanaga	{} — fornecido com o Sanaga
+Adapter	Adaptar
+Nouvelle demande	Novo pedido
+Ouvrir le dossier…	Abrir a pasta…
+Une fenêtre d'invité ne garde pas de demandes.	Uma janela de convidado não guarda pedidos.
+Modifier la demande	Editar o pedido
+Nom (ce que vous taperez après « / »)	Nome (o que escreverá depois de «/»)
+Ex. : avis	Ex.: opinião
+Ce qu'elle fait, en quelques mots	O que faz, em poucas palavras
+Ex. : les points faibles d'un texte	Ex.: os pontos fracos de um texto
+Joindre la page affichée	Juntar a página apresentada
+La demande, telle qu'elle part au modèle	O pedido, tal como segue para o modelo
+Ex. : Relis ce texte comme un lecteur exigeant : dis ce qui n'est pas clair, ce qui manque, et ce qui est de trop.	Ex.: Relê este texto como um leitor exigente: diz o que não está claro, o que falta e o que está a mais.
+Écrire la demande avec l'IA	Escrever o pedido com a IA
+« /{} » est supprimée.	«/{}» foi eliminado.
+« /{} » est enregistrée : tapez-la dans le champ de l'assistant.	«/{}» foi guardado: escreva-o no campo do assistente.
+résumer	resumir
+L'essentiel de la page en quelques points	O essencial da página em alguns pontos
+expliquer	explicar
+La page, ou la sélection, dite simplement	A página, ou a seleção, dita de forma simples
+comparer	comparar
+Les pages jointes : ce qui les rapproche, ce qui les sépare	As páginas juntas: o que as aproxima, o que as separa
+à-faire	tarefas
+Ce que la page demande de faire : étapes, dates, montants	O que a página pede para fazer: passos, datas, montantes

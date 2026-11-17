@@ -46,6 +46,7 @@ mod net;
 mod page;
 mod shell;
 mod site_prefs;
+mod skills;
 mod store;
 mod sync;
 mod system_look;
