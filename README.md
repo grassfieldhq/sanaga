@@ -373,6 +373,9 @@ fixed, and what still separates them from the very best:
 What people dislike in Chrome, Firefox and Safari, checked against Sanaga:
 [docs/AUDIT.md](docs/AUDIT.md).
 
+What the Dia browser does better than Sanaga, and what it takes to get
+there: [docs/DIA-AUDIT-2026-11-17.md](docs/DIA-AUDIT-2026-11-17.md).
+
 ## Roadmap
 
 What is left before Sanaga is a production-ready daily browser, in order:
