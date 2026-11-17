@@ -1550,6 +1550,11 @@ impl Sanaga {
     /// This window is closed for good while Sanaga goes on: its pages end
     /// (each page's engine process with it).
     pub fn release_pages(&mut self) {
+        // (their questions still waiting get "no" first: the engine waits
+        // for a page that waits for an answer)
+        for (_, key) in self.dialogs.drain(..) {
+            crate::page::answer_dialog(key, false, "", "");
+        }
         for t in &mut self.tabs {
             t.web = None;
             t.web_shown = false;
@@ -2291,8 +2296,16 @@ impl Sanaga {
         }
 
         if self.tabs.iter().any(|t| t.loading) {
-            // (with the screen's own refresh: the loading bar moves smoothly)
-            ctx.request_repaint();
+            if self.shown_dialog().is_some() {
+                // A page's question is waiting: its engine process stands
+                // still until it is answered, and each drawing of the
+                // window waits for that page. Drawn at every refresh, the
+                // window did nothing else — closing it never got its turn.
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            } else {
+                // (with the screen's own refresh: the loading bar moves smoothly)
+                ctx.request_repaint();
+            }
         }
         if !ctx.input(|i| i.pointer.primary_down()) {
             crate::desktop::end_move();

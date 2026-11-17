@@ -222,7 +222,12 @@ impl Sanaga {
                     continue;
                 }
                 let indent = if g > 0 { 10.0 } else { 0.0 } + depth.min(5) as f32 * 14.0;
-                let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click_and_drag());
+                // (a row is known by its tab, not by its place: named by its
+                // place, the row a drag began on held another tab as soon
+                // as the dragged one had moved, and that one was dragged
+                // in turn — the tabs kept turning while the button was held)
+                let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::hover());
+                let resp = ui.interact(r, ui.id().with(("vtab", self.tabs[i].id)), Sense::click_and_drag());
                 let r = Rect::from_min_max(pos2(r.left() + 8.0 + indent, r.top()), pos2(r.right() - 8.0, r.bottom()));
                 rows.push((i, r));
                 let tab = &self.tabs[i];

@@ -309,6 +309,17 @@ pub fn dialog(key: u64) -> Option<DialogInfo> {
 
 /// Answer dialog `key`: OK / Cancel, the text typed (prompt), or the user
 /// name and password (login).
+/// Sanaga quits: every question still waiting gets "no". A page waiting for
+/// its answer holds its engine process, and the engine in turn waited for
+/// that process when the window closed — Sanaga stayed there, window gone,
+/// for more than half a minute.
+pub fn dismiss_dialogs() {
+    let keys: Vec<u64> = DIALOGS.with(|d| d.borrow().iter().map(|x| x.0).collect());
+    for key in keys {
+        answer_dialog(key, false, "", "");
+    }
+}
+
 pub fn answer_dialog(key: u64, ok: bool, text: &str, password: &str) {
     let Some((_, p, _)) = DIALOGS.with(|d| {
         let mut d = d.borrow_mut();

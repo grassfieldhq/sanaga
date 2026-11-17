@@ -514,15 +514,29 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32, password: bool
     ui.add(TextEdit::singleline(value).hint_text(hint).desired_width(width).password(password)).changed()
 }
 
-/// A text field that counts once it is finished: true when it is left, or
-/// Enter is pressed, after its text was changed.
+/// A text field that counts once it is finished: what is typed stays a
+/// draft until the field is left or Enter is pressed, and only then becomes
+/// the value (true: it changed). Typed straight into the setting, a path
+/// being written was already "the sync folder" for the round that runs
+/// every half minute.
 fn finished_field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> bool {
-    let r = ui.add(TextEdit::singleline(value).hint_text(hint).desired_width(width));
-    let unfinished = r.id.with("unfinished");
-    if r.changed() {
-        ui.data_mut(|d| d.insert_temp(unfinished, true));
+    let draft_id = ui.id().with(("draft", hint));
+    let mut draft: String = ui.data(|d| d.get_temp::<String>(draft_id)).unwrap_or_else(|| value.clone());
+    let r = ui.add(TextEdit::singleline(&mut draft).hint_text(hint).desired_width(width));
+    if r.lost_focus() {
+        ui.data_mut(|d| d.remove_temp::<String>(draft_id));
+        if draft != *value {
+            *value = draft;
+            return true;
+        }
+    } else if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(draft_id, draft));
+    } else {
+        // (left without a word — the page was closed while typing: the
+        // draft is dropped, the field shows the value again)
+        ui.data_mut(|d| d.remove_temp::<String>(draft_id));
     }
-    r.lost_focus() && ui.data_mut(|d| d.remove_temp::<bool>(unfinished)).unwrap_or(false)
+    false
 }
 
 /// A choice drawn as a small picture of the window (where the tabs and the

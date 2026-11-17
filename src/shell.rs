@@ -127,7 +127,7 @@ fn run_window(slot: usize) {
     update(&mut g, &area, &input, &host, &im);
     // Ctrl+N, a tab moved to a new window
     if let Some(urls) = g.app.take_window_request() {
-        glib::idle_add_local_once(move || {
+        glib::timeout_add_local_once(Duration::ZERO, move || {
             open_window(urls);
         });
     }
@@ -1014,6 +1014,8 @@ fn incoming(text: String, profile: Vec<String>) {
 }
 
 fn quit_main() {
+    // (no page is left waiting for an answer: see `dismiss_dialogs`)
+    crate::page::dismiss_dialogs();
     MAIN.with(|m| {
         if let Some(l) = m.borrow().as_ref() {
             l.quit();
@@ -1334,7 +1336,7 @@ fn close_window(host: &Rc<Host>, gui: &Rc<RefCell<Gui>>) {
     // Sanaga goes on with its other windows: this one's pages end now
     // (once GTK is done closing it)
     let (host, gui) = (host.clone(), Rc::downgrade(gui));
-    glib::idle_add_local_once(move || release_window(host, gui));
+    glib::timeout_add_local_once(Duration::ZERO, move || release_window(host, gui));
 }
 
 /// A closed window lets go of everything: its pages end (their engine
@@ -2075,11 +2077,13 @@ fn update(g: &mut Gui, area: &gtk::GLArea, input: &Rc<RefCell<Input>>, host: &Rc
     }
     if close {
         if g.app.take_quit_all() {
-            glib::idle_add_local_once(quit_all);
+            // (not "when idle": a window that keeps drawing is never idle,
+            // and the request to close then waited for ever — see below)
+            glib::timeout_add_local_once(Duration::ZERO, quit_all);
         } else {
             // close this window (as its close button does), once this frame is done
             let win = host.window.clone();
-            glib::idle_add_local_once(move || win.close());
+            glib::timeout_add_local_once(Duration::ZERO, move || win.close());
         }
         return;
     }
