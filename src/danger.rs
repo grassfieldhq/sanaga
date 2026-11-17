@@ -77,7 +77,8 @@ pub fn listed_in(list: &[u64], host: &str) -> bool {
     // (down to a name of two parts: never a whole ending like `.com`)
     let mut rest = host;
     while let Some((_, parent)) = rest.split_once('.') {
-        if !parent.contains('.') {
+        // (nor a number address: only names have parts)
+        if !parent.contains('.') || parent.parse::<std::net::Ipv4Addr>().is_ok() {
             break;
         }
         if has(parent) {
