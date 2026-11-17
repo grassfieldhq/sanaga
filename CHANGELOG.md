@@ -427,6 +427,10 @@ All notable changes to Sanaga are listed here. The format follows
   now cut where reading stops, its "…" on the left, as pages do. The
   Reader and the Light engine set such paragraphs against the right, line
   by line, with their links and numbers in place.
+- Arabic (and the other scripts whose letters join or stack) keeps the
+  system's font that knows how to shape it, whatever was shown before: a
+  catch-all font found earlier for another script (GNU Unifont) drew it as
+  loose letters.
 - Titles and names in other alphabets (Arabic, Hebrew, Devanagari, Chinese,
   Cherokee...) show in the interface with whatever font the system has for
   them (asked to fontconfig when first needed); only a fixed list of Noto
