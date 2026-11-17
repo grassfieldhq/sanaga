@@ -1311,3 +1311,15 @@ La réponse du modèle a été coupée avant la fin.	A resposta do modelo foi co
 {} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} não sabe usar ferramentas: responde com o que lhe juntou.
 Le modèle a demandé trop d'outils sans répondre.	O modelo pediu demasiadas ferramentas sem responder.
 Demander à l'assistant…	Perguntar ao assistente…
+Joindre un fichier	Juntar um ficheiro
+Non lu (page vide ou trop lente à charger) : {}	Não lido (página vazia ou demasiado lenta a carregar): {}
++ Joindre	+ Juntar
+Joindre un autre onglet (ou tapez @) ou un fichier : texte, image, PDF	Juntar outro separador (ou escreva @) ou um ficheiro: texto, imagem, PDF
+Aucun autre onglet ouvert.	Nenhum outro separador aberto.
+Aucun onglet ne porte ce nom.	Nenhum separador tem este nome.
+Un fichier… (texte, image, PDF)	Um ficheiro… (texto, imagem, PDF)
+Ce n'est pas un fichier.	Não é um ficheiro.
+« {} » est trop gros ({} Mo au plus pour ce type de fichier).	«{}» é demasiado grande ({} MB no máximo para este tipo de ficheiro).
+Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	O Sanaga não sabe ler «{}»: junte um texto, uma imagem ou um PDF (um documento Word ou Excel pode ser guardado em PDF).
+Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	Um modelo neste computador não lê PDF: só o Claude os lê.
+Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	Este modelo não lê imagens nem PDF: retire-os, ou escolha Claude ou Ollama em Definições › Inteligência.

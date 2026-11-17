@@ -10,6 +10,7 @@
 //! - a page's text is sent once, with the question it is attached to — not
 //!   again with every later question.
 
+use super::chrome::Fit as _;
 use super::intelligence::AiDone;
 use super::*;
 use crate::ai::{self, Provider};
@@ -124,6 +125,8 @@ pub(super) enum Attach {
     Text(Source),
     /// A picture or a PDF.
     File(Attachment),
+    /// Another open tab: its page is read when the question is sent.
+    Tab { id: u64, title: String },
 }
 
 impl Attach {
@@ -132,6 +135,7 @@ impl Attach {
             Attach::Text(s) if s.kind == SourceKind::Selection => tr("Sélection").to_string(),
             Attach::Text(s) => s.title.clone(),
             Attach::File(f) => f.name.clone(),
+            Attach::Tab { title, .. } => title.clone(),
         }
     }
 }
@@ -142,10 +146,45 @@ struct Pending {
     /// What the person sees in place of `text` (a summary's long request).
     label: String,
     summary: bool,
-    /// The pages asked for: (ticket, tab, address when asked, what came).
-    pages: Vec<(u64, u64, String, Option<Source>)>,
+    /// The pages asked for.
+    pages: Vec<PageWait>,
     extra: Vec<Attach>,
     since: f64,
+}
+
+/// A tab whose page is read for a question.
+struct PageWait {
+    tab: u64,
+    /// Its address when the question was sent.
+    address: String,
+    /// The request made to its page, once the page is there to answer (a
+    /// tab asleep or never shown starts its page first).
+    ticket: Option<u64>,
+    /// What came back: its text, or — a PDF — the document itself.
+    got: Option<Source>,
+    file: Option<Attachment>,
+}
+
+/// How many tabs can go with one question.
+const MAX_TABS: usize = 8;
+
+/// The text of a page shown by the Light engine (or the Reader).
+fn doc_text(d: &Document) -> String {
+    use crate::html::Block;
+    let mut out = String::new();
+    for b in &d.blocks {
+        let line = match b {
+            Block::Heading(_, spans) | Block::Para(spans) | Block::Quote(spans) => Document::plain_text(spans),
+            Block::ListItem { spans, .. } => format!("• {}", Document::plain_text(spans)),
+            Block::Pre(text) => text.clone(),
+            _ => continue,
+        };
+        if !line.trim().is_empty() {
+            out.push_str(line.trim_end());
+            out.push_str("\n\n");
+        }
+    }
+    out.trim_end().to_string()
 }
 
 pub(super) struct Assistant {
@@ -157,8 +196,11 @@ pub(super) struct Assistant {
     /// The conversation's instructions and tools: those it began with.
     system: String,
     tools: Vec<chat::Tool>,
-    /// Began in a private tab: only a model on this computer, nothing kept.
+    /// Something of a private tab is in it: only a model on this computer
+    /// may answer from then on, and nothing is kept.
     private: bool,
+    /// The list of tabs and files to attach is open.
+    picker: bool,
     /// The question being typed, and what is attached to it.
     input: String,
     attach: Vec<Attach>,
@@ -193,6 +235,7 @@ impl Assistant {
             system: String::new(),
             tools: Vec::new(),
             private,
+            picker: false,
             input: String::new(),
             attach: Vec::new(),
             with_page: true,
@@ -217,6 +260,20 @@ impl Assistant {
     fn questions(&self) -> usize {
         self.entries.iter().filter(|e| matches!(e, chat::Entry::User { .. })).count()
     }
+}
+
+/// Where an "@" that begins a tab's name being typed is in the question:
+/// at its start or after a space, with no space after it.
+fn mention_at(input: &str) -> Option<usize> {
+    let at = input.rfind('@')?;
+    let before_ok = input[..at].chars().next_back().is_none_or(|c| c.is_whitespace());
+    let after = &input[at + 1..];
+    (before_ok && !after.chars().any(|c| c.is_whitespace())).then_some(at)
+}
+
+/// What is typed after that "@".
+fn mention_of(input: &str) -> Option<&str> {
+    mention_at(input).map(|at| &input[at + 1..])
 }
 
 /// The name a source is shown under, with the note of a text that was cut.
@@ -266,9 +323,13 @@ fn steps_of(entries: &[chat::Entry], labels: &HashMap<usize, String>, tool_line:
 
 impl Sanaga {
     /// The model a conversation may use in this tab, or why there is none.
-    fn chat_provider(&self, tab: u64) -> Result<Provider, String> {
+    /// (`private`: the conversation already holds something of a private tab.)
+    fn chat_provider(&self, tab: u64, private: bool) -> Result<Provider, String> {
         let chosen = self.ai_provider();
-        let provider = self.page_text_provider(tab);
+        let provider = match self.page_text_provider(tab) {
+            Provider::Claude { .. } | Provider::Cli { .. } if private => Provider::Local,
+            p => p,
+        };
         if provider == Provider::Local {
             return Err(if chosen != Provider::Local {
                 tr("Dans un onglet privé, seul un modèle sur cet ordinateur (Ollama) peut répondre : le texte de la page ne sort pas.").to_string()
@@ -344,6 +405,32 @@ impl Sanaga {
         }
     }
 
+    /// Let the person choose a file to attach to the question; it is read
+    /// on a thread.
+    fn attach_file(&mut self) {
+        let Some(path) = crate::shell::choose_file(tr("Joindre un fichier"), &[], "", None) else { return };
+        self.attach_path(path);
+    }
+
+    /// Attach this file to the question being typed.
+    pub(super) fn attach_path(&mut self, path: std::path::PathBuf) {
+        if let Some(a) = self.assistant.as_mut() {
+            a.picker = false;
+        }
+        self.off_thread(
+            move || chat::read_file(&path),
+            |app, read| {
+                let Some(a) = app.assistant.as_mut() else { return };
+                match read {
+                    Ok(chat::FileRead::Text(s)) => a.attach.push(Attach::Text(s)),
+                    Ok(chat::FileRead::Binary(f)) => a.attach.push(Attach::File(f)),
+                    Err(why) => a.note = why,
+                }
+                a.focus = true;
+            },
+        );
+    }
+
     /// Ask a page for its text; it comes back as `AiDone::PageText`.
     fn request_page_text(&mut self, tab: u64) -> Option<u64> {
         let t = self.tabs.iter().find(|t| t.id == tab)?;
@@ -351,9 +438,25 @@ impl Sanaga {
         self.ai_run += 1;
         let ticket = self.ai_run;
         let (tx, repaint) = (self.ai_tx.clone(), self.ctx.clone());
+        let (view, address) = (w.webview(), t.url().to_string());
         w.ask_own(PAGE_JS, move |answer| {
-            let _ = tx.send(AiDone::PageText { ticket, text: answer.as_deref().and_then(read_page_text) });
-            repaint.request_repaint();
+            let text = answer.as_deref().and_then(read_page_text);
+            if text.as_ref().is_some_and(|t| !t.text.trim().is_empty()) {
+                let _ = tx.send(AiDone::PageText { ticket, text });
+                repaint.request_repaint();
+                return;
+            }
+            // No text: a PDF is shown by the engine's own reader, in a
+            // frame apart that no script of Sanaga's reads. The document
+            // itself is taken, as the engine holds it (nothing is fetched
+            // again), for the models that read PDFs.
+            crate::page::main_resource_bytes(&view, chat::MAX_PDF as usize, move |got| {
+                let _ = tx.send(match got.and_then(|(_, bytes)| chat::pdf_of_tab(&address, &bytes)) {
+                    Some(file) => AiDone::PageFile { ticket, file },
+                    None => AiDone::PageText { ticket, text },
+                });
+                repaint.request_repaint();
+            });
         });
         Some(ticket)
     }
@@ -367,17 +470,53 @@ impl Sanaga {
             return;
         }
         let with_page = a.with_page || summary;
-        let extra = std::mem::take(&mut a.attach);
+        let mut extra = std::mem::take(&mut a.attach);
         a.note.clear();
-        let mut pages = Vec::new();
+        a.picker = false;
+        // the tabs to read: the one shown, then those attached
+        let mut tabs: Vec<u64> = Vec::new();
         if with_page {
-            let address = self.tabs[self.active].url().to_string();
-            if let Some(ticket) = self.request_page_text(active) {
-                pages.push((ticket, active, address, None));
+            tabs.push(active);
+        }
+        extra.retain(|x| match x {
+            Attach::Tab { id, .. } => {
+                if !tabs.contains(id) && tabs.len() < MAX_TABS {
+                    tabs.push(*id);
+                }
+                false
             }
+            _ => true,
+        });
+        let mut pages = Vec::new();
+        let mut private = false;
+        for id in tabs {
+            let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) else { continue };
+            private |= t.private;
+            let address = t.url().to_string();
+            let got = match &t.view {
+                // a page the Light engine shows: its text is at hand
+                View::Doc(d) => Some(Source { kind: SourceKind::Page, title: t.title(), address: address.clone(), text: doc_text(d), cut: None }),
+                View::Web => {
+                    // a tab asleep, or never shown yet: its page starts, behind
+                    if t.web.is_none() {
+                        if t.web_pending.is_none() {
+                            t.sleeping = false;
+                            t.web_pending = Some(address.clone());
+                        }
+                        // (it is read once it has loaded: see assistant_step)
+                        t.loading = true;
+                        t.load_behind = true;
+                    }
+                    None
+                }
+                // (one of Sanaga's own pages: nothing to read)
+                _ => continue,
+            };
+            pages.push(PageWait { tab: id, address, ticket: None, got, file: None });
         }
         let now = self.ctx.input(|i| i.time);
         if let Some(a) = self.assistant.as_mut() {
+            a.private |= private;
             a.pending = Some(Pending { text, label, summary, pages, extra, since: now });
         }
     }
@@ -385,24 +524,55 @@ impl Sanaga {
     /// A page's text arrived.
     pub(super) fn page_text_arrived(&mut self, ticket: u64, text: Option<PageText>) {
         let Some(p) = self.assistant.as_mut().and_then(|a| a.pending.as_mut()) else { return };
-        let Some(slot) = p.pages.iter_mut().find(|x| x.0 == ticket) else { return };
+        let Some(slot) = p.pages.iter_mut().find(|x| x.ticket == Some(ticket)) else { return };
         let got = text.unwrap_or(PageText { title: String::new(), text: String::new(), whole: 0, selection: String::new() });
         let shown = got.text.chars().count();
-        slot.3 = Some(Source {
+        slot.got = Some(Source {
             kind: SourceKind::Page,
             title: got.title,
-            address: slot.2.clone(),
+            address: slot.address.clone(),
             // (a page longer than what the page script hands over)
             cut: (got.whole > got.text.len() && shown > 0).then_some((shown, got.whole.max(shown))),
             text: got.text,
         });
     }
 
+    /// A tab asked for its text shows a PDF: the document came instead.
+    pub(super) fn page_file_arrived(&mut self, ticket: u64, file: Attachment) {
+        let Some(p) = self.assistant.as_mut().and_then(|a| a.pending.as_mut()) else { return };
+        let Some(slot) = p.pages.iter_mut().find(|x| x.ticket == Some(ticket)) else { return };
+        slot.got = Some(Source { kind: SourceKind::Page, title: String::new(), address: slot.address.clone(), text: String::new(), cut: None });
+        slot.file = Some(file);
+    }
+
     /// Once the pages of a question have answered (or been waited for long
     /// enough), the question goes to the model.
     pub(super) fn assistant_step(&mut self) {
         let now = self.ctx.input(|i| i.time);
-        let ready = self.assistant.as_ref().and_then(|a| a.pending.as_ref()).is_some_and(|p| p.pages.iter().all(|x| x.3.is_some()) || now - p.since > 8.0);
+        // the pages that can answer now are asked (a tab whose page had to
+        // start answers once it has loaded)
+        let waiting: Vec<u64> =
+            self.assistant.as_ref().and_then(|a| a.pending.as_ref()).map(|p| p.pages.iter().filter(|x| x.got.is_none() && x.ticket.is_none()).map(|x| x.tab).collect()).unwrap_or_default();
+        for tab in waiting {
+            let state = self.tabs.iter().find(|t| t.id == tab).map(|t| t.web.is_some() && !t.loading);
+            let ticket = match state {
+                Some(true) => self.request_page_text(tab),
+                Some(false) => continue,
+                None => None,
+            };
+            if let Some(slot) = self.assistant.as_mut().and_then(|a| a.pending.as_mut()).and_then(|p| p.pages.iter_mut().find(|x| x.tab == tab && x.ticket.is_none())) {
+                match ticket {
+                    Some(t) => slot.ticket = Some(t),
+                    // (the tab was closed meanwhile, or shows no page any more)
+                    None => slot.got = Some(Source { kind: SourceKind::Page, title: String::new(), address: slot.address.clone(), text: String::new(), cut: None }),
+                }
+            }
+        }
+        // (a page that has to load first is given more time)
+        let ready = self.assistant.as_ref().and_then(|a| a.pending.as_ref()).is_some_and(|p| {
+            let patience = if p.pages.iter().any(|x| x.ticket.is_none() && x.got.is_none()) { 25.0 } else { 8.0 };
+            p.pages.iter().all(|x| x.got.is_some()) || now - p.since > patience
+        });
         if !ready {
             if self.assistant.as_ref().is_some_and(|a| a.pending.is_some()) {
                 self.ctx.request_repaint_after(std::time::Duration::from_millis(200));
@@ -418,18 +588,34 @@ impl Sanaga {
             match x {
                 Attach::Text(s) => sources.push(s),
                 Attach::File(f) => files.push(f),
+                Attach::Tab { .. } => {}
             }
         }
-        for (_, tab, address, got) in p.pages {
-            if let Some(s) = got.filter(|s| !s.text.trim().is_empty()) {
-                given.push((tab, address));
-                sources.push(s);
+        // (a tab that gave nothing — it did not load in time, or holds no
+        // text — is said, not passed over in silence)
+        let mut unread: Vec<String> = Vec::new();
+        for w in p.pages {
+            if let Some(file) = w.file {
+                given.push((w.tab, w.address));
+                files.push(file);
+                continue;
+            }
+            match w.got.filter(|s| !s.text.trim().is_empty()) {
+                Some(s) => {
+                    given.push((w.tab, w.address));
+                    sources.push(s);
+                }
+                None => unread.push(self.tabs.iter().find(|t| t.id == w.tab).map(|t| t.title()).unwrap_or(w.address)),
             }
         }
         let page_words: usize = sources.iter().filter(|s| s.kind == SourceKind::Page).map(|s| s.text.split_whitespace().count()).sum();
         let own_summary = sources.iter().find(|s| s.kind == SourceKind::Page).map(|s| ai::local_summary(&s.text, 6)).unwrap_or_default();
-        let provider = self.chat_provider(active);
+        let private = self.assistant.as_ref().is_some_and(|a| a.private);
+        let provider = self.chat_provider(active, private).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
         let Some(a) = self.assistant.as_mut() else { return };
+        if !unread.is_empty() && !p.summary {
+            a.note = tf("Non lu (page vide ou trop lente à charger) : {}", &[&unread.join(", ")]);
+        }
         if !p.label.is_empty() {
             a.labels.insert(a.questions(), p.label.clone());
         }
@@ -452,8 +638,14 @@ impl Sanaga {
                     let chosen_none = self.store.settings.ai.is_empty();
                     said(a, own_summary, Provider::Local.label(), if chosen_none { String::new() } else { why });
                 } else {
-                    a.entries.pop();
+                    // (nothing was sent: the question and what was attached
+                    // go back to the field)
+                    if let Some(chat::Entry::User { text, .. }) = a.entries.pop() {
+                        a.input = text;
+                    }
                     a.labels.remove(&a.questions());
+                    a.attach.extend(sources.into_iter().filter(|s| s.kind != SourceKind::Page).map(Attach::Text));
+                    a.attach.extend(files.into_iter().map(Attach::File));
                     a.note = why;
                 }
                 return;
@@ -580,13 +772,33 @@ impl Sanaga {
         let (active_id, active_url, active_title) = (active.id, active.url().to_string(), active.title());
         let page_can = active.web.is_some() && matches!(active.view, View::Web);
         let no_model = self.ai_provider() == Provider::Local;
-        let available = self.chat_provider(active_id);
+        let private = self.assistant.as_ref().is_some_and(|a| a.private) || active.private;
+        let available = self.chat_provider(active_id, private);
+        // the other tabs whose page can go with a question (a private
+        // tab's only into a conversation that is already private)
+        let others: Vec<(u64, String, String)> = self
+            .tabs
+            .iter()
+            .filter(|t| t.id != active_id && matches!(t.view, View::Web | View::Doc(_)) && (!t.private || private) && !t.companion)
+            .map(|t| (t.id, t.title(), t.url().to_string()))
+            .collect();
         let Some(a) = self.assistant.as_mut() else { return };
         // the page shown goes with the next question when the model has
         // not been given it yet (a new page, another tab)
         let fresh = page_can && !a.given.contains(&(active_id, active_url.clone()));
         let (mut close, mut renew, mut choose, mut stop, mut send, mut again, mut summarise, mut edit, mut copy) = (false, false, false, false, false, false, false, false, None::<String>);
         let mut drop_attach: Option<usize> = None;
+        let (mut pick_file, mut pick_tab) = (false, None::<(u64, String)>);
+        // "@" at the end of what is typed: the tabs whose name holds what follows it
+        let mention = mention_of(&a.input).map(|m| m.to_lowercase());
+        let offered: Vec<&(u64, String, String)> = others
+            .iter()
+            .filter(|(id, title, url)| {
+                !a.attach.iter().any(|x| matches!(x, Attach::Tab { id: had, .. } if had == id))
+                    && mention.as_ref().is_none_or(|m| title.to_lowercase().contains(m.as_str()) || url.to_lowercase().contains(m.as_str()))
+            })
+            .take(7)
+            .collect();
         let lines = |c: &chat::Call| c.name.clone();
         let mut steps = steps_of(&a.entries, &a.labels, &lines);
         if let Some(p) = &a.pending {
@@ -647,7 +859,43 @@ impl Sanaga {
                         drop_attach = Some(k);
                     }
                 }
+                let more = egui::Button::new(RichText::new(tr("+ Joindre")).size(12.0).color(th.sub)).fill(th.card).corner_radius(CornerRadius::same(10));
+                if ui.add_enabled(!working && available.is_ok(), more).tip(tr("Joindre un autre onglet (ou tapez @) ou un fichier : texte, image, PDF")).clicked() {
+                    a.picker = !a.picker;
+                }
             });
+            // the tabs and files that can be attached
+            if (a.picker || mention.is_some()) && !working && available.is_ok() {
+                Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(4)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    let row = |ui: &mut Ui, icon: Option<Icon>, title: &str, sub: &str| {
+                        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
+                        super::chrome::focus_ring(ui, &resp, r, 7.0, th);
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, title));
+                        if resp.hovered() {
+                            ui.painter().rect_filled(r, CornerRadius::same(7), th.accent.gamma_multiply(0.14));
+                        }
+                        match icon {
+                            Some(icon) => icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 14.0, r.center().y), vec2(13.0, 13.0)), icon, th.sub),
+                            None => super::chrome::site_badge(ui.painter(), pos2(r.left() + 14.0, r.center().y), 8.0, sub, title),
+                        }
+                        let clip = Rect::from_min_max(pos2(r.left() + 30.0, r.top()), pos2(r.right() - 6.0, r.bottom()));
+                        ui.painter().with_clip_rect(clip).fit(pos2(r.left() + 30.0, r.center().y), egui::Align2::LEFT_CENTER, title, FontId::proportional(12.5), th.text);
+                        resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
+                    };
+                    for (id, title, url) in &offered {
+                        if row(ui, None, title, url) {
+                            pick_tab = Some((*id, title.clone()));
+                        }
+                    }
+                    if offered.is_empty() {
+                        ui.label(RichText::new(if others.is_empty() { tr("Aucun autre onglet ouvert.") } else { tr("Aucun onglet ne porte ce nom.") }).size(12.0).color(th.sub));
+                    }
+                    if mention.is_none() && row(ui, Some(Icon::Folder), tr("Un fichier… (texte, image, PDF)"), "") {
+                        pick_file = true;
+                    }
+                });
+            }
             ui.add_space(4.0);
             let hint = if steps.is_empty() { tr("Posez une question sur cette page…") } else { tr("Poursuivre la conversation…") };
             let id = egui::Id::new("assistant-input");
@@ -664,7 +912,17 @@ impl Sanaga {
                 resp.request_focus();
                 a.focus = false;
             }
-            let enter = (resp.has_focus() || resp.lost_focus()) && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift);
+            let mut enter = (resp.has_focus() || resp.lost_focus()) && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift);
+            // (Enter while a tab's name is being typed after "@" takes the first one)
+            if enter && mention.is_some() {
+                enter = false;
+                if let Some((id, title, _)) = offered.first() {
+                    pick_tab = Some((*id, title.clone()));
+                }
+            }
+            if resp.has_focus() && a.picker && ui.input(|i| i.key_pressed(Key::Escape)) {
+                a.picker = false;
+            }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 if working {
@@ -770,6 +1028,17 @@ impl Sanaga {
         if let Some(k) = drop_attach {
             a.attach.remove(k);
         }
+        if let Some((id, title)) = pick_tab {
+            if a.attach.iter().filter(|x| matches!(x, Attach::Tab { .. })).count() < MAX_TABS {
+                a.attach.push(Attach::Tab { id, title });
+            }
+            // (the "@name" typed to find it leaves the question)
+            if let Some(at) = mention_at(&a.input) {
+                a.input.truncate(at);
+            }
+            a.picker = false;
+            a.focus = true;
+        }
         if fresh && !working && !a.with_page && a.input.is_empty() && a.attach.is_empty() && a.tab != active_id {
             // (the person moved to another tab: its page is offered again)
             a.with_page = true;
@@ -807,6 +1076,9 @@ impl Sanaga {
         if choose {
             self.open_settings(&super::settings::Section::Intelligence.address());
         }
+        if pick_file {
+            self.attach_file();
+        }
         if close {
             self.close_assistant();
         } else if renew {
@@ -835,6 +1107,22 @@ mod tests {
         crate::mutate::run(&[br#"{"title":"t","text":"x","whole":1,"selection":""}"#], 5_000, |d| {
             let _ = read_page_text(&String::from_utf8_lossy(d));
         });
+    }
+
+    #[test]
+    fn a_tabs_name_is_typed_after_an_at_sign() {
+        assert_eq!(mention_of("Compare avec @wiki"), Some("wiki"));
+        assert_eq!(mention_of("@"), Some(""));
+        assert_eq!(mention_of("Compare @wiki et"), None, "a space ends the name");
+        assert_eq!(mention_of("écris à jean@example.org"), None, "an e-mail address is not one");
+        assert_eq!(mention_of("rien"), None);
+        assert_eq!(mention_at("é @x"), Some("é ".len()));
+    }
+
+    #[test]
+    fn a_light_page_gives_its_text() {
+        let d = crate::html::parse("<h1>Titre</h1><p>Un <b>paragraphe</b>.</p><ul><li>Point</li></ul><pre>code\n  ici</pre><img src=a.png>", "https://example.org/");
+        assert_eq!(doc_text(&d), "Titre\n\nUn paragraphe.\n\n• Point\n\ncode\n  ici");
     }
 
     #[test]

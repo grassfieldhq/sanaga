@@ -1985,6 +1985,8 @@ impl Sanaga {
                             self.tabs[i].parent = Some(parent);
                         }
                         a if a.starts_with("previewlink:") => self.preview_link(&a[12..]),
+                        // (a file attached to the assistant's question, without the file window)
+                        a if a.starts_with("attach:") => self.attach_path(std::path::PathBuf::from(&a[7..])),
                         a if a.starts_with("installext:") => match crate::webext::install(std::path::Path::new(&a[11..])) {
                             Ok((name, id)) => {
                                 self.store.extensions_on.push(id.clone());

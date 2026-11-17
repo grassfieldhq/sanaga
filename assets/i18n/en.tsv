@@ -1311,3 +1311,15 @@ La réponse du modèle a été coupée avant la fin.	The model's answer was cut 
 {} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} cannot use tools: it answers with what you attached.
 Le modèle a demandé trop d'outils sans répondre.	The model asked for too many tools without answering.
 Demander à l'assistant…	Ask the assistant…
+Joindre un fichier	Attach a file
+Non lu (page vide ou trop lente à charger) : {}	Not read (empty page, or too slow to load): {}
++ Joindre	+ Attach
+Joindre un autre onglet (ou tapez @) ou un fichier : texte, image, PDF	Attach another tab (or type @) or a file: text, picture, PDF
+Aucun autre onglet ouvert.	No other tab is open.
+Aucun onglet ne porte ce nom.	No tab has this name.
+Un fichier… (texte, image, PDF)	A file… (text, picture, PDF)
+Ce n'est pas un fichier.	This is not a file.
+« {} » est trop gros ({} Mo au plus pour ce type de fichier).	“{}” is too big ({} MB at most for this kind of file).
+Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	Sanaga cannot read “{}”: attach a text, a picture or a PDF (a Word or Excel document can be saved as PDF).
+Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	A model on this computer does not read PDFs: only Claude does.
+Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	This model reads neither pictures nor PDFs: remove them, or choose Claude or Ollama in Settings › Intelligence.

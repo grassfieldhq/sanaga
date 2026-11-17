@@ -105,6 +105,11 @@ pub(super) enum AiDone {
         ticket: u64,
         text: Option<super::assistant::PageText>,
     },
+    /// The page asked for is a PDF: the document itself.
+    PageFile {
+        ticket: u64,
+        file: crate::chat::Attachment,
+    },
     Extension(u64, Result<(String, String), String>),
     /// A part of an extension's code, as the model writes it.
     ExtensionPiece(u64, String),
@@ -194,7 +199,7 @@ impl Sanaga {
             "claude" if self.store.data_dir().is_none() => Provider::Local,
             // (no key in the keyring: Sanaga's own summary; the key itself
             // is read where the request is made, on its thread)
-            "claude" if self.ai_key_known == Some(false) => Provider::Local,
+            "claude" if self.ai_key_known == Some(false) && ai::test_claude().is_none() => Provider::Local,
             "claude" => Provider::Claude { model: if st.ai_model.is_empty() { ai::CLAUDE_MODEL.into() } else { st.ai_model.clone() }, profile: self.store.profile.clone() },
             _ => Provider::Local,
         }
@@ -206,6 +211,7 @@ impl Sanaga {
             match done {
                 AiDone::Chat { run, ev } => self.chat_event(run, ev),
                 AiDone::PageText { ticket, text } => self.page_text_arrived(ticket, text),
+                AiDone::PageFile { ticket, file } => self.page_file_arrived(ticket, file),
                 AiDone::ExtensionPiece(run, text) => {
                     if self.ext_form.busy && self.ext_form.run == run {
                         self.ext_form.code.push_str(&text);

@@ -15,6 +15,16 @@ pub(crate) const OLLAMA: &str = "http://127.0.0.1:11434";
 /// Where the Claude key is kept in the keyring (profile, site, user).
 pub const KEY_SITE: &str = "https://api.anthropic.com";
 
+/// A stand-in for Claude's API to test with (debug builds only):
+/// `SANAGA_CLAUDE_URL=http://127.0.0.1:11435/v1/messages` — the address
+/// conversations are sent to, with no key. See docs/TESTING.md.
+pub fn test_claude() -> Option<String> {
+    #[cfg(debug_assertions)]
+    return std::env::var("SANAGA_CLAUDE_URL").ok().filter(|u| !u.is_empty());
+    #[cfg(not(debug_assertions))]
+    None
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Provider {
     /// No model: Sanaga's own summary.

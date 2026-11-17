@@ -1311,3 +1311,15 @@ La réponse du modèle a été coupée avant la fin.	Die Antwort des Modells wur
 {} ne sait pas utiliser d'outils : il répond avec ce que vous lui avez joint.	{} kann keine Werkzeuge benutzen: Es antwortet mit dem, was Sie angehängt haben.
 Le modèle a demandé trop d'outils sans répondre.	Das Modell hat zu viele Werkzeuge angefordert, ohne zu antworten.
 Demander à l'assistant…	Den Assistenten fragen…
+Joindre un fichier	Datei anhängen
+Non lu (page vide ou trop lente à charger) : {}	Nicht gelesen (leere Seite oder zu langsam geladen): {}
++ Joindre	+ Anhängen
+Joindre un autre onglet (ou tapez @) ou un fichier : texte, image, PDF	Einen anderen Tab (oder @ tippen) oder eine Datei anhängen: Text, Bild, PDF
+Aucun autre onglet ouvert.	Kein anderer Tab ist geöffnet.
+Aucun onglet ne porte ce nom.	Kein Tab trägt diesen Namen.
+Un fichier… (texte, image, PDF)	Eine Datei… (Text, Bild, PDF)
+Ce n'est pas un fichier.	Das ist keine Datei.
+« {} » est trop gros ({} Mo au plus pour ce type de fichier).	„{}“ ist zu groß (höchstens {} MB für diese Art von Datei).
+Sanaga ne sait pas lire « {} » : joignez un texte, une image ou un PDF (un document Word ou Excel peut être enregistré en PDF).	Sanaga kann „{}“ nicht lesen: Hängen Sie einen Text, ein Bild oder ein PDF an (ein Word- oder Excel-Dokument lässt sich als PDF speichern).
+Un modèle sur cet ordinateur ne lit pas les PDF : seul Claude les lit.	Ein Modell auf diesem Computer liest keine PDFs: Nur Claude liest sie.
+Ce modèle ne lit ni les images ni les PDF : retirez-les, ou choisissez Claude ou Ollama dans Paramètres › Intelligence.	Dieses Modell liest weder Bilder noch PDFs: Entfernen Sie sie, oder wählen Sie Claude oder Ollama unter Einstellungen › Intelligenz.

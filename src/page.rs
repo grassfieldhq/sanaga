@@ -1642,6 +1642,18 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
 /// talk to Sanaga.
 pub const WORLD: &str = "sanaga";
 
+/// The bytes of what a view shows (its main resource: a page's HTML, or a
+/// PDF, a picture…) with their kind, as the engine holds them — nothing is
+/// fetched again. `None`: the view shows nothing, or it is bigger than `max`.
+pub fn main_resource_bytes(view: &webkit6::WebView, max: usize, then: impl FnOnce(Option<(String, Vec<u8>)>) + 'static) {
+    let Some(res) = view.main_resource() else { return then(None) };
+    let kind = res.response().and_then(|r| r.mime_type()).map(|m| m.to_string()).unwrap_or_default();
+    if res.response().is_some_and(|r| r.content_length() > max as u64) {
+        return then(None);
+    }
+    res.data(None::<&gtk::gio::Cancellable>, move |got| then(got.ok().filter(|b| b.len() <= max).map(|b| (kind, b))));
+}
+
 /// Gives Sanaga's scripts `window.ipc.postMessage(...)` in their world (top
 /// frame only). Each message carries the address of the page that sent it,
 /// so a message from a page that has navigated since is dropped
