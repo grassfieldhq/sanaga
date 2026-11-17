@@ -334,8 +334,11 @@ engine bridge and a few system services.
   if you choose so.
 - Keeping a window on top and placing the floating video are done with
   Hyprland; on other desktops the desktop decides.
-- Emoji in Sanaga's own interface are in colour when Noto Color Emoji is
-  installed (black and white otherwise).
+- Emoji in Sanaga's own interface are in colour when the system has a colour
+  emoji font (black and white otherwise). Other alphabets there use the
+  system's fonts; in a right-to-left sentence each word is drawn properly
+  but the words follow one another from left to right (pages are not
+  concerned: the web engine draws them).
 - Video recording has no sound; its size is the device's size on screen (use
   100 % zoom for sharper videos).
 - Window moving, maximising and the title bar integration have extra support for

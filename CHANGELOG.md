@@ -310,6 +310,14 @@ All notable changes to Sanaga are listed here. The format follows
   installing an unpacked extension reads ordinary files only, with
   limits; the Light engine never reads a local file named by a page from
   the network; a download's name is read properly from its header.
+- Text typed with an input method (Chinese, Japanese, Korean, dead keys)
+  shows in the field while it is being composed; it appeared only once
+  finished.
+- Titles and names in other alphabets (Arabic, Hebrew, Devanagari, Chinese,
+  Cherokee...) show in the interface with whatever font the system has for
+  them (asked to fontconfig when first needed); only a fixed list of Noto
+  files in a fixed list of folders was looked at, so they often showed as
+  empty boxes. Colour emoji are found the same way.
 
 ### Fixed
 - History: a title that arrived after its page had loaded was never

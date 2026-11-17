@@ -110,6 +110,9 @@ gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
 webkit6 = { version = "0.6.1", features = ["v2_48"] }
 cairo-rs = { version = "0.22", features = ["png"] }
 egui_glow = "0.37"
+# other alphabets in the interface: the system says which of its fonts has a
+# script (fontconfig), asked when a character first needs one
+egui_system_font_provider = "0.37"
 glow = "0.17"
 libloading = "0.8"
 # screen readers (Orca…): the interface described over AT-SPI

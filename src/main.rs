@@ -61,6 +61,78 @@ fn system_font(path: &str) -> Option<&'static [u8]> {
 }
 
 pub fn setup_fonts(ctx: &egui::Context) {
+    match EMOJI.get() {
+        Some(found) => ctx.set_fonts(fonts(*found)),
+        None => match EMOJI_PLACES.iter().find_map(|p| system_font(p)) {
+            Some(bytes) => ctx.set_fonts(fonts(*EMOJI.get_or_init(|| Some((bytes, 0))))),
+            // Not in the usual places: the system is asked which font it has
+            // for emoji, away from the window (a program to start); the
+            // black-and-white ones show until it has answered.
+            None => {
+                ctx.set_fonts(fonts(None));
+                let ctx = ctx.clone();
+                std::thread::spawn(move || {
+                    let asked = emoji_of_the_system();
+                    if let found @ Some(_) = *EMOJI.get_or_init(|| asked) {
+                        ctx.set_fonts(fonts(found));
+                        ctx.request_repaint();
+                    }
+                });
+            }
+        },
+    }
+    // Other alphabets (Arabic, Chinese, Devanagari, Khmer...): the fonts of
+    // the system, looked for when a character first needs one. The system
+    // itself says which font it has for a script and a language (fontconfig):
+    // no list of folders and file names to keep here, and nothing is read for
+    // a script that never shows.
+    ctx.add_font_provider(system_fonts());
+}
+
+/// The system's colour emoji font (its bytes and its number within its file),
+/// once it has been looked for; `Some(None)`: there is none.
+static EMOJI: std::sync::OnceLock<Option<(&'static [u8], u32)>> = std::sync::OnceLock::new();
+
+/// Where the usual colour emoji font is on most systems: found there, no
+/// program has to be started to ask.
+const EMOJI_PLACES: [&str; 4] = [
+    "/usr/share/fonts/noto/NotoColorEmoji.ttf",
+    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+    "/usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf",
+    "/usr/share/fonts/google-noto-emoji/NotoColorEmoji.ttf",
+];
+
+/// The system's own answer for "emoji", whatever the font is called and
+/// wherever it is.
+fn emoji_of_the_system() -> Option<(&'static [u8], u32)> {
+    let out = std::process::Command::new("fc-match").args(["-f", "%{file}\n%{index}\n%{color}\n", "emoji"]).stderr(std::process::Stdio::null()).output().ok()?;
+    let (file, index) = emoji_answer(&String::from_utf8_lossy(&out.stdout))?;
+    Some((system_font(&file)?, index))
+}
+
+/// What `fc-match` answered for "emoji": the file and the font's number in it,
+/// when it is a colour font the interface can read. (Asked for a font that is
+/// not installed, the system answers with its closest one: a plain text font
+/// placed before the interface's own would redraw its digits and signs.)
+fn emoji_answer(out: &str) -> Option<(String, u32)> {
+    let mut lines = out.lines();
+    let file = lines.next()?.trim();
+    let index: u32 = lines.next()?.trim().parse().ok()?;
+    let colour = lines.next()?.trim().eq_ignore_ascii_case("true");
+    let readable = [".ttf", ".otf", ".ttc"].iter().any(|e| file.to_ascii_lowercase().ends_with(e));
+    (colour && readable && file.starts_with('/')).then(|| (file.to_string(), index))
+}
+
+/// The system's fonts, listed once (on a thread of its own: the list can take
+/// a moment on a machine with many fonts) and shared by every window.
+fn system_fonts() -> Arc<egui_system_font_provider::SystemFontProvider> {
+    static FONTS: std::sync::OnceLock<Arc<egui_system_font_provider::SystemFontProvider>> = std::sync::OnceLock::new();
+    FONTS.get_or_init(|| Arc::new(egui_system_font_provider::SystemFontProvider::new())).clone()
+}
+
+/// The interface's fonts: its own (Inter, Noto), then the colour emoji font
+/// of the system when there is one, then the built-in signs and emoji.
+fn fonts(emoji: Option<(&'static [u8], u32)>) -> egui::FontDefinitions {
     let mut f = egui::FontDefinitions::default();
     let fallback = f.families.get(&egui::FontFamily::Proportional).cloned().unwrap_or_default();
     for (name, bytes) in [
@@ -74,53 +146,16 @@ pub fn setup_fonts(ctx: &egui::Context) {
     ] {
         f.font_data.insert(name.to_string(), Arc::new(egui::FontData::from_static(bytes)));
     }
-    // Other alphabets: use the system's Noto fonts when they are installed.
-    // They are mapped, not read: a font takes memory only for the parts
-    // really used (the Chinese / Japanese / Korean one weighs 19 MB).
-    let dirs = [
-        "/usr/share/fonts/noto",
-        "/usr/share/fonts/truetype/noto",
-        "/usr/share/fonts/google-noto",
-        "/usr/share/fonts/noto-cjk",
-        "/usr/share/fonts/opentype/noto",
-        "/usr/share/fonts/google-noto-sans-cjk-fonts",
-        "/usr/share/fonts/google-noto-cjk",
-        "/usr/share/fonts/google-noto-color-emoji-fonts",
-        "/usr/share/fonts/google-noto-emoji",
-    ];
-    let find = |file: &str| dirs.iter().find_map(|d| system_font(&format!("{d}/{file}")));
-    let mut extra = Vec::new();
-    for name in [
-        "NotoSansArabic-Regular",
-        "NotoSansHebrew-Regular",
-        "NotoSansDevanagari-Regular",
-        "NotoSansBengali-Regular",
-        "NotoSansThai-Regular",
-        "NotoSansArmenian-Regular",
-        "NotoSansGeorgian-Regular",
-        "NotoSansEthiopic-Regular",
-        "NotoSansTamil-Regular",
-        "NotoSansMath-Regular",
-        "NotoSansSymbols-Regular",
-        "NotoSansSymbols2-Regular",
-    ] {
-        if let Some(bytes) = find(&format!("{name}.ttf")) {
-            f.font_data.insert(name.to_string(), Arc::new(egui::FontData::from_static(bytes)));
-            extra.push(name.to_string());
-        }
-    }
-    // Chinese, Japanese, Korean (one file holds them all)
-    if let Some(bytes) = find("NotoSansCJK-Regular.ttc") {
-        f.font_data.insert("cjk".to_string(), Arc::new(egui::FontData::from_static(bytes)));
-        extra.push("cjk".to_string());
-    }
-    // Emoji in colour, before the built-in black-and-white ones
+    // Emoji in colour, before the built-in black-and-white ones. (The file is
+    // mapped, not read: a font takes memory only for the parts really used.)
     let mut fallback = fallback;
-    if let Some(bytes) = find("NotoColorEmoji.ttf") {
-        f.font_data.insert("emoji".to_string(), Arc::new(egui::FontData::from_static(bytes)));
+    if let Some((bytes, index)) = emoji {
+        let mut data = egui::FontData::from_static(bytes);
+        data.index = index;
+        f.font_data.insert("emoji".to_string(), Arc::new(data));
         fallback.insert(0, "emoji".to_string());
     }
-    let fallback: Vec<String> = std::iter::once("noto".to_string()).chain(fallback).chain(extra).collect();
+    let fallback: Vec<String> = std::iter::once("noto".to_string()).chain(fallback).collect();
     let with = |first: &str| {
         let mut v = vec![first.to_string()];
         v.extend(fallback.iter().cloned());
@@ -133,7 +168,7 @@ pub fn setup_fonts(ctx: &egui::Context) {
     f.families.insert(egui::FontFamily::Name("serif".into()), with("serif"));
     f.families.insert(egui::FontFamily::Name("serif-bold".into()), with("serif-bold"));
     f.families.insert(egui::FontFamily::Name("serif-italic".into()), with("serif-italic"));
-    ctx.set_fonts(f);
+    f
 }
 
 /// If Sanaga ever crashes, note why in `crash.log` (in its data folder), so the
@@ -301,4 +336,21 @@ fn main() -> eframe::Result {
     store::flush_saves();
     crash::mark_stopped();
     done
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::emoji_answer;
+
+    #[test]
+    fn only_a_colour_font_file_is_taken_for_emoji() {
+        assert_eq!(emoji_answer("/usr/share/fonts/x/Twemoji.ttf\n0\nTrue\n"), Some(("/usr/share/fonts/x/Twemoji.ttf".to_string(), 0)));
+        assert_eq!(emoji_answer("/usr/share/fonts/x/Emoji.ttc\n2\nTrue\n"), Some(("/usr/share/fonts/x/Emoji.ttc".to_string(), 2)));
+        // no emoji font installed: the system answers with a text font
+        assert_eq!(emoji_answer("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\n0\nFalse\n"), None);
+        // a bitmap font of another kind, an empty answer, a missing line
+        assert_eq!(emoji_answer("/usr/share/fonts/x/emoji.pcf.gz\n0\nTrue\n"), None);
+        assert_eq!(emoji_answer(""), None);
+        assert_eq!(emoji_answer("/usr/share/fonts/x/Twemoji.ttf\n"), None);
+    }
 }
