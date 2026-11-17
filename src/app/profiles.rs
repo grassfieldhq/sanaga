@@ -204,6 +204,7 @@ impl Sanaga {
         } else if resp.hovered() || self.profile_open {
             ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(10), th.omnibox_hover);
         }
+        super::chrome::focus_ring(ui, &resp, r.shrink(2.0), 14.0, th);
         let av = Rect::from_center_size(pos2(r.left() + 16.0, cy), vec2(22.0, 22.0));
         let painter = ui.painter().clone();
         self.paint_avatar(&painter, av, &info);

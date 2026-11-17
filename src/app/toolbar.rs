@@ -28,6 +28,104 @@ pub(super) fn tool_button(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: b
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
+/// For screen readers: what a control drawn by Sanaga is (a tab, a link,
+/// a line of a list) and its name. The hover text already names a control
+/// as a button (see `Tip`); this is for the controls that are not buttons,
+/// or whose hover text is not their name — a site's tile whose hover text
+/// is its address was read out as an address, letter by letter.
+pub(super) fn named(resp: &Response, role: egui::accesskit::Role, name: &str) {
+    resp.widget_info(|| egui::WidgetInfo::labeled(role, true, name));
+}
+
+/// A tab, for screen readers: its title, and whether it is the one shown
+/// ("selected"). A tab was a button like the others: nothing said which
+/// tab was open, nor that these were tabs.
+pub(super) fn named_tab(resp: &Response, title: &str, shown: bool) {
+    named(resp, egui::accesskit::Role::Tab, title);
+    resp.ctx.accesskit_node_builder(resp.id, |node| node.set_selected(shown));
+}
+
+/// What the empty part of a bar senses: the pointer (drag to move the
+/// window, double-click, right-click menu) — never the keyboard. Able to
+/// take the focus, each bar was a stop of the Tab key with nothing to show
+/// for it: the keyboard seemed lost between the address field and the
+/// favourites, and again before the tabs.
+pub(super) fn bar_sense() -> Sense {
+    Sense::CLICK | Sense::DRAG
+}
+
+/// The place that takes the click for a small symbol (a tab's close cross,
+/// its speaker): 24 by 24 around the symbol's centre, the least a pointer
+/// or a finger aims at without effort (WCAG 2.5.8). The symbol itself is
+/// drawn as small as before, in the middle.
+pub(super) fn click_area(centre: egui::Pos2) -> Rect {
+    Rect::from_center_size(centre, vec2(24.0, 24.0))
+}
+
+/// Test aid (debug builds): with `SANAGA_DEBUG_A11Y=1`, what Sanaga hands
+/// to screen readers is printed each time it changes — one line per named
+/// control: `a11y <role> "<name>"` and its states (selected, expanded,
+/// live…). There is no screen reader on a test machine: this shows what
+/// one would be told.
+#[cfg(debug_assertions)]
+pub(super) fn debug_a11y(ctx: &egui::Context) {
+    struct Printer {
+        last: Vec<String>,
+    }
+    impl egui::Plugin for Printer {
+        fn debug_name(&self) -> &'static str {
+            "sanaga-a11y-printer"
+        }
+        fn output_hook(&mut self, _ctx: &egui::Context, output: &mut egui::FullOutput) {
+            let Some(update) = &output.platform_output.accesskit_update else { return };
+            let mut lines: Vec<String> = Vec::new();
+            for (id, node) in &update.nodes {
+                let name = node.label().or_else(|| node.value()).unwrap_or_default();
+                // (a control with no name is left out — but said when the
+                // keyboard is on it: that is a defect to see)
+                let focused = update.focus == *id && node.role() != egui::accesskit::Role::Window;
+                if name.is_empty() && !focused {
+                    continue;
+                }
+                let mut line = if name.is_empty() { format!("{:?} (no name)", node.role()) } else { format!("{:?} {name:?}", node.role()) };
+                if let Some(selected) = node.is_selected() {
+                    line.push_str(if selected { " selected" } else { " not-selected" });
+                }
+                if let Some(toggled) = node.toggled() {
+                    line.push_str(&format!(" toggled={toggled:?}"));
+                }
+                if let Some(expanded) = node.is_expanded() {
+                    line.push_str(if expanded { " expanded" } else { " folded" });
+                }
+                if let Some(live) = node.live() {
+                    line.push_str(&format!(" live={live:?}"));
+                }
+                if node.is_disabled() {
+                    line.push_str(" disabled");
+                }
+                if focused {
+                    line.push_str(" FOCUS");
+                }
+                lines.push(line);
+            }
+            if lines != self.last {
+                eprintln!("a11y --- {} named controls", lines.len());
+                for line in &lines {
+                    eprintln!("a11y {line}");
+                }
+                self.last = lines;
+            }
+        }
+    }
+    let on_id = egui::Id::new("sanaga-a11y-printer");
+    if std::env::var_os("SANAGA_DEBUG_A11Y").is_none() || ctx.data(|d| d.get_temp::<bool>(on_id)).is_some() {
+        return;
+    }
+    ctx.data_mut(|d| d.insert_temp(on_id, true));
+    ctx.enable_accesskit();
+    ctx.add_plugin(Printer { last: Vec::new() });
+}
+
 /// The capsules behind groups of toolbar buttons that touch each other, with
 /// a hairline between back and forward (macOS 27).
 fn capsules(groups: &[Rect], cy: f32, th: &Theme, dividers: bool) -> Vec<egui::Shape> {
@@ -190,6 +288,8 @@ pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
 
 impl Sanaga {
     pub(super) fn toolbar(&mut self, ui: &mut Ui, th: &Theme) {
+        #[cfg(debug_assertions)]
+        debug_a11y(ui.ctx());
         let a = self.active;
         let full = ui.max_rect();
         let cy = full.center().y;
@@ -198,7 +298,7 @@ impl Sanaga {
         let can_fwd = self.tabs[a].idx + 1 < self.tabs[a].entries.len() || web.map(|w| w.can_go_forward().unwrap_or(false)).unwrap_or(false);
         let loading = self.tabs[a].loading;
 
-        let bg = ui.interact(full, egui::Id::new("toolbar-bg"), Sense::click_and_drag());
+        let bg = ui.interact(full, egui::Id::new("toolbar-bg"), bar_sense());
         window_drag(ui, &bg);
 
         // window buttons: in the tab row above (like Chrome), or here when
@@ -286,6 +386,7 @@ impl Sanaga {
             if resp.hovered() || self.overflow_open {
                 ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(8), th.omnibox_hover);
             }
+            super::chrome::focus_ring(ui, &resp, r.shrink(2.0), 8.0, th);
             ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "»", FontId::proportional(17.0), th.text);
             if resp.tip(tr("Autres boutons")).clicked() {
                 self.overflow_open = !self.overflow_open;
@@ -300,6 +401,7 @@ impl Sanaga {
             if resp.hovered() {
                 ui.painter().rect_filled(r.shrink(2.0), CornerRadius::same(8), th.omnibox_hover);
             }
+            super::chrome::focus_ring(ui, &resp, r.shrink(2.0), 8.0, th);
             super::buttons::paint_symbol(ui.painter(), r, &self.store.buttons[k], th.text);
             let tip = super::buttons::button_tip(&self.store.buttons[k]);
             if resp.tip(tip).clicked() {
@@ -449,6 +551,7 @@ impl Sanaga {
             let sresp = ui.interact(star_r, egui::Id::new("star"), Sense::click()).tip(if bookmarked { tr("Retirer des favoris (Ctrl+D)") } else { tr("Ajouter aux favoris (Ctrl+D)") });
             let (icon, col) = if bookmarked { (Icon::StarFilled, th.accent) } else { (Icon::Star, th.sub) };
             icons::paint(ui.painter(), star_r.shrink(5.0), icon, if sresp.hovered() && !bookmarked { th.text } else { col });
+            super::chrome::focus_ring(ui, &sresp, star_r.shrink(2.0), 6.0, th);
             if sresp.clicked() {
                 self.star_clicked(star_r);
             }
@@ -460,6 +563,7 @@ impl Sanaga {
             if rresp.hovered() {
                 ui.painter().rect_filled(rr, CornerRadius::same(6), th.border);
             }
+            super::chrome::focus_ring(ui, &rresp, rr.shrink(2.0), 6.0, th);
             icons::paint(ui.painter(), rr.shrink(6.0), if loading { Icon::Stop } else { Icon::Reload }, th.sub);
             if rresp.tip(if loading { tr("Arrêter (Échap)") } else { tr("Actualiser (Ctrl+R)") }).clicked() {
                 if loading {
@@ -476,6 +580,7 @@ impl Sanaga {
             let reading = self.tabs[a].reader;
             let rd = Rect::from_center_size(pos2(text_right - 12.0, rect.center().y), vec2(24.0, 24.0));
             let resp = ui.interact(rd, egui::Id::new("reader-btn"), Sense::click());
+            super::chrome::focus_ring(ui, &resp, rd.shrink(2.0), 6.0, th);
             if reading {
                 ui.painter().rect_filled(rd, CornerRadius::same(6), th.accent);
             } else if resp.hovered() {
@@ -493,6 +598,7 @@ impl Sanaga {
             let zr = Rect::from_min_max(pos2(text_right - 46.0, rect.top() + 8.0), pos2(text_right - 2.0, rect.bottom() - 8.0));
             let zresp = ui.interact(zr, egui::Id::new("zoomchip"), Sense::click()).tip(tr("Réinitialiser le zoom"));
             ui.painter().rect_filled(zr, CornerRadius::same(5), th.border);
+            super::chrome::focus_ring(ui, &zresp, zr, 5.0, th);
             ui.painter().text(zr.center(), Align2::CENTER_CENTER, format!("{:.0} %", zoom * 100.0), FontId::proportional(11.0), th.text);
             if zresp.clicked() {
                 self.tabs[a].zoom = 1.0;
@@ -597,6 +703,8 @@ impl Sanaga {
             te.text_color(Color32::TRANSPARENT)
         };
         let resp = ui.new_child(egui::UiBuilder::new().max_rect(te_rect).layout(egui::Layout::left_to_right(Align::Center))).add(te);
+        // (its name for screen readers: a text field with nothing saying what it is for)
+        let resp = resp.accessible_name(tr("Rechercher ou saisir le nom d'un site"));
         if self.focus_address {
             resp.request_focus();
             self.focus_address = false;

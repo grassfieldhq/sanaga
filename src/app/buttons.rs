@@ -165,6 +165,8 @@ impl Sanaga {
                         let label = super::toolbar::toolbar_button_label(k);
                         let short = label.split(',').next().unwrap_or(label);
                         ui.painter().text(pos2(r.left() + 12.0, r.center().y), Align2::LEFT_CENTER, short, FontId::proportional(13.5), col);
+                        super::toolbar::named(&resp, egui::accesskit::Role::MenuItem, short);
+                        super::chrome::focus_ring(ui, &resp, r, 7.0, th);
                         if resp.clicked() {
                             pick = Some(k);
                         }

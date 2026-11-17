@@ -122,7 +122,10 @@ impl Sanaga {
                             FontId::proportional(12.5),
                             th.text,
                         );
-                        if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                        super::chrome::focus_ring(ui, &resp, sq, 16.0, th);
+                        let resp = resp.tip(url);
+                        super::toolbar::named(&resp, egui::accesskit::Role::Link, if title.is_empty() { url } else { title });
+                        if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                             go = Some(url.clone());
                         }
                     }
@@ -145,7 +148,10 @@ impl Sanaga {
                         let p = ui.painter().with_clip_rect(clip);
                         p.fit(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, title, FontId::new(13.0, bold()), th.text);
                         p.fit(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
-                        if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                        super::chrome::focus_ring(ui, &resp, r, 10.0, th);
+                        let resp = resp.tip(url);
+                        super::toolbar::named(&resp, egui::accesskit::Role::Link, if title.is_empty() { url } else { title });
+                        if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                             go = Some(url.clone());
                         }
                     }
@@ -170,9 +176,12 @@ impl Sanaga {
                                 let clip = Rect::from_min_max(pos2(r.left() + 44.0, r.top()), pos2(r.right() - 10.0, r.bottom()));
                                 let p = ui.painter().with_clip_rect(clip);
                                 let t = if title.is_empty() { host_of(url) } else { title.clone() };
-                                p.fit(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, t, FontId::new(13.0, bold()), th.text);
+                                p.fit(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, &t, FontId::new(13.0, bold()), th.text);
                                 p.fit(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
-                                if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                super::chrome::focus_ring(ui, &resp, r, 12.0, th);
+                                let resp = resp.tip(url);
+                                super::toolbar::named(&resp, egui::accesskit::Role::Link, &t);
+                                if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                     go = Some(url.clone());
                                 }
                             }
@@ -196,9 +205,12 @@ impl Sanaga {
                             site_badge(ui.painter(), pos2(r.left() + 16.0, r.center().y), 8.0, url, title);
                             let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
                             let t = if title.is_empty() { host_of(url) } else { title.clone() };
-                            let g = ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
+                            let g = ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, &t, FontId::proportional(13.0), th.text);
                             ui.painter().with_clip_rect(clip).fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
-                            if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                            super::chrome::focus_ring(ui, &resp, r, 8.0, th);
+                            let resp = resp.tip(url);
+                            super::toolbar::named(&resp, egui::accesskit::Role::Link, &t);
+                            if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 go = Some(url.clone());
                             }
                         }

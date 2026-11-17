@@ -5,8 +5,9 @@
 //! a group carries the group's colour in a small dot. Tabs drag to reorder and
 //! have a right-click menu; very many tabs scroll with the wheel.
 
+use super::chrome::focus_ring;
 use super::chrome::site_badge;
-use super::toolbar::{spinner, window_buttons, window_drag};
+use super::toolbar::{click_area, named_tab, spinner, window_buttons, window_drag};
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, Sense};
@@ -26,7 +27,7 @@ impl Sanaga {
         let full = ui.max_rect();
         self.sync_group_meta();
         let time = ui.input(|i| i.time);
-        let bg = ui.interact(full, egui::Id::new("tabbar-bg"), Sense::click_and_drag());
+        let bg = ui.interact(full, egui::Id::new("tabbar-bg"), super::toolbar::bar_sense());
         window_drag(ui, &bg);
         bg.menu_on_press(|ui| {
             use super::chrome::menu_item_keys;
@@ -87,6 +88,7 @@ impl Sanaga {
                 if can && resp.hovered() {
                     ui.painter().circle_filled(r.center(), TRACK_H / 2.0 - 2.0, th.pill);
                 }
+                focus_ring(ui, &resp, r.shrink(2.0), TRACK_H / 2.0, th);
                 icons::paint(
                     ui.painter(),
                     Rect::from_center_size(r.center(), vec2(12.0, 12.0)),
@@ -102,6 +104,7 @@ impl Sanaga {
             let cr = Rect::from_min_size(pos2(track.right() + 6.0, track.top()), vec2(count_w, TRACK_H));
             let cresp = ui.interact(cr, egui::Id::new("tabbar-count"), Sense::click());
             ui.painter().rect_filled(cr, round, if cresp.hovered() || self.tab_search_open { th.track.gamma_multiply(1.6) } else { th.track });
+            focus_ring(ui, &cresp, cr.shrink(2.0), TRACK_H / 2.0, th);
             ui.painter().text(pos2(cr.center().x - 6.0, cr.center().y), Align2::CENTER_CENTER, self.tabs.len().to_string(), FontId::new(12.0, bold()), th.text);
             icons::paint(ui.painter(), Rect::from_center_size(pos2(cr.right() - 13.0, cr.center().y), vec2(9.0, 9.0)), Icon::Down, th.sub);
             if cresp.tip(tr("Tous les onglets — rechercher et choisir (Ctrl+Maj+A)")).clicked() {
@@ -199,6 +202,8 @@ impl Sanaga {
             } else if hovered {
                 p.rect_filled(pill, CornerRadius::same((pill.height() / 2.0) as u8), th.pill.gamma_multiply(0.45));
             }
+            // (the keyboard is on this tab: Enter or Space shows it)
+            focus_ring(ui, &resp, pill.shrink(1.0), pill.height() / 2.0, th);
             if let Some(col) = self.container_color(&tab.container) {
                 let y = pill.bottom() - 1.5;
                 ui.painter().line_segment([pos2(pill.left() + 12.0, y), pos2(pill.right() - 12.0, y)], Stroke::new(2.5, col));
@@ -257,10 +262,11 @@ impl Sanaga {
             if tab.capturing {
                 let sx = if close_right { pill.left() + 14.0 } else { pill.right() - 14.0 };
                 let sr = Rect::from_center_size(pos2(sx, rect.center().y), vec2(18.0, 18.0));
-                let sresp = ui.interact(sr, ui.id().with(("capture", tab.id)), Sense::click());
+                let sresp = ui.interact(click_area(sr.center()), ui.id().with(("capture", tab.id)), Sense::click());
                 if sresp.hovered() {
                     ui.painter().circle_filled(sr.center(), 9.0, th.track);
                 }
+                focus_ring(ui, &sresp, sr, 9.0, th);
                 icons::paint(ui.painter(), sr.shrink(3.0), Icon::Camera, Color32::from_rgb(0xD9, 0x30, 0x25));
                 if sresp.tip(tr("Ce site utilise la caméra, le micro ou l'écran — cliquer pour arrêter")).clicked() {
                     stop_capture = Some(i);
@@ -268,10 +274,11 @@ impl Sanaga {
             } else if (tab.audio || tab.muted) && !tab.pinned {
                 let sx = if close_right { pill.left() + 14.0 } else { pill.right() - 14.0 };
                 let sr = Rect::from_center_size(pos2(sx, rect.center().y), vec2(18.0, 18.0));
-                let sresp = ui.interact(sr, ui.id().with(("sound", tab.id)), Sense::click());
+                let sresp = ui.interact(click_area(sr.center()), ui.id().with(("sound", tab.id)), Sense::click());
                 if sresp.hovered() {
                     ui.painter().circle_filled(sr.center(), 9.0, th.track);
                 }
+                focus_ring(ui, &sresp, sr, 9.0, th);
                 icons::paint(ui.painter(), sr.shrink(4.0), if tab.muted { Icon::SpeakerMuted } else { Icon::Speaker }, if tab.muted { th.sub } else { th.accent });
                 if sresp.tip(if tab.muted { tr("Rétablir le son") } else { tr("Couper le son") }).clicked() {
                     mute = Some(i);
@@ -281,7 +288,8 @@ impl Sanaga {
             if hovered && !tab.pinned {
                 let cx = if close_right { pill.right() - 13.0 } else { pill.left() + 13.0 };
                 let cr = Rect::from_center_size(pos2(cx, rect.center().y), vec2(18.0, 18.0));
-                let cresp = ui.interact(cr, ui.id().with(("close", tab.id)), Sense::click());
+                // (the cross is 18 across; the place that takes the click, 24)
+                let cresp = ui.interact(click_area(cr.center()), ui.id().with(("close", tab.id)), Sense::click());
                 ui.painter().circle_filled(cr.center(), 9.0, if cresp.hovered() { th.track } else { Color32::TRANSPARENT });
                 icons::paint(ui.painter(), cr.shrink(5.0), Icon::Close, th.sub);
                 if cresp.tip(tr("Fermer l'onglet (Ctrl+W)")).clicked() {
@@ -299,6 +307,7 @@ impl Sanaga {
                 }
             }
             let resp = resp.tip(&title);
+            named_tab(&resp, &title, active);
             resp.menu_on_press(|ui| {
                 if self.tab_menu(ui, i) {
                     menu_done = true;
@@ -321,6 +330,7 @@ impl Sanaga {
         let pr = Rect::from_center_size(pos2(full.right() - 8.0 - plus_d / 2.0, cy), vec2(plus_d, plus_d));
         let presp = ui.interact(pr, egui::Id::new("tabbar-plus"), Sense::click());
         ui.painter().circle_filled(pr.center(), plus_d / 2.0, if presp.hovered() { th.track.gamma_multiply(1.6) } else { th.track });
+        focus_ring(ui, &presp, pr.shrink(2.0), plus_d / 2.0, th);
         icons::paint(ui.painter(), pr.shrink(8.0), Icon::Plus, th.text);
         if presp.tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
             self.overview_open = false;

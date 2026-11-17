@@ -92,6 +92,10 @@ impl Sanaga {
                     } else if resp.hovered() {
                         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
                     }
+                    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
+                    // (for screen readers: the group's name, how many tabs, and whether it is the one shown)
+                    super::toolbar::named(&resp, egui::accesskit::Role::ListBoxOption, &format!("{} — {n}", if g == 0 { tr("Onglets").to_string() } else { self.group_label(g) }));
+                    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_selected(current));
                     let ic = Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(16.0, 16.0));
                     if g == 0 {
                         icons::paint(ui.painter(), ic, Icon::Grid, th.accent);
@@ -139,7 +143,7 @@ impl Sanaga {
                             ui.horizontal(|ui| {
                                 ui.add_space(6.0);
                                 for (k, (name, col)) in super::tabs::GROUP_COLORS.iter().enumerate() {
-                                    let (cr, cresp) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::click());
+                                    let (cr, cresp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
                                     ui.painter().circle_filled(cr.center(), 7.0, *col);
                                     if self.group_colors.get(g).copied() == Some(k as u8) {
                                         ui.painter().circle_stroke(cr.center(), 9.5, Stroke::new(1.5, *col));
@@ -177,6 +181,7 @@ impl Sanaga {
                     } else if resp.hovered() {
                         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
                     }
+                    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
                     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(15.0, 15.0)), Icon::Grid, th.accent);
                     let label = title.trim_end_matches(" - Sanaga");
                     let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
@@ -242,7 +247,7 @@ impl Sanaga {
                     // a hovered item can be taken out of the list
                     if ui.rect_contains_pointer(resp.rect) {
                         let xr = Rect::from_center_size(pos2(resp.rect.right() - 16.0, resp.rect.center().y), vec2(20.0, 20.0));
-                        let xresp = ui.interact(xr, egui::Id::new(("rl-rm", &url)), Sense::click());
+                        let xresp = ui.interact(super::toolbar::click_area(xr.center()), egui::Id::new(("rl-rm", &url)), Sense::click());
                         ui.painter().circle_filled(xr.center(), 10.0, if xresp.hovered() { select_fill(dark, true) } else { th.sidebar });
                         icons::paint(ui.painter(), xr.shrink(6.0), Icon::Close, th.sub);
                         if xresp.tip(tr("Retirer de la liste de lecture")).clicked() {
@@ -300,6 +305,10 @@ impl Sanaga {
         let id = egui::Id::new(key);
         let mut open = ui.ctx().data_mut(|d| *d.get_temp_mut_or_insert_with(id, || true));
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+        // (for the keyboard and for screen readers: a heading that folds its section)
+        super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
+        super::toolbar::named(&resp, egui::accesskit::Role::Button, title);
+        ui.ctx().accesskit_node_builder(resp.id, |node| node.set_expanded(open));
         ui.painter().text(pos2(r.left() + 8.0, r.center().y + 2.0), Align2::LEFT_CENTER, title, FontId::new(11.5, bold()), th.sub);
         let hovered = ui.rect_contains_pointer(r);
         if hovered {
@@ -308,7 +317,8 @@ impl Sanaga {
         }
         if let Some((tip, acts)) = plus {
             let pr = Rect::from_center_size(pos2(r.right() - 32.0, r.center().y + 2.0), vec2(20.0, 20.0));
-            let presp = ui.interact(pr, id.with("plus"), Sense::click());
+            let presp = ui.interact(super::toolbar::click_area(pr.center()), id.with("plus"), Sense::click());
+            super::chrome::focus_ring(ui, &presp, pr, 10.0, th);
             if hovered || presp.hovered() {
                 if presp.hovered() {
                     ui.painter().circle_filled(pr.center(), 10.0, th.track);
@@ -498,6 +508,7 @@ fn page_row(ui: &mut Ui, th: &Theme, dark: bool, url: &str, title: &str, sub: &s
     if resp.hovered() {
         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
     }
+    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
     site_badge(ui.painter(), pos2(r.left() + 16.0, r.center().y), 8.0, url, title);
     let clip = Rect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
     let p = ui.painter().with_clip_rect(clip);
@@ -508,7 +519,10 @@ fn page_row(ui: &mut Ui, th: &Theme, dark: bool, url: &str, title: &str, sub: &s
         p.fit(pos2(clip.left(), r.top() + 13.0), Align2::LEFT_CENTER, t, FontId::proportional(13.0), th.text);
         p.fit(pos2(clip.left(), r.top() + 29.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), th.sub);
     }
-    resp.tip(url).on_hover_cursor(CursorIcon::PointingHand)
+    let resp = resp.tip(url).on_hover_cursor(CursorIcon::PointingHand);
+    // (for screen readers: the page's title — the hover text is its address)
+    super::toolbar::named(&resp, egui::accesskit::Role::Link, t);
+    resp
 }
 
 /// A row leading to a page (icon in the accent colour).
@@ -517,6 +531,8 @@ fn link_row(ui: &mut Ui, th: &Theme, dark: bool, icon: Icon, label: &str) -> boo
     if resp.hovered() {
         ui.painter().rect_filled(r, CornerRadius::same(8), select_fill(dark, false));
     }
+    super::chrome::focus_ring(ui, &resp, r.shrink(1.0), 8.0, th);
+    super::toolbar::named(&resp, egui::accesskit::Role::Link, label);
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(14.0, 14.0)), icon, th.accent);
     ui.painter().text(pos2(r.left() + 32.0, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(13.0), th.text);
     resp.on_hover_cursor(CursorIcon::PointingHand).clicked()

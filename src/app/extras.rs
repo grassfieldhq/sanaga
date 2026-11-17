@@ -330,6 +330,15 @@ impl Sanaga {
             crate::shell::toast(None);
             return;
         }
+        // Said to screen readers too: the message is drawn (or shown by a
+        // label over the page) with nothing telling a reader that it
+        // appeared. A "polite" live region is read out when it appears and
+        // when its words change, without taking the keyboard.
+        ctx.accesskit_node_builder(egui::Id::new("notice-said"), |node| {
+            node.set_role(egui::accesskit::Role::Status);
+            node.set_live(egui::accesskit::Live::Polite);
+            node.set_label(msg.clone());
+        });
         // in the window, above the page (the page would hide a drawn one)
         if crate::shell::toast(Some(msg)) {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
