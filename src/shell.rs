@@ -943,7 +943,42 @@ fn instance_socket(urls: &[String]) -> Option<std::path::PathBuf> {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     crate::store::Store::root_dir().hash(&mut h);
     profile.hash(&mut h);
-    Some(crate::store::runtime_dir()?.join(format!("sanaga-{:016x}.sock", h.finish())))
+    match crate::store::runtime_dir() {
+        Some(dir) => Some(dir.join(format!("sanaga-{:016x}.sock", h.finish()))),
+        // No runtime folder (XDG_RUNTIME_DIR not set: some sessions, a
+        // remote shell): the profile's own folder, closed to other users.
+        // Without a socket each launch became a Sanaga of its own on the
+        // same profile, each rewriting its files from what it had in memory.
+        None => {
+            let sock = crate::store::Store::profile_dir(profile).join("instance.sock");
+            // (the system takes socket paths of about a hundred bytes)
+            (sock.as_os_str().len() < 100).then_some(sock)
+        }
+    }
+}
+
+/// One Sanaga at a time writes a profile: this one's lock on it, held for
+/// as long as it runs (the system lets go of it when Sanaga ends, however
+/// it ends).
+static PROFILE_LOCK: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
+
+/// Take the profile for this Sanaga. False when another Sanaga has it.
+fn lock_profile(urls: &[String]) -> bool {
+    use std::os::unix::io::AsRawFd;
+    let profile = urls.iter().find_map(|u| u.strip_prefix("profil:")).unwrap_or("");
+    let dir = crate::store::Store::profile_dir(profile);
+    crate::store::ensure_private_dir(&dir);
+    let Ok(file) = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(dir.join("lock")) else {
+        // (a folder that cannot be written: nothing will be saved either)
+        return true;
+    };
+    // SAFETY: a valid descriptor; the lock ends with the file, kept in
+    // `PROFILE_LOCK` until Sanaga ends.
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return false;
+    }
+    let _ = PROFILE_LOCK.set(file);
+    true
 }
 
 // (message limits and checks: see guard.rs, testable without GTK)
@@ -1043,10 +1078,28 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
     // screenshot never talks to a running Sanaga)
     let sock = instance_socket(&urls);
     // (a guest window keeps nothing and runs on its own too)
-    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:") || u == "invite:") && sock.is_some();
-    if let Some(sock) = sock.as_ref().filter(|_| single) {
-        if forward_to_running(sock, &urls) {
+    let single = shot.is_none() && !urls.iter().any(|u| u.starts_with("webapp:") || u == "invite:");
+    if single {
+        if sock.as_ref().is_some_and(|sock| forward_to_running(sock, &urls)) {
             return Ok(());
+        }
+        // No Sanaga answered: this one takes the profile. If another has
+        // it all the same — two launches at the same moment, each finding
+        // nobody and both starting; one that no longer answers; a profile
+        // whose folder is too deep for a socket — the addresses are handed
+        // to it as soon as it listens, and this launch ends rather than
+        // write the same files beside it.
+        if !lock_profile(&urls) {
+            for _ in 0..40 {
+                std::thread::sleep(Duration::from_millis(100));
+                if sock.as_ref().is_some_and(|sock| forward_to_running(sock, &urls)) {
+                    return Ok(());
+                }
+            }
+            // (said and ended here: an error returned would start the
+            // plain window without a web engine, on the same profile)
+            eprintln!("{}", crate::i18n::tr("Sanaga est déjà ouvert avec ce profil."));
+            std::process::exit(1);
         }
     }
     glib::set_prgname(Some("sanaga"));
