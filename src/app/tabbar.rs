@@ -144,6 +144,7 @@ impl Sanaga {
         let mut close: Option<usize> = None;
         let mut select: Option<usize> = None;
         let mut mute: Option<usize> = None;
+        let mut stop_capture: Option<usize> = None;
         let mut drop_at: Option<(usize, usize)> = None;
         let mut menu_done = false;
         let active_pos = order.iter().position(|&i| i == self.active);
@@ -241,7 +242,20 @@ impl Sanaga {
             // the close button's side (Settings › Appearance); the speaker takes the other
             let close_right = self.store.settings.close_right;
             // sound: a small speaker, click to mute
-            if (tab.audio || tab.muted) && !tab.pinned {
+            // camera, microphone or screen in use: a red camera in the
+            // speaker's place — a click stops it
+            if tab.capturing {
+                let sx = if close_right { pill.left() + 14.0 } else { pill.right() - 14.0 };
+                let sr = Rect::from_center_size(pos2(sx, rect.center().y), vec2(18.0, 18.0));
+                let sresp = ui.interact(sr, ui.id().with(("capture", tab.id)), Sense::click());
+                if sresp.hovered() {
+                    ui.painter().circle_filled(sr.center(), 9.0, th.track);
+                }
+                icons::paint(ui.painter(), sr.shrink(3.0), Icon::Camera, Color32::from_rgb(0xD9, 0x30, 0x25));
+                if sresp.tip(tr("Ce site utilise la caméra, le micro ou l'écran — cliquer pour arrêter")).clicked() {
+                    stop_capture = Some(i);
+                }
+            } else if (tab.audio || tab.muted) && !tab.pinned {
                 let sx = if close_right { pill.left() + 14.0 } else { pill.right() - 14.0 };
                 let sr = Rect::from_center_size(pos2(sx, rect.center().y), vec2(18.0, 18.0));
                 let sresp = ui.interact(sr, ui.id().with(("sound", tab.id)), Sense::click());
@@ -303,6 +317,13 @@ impl Sanaga {
             self.open_tab("sanaga://newtab", false);
         }
 
+        if let Some(w) = stop_capture.and_then(|i| self.tabs.get(i)).and_then(|t| t.web.as_ref()) {
+            use webkit6::prelude::*;
+            let v = w.webview();
+            v.set_camera_capture_state(webkit6::MediaCaptureState::None);
+            v.set_microphone_capture_state(webkit6::MediaCaptureState::None);
+            v.set_display_capture_state(webkit6::MediaCaptureState::None);
+        }
         if let Some(i) = mute {
             self.toggle_mute(i);
         } else if let Some(i) = select {

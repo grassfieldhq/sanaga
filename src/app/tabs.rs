@@ -566,6 +566,13 @@ impl Sanaga {
         }
         for t in &mut self.tabs {
             t.audio = t.web.as_ref().map(|w| w.webview().is_playing_audio()).unwrap_or(false);
+            // (a site allowed to could record from a tab out of sight
+            // with no sign of it anywhere)
+            t.capturing = t.web.as_ref().is_some_and(|w| {
+                use webkit6::MediaCaptureState::None as Off;
+                let v = w.webview();
+                v.camera_capture_state() != Off || v.microphone_capture_state() != Off || v.display_capture_state() != Off
+            });
         }
     }
 

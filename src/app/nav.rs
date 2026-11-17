@@ -62,6 +62,7 @@ impl Sanaga {
             tree_folded: false,
             companion: false,
             load_behind: false,
+            capturing: false,
         });
         let i = self.tabs.len() - 1;
         self.active = i;

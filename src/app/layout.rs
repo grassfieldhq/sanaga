@@ -280,7 +280,9 @@ impl Sanaga {
                 let text_right = r.right() - if show_close { 30.0 } else { 10.0 };
                 let clip = Rect::from_min_max(pos2(ic.x + 14.0, r.top()), pos2(text_right, r.bottom()));
                 ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, &title, FontId::proportional(13.0), if active { th.text } else { th.text.gamma_multiply(0.85) });
-                if tab.audio || tab.muted {
+                if tab.capturing {
+                    icons::paint(ui.painter(), Rect::from_center_size(pos2(text_right - 6.0, r.center().y), vec2(13.0, 13.0)), Icon::Camera, Color32::from_rgb(0xD9, 0x30, 0x25));
+                } else if tab.audio || tab.muted {
                     icons::paint(ui.painter(), Rect::from_center_size(pos2(text_right - 6.0, r.center().y), vec2(12.0, 12.0)), if tab.muted { Icon::SpeakerMuted } else { Icon::Speaker }, th.sub);
                 }
                 if show_close {

@@ -48,6 +48,7 @@ pub(super) fn kind_label(kind: &str) -> &'static str {
         "micro" => tr("votre micro"),
         "camera+micro" => tr("votre caméra et votre micro"),
         "location" => tr("votre position"),
+        "screen" => tr("votre écran (partage d'écran)"),
         "notifications" => tr("vous envoyer des notifications"),
         "storage" => tr("ses cookies sur ce site (connexion)"),
         _ => tr("un accès"),
@@ -60,11 +61,17 @@ use crate::guard::sign_in_provider;
 pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: PermQueue, ctx: egui::Context) {
     w.webview().connect_permission_request(move |wv, req| {
         let kind: &'static str = if let Some(m) = req.downcast_ref::<webkit6::UserMediaPermissionRequest>() {
-            match (m.is_for_video_device(), m.is_for_audio_device()) {
+            // (sharing the screen in a call: asked each time, never
+            // remembered — it used to be refused without a word)
+            if webkit6::functions::user_media_permission_is_for_display_device(m) {
+                "screen"
+            } else {
+                match (m.is_for_video_device(), m.is_for_audio_device()) {
                 (true, true) => "camera+micro",
                 (true, false) => "camera",
-                (false, true) => "micro",
-                _ => return false,
+                    (false, true) => "micro",
+                    _ => return false,
+                }
             }
         } else if req.is::<webkit6::GeolocationPermissionRequest>() {
             "location"
@@ -327,7 +334,9 @@ impl Sanaga {
                 ask.req.deny();
                 continue;
             }
-            match self.store.permission(&ask.site, &ask.remembered_kind()) {
+            // (sharing the screen is never answered from memory)
+            let remembered = if ask.kind == "screen" { None } else { self.store.permission(&ask.site, &ask.remembered_kind()) };
+            match remembered {
                 Some(true) => ask.req.allow(),
                 Some(false) => ask.req.deny(),
                 // notification requests: refused quietly unless the person
@@ -373,7 +382,7 @@ impl Sanaga {
                     answer = Some((true, false));
                 }
                 let b = egui::Button::new(RichText::new(tr("Toujours autoriser")).color(Color32::WHITE)).fill(th.accent);
-                if ui.add(b).clicked() {
+                if ask.kind != "screen" && ui.add(b).clicked() {
                     answer = Some((true, true));
                 }
             });
@@ -388,7 +397,7 @@ impl Sanaga {
                 // (a private tab's answers are for this time only: the
                 // site's name would stay on the disk)
                 let private = self.tabs.iter().any(|t| t.id == ask.tab && t.private);
-                if remember && !private {
+                if remember && !private && ask.kind != "screen" {
                     self.store.set_permission(&ask.site, &ask.remembered_kind(), Some(allow));
                 }
             }

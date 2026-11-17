@@ -227,6 +227,8 @@ struct Tab {
     /// Sound: muted by the person / currently playing.
     muted: bool,
     audio: bool,
+    /// Its page is using the camera or the microphone, or sharing the screen.
+    capturing: bool,
     /// Picture of the page for the tab overview.
     thumb: Option<TextureHandle>,
     /// Memory saver: when the tab was last shown, and whether its page was put to sleep.
