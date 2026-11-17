@@ -170,6 +170,11 @@ fn chromium_keys(apps: &[&str]) -> Vec<[u8; 16]> {
     keys
 }
 
+/// The visits taken from another browser at most, the newest first. The
+/// history itself has no limit: this one only keeps an import of many
+/// years of browsing from holding the computer's memory while it is read.
+const MAX_VISITS: usize = 500_000;
+
 fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool, passwords: bool, out: &mut Imported) {
     if bookmarks {
         match std::fs::read_to_string(profile.join("Bookmarks")) {
@@ -180,9 +185,17 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
     if history {
         match open_copy(&profile.join("History")) {
             Ok((db, tmp)) => {
-                let rows = db.prepare("SELECT url, title, last_visit_time FROM urls WHERE hidden = 0 ORDER BY last_visit_time DESC LIMIT 5000").and_then(|mut st| {
-                    st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>())
-                });
+                // Every visit, so that Sanaga knows how often each page
+                // was visited (it took the last visit of 5,000 pages); a
+                // database without the table of visits gives the last
+                // visit of each page.
+                let read = |sql: &str| {
+                    db.prepare(sql).and_then(|mut st| {
+                        st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>())
+                    })
+                };
+                let rows = read(&format!("SELECT u.url, u.title, v.visit_time FROM visits v JOIN urls u ON u.id = v.url WHERE u.hidden = 0 ORDER BY v.visit_time DESC LIMIT {MAX_VISITS}"))
+                    .or_else(|_| read(&format!("SELECT url, title, last_visit_time FROM urls WHERE hidden = 0 ORDER BY last_visit_time DESC LIMIT {MAX_VISITS}")));
                 match rows {
                     Ok(rows) => {
                         for (url, title, t) in rows {
@@ -243,9 +256,16 @@ fn firefox_import(profile: &Path, bookmarks: bool, history: bool, out: &mut Impo
         }
     };
     if history {
-        let rows = db
-            .prepare("SELECT url, title, last_visit_date FROM moz_places WHERE last_visit_date IS NOT NULL AND hidden = 0 ORDER BY last_visit_date DESC LIMIT 5000")
-            .and_then(|mut st| st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>()));
+        // (every visit, as for Chrome; without the table of visits, the
+        // last visit of each page)
+        let read = |sql: &str| {
+            db.prepare(sql).and_then(|mut st| {
+                st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>())
+            })
+        };
+        let rows =
+            read(&format!("SELECT p.url, p.title, v.visit_date FROM moz_historyvisits v JOIN moz_places p ON p.id = v.place_id WHERE p.hidden = 0 ORDER BY v.visit_date DESC LIMIT {MAX_VISITS}"))
+                .or_else(|_| read(&format!("SELECT url, title, last_visit_date FROM moz_places WHERE last_visit_date IS NOT NULL AND hidden = 0 ORDER BY last_visit_date DESC LIMIT {MAX_VISITS}")));
         match rows {
             Ok(rows) => {
                 for (url, title, t) in rows {
@@ -391,6 +411,41 @@ mod tests {
         assert_eq!(out.history, vec![(1_704_067_200, "https://example.org/".into(), "Exemple".into())]);
         assert_eq!(out.logins, vec![("https://example.org".into(), "ana".into(), "pa55".into()), ("https://long.example".into(), "bo".into(), long.into())]);
         assert!(out.problems.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn every_visit_is_taken_when_the_browser_kept_them() {
+        let dir = std::env::temp_dir().join(format!("sanaga-migrate-visits-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(dir.join("firefox"));
+        let chrome_time = |secs: i64| (secs + 11_644_473_600) * 1_000_000;
+        // Chrome: a page visited three times, a hidden one
+        let h = rusqlite::Connection::open(dir.join("History")).unwrap();
+        h.execute_batch("CREATE TABLE urls(id INTEGER PRIMARY KEY, url TEXT, title TEXT, last_visit_time INTEGER, hidden INTEGER DEFAULT 0); CREATE TABLE visits(id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER);")
+            .unwrap();
+        h.execute("INSERT INTO urls(id, url, title, last_visit_time) VALUES (1, 'https://example.org/', 'Exemple', ?1)", [chrome_time(300)]).unwrap();
+        h.execute("INSERT INTO urls(id, url, title, last_visit_time, hidden) VALUES (2, 'https://hidden.example/', 'Hidden', ?1, 1)", [chrome_time(400)]).unwrap();
+        for (url, secs) in [(1, 100), (1, 200), (1, 300), (2, 400)] {
+            h.execute("INSERT INTO visits(url, visit_time) VALUES (?1, ?2)", [url, chrome_time(secs)]).unwrap();
+        }
+        drop(h);
+        let mut out = Imported::default();
+        chromium_import(&dir, &[], false, true, false, &mut out);
+        assert_eq!(out.history.iter().map(|v| (v.0, v.1.as_str())).collect::<Vec<_>>(), [(300, "https://example.org/"), (200, "https://example.org/"), (100, "https://example.org/")]);
+        // Firefox: the same
+        let f = rusqlite::Connection::open(dir.join("firefox").join("places.sqlite")).unwrap();
+        f.execute_batch(
+            "CREATE TABLE moz_places(id INTEGER PRIMARY KEY, url TEXT, title TEXT, last_visit_date INTEGER, hidden INTEGER DEFAULT 0); CREATE TABLE moz_historyvisits(id INTEGER PRIMARY KEY, place_id INTEGER, visit_date INTEGER);
+             INSERT INTO moz_places(id, url, title, last_visit_date) VALUES (1, 'https://example.org/', 'Exemple', 200000000);
+             INSERT INTO moz_historyvisits(place_id, visit_date) VALUES (1, 100000000), (1, 200000000);",
+        )
+        .unwrap();
+        drop(f);
+        let mut out = Imported::default();
+        firefox_import(&dir.join("firefox"), false, true, &mut out);
+        assert_eq!(out.history, vec![(200, "https://example.org/".into(), "Exemple".into()), (100, "https://example.org/".into(), "Exemple".into())]);
+        assert!(out.problems.is_empty(), "{:?}", out.problems);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
