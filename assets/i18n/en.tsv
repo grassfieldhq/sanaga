@@ -1280,3 +1280,4 @@ Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.	A proxy is in 
 Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau	The names of the sites visited are asked of this resolver over https, no longer of the network in clear
 DNS chiffré	Encrypted DNS
 Adresse du résolveur	Resolver address
+Sanaga — barres et menus	Sanaga — bars and menus

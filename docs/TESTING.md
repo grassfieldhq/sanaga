@@ -116,6 +116,19 @@ SANAGA_DEBUG_A11Y=1 SANAGA_LIVE_TEST="5:key:Tab,6:key:Tab,7:shot,8:quit" ./targe
 python3 tools/contrast.py     # the tab bar's texts against what is behind them (4.5:1 at least)
 ```
 
+With a screen reader — or only the accessibility bus — running, what the
+reader is really given can be read through AT-SPI, and Orca can be run
+without a sound card (its log holds what it would say):
+
+```sh
+tools/a11y-tree.py --all                 # needs python3-gi, gir1.2-atspi-2.0
+orca --debug-file=/tmp/orca.log          # then: grep 'SPEECH OUTPUT' /tmp/orca.log
+```
+
+Sanaga's interface and the page are two trees named `sanaga`: the bars and
+menus ("Sanaga — bars and menus", published by Sanaga), and the window with
+the page's document (published by GTK and the web engine).
+
 `SANAGA_DEBUG_A11Y=1` (debug builds) prints what a screen reader is told,
 each time it changes: one line per named control — `a11y Tab "Wikipédia"
 selected`, `a11y MenuItem "History"`, `a11y Status "Address copied."

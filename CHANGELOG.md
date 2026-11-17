@@ -12,8 +12,10 @@ All notable changes to Sanaga are listed here. The format follows
   menus; the empty part of a bar no longer takes the Tab key.
 - Screen readers: tabs are tabs (the one shown is said), menu lines are
   menu items, favourites and tiles are links named by their title, the
-  address field has a name, Sanaga's short messages are announced.
-  (Read from what Sanaga publishes; no screen reader was run on it.)
+  address field has a name, Sanaga's short messages are announced, the
+  interface's window says what it is, and a button that cannot be pressed
+  now (Back with nowhere to go) is still a button. Checked through the
+  accessibility bus and with Orca (`tools/a11y-tree.py`).
 - Tab titles and group names stand out at 4.5:1 at least against what is
   behind them, in the light, dark and private looks (43 pairs were under;
   `tools/contrast.py` computes them).

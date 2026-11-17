@@ -1280,3 +1280,4 @@ Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.	Ein Proxy wird
 Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau	Die Namen der besuchten Websites werden über https bei diesem Resolver erfragt, nicht mehr unverschlüsselt beim Netzwerk
 DNS chiffré	Verschlüsseltes DNS
 Adresse du résolveur	Resolver-Adresse
+Sanaga — barres et menus	Sanaga — Leisten und Menüs

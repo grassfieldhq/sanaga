@@ -1284,3 +1284,4 @@ Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.⟂A proxy is i
 Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau⟂The names of the sites visited are asked of this resolver over https, no longer of the network in clear⟂El nombre de los sitios visitados se pide por https a este resolvedor, ya no sin cifrar a la red⟂O nome dos sites visitados é pedido por https a este resolvedor, já não sem cifra à rede⟂Die Namen der besuchten Websites werden über https bei diesem Resolver erfragt, nicht mehr unverschlüsselt beim Netzwerk
 DNS chiffré⟂Encrypted DNS⟂DNS cifrado⟂DNS cifrado⟂Verschlüsseltes DNS
 Adresse du résolveur⟂Resolver address⟂Dirección del resolvedor⟂Endereço do resolvedor⟂Resolver-Adresse
+Sanaga — barres et menus⟂Sanaga — bars and menus⟂Sanaga — barras y menús⟂Sanaga — barras e menus⟂Sanaga — Leisten und Menüs

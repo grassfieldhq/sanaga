@@ -28,6 +28,17 @@ pub(super) fn tool_button(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: b
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
+/// A toolbar button with its hover text. For screen readers it is a button
+/// even while it cannot be pressed ("unavailable"): Back and Forward with
+/// nowhere to go were read out as plain text.
+pub(super) fn tool(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: bool, th: &Theme, tip: &str) -> Response {
+    let resp = tool_button(ui, r, icon, enabled, on, th).tip(tip);
+    if !enabled {
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, false, tip));
+    }
+    resp
+}
+
 /// For screen readers: what a control drawn by Sanaga is (a tab, a link,
 /// a line of a list) and its name. The hover text already names a control
 /// as a button (see `Tip`); this is for the controls that are not buttons,
@@ -324,20 +335,20 @@ impl Sanaga {
         });
         if self.tb("sidebar") {
             let sb = slot(&mut x, 36.0);
-            if tool_button(ui, sb, Icon::Sidebar, true, self.sidebar_open, th).tip(tr("Barre latérale")).clicked() {
+            if tool(ui, sb, Icon::Sidebar, true, self.sidebar_open, th, tr("Barre latérale")).clicked() {
                 self.sidebar_open = !self.sidebar_open;
             }
             x += 10.0;
         }
         if self.tb("back") {
             let back = slot(&mut x, 36.0);
-            if tool_button(ui, back, Icon::Back, can_back, false, th).tip(tr("Page précédente (Alt+←)")).clicked() {
+            if tool(ui, back, Icon::Back, can_back, false, th, tr("Page précédente (Alt+←)")).clicked() {
                 self.go_history(a, -1);
             }
         }
         if self.tb("forward") {
             let fwd = slot(&mut x, 36.0);
-            if tool_button(ui, fwd, Icon::Forward, can_fwd, false, th).tip(tr("Page suivante (Alt+→)")).clicked() {
+            if tool(ui, fwd, Icon::Forward, can_fwd, false, th, tr("Page suivante (Alt+→)")).clicked() {
                 self.go_history(a, 1);
             }
         }
@@ -354,7 +365,7 @@ impl Sanaga {
         }
         if self.tb("home") {
             let hm = slot(&mut x, 36.0);
-            if tool_button(ui, hm, Icon::Home, true, false, th).tip(tr("Page d'accueil")).clicked() {
+            if tool(ui, hm, Icon::Home, true, false, th, tr("Page d'accueil")).clicked() {
                 self.go_home(a);
             }
         }
@@ -369,7 +380,7 @@ impl Sanaga {
             r
         };
         let menu_r = slot_r(&mut rx, 36.0);
-        let mresp = tool_button(ui, menu_r, Icon::Menu, true, self.menu_open, th).tip(tr("Menu de Sanaga"));
+        let mresp = tool(ui, menu_r, Icon::Menu, true, self.menu_open, th, tr("Menu de Sanaga"));
         if mresp.clicked() {
             self.menu_open = !self.menu_open;
             self.overflow_open = false;
@@ -414,14 +425,14 @@ impl Sanaga {
         let a = self.active.min(self.tabs.len().saturating_sub(1));
         if self.tb("overview") {
             let ov_r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, ov_r, Icon::Grid, true, self.overview_open, th).tip(tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {
+            if tool(ui, ov_r, Icon::Grid, true, self.overview_open, th, tr("Aperçu des onglets (Ctrl+Maj+O)")).clicked() {
                 self.toggle_overview();
             }
         }
         let has_page = !self.tabs[a].url().starts_with("sanaga://");
         if self.tb("share") {
             let share_r = slot_r(&mut rx, 36.0);
-            let sresp = tool_button(ui, share_r, Icon::Share, has_page, self.share_open, th).tip(tr("Partager"));
+            let sresp = tool(ui, share_r, Icon::Share, has_page, self.share_open, th, tr("Partager"));
             if sresp.clicked() {
                 self.share_open = !self.share_open;
                 self.menu_open = false;
@@ -434,7 +445,7 @@ impl Sanaga {
             let r = slot_r(&mut rx, 36.0);
             let on = self.summary.is_some();
             let can = matches!(self.tabs[a].view, View::Web);
-            let resp = tool_button(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th).tip(tr("Résumer ou traduire la page"));
+            let resp = tool(ui, r, Icon::Sparkle, can, on || self.ai_menu_open, th, tr("Résumer ou traduire la page"));
             self.ai_menu_rect = resp.rect;
             if resp.clicked() {
                 if on && self.summary.as_ref().is_some_and(|s| s.is_for(self.tabs[a].id)) {
@@ -448,37 +459,37 @@ impl Sanaga {
         if self.tb("mobile") {
             let r = slot_r(&mut rx, 36.0);
             let on = self.device.is_some();
-            if tool_button(ui, r, Icon::Phone, true, on, th).tip(tr("Simulateur mobile (Ctrl+Maj+M)")).clicked() {
+            if tool(ui, r, Icon::Phone, true, on, th, tr("Simulateur mobile (Ctrl+Maj+M)")).clicked() {
                 self.toggle_devices();
             }
         }
         if self.tb("print") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::Print, has_page, false, th).tip(tr("Imprimer… (Ctrl+P)")).clicked() {
+            if tool(ui, r, Icon::Print, has_page, false, th, tr("Imprimer… (Ctrl+P)")).clicked() {
                 self.print_page();
             }
         }
         if self.tb("reading") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::Glasses, true, false, th).tip(tr("Liste de lecture")).clicked() {
+            if tool(ui, r, Icon::Glasses, true, false, th, tr("Liste de lecture")).clicked() {
                 self.sidebar_open = !self.sidebar_open;
             }
         }
         if self.tb("bookmarks") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::StarFilled, true, false, th).tip(tr("Favoris")).clicked() {
+            if tool(ui, r, Icon::StarFilled, true, false, th, tr("Favoris")).clicked() {
                 self.open_tab("sanaga://bookmarks", false);
             }
         }
         if self.tb("newtab") {
             let r = slot_r(&mut rx, 36.0);
-            if tool_button(ui, r, Icon::Plus, true, false, th).tip(tr("Nouvel onglet (Ctrl+T)")).clicked() {
+            if tool(ui, r, Icon::Plus, true, false, th, tr("Nouvel onglet (Ctrl+T)")).clicked() {
                 self.open_tab("sanaga://newtab", false);
             }
         }
         if self.tb("downloads") && !self.store.downloads.is_empty() {
             let dl = slot_r(&mut rx, 36.0);
-            if tool_button(ui, dl, Icon::Download, true, false, th).tip(tr("Téléchargements (Ctrl+J)")).clicked() {
+            if tool(ui, dl, Icon::Download, true, false, th, tr("Téléchargements (Ctrl+J)")).clicked() {
                 self.open_tab("sanaga://downloads", false);
             }
         }

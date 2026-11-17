@@ -2223,6 +2223,10 @@ impl Sanaga {
             let title = format!("{} - Sanaga", self.tabs[self.active].title());
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         }
+        // For screen readers the interface is a window of its own, beside
+        // the page's: it says what it is (it had no name: "frame", and
+        // nothing else).
+        ctx.accesskit_node_builder(egui::accesskit_root_id(), |node| node.set_label(tr("Sanaga — barres et menus")));
 
         self.power_step(now);
         if self.frame == 1 {
