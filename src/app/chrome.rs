@@ -130,12 +130,12 @@ impl Sanaga {
             return;
         }
         // The pages of the history that answer what is typed are asked for
-        // when the text changes, on a thread of their own. (They were
-        // looked for through every visit, at every frame: what kept the
-        // history to 5,000 visits.)
+        // when the text changes (or the history does), on a thread of their
+        // own. (They were looked for through every visit, at every frame:
+        // what kept the history to 5,000 visits.)
         let ql = q.to_lowercase();
         let typed = ql.clone();
-        self.history_ask(|app| &mut app.hist.suggest, ql.clone(), move |h| h.suggest(&typed, 12));
+        self.history_ask(|app| &mut app.hist.suggest, (self.store.history.version(), ql.clone()), move |h| h.suggest(&typed, 12));
         // (the address the field holds: what was typed, completed with a site's name)
         let held = if self.inline_done { self.tabs[a].address.trim().to_string() } else { q.clone() };
         // The list is put together again when what it is made of changes

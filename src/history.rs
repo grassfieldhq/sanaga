@@ -29,7 +29,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{mpsc, Arc, Mutex, OnceLock};
+use std::sync::{mpsc, Arc, Condvar, Mutex, OnceLock};
 
 const DB_FILE: &str = "history.db";
 /// The history file of earlier versions (one visit per line), taken in
@@ -87,6 +87,11 @@ struct Db {
     /// SQLite's own count of the changes made by other programs (a second
     /// Sanaga on this profile), as last seen.
     others: AtomicU64,
+    /// How many requests of this history are still to be done by the
+    /// history thread, and the word given when none is left: what is read
+    /// waits for it, so that a page just visited is in what is read.
+    waiting: Mutex<u64>,
+    settled: Condvar,
 }
 
 /// A profile's history. Cheap to copy: every copy is the same history.
@@ -391,15 +396,30 @@ fn hand(job: Job) {
 
 fn do_job(job: Job) {
     match job {
-        Job::Do(db, op) => db.apply(op),
+        Job::Do(db, op) => {
+            // (counted as done whatever happens to it: nothing that reads
+            // may wait for ever)
+            struct Done<'a>(&'a Db);
+            impl Drop for Done<'_> {
+                fn drop(&mut self) {
+                    let mut waiting = self.0.waiting.lock().unwrap_or_else(|e| e.into_inner());
+                    *waiting = waiting.saturating_sub(1);
+                    if *waiting == 0 {
+                        self.0.settled.notify_all();
+                    }
+                }
+            }
+            let _done = Done(&db);
+            db.apply(op);
+        }
         Job::Flush(done) => {
             let _ = done.send(());
         }
     }
 }
 
-/// Wait until everything asked of the history so far is in it: before it
-/// is read, and before Sanaga ends.
+/// Wait until everything asked of every history so far is in it: before
+/// Sanaga ends.
 pub fn flush() {
     // (the history thread itself has nothing to wait for)
     if std::thread::current().name() == Some(THREAD) {
@@ -617,7 +637,27 @@ fn forget_in_kept_files(dir: &Path, keep: Option<&dyn Fn(u64, &str) -> bool>) {
 
 impl Db {
     fn new(dir: Option<PathBuf>) -> Arc<Db> {
-        Arc::new(Db { dir, conns: OnceLock::new(), version: AtomicU64::new(1), others: AtomicU64::new(0) })
+        Arc::new(Db { dir, conns: OnceLock::new(), version: AtomicU64::new(1), others: AtomicU64::new(0), waiting: Mutex::new(0), settled: Condvar::new() })
+    }
+
+    /// Hand a request of this history to the history thread.
+    fn ask(self: &Arc<Self>, op: Op) {
+        *self.waiting.lock().unwrap_or_else(|e| e.into_inner()) += 1;
+        hand(Job::Do(self.clone(), op));
+    }
+
+    /// Wait until every request of this history is done (of this one
+    /// only: what another profile's history, or a guest window's, is
+    /// writing is not waited for).
+    fn settle(&self) {
+        // (the history thread itself has nothing to wait for)
+        if std::thread::current().name() == Some(THREAD) {
+            return;
+        }
+        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        while *waiting > 0 {
+            waiting = self.settled.wait(waiting).unwrap_or_else(|e| e.into_inner());
+        }
     }
 
     fn conns(&self) -> Option<&Conns> {
@@ -709,7 +749,7 @@ impl History {
         }
         let db = Db::new(Some(dir.to_path_buf()));
         open.push((dir.to_path_buf(), db.clone()));
-        hand(Job::Do(db.clone(), Op::Open));
+        db.ask(Op::Open);
         History(db)
     }
 
@@ -725,7 +765,7 @@ impl History {
     #[cfg(test)]
     fn open_apart(dir: &Path) -> History {
         let db = Db::new(Some(dir.to_path_buf()));
-        hand(Job::Do(db.clone(), Op::Open));
+        db.ask(Op::Open);
         History(db)
     }
 
@@ -736,7 +776,7 @@ impl History {
     }
 
     fn write(&self, op: Op) {
-        hand(Job::Do(self.0.clone(), op));
+        self.0.ask(op);
     }
 
     pub fn add_visit(&self, url: &str, title: &str, time: u64) {
@@ -774,7 +814,7 @@ impl History {
     /// Read something. It waits for the disk and for what is being
     /// written: never call it from the window's thread.
     fn read<T>(&self, what: &str, ask: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Option<T> {
-        flush();
+        self.0.settle();
         let conns = self.0.conns()?;
         self.0.look_at_others(conns);
         let c = lock(&conns.read);
@@ -1318,8 +1358,11 @@ mod tests {
         let other = History::open(&other_dir);
         assert_eq!((guest.count(), other.count()), (0, 0));
         // another Sanaga on the same profile: both write, each reads the other
+        // (what the other Sanaga writes is not waited for — it cannot be —
+        // so the test looks once it is written)
         let c = History::open_apart(&dir);
         c.add_visit("https://c.test/", "C", now - 1);
+        assert_eq!(c.count(), 2);
         let seen = a.version();
         assert_eq!(urls(&a, ""), ["https://c.test/", "https://a.test/"]);
         assert!(a.version() > seen, "a change made by another Sanaga is noticed when the history is read");
@@ -1341,10 +1384,11 @@ mod tests {
         for t in threads {
             t.join().unwrap();
         }
+        let _ = (a.count(), c.count());
         assert_eq!((a.count(), c.count()), (402, 402));
         // one clears: gone for the other
         c.clear_since(0);
-        assert_eq!(a.count(), 0);
+        assert_eq!((c.count(), a.count()), (0, 0));
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&other_dir);
     }

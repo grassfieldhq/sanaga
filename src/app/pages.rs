@@ -86,6 +86,12 @@ impl Sanaga {
         self.history_ask(|app| &mut app.hist.listing, (self.store.history.version(), filter.clone()), move |h| Arc::new(h.list(&searched, store::now())));
         // (while a new answer is on its way, the list shown is the one before)
         let (listing, answer) = (self.hist.listing.got.clone(), self.hist.listing.answers);
+        // (another search: its first results are shown, wherever the list
+        // of before had been scrolled to)
+        if self.hist.listed_for != filter {
+            self.hist.listed_for = filter.clone();
+            ui.scroll_to_cursor(Some(Align::TOP));
+        }
         let mut wanted: Vec<usize> = Vec::new();
         let mut on_screen: Option<(usize, usize)> = None;
         let chunks = &self.hist.chunks;

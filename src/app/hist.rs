@@ -56,14 +56,15 @@ pub(super) struct SuggestMade {
 /// The lines of the history the window has on screen.
 #[derive(Default)]
 pub(super) struct Shown {
-    /// Address bar: the pages that answer the text typed (in lower case).
-    pub suggest: Asked<String, Vec<Hit>>,
+    /// Address bar: the pages that answer (the history's state, the text
+    /// typed in lower case).
+    pub suggest: Asked<(u64, String), Vec<Hit>>,
     pub suggest_made: SuggestMade,
     /// The site's name the address field was completed with, and where
     /// that site really is ("nas.lan:8080" → "http://nas.lan:8080/").
     pub completed: Option<(String, String)>,
-    /// Command palette: the pages that answer its text.
-    pub palette: Asked<String, Vec<Hit>>,
+    /// Command palette: the pages that answer (the history's state, its text).
+    pub palette: Asked<(u64, String), Vec<Hit>>,
     /// Sidebar: the pages visited last, for (the history's state, the filter).
     pub recent: Asked<(u64, String), Vec<(String, String)>>,
     /// New tab page: the sites that count most, for the history's state.
@@ -72,8 +73,10 @@ pub(super) struct Shown {
     /// many answers the window has taken.
     pub visited: Asked<u64, HashSet<String>>,
     visited_taken: u64,
-    /// History page: what is listed for (the history's state, the search)…
+    /// History page: what is listed for (the history's state, the search),
+    /// the search the page was last drawn for…
     pub listing: Asked<(u64, String), Arc<Listing>>,
+    pub listed_for: String,
     /// …and the lines read so far, by groups of `CHUNK`, each with the
     /// listing (its answer's number) it was read for.
     pub chunks: HashMap<usize, (u64, Vec<Row>)>,

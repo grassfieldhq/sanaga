@@ -691,11 +691,11 @@ impl Sanaga {
         let pos = pos2(screen.center().x - w / 2.0, screen.top() + 60.0);
         let q = self.tab_search_q.trim().to_lowercase();
         // (the visited pages that answer the text: asked of the history
-        // when the text changes, on a thread of their own — it was a walk
-        // through 6,000 visits at every frame)
+        // when the text changes or the history does, on a thread of their
+        // own — it was a walk through 6,000 visits at every frame)
         if !q.is_empty() {
             let typed = q.clone();
-            self.history_ask(|app| &mut app.hist.palette, q.clone(), move |h| h.suggest(&typed, 12));
+            self.history_ask(|app| &mut app.hist.palette, (self.store.history.version(), q.clone()), move |h| h.suggest(&typed, 12));
         }
         // the lines: (what it does, icon address or "", title, small text)
         let mut lines: Vec<(Pick, String, String, String)> = Vec::new();
