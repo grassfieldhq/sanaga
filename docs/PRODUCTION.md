@@ -10,13 +10,13 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Need | Status | Notes |
 |---|---|---|
 | Pages isolated from the computer | ✅ | WebKit's bubblewrap sandbox is on when `bwrap` and `xdg-dbus-proxy` are installed (both are on Arch/Omarchy). |
-| Engine security updates | 🟡 | Come from the distribution's WebKitGTK package — keep the system updated. Sanaga should warn when WebKitGTK is old. |
+| Engine security updates | 🟡 | Come from the distribution's WebKitGTK package — keep the system updated. Sanaga says when the engine's series stopped getting fixes more than a year ago (About, and once at start for each version). |
 | Data files never half-written | ✅ | Settings, bookmarks, session… are written to a copy then swapped in; the history is a SQLite database (write-ahead log). |
 | Crash information kept | ✅ | A report per crash in `~/.local/share/sanaga/crashes/` (Sanaga itself, a page's process, an abrupt end), read on `sanaga://crashes`, sent only by the person (a GitHub issue, pre-filled). After an abrupt end the tabs come back and a bar says so. A crash inside a system library leaves no detail, only the note that the run ended abruptly. |
 | One Sanaga per profile | ✅ | Links opened from other apps go to the running Sanaga as new tabs. |
 | Passwords | ✅ | In the system keyring (libsecret); AutoFill only for the site really shown. |
 | Never frozen, never taken down by a page | 🟡 | Audit of 11 November 2026 (docs/STABILITY-AUDIT-2026-11-11.md): nothing waited for in the window's thread any more, a panic in a frame no longer ends Sanaga, checked in CI. Left: the engine itself, and measuring drawing on real hardware. |
-| Security review | 🟡 | Audit of 8 November 2026 (docs/SECURITY-AUDIT-2026-11-08.md). The readers of outside files and pages are fuzzed at every push and weekly (docs/FUZZING.md). |
+| Security review | 🟡 | Audit of 8 November 2026 (docs/SECURITY-AUDIT-2026-11-08.md). The readers of outside files and pages are fuzzed at every push and weekly (docs/FUZZING.md). **The assistant's tools (17 November) have had no review of their own yet**: what a model may read and do, the confirmations, forms, outside tools — see docs/DIA-AUDIT-2026-11-17.md, "What was done". |
 
 ## 2. The web must work (must have)
 
@@ -38,7 +38,7 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 | Smooth animated pages | ✅ | GTK 4 / WebKitGTK 6: pages are composed on the graphics card; still page 0 %, endless animation 6–10 % of one core (docs/GTK4.md). |
 | Screen readers | ✅ | The interface (AccessKit) and the pages (GTK 4) are published over AT-SPI. Next: labels for every field, keyboard focus order. |
 | Fractional scaling (125 %, 150 %) | 🟡 | Integer scales work; fractional ones depend on the desktop's XWayland/Wayland settings. |
-| Sync between computers | 🟡 | Through a shared folder. Next: end-to-end encrypted sync of bookmarks, passwords and tabs. |
+| Sync between computers | 🟡 | Through a shared folder, sealed with a secret phrase: favourites, reading list, open tabs, the assistant's saved requests. Next: settings, tab groups, passwords; a pairing code instead of typing the phrase. |
 
 ## 4. Shipping
 

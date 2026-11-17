@@ -64,6 +64,15 @@ The interface's own text handling (Find in page, the source view, the
 address bar, model answers, settings files) cannot be built without GTK, so
 it has the repeatable fuzzer only: `src/app/robust.rs`.
 
+So do, for now, the assistant's readers of what comes from outside — each
+has a `…do_not_panic` test fed by `src/mutate.rs`, none has a libFuzzer
+target yet: a model's stream of answers and its tool calls, and kept
+conversations (`src/chat.rs`); an MCP server's messages and the list of
+servers (`src/mcp.rs`); saved requests (`src/skills.rs`); notes turned
+into a page, where no tag may come from the note (`src/notes.rs`); the
+administrator's policy (`src/policy.rs`); what a page says of its text and
+of its form's fields (`src/app/assistant.rs`, `src/app/aiforms.rs`).
+
 ## Found so far
 
 - Find in page: a page holding İ, ẞ or the Kelvin sign made Sanaga panic

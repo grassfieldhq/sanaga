@@ -171,7 +171,7 @@ impl Sanaga {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
-                            ui.set_width(ui.available_width() - 250.0);
+                            ui.set_width((ui.available_width() - 250.0).max(80.0));
                             ui.label(RichText::new(&s.name).size(14.5).family(bold()).color(th.text));
                             ui.add(egui::Label::new(RichText::new(format!("{} : {}", if s.program { tr("Programme") } else { tr("Adresse") }, s.target)).size(12.0).color(th.sub)).truncate());
                         });

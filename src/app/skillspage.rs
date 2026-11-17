@@ -73,7 +73,7 @@ impl Sanaga {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
-                            ui.set_width(ui.available_width() - 200.0);
+                            ui.set_width((ui.available_width() - 200.0).max(80.0));
                             ui.label(RichText::new(format!("/{}", s.name)).size(14.5).family(bold()).color(th.text));
                             let sub = if s.own { s.description.clone() } else { tf("{} — fournie avec Sanaga", &[&s.description]) };
                             ui.add(egui::Label::new(RichText::new(sub).size(12.5).color(th.sub)).wrap());

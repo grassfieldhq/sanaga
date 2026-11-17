@@ -217,6 +217,8 @@ pub(super) struct Assistant {
     pub(super) outside: bool,
     pub(super) allowed: HashSet<String>,
     pub(super) confirm: Option<Confirm>,
+    /// Its first question was a page's summary ("Summarise again" is offered).
+    summarised: bool,
     /// The note the last answer was kept as, if it was.
     pub(super) kept_note: Option<String>,
     /// The fields of the page last listed for the model (see aiforms.rs).
@@ -267,6 +269,7 @@ impl Assistant {
             allowed: HashSet::new(),
             confirm: None,
             reads: Vec::new(),
+            summarised: false,
             kept_note: None,
             form: None,
             earlier: None,
@@ -606,6 +609,9 @@ impl Sanaga {
             return;
         }
         let with_page = a.with_page || summary;
+        if a.entries.is_empty() {
+            a.summarised = summary;
+        }
         let mut extra = std::mem::take(&mut a.attach);
         a.note.clear();
         a.picker = false;
@@ -1090,8 +1096,12 @@ impl Sanaga {
             .filter(|t| t.id != active_id && matches!(t.view, View::Web | View::Doc(_)) && (!t.private || private) && !t.companion)
             .map(|t| (t.id, t.title(), t.url().to_string()))
             .collect();
-        let all_skills = self.skills.clone();
-        let Some(a) = self.assistant.as_mut() else { return };
+        // (taken out while the panel is drawn, put back after: not copied at every frame)
+        let all_skills = std::mem::take(&mut self.skills);
+        let Some(a) = self.assistant.as_mut() else {
+            self.skills = all_skills;
+            return;
+        };
         // the page shown goes with the next question when the model has
         // not been given it yet (a new page, another tab)
         let fresh = page_can && !a.given.contains(&(active_id, active_url.clone()));
@@ -1432,9 +1442,7 @@ impl Sanaga {
                                     } else if notes_possible && ui.small_button(tr("Garder comme note")).clicked() {
                                         keep_note = true;
                                     }
-                                    if a.entries.len() <= 2
-                                        && a.labels.contains_key(&0)
-                                        && ui.small_button(if a.tab == active_id && !fresh { tr("Résumer à nouveau") } else { tr("Résumer cette page") }).clicked()
+                                    if a.entries.len() <= 2 && a.summarised && ui.small_button(if a.tab == active_id && !fresh { tr("Résumer à nouveau") } else { tr("Résumer cette page") }).clicked()
                                     {
                                         again = true;
                                     }
@@ -1463,6 +1471,7 @@ impl Sanaga {
             });
         });
 
+        self.skills = all_skills;
         if let Some(k) = drop_attach {
             a.attach.remove(k);
         }

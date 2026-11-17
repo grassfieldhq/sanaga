@@ -1317,6 +1317,9 @@ impl Sanaga {
         if app.store.settings.ai == "claude" {
             app.check_ai_key();
         }
+        // (what the administrator fixed, if anything: read here, once,
+        // with the profile's own files — not later, in the middle of a frame)
+        let _ = crate::policy::get();
         // an engine too old to be safe: said once for each version of it
         // (and always on the About page)
         if crate::shell::active() && app.slot == 0 && !app.guest {
