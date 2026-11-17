@@ -751,6 +751,19 @@ struct Input {
     commands: Vec<&'static str>,
 }
 
+impl Drop for Gui {
+    /// A window closed between a frame made and that frame drawn still
+    /// holds picture changes (a font just found, an icon) that will never
+    /// be sent to its graphics context — which goes with the window. They
+    /// are let go of: the library takes changes dropped unsent for a
+    /// mistake, and stopped Sanaga (debug builds) when the other window was
+    /// closed at that moment.
+    fn drop(&mut self) {
+        self.delta.clear();
+        self.delta_top.clear();
+    }
+}
+
 /// Screen readers (Orca…) read Sanaga's interface through AT-SPI: egui
 /// describes what it draws (AccessKit), this adapter publishes it, and the
 /// reader's actions (press a button, move the focus) come back as input.

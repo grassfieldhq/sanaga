@@ -1044,7 +1044,9 @@ impl Sanaga {
 
         if show.shows(Section::General, tr("Téléchargements"), &[tr("Dossier des téléchargements"), tr("Toujours demander où enregistrer les fichiers")]) {
             any = true;
-            let folder = crate::net::download_dir().to_string_lossy().to_string();
+            // (what is shown costs no look at the disk at every frame: the
+            // folder chosen as it was chosen, else the system's, found once)
+            let folder = if st.download_dir.trim().is_empty() { crate::net::system_download_dir().to_string_lossy().to_string() } else { st.download_dir.clone() };
             group(ui, th, tr("Téléchargements"), |ui, rows| {
                 rows.row(ui, tr("Dossier des téléchargements"), &folder, false, |ui| {
                     // (right to left: the button to choose comes last)
