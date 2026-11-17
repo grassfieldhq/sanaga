@@ -204,7 +204,7 @@ impl Sanaga {
                 ui.painter().line_segment([pos2(pill.left() + 12.0, y), pos2(pill.right() - 12.0, y)], Stroke::new(2.5, col));
             }
             let title = tab.title();
-            let text_col = if active { tth.text } else { th.sub };
+            let text_col = if active { tth.text } else { th.tab_text };
             let icon_only = tab.pinned || rect.width() < MIN_W - 0.5;
             // favicon + title, centred together (Safari); the icon alone when narrow
             let font = FontId::proportional(12.0);

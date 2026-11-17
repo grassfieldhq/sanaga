@@ -205,7 +205,11 @@ impl Sanaga {
                     }
                     ui.painter().circle_filled(pos2(r.left() + 12.0, r.center().y), 5.0, col);
                     let name = if self.groups[g].is_empty() { tf("Groupe {}", &[&g]) } else { self.groups[g].clone() };
-                    ui.painter().text(pos2(r.left() + 24.0, r.center().y), Align2::LEFT_CENTER, &name, FontId::new(12.5, bold()), col);
+                    // (the name in the text's colour: written in the group's
+                    // own colour it could not be read — the yellow at 2.8:1
+                    // on the light list, seven of the nine under 3.6:1 on the
+                    // dark one. The dot beside it says the colour.)
+                    ui.painter().text(pos2(r.left() + 24.0, r.center().y), Align2::LEFT_CENTER, &name, FontId::new(12.5, bold()), th.text);
                     let n = self.tabs.iter().filter(|t| t.group == g).count();
                     let folded = self.group_folded(g);
                     ui.painter().text(pos2(r.right() - 8.0, r.center().y), Align2::RIGHT_CENTER, format!("{n} {}", if folded { "▸" } else { "▾" }), FontId::proportional(11.5), th.sub);
