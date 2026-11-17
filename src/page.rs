@@ -580,15 +580,20 @@ fn http_instead(v: &WebView, st: &ViewState, failed: &str) -> bool {
         return false;
     }
     let Some((_, http)) = st.https_try.take() else { return false };
-    let host = host_of_uri(&http);
-    HTTP_ONLY.with(|h| {
-        let mut h = h.borrow_mut();
-        if !h.contains(&host) {
-            h.push(host);
-        }
-    });
+    http_only(&host_of_uri(&http));
     v.load_uri(&http);
     true
+}
+
+/// This site has no https (or its https sends back to http): it is asked
+/// over http until Sanaga quits.
+fn http_only(host: &str) {
+    HTTP_ONLY.with(|h| {
+        let mut h = h.borrow_mut();
+        if !h.iter().any(|x| x == host) {
+            h.push(host.to_string());
+        }
+    });
 }
 
 /// What Sanaga follows for one open page.
@@ -1991,6 +1996,37 @@ impl PageView {
                             }
                             o(PageSignal::LoadFailed(uri, LoadError::Dangerous, String::new()));
                             return true;
+                        }
+                    }
+                    // "HTTPS first" for an address the page went to by
+                    // itself (a script, a form, a page that sends on): only
+                    // here is it known that the whole tab is going there —
+                    // a frame inside a page asks the same way before. What
+                    // came over http is not shown: https is asked, and http
+                    // again only if the site has no https.
+                    if r.is_main_frame_main_resource() {
+                        let uri = r.response().and_then(|x| x.uri()).map(|u| u.to_string()).unwrap_or_default();
+                        let get = r.request().and_then(|q| q.http_method()).is_none_or(|m| m == "GET");
+                        if let Some(st) = view_state(v).filter(|_| get && uri.starts_with("http://")) {
+                            let sent_back = st.https_try.borrow().as_ref().is_some_and(|(https, _)| host_of_uri(https) == host_of_uri(&uri));
+                            if sent_back {
+                                // (its https address sends back to http: the
+                                // site is http, and is not asked twice)
+                                *st.https_try.borrow_mut() = None;
+                                http_only(&host_of_uri(&uri));
+                            } else {
+                                let https = https_first(v, &st, &uri);
+                                if https != uri {
+                                    decision.ignore();
+                                    let weak = v.downgrade();
+                                    gtk::glib::idle_add_local_once(move || {
+                                        if let Some(v) = weak.upgrade() {
+                                            v.load_uri(&https);
+                                        }
+                                    });
+                                    return true;
+                                }
+                            }
                         }
                     }
                     if r.is_main_frame_main_resource() && !r.is_mime_type_supported() {

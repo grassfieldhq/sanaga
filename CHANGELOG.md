@@ -65,7 +65,9 @@ All notable changes to Sanaga are listed here. The format follows
   only when the site did not answer there (refused, a certificate that is
   not the site's, nothing after five seconds). A name typed without its
   scheme falls back the same way; an address written with `https://`
-  never does.
+  never does. An address a page goes to by itself (a script, a form, a
+  page that sends on) is treated the same once its answer comes: what
+  came over http is not shown, https is asked.
 - A warning before a site reported as phishing or malware (Settings ›
   Privacy, on). The lists (malware-filter's phishing-filter and
   urlhaus-filter) are fetched once a day and looked up on this computer:
