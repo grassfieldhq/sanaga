@@ -7,6 +7,26 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- The address of the link under the mouse shows at the bottom left of a
+  web page.
+- A page's full-screen button (a video) fills the screen: Sanaga's bars
+  go while it lasts.
+- The bar under the address field shows how far the page has come.
+- Downloads under way are listed with what was received, the announced
+  size and a bar, and can be cancelled.
+- Ctrl+1…8 show that tab, Ctrl+9 the last one; Ctrl+F5 and Shift+F5 load
+  again without the cache; F3 and Ctrl+G go to the next match; Alt+D goes
+  to the address field.
+- A link opened in a tab behind (middle click) loads at once.
+- A tab keeps its back and forward pages across a restart, and when it
+  is reopened after being closed.
+- Closing a tab in which something was typed asks the page first (its
+  "leave this page?").
+- A tab that uses the camera, the microphone or the screen shows a red
+  camera; a click stops it. Sharing the screen is asked about instead of
+  being refused.
+- About › "Look for a new version": asks GitHub for the latest release,
+  only when clicked.
 - Find in page says which match is shown ("3/8"), not only how many
   there are.
 - A web page's right-click menu, with words selected: **Search the web
@@ -101,6 +121,9 @@ All notable changes to Sanaga are listed here. The format follows
   from the phrase with Argon2id, the phrase kept in the keyring).
 
 ### Changed
+- `MECHANICS.md` and `mechanics.json` are removed from the tree (see the
+  audit of 16 November); the values stay in the code, described for what
+  they do.
 - Right-click menus (tab, group, tab bar, favourite, container, links):
   a symbol on each line, the shortcut at the right, sub-menus alike.
 - A web page's right-click menu is in Sanaga's language throughout (the
@@ -270,6 +293,17 @@ All notable changes to Sanaga are listed here. The format follows
   a "name" field got the e-mail, phone and address in hidden ones).
 - An assistant run on the command line can no longer leave Sanaga and
   itself waiting on each other with a long page.
+- A window opened by a page (sign-in, payment) no longer takes that page
+  down when it closes.
+- One Sanaga at a time writes a profile: two launches at the same moment,
+  or a session without a runtime folder, no longer give two Sanagas on
+  the same files.
+- Sanaga closes while a page's question (confirm, alert) is waiting; it
+  could stay there for more than half a minute.
+- Clear browsing data removes cookies for a period too (the engine
+  removes none "since a time": only "all time" did).
+- Hyprland: with several windows, the green button, F11 and moving by
+  the bar act on the window in use.
 - Chrome passwords of 32 characters or more are imported whole; user
   scripts read their whole header and run on their own sites only
   (`*://*.bank.example/*` no longer matches another site's address);
