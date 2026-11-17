@@ -134,8 +134,41 @@ impl Sanaga {
         let store = &self.store;
         centered_column(ui, |ui| {
             page_title(ui, th, tr("Téléchargements"));
-            if store.downloads.is_empty() {
+            // the downloads under way: how far each one is, and a way to
+            // stop it
+            let running = crate::page::running_downloads();
+            if store.downloads.is_empty() && running.is_empty() {
                 ui.label(RichText::new(tr("Les fichiers que vous téléchargez apparaîtront ici. Ils sont enregistrés dans votre dossier Téléchargements.")).color(th.sub));
+            }
+            for d in &running {
+                Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(12)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
+                        icons::paint(ui.painter(), r, Icon::Download, th.accent);
+                        ui.vertical(|ui| {
+                            let name = d.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                            ui.label(RichText::new(name).size(14.0).color(th.text));
+                            let s = if d.total > 0 { tf("{} sur {}", &[&net::human_bytes(d.received), &net::human_bytes(d.total)]) } else { net::human_bytes(d.received) };
+                            ui.label(RichText::new(s).size(12.0).color(th.sub));
+                            if d.total > 0 {
+                                let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width().min(360.0), 4.0), Sense::hover());
+                                ui.painter().rect_filled(bar, 2.0, th.border);
+                                let done = (d.received as f32 / d.total as f32).clamp(0.0, 1.0);
+                                ui.painter().rect_filled(Rect::from_min_size(bar.min, vec2(bar.width() * done, bar.height())), 2.0, th.accent);
+                            }
+                        });
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ui.button(tr("Annuler")).clicked() {
+                                crate::page::stop_download(&d.path);
+                            }
+                        });
+                    });
+                });
+                ui.add_space(6.0);
+            }
+            if !running.is_empty() {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
             }
             for d in store.downloads.iter().rev() {
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(12)).show(ui, |ui| {

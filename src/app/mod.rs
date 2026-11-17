@@ -451,6 +451,8 @@ pub struct Sanaga {
     hover_url: Option<String>,
     /// The link under the mouse in the web page shown.
     web_hover: Option<String>,
+    /// How many downloads were under way at the last frame.
+    downloads_seen: usize,
     /// The tab whose page fills the screen (a video's full-screen button),
     /// and whether the focus mode was on before.
     page_fullscreen: Option<(u64, bool)>,
@@ -885,6 +887,7 @@ impl Sanaga {
             suggest_rect: Rect::NOTHING,
             hover_url: None,
             web_hover: None,
+            downloads_seen: 0,
             page_fullscreen: None,
             history_filter: String::new(),
             closed: Vec::new(),
@@ -2027,6 +2030,13 @@ impl Sanaga {
         self.test_hooks(ui, &ctx0, now);
         self.memory_saver_step(now);
         self.follow_edited_bookmark();
+        // a download that starts says so (in the window in use): it used
+        // to say nothing until it was over, however long it took
+        let under_way = crate::page::downloads_under_way();
+        if under_way > self.downloads_seen && crate::page::ACTIVE_WINDOW.load(Ordering::Relaxed) == self.slot {
+            self.notice = Some((tr("Téléchargement en cours — Ctrl+J pour le suivre ou l'arrêter.").into(), now));
+        }
+        self.downloads_seen = under_way;
         // tabs whose closing was put off until the step that asked for it
         // was over (see `protected_site`)
         for id in std::mem::take(&mut self.close_later) {

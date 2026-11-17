@@ -1005,9 +1005,73 @@ fn release(p: &Path) {
 fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str) -> PathBuf {
     let path = crate::net::download_destination(suggested, uri, is_reserved);
     reserve(&path);
+    // (from here on it is listed as under way: how far it is, a way to stop it)
+    RUNNING.with(|r| r.borrow_mut().push(Running { download: download.clone(), path: path.clone(), stopped: false }));
     download.set_allow_overwrite(false);
     download.set_destination(&path.to_string_lossy());
     path
+}
+
+/// A download under way.
+struct Running {
+    download: webkit6::Download,
+    path: PathBuf,
+    /// The person stopped it.
+    stopped: bool,
+}
+
+thread_local! {
+    /// The downloads under way, for the downloads page: until now a
+    /// download said nothing between its start and its end, however long.
+    static RUNNING: RefCell<Vec<Running>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A download under way, as the downloads page shows it.
+pub struct DownloadProgress {
+    pub path: PathBuf,
+    /// Bytes received so far, and the size the site announced (0: not told).
+    pub received: u64,
+    pub total: u64,
+}
+
+/// The downloads under way (oldest first).
+pub fn running_downloads() -> Vec<DownloadProgress> {
+    RUNNING.with(|r| {
+        r.borrow()
+            .iter()
+            .filter(|d| !d.stopped)
+            .map(|d| DownloadProgress { path: d.path.clone(), received: d.download.received_data_length(), total: d.download.response().map(|x| x.content_length()).unwrap_or(0) })
+            .collect()
+    })
+}
+
+/// How many downloads are under way.
+pub fn downloads_under_way() -> usize {
+    RUNNING.with(|r| r.borrow().iter().filter(|d| !d.stopped).count())
+}
+
+/// Stop a download under way (the part already received is removed).
+pub fn stop_download(path: &Path) {
+    let found = RUNNING.with(|r| {
+        r.borrow_mut().iter_mut().find(|d| d.path == path && !d.stopped).map(|d| {
+            d.stopped = true;
+            d.download.clone()
+        })
+    });
+    if let Some(download) = found {
+        download.cancel();
+    }
+}
+
+/// A download ended: it is no longer under way. True when the person had
+/// stopped it.
+fn download_ended(download: &webkit6::Download) -> bool {
+    RUNNING.with(|r| {
+        let mut r = r.borrow_mut();
+        let stopped = r.iter().any(|d| d.download == *download && d.stopped);
+        r.retain(|d| d.download != *download);
+        stopped
+    })
 }
 
 /// The engine of a profile folder (made once, then shared by the windows).
@@ -1285,6 +1349,13 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
             let path = dest.borrow().clone();
             if let Some(p) = &path {
                 release(p);
+            }
+            if download_ended(download) {
+                // stopped by the person: nothing to show, nothing left behind
+                if let Some(p) = &path {
+                    let _ = std::fs::remove_file(p);
+                }
+                return;
             }
             if denied.get() {
                 return; // the person said no: nothing to show
