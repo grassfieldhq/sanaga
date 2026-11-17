@@ -1266,3 +1266,9 @@ Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien
 HTTPS d'abord	HTTPS zuerst
 Les sites sont demandés en https ; en http seulement s'ils n'ont pas https	Websites werden über https abgerufen; über http nur, wenn sie kein https haben
 Enregistrer sous	Speichern unter
+Ce site est signalé comme dangereux	Diese Website ist als gefährlich gemeldet
+{} figure sur une liste de sites d'hameçonnage ou de logiciels malveillants : il peut imiter un site que vous connaissez pour prendre vos mots de passe, ou installer un programme nuisible.	{} steht auf einer Liste von Phishing- oder Schadsoftware-Websites: Sie kann eine Ihnen bekannte Website nachahmen, um Ihre Passwörter zu stehlen, oder ein schädliches Programm installieren.
+Revenez en lieu sûr, sauf si vous êtes certain que ce signalement est une erreur.	Kehren Sie zurück, außer Sie sind sicher, dass diese Meldung ein Irrtum ist.
+Les listes viennent de malware-filter (OpenPhish, PhishTank, URLhaus) ; elles sont consultées sur cet ordinateur, l'adresse n'est envoyée nulle part. Sanaga ne se souviendra de votre choix que jusqu'à sa fermeture.	Die Listen stammen von malware-filter (OpenPhish, PhishTank, URLhaus); sie werden auf diesem Computer abgefragt, die Adresse wird nirgendwohin gesendet. Sanaga merkt sich Ihre Wahl nur bis zum Schließen.
+Avertir avant un site dangereux	Vor gefährlichen Websites warnen
+Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing und Schadsoftware: Listen werden einmal täglich abgerufen (malware-filter) und auf diesem Computer abgefragt — keine Adresse wird gesendet

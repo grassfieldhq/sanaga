@@ -20,6 +20,7 @@ mod app;
 mod blocklist;
 mod codecs;
 mod crash;
+mod danger;
 mod desktop;
 mod extensions;
 mod favicon;

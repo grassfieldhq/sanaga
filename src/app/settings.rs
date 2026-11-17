@@ -1343,7 +1343,15 @@ impl Sanaga {
         if show.shows(
             Section::Privacy,
             tr("Suivi"),
-            &[tr("Bloquer les publicités et les traceurs"), tr("Empêcher le suivi intersites"), tr("HTTPS d'abord"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")],
+            &[
+                tr("Bloquer les publicités et les traceurs"),
+                tr("Empêcher le suivi intersites"),
+                tr("HTTPS d'abord"),
+                tr("Avertir avant un site dangereux"),
+                tr("Effacer les données"),
+                tr("Paramètres des sites"),
+                tr("Sécurité"),
+            ],
         ) {
             any = true;
             group(ui, th, "", |ui, rows| {
@@ -1351,6 +1359,12 @@ impl Sanaga {
                 changed |=
                     rows.switch(ui, tr("Listes de blocage complètes"), tr("EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)"), &mut st.block_lists);
                 changed |= rows.switch(ui, tr("Empêcher le suivi intersites"), "", &mut st.itp);
+                changed |= rows.switch(
+                    ui,
+                    tr("Avertir avant un site dangereux"),
+                    tr("Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée"),
+                    &mut st.safe_sites,
+                );
                 changed |= rows.switch(ui, tr("HTTPS d'abord"), tr("Les sites sont demandés en https ; en http seulement s'ils n'ont pas https"), &mut st.https_first);
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });

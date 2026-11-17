@@ -257,6 +257,8 @@ pub enum LoadError {
     NoFile,
     /// A port browsers never open (it belongs to other services: mail, FTP…).
     BlockedPort,
+    /// A site reported as phishing or as spreading malware (see danger.rs).
+    Dangerous,
     Other,
 }
 
@@ -452,6 +454,27 @@ thread_local! {
     static HTTPS_FIRST: Cell<bool> = const { Cell::new(false) };
     static HTTP_ONLY: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static SCHEMELESS: RefCell<std::collections::VecDeque<String>> = const { RefCell::new(std::collections::VecDeque::new()) };
+    /// Sites reported as dangerous that the person chose to see anyway
+    /// (until Sanaga quits).
+    static DANGER_ALLOWED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Should Sanaga warn before showing this address (a site reported as
+/// phishing or malware, which the person has not chosen to see anyway)?
+pub fn dangerous(address: &str) -> bool {
+    let host = host_of_uri(address);
+    crate::danger::listed(&host) && !DANGER_ALLOWED.with(|a| a.borrow().contains(&host))
+}
+
+/// The person chose to see this reported site anyway: no warning for it
+/// until Sanaga quits.
+pub fn allow_dangerous(host: &str) {
+    DANGER_ALLOWED.with(|a| {
+        let mut a = a.borrow_mut();
+        if !a.iter().any(|h| h == host) {
+            a.push(host.to_string());
+        }
+    });
 }
 
 /// The proxy pages go through (the settings' text: see `guard::proxy_choice`),
@@ -1933,6 +1956,20 @@ impl PageView {
                             r.is_mime_type_supported()
                         );
                     }
+                    // A site reported as phishing or malware (wherever the
+                    // address asked for led to): nothing of it is shown or
+                    // run, Sanaga's warning takes its place.
+                    if r.is_main_frame_main_resource() {
+                        let uri = r.response().and_then(|x| x.uri()).map(|u| u.to_string()).unwrap_or_default();
+                        if dangerous(&uri) {
+                            decision.ignore();
+                            if let Some(st) = view_state(v) {
+                                *st.https_try.borrow_mut() = None;
+                            }
+                            o(PageSignal::LoadFailed(uri, LoadError::Dangerous, String::new()));
+                            return true;
+                        }
+                    }
                     if r.is_main_frame_main_resource() && !r.is_mime_type_supported() {
                         let status = r.response().map(|x| x.status_code()).unwrap_or(200);
                         if (200..300).contains(&status) {
@@ -2218,6 +2255,14 @@ impl PageView {
     pub fn load_url(&self, url: &str, by_person: bool) -> R<()> {
         if let Some(s) = view_state(&self.view) {
             s.typed.set(by_person.then(Instant::now));
+        }
+        // (a site reported as dangerous is not even asked: the warning
+        // comes as for a page that failed)
+        if dangerous(url) {
+            if let Some(tell) = self.state.tell.borrow().clone() {
+                tell(PageSignal::LoadFailed(url.to_string(), LoadError::Dangerous, String::new()));
+                return Ok(());
+            }
         }
         let url = https_first(&self.view, &self.state, url);
         set_identity(&self.view, &host_of_uri(&url), &self.default_ua);

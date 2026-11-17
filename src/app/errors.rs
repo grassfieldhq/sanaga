@@ -24,6 +24,7 @@ fn icon(kind: LoadError) -> &'static str {
         LoadError::Refused | LoadError::BlockedPort => r#"<rect x="12" y="14" width="36" height="24" rx="4"/><path d="M20 46h20M30 38v8"/><path d="M24 22l12 10M36 22l-12 10"/>"#,
         LoadError::Timeout => r#"<circle cx="30" cy="32" r="20"/><path d="M30 20v12l8 5M24 8h12"/>"#,
         LoadError::Certificate => r#"<rect x="14" y="26" width="32" height="24" rx="4"/><path d="M21 26v-6a9 9 0 0118 0v6"/><path d="M30 34v6"/><circle cx="30" cy="33" r="2.5" class="f"/>"#,
+        LoadError::Dangerous => r#"<path d="M30 8l22 38H8z"/><path d="M30 22v12"/><circle cx="30" cy="40" r="2.5" class="f"/>"#,
         LoadError::NoFile => r#"<path d="M18 8h17l11 11v33H18z"/><path d="M35 8v11h11"/><path d="M25 32l10 10M35 32l-10 10"/>"#,
         LoadError::Other => r#"<circle cx="30" cy="30" r="21"/><path d="M30 18v15"/><circle cx="30" cy="41" r="2.5" class="f"/>"#,
     }
@@ -109,6 +110,14 @@ impl Sanaga {
                 ),
                 vec![tr("Revenez en lieu sûr, sauf si vous savez exactement pourquoi ce site a un certificat non valide (un appareil de votre réseau, par exemple).")],
             ),
+            LoadError::Dangerous => (
+                tr("Ce site est signalé comme dangereux"),
+                tf(
+                    "{} figure sur une liste de sites d'hameçonnage ou de logiciels malveillants : il peut imiter un site que vous connaissez pour prendre vos mots de passe, ou installer un programme nuisible.",
+                    &[&format!("<b>{}</b>", esc(&host))],
+                ),
+                vec![tr("Revenez en lieu sûr, sauf si vous êtes certain que ce signalement est une erreur.")],
+            ),
             LoadError::BlockedPort => (
                 tr("Cette adresse utilise un port bloqué"),
                 tr("Pour votre sécurité, les navigateurs n'ouvrent pas ce port : il sert à d'autres services (courrier, transfert de fichiers…).").to_string(),
@@ -127,7 +136,7 @@ impl Sanaga {
         let archive = format!("https://web.archive.org/web/{url}");
         let web = url.starts_with("http://") || url.starts_with("https://");
         let mut buttons = String::new();
-        if kind == LoadError::Certificate {
+        if kind == LoadError::Certificate || kind == LoadError::Dangerous {
             // (Sanaga's own buttons: handled by its isolated script, checked in Rust)
             buttons.push_str(&format!("<button class=\"primary\" data-sanaga-action=\"safe\">{}</button>", tr("Revenir en lieu sûr")));
         } else {
@@ -146,6 +155,15 @@ impl Sanaga {
                 esc(&host),
                 tf("Continuer vers {} (dangereux)", &[&esc(&host)]),
                 esc(detail)
+            )
+        } else if kind == LoadError::Dangerous {
+            format!(
+                "<details><summary>{}</summary><p>{}</p><button class=\"danger\" data-sanaga-action=\"danger-allow\" data-sanaga-arg=\"{}\">{}</button><p class=\"code\">{}</p></details>",
+                tr("Avancé"),
+                tr("Les listes viennent de malware-filter (OpenPhish, PhishTank, URLhaus) ; elles sont consultées sur cet ordinateur, l'adresse n'est envoyée nulle part. Sanaga ne se souviendra de votre choix que jusqu'à sa fermeture."),
+                esc(&host),
+                tf("Continuer vers {} (dangereux)", &[&esc(&host)]),
+                esc(url)
             )
         } else {
             format!("<details><summary>{}</summary><p class=\"code\">{}<br>{}</p></details>", tr("Détails techniques"), esc(url), esc(detail))

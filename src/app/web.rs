@@ -215,7 +215,7 @@ document.addEventListener('click', function (e) {
 fn page_may_answer(what: &str) -> bool {
     // ("no-webrtc": the engine has no video calls — it was filtered out
     // here, so call sites were never handed to a browser that has them)
-    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow" | "no-webrtc") || (cfg!(debug_assertions) && what == "probe")
+    matches!(what, "pip-info" | "zap-done" | "media-unsupported" | "safe" | "tls-allow" | "danger-allow" | "no-webrtc") || (cfg!(debug_assertions) && what == "probe")
 }
 
 use crate::page::shortcut_name;

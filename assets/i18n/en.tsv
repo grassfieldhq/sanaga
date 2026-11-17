@@ -1266,3 +1266,9 @@ Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien
 HTTPS d'abord	HTTPS first
 Les sites sont demandés en https ; en http seulement s'ils n'ont pas https	Sites are asked for over https; over http only when they have no https
 Enregistrer sous	Save as
+Ce site est signalé comme dangereux	This site is reported as dangerous
+{} figure sur une liste de sites d'hameçonnage ou de logiciels malveillants : il peut imiter un site que vous connaissez pour prendre vos mots de passe, ou installer un programme nuisible.	{} is on a list of phishing or malware sites: it may imitate a site you know to take your passwords, or install a harmful program.
+Revenez en lieu sûr, sauf si vous êtes certain que ce signalement est une erreur.	Go back to safety, unless you are certain this report is a mistake.
+Les listes viennent de malware-filter (OpenPhish, PhishTank, URLhaus) ; elles sont consultées sur cet ordinateur, l'adresse n'est envoyée nulle part. Sanaga ne se souviendra de votre choix que jusqu'à sa fermeture.	The lists come from malware-filter (OpenPhish, PhishTank, URLhaus); they are looked up on this computer, the address is sent nowhere. Sanaga will remember your choice only until it is closed.
+Avertir avant un site dangereux	Warn before a dangerous site
+Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing and malware: lists fetched once a day (malware-filter), looked up on this computer — no address is sent

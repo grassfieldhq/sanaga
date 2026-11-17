@@ -17,6 +17,11 @@ impl Sanaga {
         crate::net::set_proxy(&st.proxy);
         crate::page::set_proxy(&st.proxy);
         crate::page::set_https_first(st.https_first);
+        // (the list of reported sites: read, and fetched when a day old)
+        crate::danger::set_on(st.safe_sites);
+        if let Some(dir) = &self.web_dir {
+            crate::danger::prepare(&dir.join("filters"));
+        }
         // The system's own proxy, for Sanaga's requests (the engine asks the
         // system by itself for the pages): asked once, away from the window —
         // an automatic configuration is fetched from the network.

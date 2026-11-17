@@ -199,7 +199,7 @@ impl Sanaga {
         // page sends by itself (a video it can't play, an answer, the error
         // page's buttons) never pull a background tab to the front
         if let Some(i) = self.tab_index(tab) {
-            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe" | "safe" | "tls-allow" | "no-webrtc") {
+            if !matches!(what, "zap-done" | "pip-info" | "media-unsupported" | "probe" | "safe" | "tls-allow" | "danger-allow" | "no-webrtc") {
                 self.active = i;
             }
         }
@@ -222,6 +222,25 @@ impl Sanaga {
                 if ok {
                     let host = self.error_pages.remove(&tab).map(|e| host_of(&e.url)).unwrap_or_default();
                     self.accept_certificate(tab, &host);
+                }
+            }
+            // (the same proofs as for a certificate: this tab, this very
+            // warning, its secret)
+            "danger-allow" => {
+                let showing = self.tab_shows(tab);
+                let ok = self.error_pages.get(&tab).is_some_and(|e| {
+                    e.shown
+                        && e.kind == crate::page::LoadError::Dangerous
+                        && showing.as_deref() == Some(e.url.as_str())
+                        && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
+                });
+                if ok {
+                    if let Some(e) = self.error_pages.remove(&tab) {
+                        crate::page::allow_dangerous(&host_of(&e.url));
+                        if let Some(w) = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.web.as_ref()) {
+                            let _ = w.load_url(&e.url, true);
+                        }
+                    }
                 }
             }
             "safe" => {
