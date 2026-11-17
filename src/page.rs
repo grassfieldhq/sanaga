@@ -448,6 +448,9 @@ struct ViewState {
     typed: Cell<Option<Instant>>,
     /// When a key was last pressed in the page (seen by GTK).
     key_at: Cell<Option<Instant>>,
+    /// This page was opened by another one, or opened one itself: they
+    /// share an engine process.
+    related: Cell<bool>,
     /// How this page speaks to the interface (for a key the page left
     /// unused, which comes back through the window).
     tell: RefCell<Option<Rc<dyn Fn(PageSignal)>>>,
@@ -1489,6 +1492,14 @@ impl PageView {
         let view = b.build();
         VIEWS.with(|v| v.borrow_mut().push(view.downgrade()));
         let state = Rc::new(ViewState::default());
+        // (a page opened by another shares its engine process: neither is
+        // ended alone — see `alone_in_its_process`)
+        if let Some(o) = opener {
+            state.related.set(true);
+            if let Some(theirs) = view_state(o) {
+                theirs.related.set(true);
+            }
+        }
         VIEW_STATES.with(|s| s.borrow_mut().push((view.downgrade(), state.clone())));
         *me.borrow_mut() = Some(view.downgrade());
         // real key presses in the page (they vouch for forwarded shortcuts)
@@ -2091,8 +2102,36 @@ impl Drop for PageView {
         } else if self.view.parent().is_some() {
             self.view.unparent();
         }
-        self.view.terminate_web_process();
+        // (the engine keeps a closed page's process around: ending it
+        // gives the memory back at once — unless another page lives in it)
+        if alone_in_its_process(&self.view) {
+            self.view.terminate_web_process();
+        }
     }
+}
+
+/// Is this view the only one of its engine process? A page opened by
+/// another (window.open: a sign-in or payment window) runs in its opener's
+/// process: ending that process when the small window closed — or was put
+/// to sleep — ended the page that had opened it too, which stayed blank,
+/// without a word.
+fn alone_in_its_process(view: &WebView) -> bool {
+    let Some(mine) = view_state(view) else { return true };
+    let process = mine.process.get();
+    VIEW_STATES.with(|s| {
+        !s.borrow().iter().any(|(other, st)| {
+            let Some(other) = other.upgrade() else { return false };
+            if other == *view {
+                return false;
+            }
+            // (the process each page said it runs in; until both are known,
+            // a page that opened or was opened by another counts as shared)
+            match (process, st.process.get()) {
+                (Some(a), Some(b)) => a == b,
+                _ => mine.related.get() || st.related.get(),
+            }
+        })
+    })
 }
 
 /// A plain page for a small window of its own (link preview, floating

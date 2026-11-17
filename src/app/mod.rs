@@ -451,6 +451,9 @@ pub struct Sanaga {
     hover_url: Option<String>,
     /// The link under the mouse in the web page shown.
     web_hover: Option<String>,
+    /// The text field of Sanaga's that had the keyboard when this frame
+    /// began (the address field, the search of a page…), if any.
+    typing_at_frame_start: Option<egui::Id>,
     /// How many downloads were under way at the last frame.
     downloads_seen: usize,
     /// The tab whose page fills the screen (a video's full-screen button),
@@ -887,6 +890,7 @@ impl Sanaga {
             suggest_rect: Rect::NOTHING,
             hover_url: None,
             web_hover: None,
+            typing_at_frame_start: None,
             downloads_seen: 0,
             page_fullscreen: None,
             history_filter: String::new(),
@@ -2002,6 +2006,7 @@ impl Sanaga {
 
     fn frame_body(&mut self, ui: &mut Ui) {
         self.frame += 1;
+        self.typing_at_frame_start = if self.ctx.egui_wants_keyboard_input() { self.ctx.memory(|m| m.focused()) } else { None };
         let frame_start = std::time::Instant::now();
         if std::env::var_os("SANAGA_DEBUG_TICK").is_some() {
             eprintln!("frame t={:.2}", ui.input(|i| i.time));

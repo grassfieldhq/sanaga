@@ -791,8 +791,8 @@ impl Sanaga {
 pub(super) fn put_to_sleep(t: &mut Tab) {
     // WebKit keeps a closed page's process around: end it explicitly so the
     // memory really comes back (each tab's page runs in its own process).
+    // (dropping the page ends its process, unless another page lives in it)
     if let Some(w) = t.web.take() {
-        w.webview().terminate_web_process();
         drop(w);
     }
     t.sleeping = true;
