@@ -73,7 +73,9 @@ hicolor-icon-theme = "*"
 
 [dependencies]
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "clipboard", "links"] }
-ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "charset", "cookies"] }
+# (socks-proxy: Sanaga's own requests go through the proxy of the settings,
+# whatever its kind — never around it)
+ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "charset", "cookies", "socks-proxy"] }
 # the interface's text: emoji in colour (the system's emoji font) with a
 # built-in black-and-white set when there is none
 epaint = { version = "0.37", default-features = false, features = ["color_fonts", "monochrome_emoji_fonts"] }

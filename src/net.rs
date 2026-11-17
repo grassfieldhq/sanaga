@@ -204,12 +204,82 @@ fn system_tls() -> Option<Arc<rustls::ClientConfig>> {
         .clone()
 }
 
-/// A builder for Sanaga's own requests, with the system's certificates.
+/// A builder for Sanaga's own requests, with the system's certificates,
+/// through the proxy the pages go through.
 pub fn builder() -> ureq::AgentBuilder {
     let b = ureq::AgentBuilder::new();
-    match system_tls() {
+    let b = match system_tls() {
         Some(tls) => b.tls_config(tls),
         None => b,
+    };
+    match own_proxy() {
+        OwnProxy::Direct => b.try_proxy_from_env(false),
+        OwnProxy::Environment => b.try_proxy_from_env(true),
+        OwnProxy::Through(proxy) => b.proxy(proxy),
+    }
+}
+
+/// The proxy of the settings (see `guard::proxy_choice`), what the system
+/// answered when it is the system's, and a number that changes with them
+/// (a client made before is made again: see `proxy_generation`).
+static PROXY: std::sync::RwLock<(String, Option<Vec<String>>)> = std::sync::RwLock::new((String::new(), None));
+static PROXY_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The settings' proxy, told at start and whenever it changes.
+pub fn set_proxy(setting: &str) {
+    let Ok(mut p) = PROXY.write() else { return };
+    if p.0 != setting.trim() {
+        p.0 = setting.trim().to_string();
+        PROXY_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// What the system answers for its proxy (GNOME's and KDE's network
+/// settings, the environment): `direct://`, or proxies in order of
+/// preference. Asked away from the window (an automatic configuration is
+/// fetched from the network).
+pub fn set_system_proxy(answer: Vec<String>) {
+    let Ok(mut p) = PROXY.write() else { return };
+    if p.1.as_ref() != Some(&answer) {
+        p.1 = Some(answer);
+        PROXY_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Changes when the proxy to use does: clients kept from before are then
+/// made again (a number to compare, nothing to read).
+pub fn proxy_generation() -> u64 {
+    PROXY_GENERATION.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+enum OwnProxy {
+    Direct,
+    /// The system's settings were not read (yet): the environment's
+    /// variables, as command-line programs do.
+    Environment,
+    Through(ureq::Proxy),
+}
+
+/// A proxy nothing answers at: a request that may not go around the proxy
+/// of the settings fails rather than leave by another way.
+fn nowhere() -> OwnProxy {
+    ureq::Proxy::new("http://127.0.0.1:1").map(OwnProxy::Through).unwrap_or(OwnProxy::Direct)
+}
+
+fn own_proxy() -> OwnProxy {
+    use crate::guard::ProxyChoice;
+    let (setting, system) = PROXY.read().map(|p| p.clone()).unwrap_or_default();
+    match crate::guard::proxy_choice(&setting) {
+        Some(ProxyChoice::Direct) => OwnProxy::Direct,
+        Some(ProxyChoice::Custom(address)) => ureq::Proxy::new(&address).map(OwnProxy::Through).unwrap_or_else(|_| nowhere()),
+        Some(ProxyChoice::System) => match system.as_deref().and_then(|l| l.first()) {
+            None => OwnProxy::Environment,
+            Some(first) if first.starts_with("direct:") => OwnProxy::Direct,
+            Some(first) => ureq::Proxy::new(first).map(OwnProxy::Through).unwrap_or_else(|_| nowhere()),
+        },
+        // (a setting that is not an address: the pages are not loaded
+        // either, see page::apply_proxy)
+        None => nowhere(),
     }
 }
 
@@ -222,7 +292,7 @@ pub const RELEASES_PAGE: &str = "https://github.com/grassfieldhq/sanaga/releases
 pub fn latest_release() -> Result<String, String> {
     // (test aid, debug builds only: another address to ask)
     let address = if cfg!(debug_assertions) { std::env::var("SANAGA_UPDATE_URL").unwrap_or_else(|_| RELEASES_API.to_string()) } else { RELEASES_API.to_string() };
-    let body = agent().get(&address).set("Accept", "application/vnd.github+json").call().map_err(|e| e.to_string())?.into_string().map_err(|e| e.to_string())?;
+    let body = agent_for(&address).get(&address).set("Accept", "application/vnd.github+json").call().map_err(|e| e.to_string())?.into_string().map_err(|e| e.to_string())?;
     let tag = crate::ai::json_string(&body, "tag_name").ok_or("no version in the answer")?;
     let version = tag.trim().trim_start_matches('v').to_string();
     // (a version is numbers and dots: nothing else is shown to the person)
@@ -250,6 +320,58 @@ pub fn agent() -> ureq::Agent {
     builder().user_agent(USER_AGENT).timeout_connect(Duration::from_secs(10)).timeout_read(Duration::from_secs(20)).redirects(8).build()
 }
 
+/// A builder for requests to this computer itself (a local model, a site
+/// being made here): never through a proxy, which could not reach it.
+pub fn local_builder() -> ureq::AgentBuilder {
+    let b = ureq::AgentBuilder::new().try_proxy_from_env(false);
+    match system_tls() {
+        Some(tls) => b.tls_config(tls),
+        None => b,
+    }
+}
+
+/// Is this address on this computer itself (`localhost`, `127.0.0.1`, `[::1]`)?
+pub fn on_this_computer(address: &str) -> bool {
+    match url::Url::parse(address).ok().as_ref().and_then(|u| u.host()) {
+        Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost") || d.to_ascii_lowercase().ends_with(".localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    }
+}
+
+/// The right client for one address: this computer is asked directly, the
+/// rest through the proxy of the settings.
+pub fn agent_for(address: &str) -> ureq::Agent {
+    if on_this_computer(address) {
+        local_builder().user_agent(USER_AGENT).timeout_connect(Duration::from_secs(10)).timeout_read(Duration::from_secs(20)).redirects(8).build()
+    } else {
+        agent()
+    }
+}
+
+/// The clients of one kind of tabs (the usual ones, or the private ones),
+/// each with its own cookies: one that goes through the proxy of the
+/// settings, one for this computer itself.
+pub struct Clients {
+    web: ureq::Agent,
+    local: ureq::Agent,
+}
+
+impl Clients {
+    pub fn new() -> Clients {
+        Clients { web: agent(), local: agent_for("http://localhost/") }
+    }
+
+    pub fn for_address(&self, address: &str) -> ureq::Agent {
+        if on_this_computer(address) {
+            self.local.clone()
+        } else {
+            self.web.clone()
+        }
+    }
+}
+
 pub struct Request {
     pub tab: u64,
     pub nav: u64,
@@ -267,17 +389,79 @@ pub struct Request {
     pub allow_download: bool,
 }
 
+/// The folder chosen for downloads in the settings ("" = the system's), and
+/// whether the person is asked where to save each download.
+static DOWNLOAD_CHOICE: std::sync::RwLock<(String, bool)> = std::sync::RwLock::new((String::new(), false));
+
+/// The settings' choices about downloads, told whenever they change.
+pub fn set_download_choice(dir: &str, ask: bool) {
+    if let Ok(mut c) = DOWNLOAD_CHOICE.write() {
+        *c = (dir.trim().to_string(), ask);
+    }
+}
+
+/// Is the person asked where to save each download?
+pub fn download_asks() -> bool {
+    DOWNLOAD_CHOICE.read().map(|c| c.1).unwrap_or(false)
+}
+
+/// Where downloads go: the folder chosen in the settings when it is there,
+/// else the system's Downloads folder.
 pub fn download_dir() -> PathBuf {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
-    for name in ["Téléchargements", "Downloads"] {
-        let p = home.join(name);
-        if p.is_dir() {
+    let chosen = DOWNLOAD_CHOICE.read().map(|c| c.0.clone()).unwrap_or_default();
+    if !chosen.is_empty() {
+        let p = PathBuf::from(&chosen);
+        // (a folder on a disk that is not plugged in today: the system's
+        // folder is used meanwhile, the choice stays)
+        if p.is_absolute() && p.is_dir() {
             return p;
         }
     }
-    let p = home.join("Downloads");
-    let _ = std::fs::create_dir_all(&p);
-    p
+    system_download_dir()
+}
+
+/// The system's Downloads folder: the one the desktop names in
+/// `user-dirs.dirs` (it may be anywhere, and is named in the person's
+/// language: Descargas, Загрузки...), else `~/Downloads`. Looked for once.
+pub fn system_download_dir() -> PathBuf {
+    static DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| {
+        let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
+        let config = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).unwrap_or_else(|| home.join(".config"));
+        let named = std::fs::read_to_string(config.join("user-dirs.dirs")).ok().and_then(|t| xdg_download_dir(&t, &home));
+        // (a desktop without the Downloads folder says "$HOME/": the home
+        // folder itself is not a place to pour files into)
+        if let Some(p) = named.filter(|p| p.is_dir() && *p != home) {
+            return p;
+        }
+        for name in ["Téléchargements", "Downloads"] {
+            let p = home.join(name);
+            if p.is_dir() {
+                return p;
+            }
+        }
+        let p = home.join("Downloads");
+        let _ = std::fs::create_dir_all(&p);
+        p
+    })
+    .clone()
+}
+
+/// The Downloads folder named in a `user-dirs.dirs` file (xdg-user-dirs):
+/// `XDG_DOWNLOAD_DIR="$HOME/Téléchargements"` or an absolute path, with
+/// `\"` and `\\` for a quote and a backslash in the name.
+fn xdg_download_dir(text: &str, home: &Path) -> Option<PathBuf> {
+    let line = text.lines().map(str::trim).rfind(|l| l.starts_with("XDG_DOWNLOAD_DIR="))?;
+    let value = line["XDG_DOWNLOAD_DIR=".len()..].trim().strip_prefix('"')?.strip_suffix('"')?;
+    let mut plain = String::new();
+    let mut chars = value.chars();
+    while let Some(c) = chars.next() {
+        plain.push(if c == '\\' { chars.next()? } else { c });
+    }
+    if let Some(rest) = plain.strip_prefix("$HOME") {
+        return (rest.is_empty() || rest.starts_with('/')).then(|| home.join(rest.trim_start_matches('/')));
+    }
+    plain.starts_with('/').then(|| PathBuf::from(plain))
 }
 
 // (download names, the download mark: see guard.rs, testable without GTK)
@@ -678,6 +862,32 @@ pub fn human_bytes(b: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn this_computer_is_asked_without_a_proxy() {
+        for local in ["http://localhost:11434/api", "http://LOCALHOST/", "http://app.localhost:3000/", "http://127.0.0.1:8080/", "http://127.8.9.1/", "http://[::1]:8000/"] {
+            assert!(on_this_computer(local), "{local}");
+        }
+        for far in ["https://example.org/", "http://localhost.example.org/", "http://192.168.1.10/", "http://10.0.0.1/", "not an address"] {
+            assert!(!on_this_computer(far), "{far}");
+        }
+    }
+
+    #[test]
+    fn the_downloads_folder_is_the_one_the_desktop_names() {
+        let home = Path::new("/home/awa");
+        let dir = |t: &str| xdg_download_dir(t, home);
+        assert_eq!(dir("# comment\nXDG_DESKTOP_DIR=\"$HOME/Bureau\"\nXDG_DOWNLOAD_DIR=\"$HOME/Téléchargements\"\n"), Some(PathBuf::from("/home/awa/Téléchargements")));
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"/data/Reçus\""), Some(PathBuf::from("/data/Reçus")));
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"$HOME/My \\\"big\\\" files\""), Some(PathBuf::from("/home/awa/My \"big\" files")));
+        // the home folder itself (no Downloads folder on that desktop)
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"$HOME/\""), Some(PathBuf::from("/home/awa")));
+        // not a path Sanaga can use: another variable, a relative path, no quotes
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"$HOMEWORK/x\""), None);
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=\"Downloads\""), None);
+        assert_eq!(dir("XDG_DOWNLOAD_DIR=$HOME/Downloads"), None);
+        assert_eq!(dir("XDG_MUSIC_DIR=\"$HOME/Musique\""), None);
+    }
 
     #[test]
     fn versions_are_compared_as_numbers() {

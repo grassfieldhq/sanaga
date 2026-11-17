@@ -665,6 +665,29 @@ fn save_shot(window: &gtk::Window, path: &str) {
     }
 }
 
+/// Ask the person where to save a file, without waiting: `then` is told the
+/// place chosen (`None`: they closed the window). The window proposes
+/// `name` in `folder`, and asks itself before replacing a file.
+pub fn save_dialog(name: &str, folder: Option<&std::path::Path>, then: impl FnOnce(Option<std::path::PathBuf>) + 'static) {
+    let dialog = gtk::FileDialog::builder().title(crate::i18n::tr("Enregistrer sous")).modal(true).initial_name(name).build();
+    if let Some(folder) = folder {
+        dialog.set_initial_folder(Some(&gtk::gio::File::for_path(folder)));
+    }
+    let parent = host().map(|h| h.window.clone());
+    dialog.save(parent.as_ref(), None::<&gtk::gio::Cancellable>, move |res| then(res.ok().and_then(|f| f.path())));
+}
+
+/// Ask the person for a folder, without waiting: `then` is told the one
+/// chosen (`None`: they closed the window).
+pub fn folder_dialog(title: &str, start: Option<&std::path::Path>, then: impl FnOnce(Option<std::path::PathBuf>) + 'static) {
+    let dialog = gtk::FileDialog::builder().title(title).modal(true).build();
+    if let Some(start) = start {
+        dialog.set_initial_folder(Some(&gtk::gio::File::for_path(start)));
+    }
+    let parent = host().map(|h| h.window.clone());
+    dialog.select_folder(parent.as_ref(), None::<&gtk::gio::Cancellable>, move |res| then(res.ok().and_then(|f| f.path())));
+}
+
 /// Ask a file of the person (blocking until they answer): the system's file
 /// dialog (GTK 4 only has an asynchronous one, so a small loop waits).
 pub fn choose_file(title: &str, patterns: &[&str], filter_name: &str, save_as: Option<&str>) -> Option<std::path::PathBuf> {

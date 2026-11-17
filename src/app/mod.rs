@@ -19,6 +19,7 @@ mod media;
 mod menus;
 mod myframes;
 mod nav;
+mod network;
 mod onboarding;
 mod pages;
 mod plus;
@@ -393,7 +394,13 @@ pub fn input_to_url(s: &str, engine: Engine, home: &str) -> String {
     let looks_host = hostish.contains('.') && !hostish.ends_with('.') && !hostish.starts_with('.') && hostish.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == ':');
     if no_space && (looks_host || hostish.starts_with("localhost")) {
         let scheme = if hostish.starts_with("localhost") || hostish.starts_with("127.") { "http" } else { "https" };
-        return format!("{scheme}://{t}");
+        let address = format!("{scheme}://{t}");
+        // (https is Sanaga's guess: a site that only has http is still
+        // reached, see page::https_first)
+        if scheme == "https" {
+            crate::page::note_schemeless(&address);
+        }
+        return address;
     }
     engine.search_url(t)
 }
@@ -427,8 +434,8 @@ pub struct Sanaga {
     tabs: Vec<Tab>,
     active: usize,
     next_id: u64,
-    agent: ureq::Agent,
-    private_agent: ureq::Agent,
+    agent: net::Clients,
+    private_agent: net::Clients,
     tx: Sender<NetMsg>,
     rx: Receiver<NetMsg>,
     images: HashMap<String, ImgSlot>,
@@ -460,6 +467,10 @@ pub struct Sanaga {
     /// "Look for a new version" (About page): None not asked, Some(None)
     /// being asked, then the newest version or what went wrong.
     update_check: Option<Option<Result<String, String>>>,
+    /// The proxy Sanaga's own network clients were made for (see
+    /// `net::proxy_generation`), and when a new version was last looked for.
+    proxy_seen: u64,
+    update_looked_at: f64,
     /// The tab the person asked to close while its page held typed text,
     /// and when (see `ask_close_tab`).
     close_asked: Option<(u64, f64)>,
@@ -880,8 +891,8 @@ impl Sanaga {
             tabs: Vec::new(),
             active: 0,
             next_id: 1,
-            agent: net::agent(),
-            private_agent: net::agent(),
+            agent: net::Clients::new(),
+            private_agent: net::Clients::new(),
             tx,
             rx,
             images: HashMap::new(),
@@ -906,6 +917,8 @@ impl Sanaga {
             hover_url: None,
             web_hover: None,
             update_check: None,
+            proxy_seen: 0,
+            update_looked_at: f64::NEG_INFINITY,
             close_asked: None,
             typing_at_frame_start: None,
             downloads_seen: 0,
@@ -1314,6 +1327,7 @@ impl Sanaga {
         // the network blocker of ads and trackers, compiled once
         crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
         crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
+        self.apply_network_settings();
         if let Some(d) = &self.web_dir {
             crate::page::prepare_filters(&d.join("filters"));
         }
@@ -2153,6 +2167,7 @@ impl Sanaga {
         }
         self.recording_step();
         self.permission_step();
+        self.network_step(now);
         if self.screenshot.is_none() && !self.store.settings.sync_dir.trim().is_empty() && now - self.sync_at > 30.0 {
             self.sync_at = now;
             self.sync_now();

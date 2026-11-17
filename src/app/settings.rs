@@ -648,6 +648,8 @@ fn launcher_installed() -> bool {
 enum Act {
     Go(&'static str),
     MakeDefault,
+    /// Choose the folder downloads go to (the system's folder window).
+    ChooseDownloadDir,
     ClearHistory,
     SyncNow,
     /// Set the sync folder's secret phrase (true) or forget it here (false).
@@ -1040,6 +1042,65 @@ impl Sanaga {
             });
         }
 
+        if show.shows(Section::General, tr("Téléchargements"), &[tr("Dossier des téléchargements"), tr("Toujours demander où enregistrer les fichiers")]) {
+            any = true;
+            let folder = crate::net::download_dir().to_string_lossy().to_string();
+            group(ui, th, tr("Téléchargements"), |ui, rows| {
+                rows.row(ui, tr("Dossier des téléchargements"), &folder, false, |ui| {
+                    // (right to left: the button to choose comes last)
+                    if !st.download_dir.is_empty() && ui.button(tr("Dossier du système")).clicked() {
+                        st.download_dir.clear();
+                        changed = true;
+                    }
+                    if ui.button(tr("Choisir…")).clicked() {
+                        acts.push(Act::ChooseDownloadDir);
+                    }
+                });
+                changed |= rows.switch(ui, tr("Toujours demander où enregistrer les fichiers"), "", &mut st.download_ask);
+            });
+        }
+        if show.shows(Section::General, tr("Réseau"), &[tr("Proxy"), tr("Mises à jour"), tr("Chercher une nouvelle version une fois par jour")]) {
+            any = true;
+            // (0 the system's, 1 none, 2 an address; the address field shows
+            // as soon as "an address" is chosen, before anything is typed)
+            let custom_id = egui::Id::new("settings-proxy-custom");
+            let custom_open = ui.data(|d| d.get_temp::<bool>(custom_id)).unwrap_or(false);
+            let mode = match st.proxy.trim() {
+                "" if custom_open => 2u8,
+                "" => 0,
+                "none" => 1,
+                _ => 2,
+            };
+            let wrong = crate::guard::proxy_choice(&st.proxy).is_none();
+            group(ui, th, tr("Réseau"), |ui, rows| {
+                rows.row(ui, tr("Proxy"), tr("Par où passent les pages et les demandes de Sanaga"), false, |ui| {
+                    if let Some(m) = popup(ui, "proxy", mode, &[(0u8, tr("Celui du système")), (1, tr("Aucun (connexion directe)")), (2, tr("Une adresse"))]) {
+                        ui.data_mut(|d| d.insert_temp(custom_id, m == 2));
+                        let before = st.proxy.clone();
+                        match m {
+                            0 => st.proxy.clear(),
+                            1 => st.proxy = "none".into(),
+                            // (the address typed before, if there was one)
+                            _ if mode != 2 => st.proxy.clear(),
+                            _ => {}
+                        }
+                        changed |= st.proxy != before;
+                    }
+                });
+                if mode == 2 {
+                    rows.row(ui, tr("Adresse du proxy"), if wrong { tr("Cette adresse n'est pas celle d'un proxy : rien ne part tant qu'elle n'est pas corrigée.") } else { "" }, false, |ui| {
+                        changed |= finished_field(ui, &mut st.proxy, "socks5://127.0.0.1:9050", 240.0);
+                    });
+                }
+                changed |= rows.switch(
+                    ui,
+                    tr("Chercher une nouvelle version une fois par jour"),
+                    tr("Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul"),
+                    &mut st.update_check,
+                );
+            });
+        }
+
         // ---------------- Appearance ----------------
         if show.shows(Section::Appearance, tr("Thème"), &[tr("Couleur d'accent"), tr("Clair"), tr("Sombre"), "Grassfield"]) {
             any = true;
@@ -1282,7 +1343,7 @@ impl Sanaga {
         if show.shows(
             Section::Privacy,
             tr("Suivi"),
-            &[tr("Bloquer les publicités et les traceurs"), tr("Empêcher le suivi intersites"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")],
+            &[tr("Bloquer les publicités et les traceurs"), tr("Empêcher le suivi intersites"), tr("HTTPS d'abord"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")],
         ) {
             any = true;
             group(ui, th, "", |ui, rows| {
@@ -1290,6 +1351,7 @@ impl Sanaga {
                 changed |=
                     rows.switch(ui, tr("Listes de blocage complètes"), tr("EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)"), &mut st.block_lists);
                 changed |= rows.switch(ui, tr("Empêcher le suivi intersites"), "", &mut st.itp);
+                changed |= rows.switch(ui, tr("HTTPS d'abord"), tr("Les sites sont demandés en https ; en http seulement s'ils n'ont pas https"), &mut st.https_first);
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });
             footnote(ui, th, tr("Les traceurs publicitaires ne peuvent plus vous suivre d'un site à l'autre (comme dans Safari). Le Rapport de confidentialité de la page d'accueil montre ceux qui ont été tenus à l'écart. S'applique aux nouveaux onglets."));
@@ -1757,6 +1819,7 @@ impl Sanaga {
             crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
             // (switched on: the lists are loaded, or fetched if there are none yet)
             crate::page::prepare_lists();
+            self.apply_network_settings();
             self.store.save_settings();
             // (a round right away for a folder just given; the other
             // settings have nothing to do with it)
@@ -1778,12 +1841,28 @@ impl Sanaga {
                     self.notice = Some((tr("Historique effacé.").into(), self.ctx.input(|i| i.time)));
                 }
                 Act::SyncNow => self.sync_now(),
+                Act::ChooseDownloadDir => {
+                    // (the window does not wait: the answer comes back as a
+                    // job, like the work done on other threads)
+                    let (tx, ctx) = (self.jobs_tx.clone(), self.ctx.clone());
+                    crate::shell::folder_dialog(tr("Dossier des téléchargements"), Some(&crate::net::download_dir()), move |chosen| {
+                        let Some(dir) = chosen else { return };
+                        let job: super::Job = Box::new(move |app: &mut Sanaga| {
+                            app.store.settings.download_dir = dir.to_string_lossy().to_string();
+                            app.apply_network_settings();
+                            app.store.save_settings();
+                        });
+                        let _ = tx.send(job);
+                        ctx.request_repaint();
+                    });
+                }
                 Act::Restore(sec) => {
                     if self.store.settings.restore(sec.slug()) {
                         // (applied like any change made by hand)
                         crate::page::BLOCKER_ON.store(self.store.settings.blocker, Ordering::Relaxed);
                         crate::page::LISTS_ON.store(self.store.settings.block_lists, Ordering::Relaxed);
                         crate::page::prepare_lists();
+                        self.apply_network_settings();
                         self.applied_dark = None;
                         self.store.save_settings();
                         self.say(&tf("Réglages d'origine rétablis : {}.", &[&sec.label()]));

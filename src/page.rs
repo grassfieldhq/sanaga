@@ -441,6 +441,131 @@ thread_local! {
     /// tabs; in memory only)
     static DOWNLOAD_SITES: RefCell<Vec<(Option<NetworkSession>, String)>> = const { RefCell::new(Vec::new()) };
     static DOWNLOAD_ASK_SINKS: RefCell<Vec<(usize, AskSink)>> = const { RefCell::new(Vec::new()) };
+    /// The proxy of the settings, and the sessions it is given to (a
+    /// profile's, its containers', the private tabs').
+    static PROXY: RefCell<String> = const { RefCell::new(String::new()) };
+    static SESSIONS: RefCell<Vec<gtk::glib::WeakRef<NetworkSession>>> = const { RefCell::new(Vec::new()) };
+    /// "HTTPS first" (the setting); the sites that did not answer over
+    /// https since Sanaga started (asked over http straight away); and the
+    /// last https addresses Sanaga made itself from a name typed without
+    /// `http://` or `https://` (they may fall back to http too).
+    static HTTPS_FIRST: Cell<bool> = const { Cell::new(false) };
+    static HTTP_ONLY: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static SCHEMELESS: RefCell<std::collections::VecDeque<String>> = const { RefCell::new(std::collections::VecDeque::new()) };
+}
+
+/// The proxy pages go through (the settings' text: see `guard::proxy_choice`),
+/// given to every session, now and when one is made.
+pub fn set_proxy(setting: &str) {
+    if PROXY.with(|p| p.replace(setting.trim().to_string())) == setting.trim() {
+        return;
+    }
+    let sessions: Vec<NetworkSession> = SESSIONS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|w| w.upgrade().is_some());
+        s.iter().filter_map(|w| w.upgrade()).collect()
+    });
+    for session in sessions {
+        apply_proxy(&session);
+    }
+}
+
+fn apply_proxy(session: &NetworkSession) {
+    use crate::guard::ProxyChoice;
+    use webkit6::{NetworkProxyMode, NetworkProxySettings};
+    // (this computer itself is always reached directly)
+    let custom = |address: &str| NetworkProxySettings::new(Some(address), &["localhost", "127.0.0.1", "::1"]);
+    match crate::guard::proxy_choice(&PROXY.with(|p| p.borrow().clone())) {
+        Some(ProxyChoice::System) => session.set_proxy_settings(NetworkProxyMode::Default, None),
+        Some(ProxyChoice::Direct) => session.set_proxy_settings(NetworkProxyMode::NoProxy, None),
+        Some(ProxyChoice::Custom(address)) => session.set_proxy_settings(NetworkProxyMode::Custom, Some(&custom(&address))),
+        // not an address a proxy can have: nothing leaves by another way
+        // (a proxy nothing answers at)
+        None => session.set_proxy_settings(NetworkProxyMode::Custom, Some(&custom("http://127.0.0.1:1"))),
+    }
+}
+
+/// A session Sanaga has just made: it follows the settings' proxy.
+fn new_session(session: &NetworkSession) {
+    SESSIONS.with(|s| s.borrow_mut().push(session.downgrade()));
+    if !PROXY.with(|p| p.borrow().is_empty()) {
+        apply_proxy(session);
+    }
+}
+
+/// "HTTPS first": on or off (the settings).
+pub fn set_https_first(on: bool) {
+    HTTPS_FIRST.with(|h| h.set(on));
+}
+
+/// An https address Sanaga made itself from a name typed without its
+/// `https://` ("exemple.org"): if the site has no https, http is tried.
+pub fn note_schemeless(address: &str) {
+    SCHEMELESS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|a| a != address);
+        s.push_back(address.to_string());
+        while s.len() > 16 {
+            s.pop_front();
+        }
+    });
+}
+
+/// How long a site may take to start answering over https before http is
+/// tried (a site without https often does not refuse: it says nothing).
+const HTTPS_PATIENCE: Duration = Duration::from_secs(5);
+
+/// The address to ask for when the person opens `address` in this view:
+/// the https one first when the setting says so, with the http one kept to
+/// fall back on (`ViewState::https_try`).
+fn https_first(v: &WebView, st: &ViewState, address: &str) -> String {
+    *st.https_try.borrow_mut() = None;
+    if !HTTPS_FIRST.with(|h| h.get()) {
+        return address.to_string();
+    }
+    let known_http = |a: &str| HTTP_ONLY.with(|h| h.borrow().iter().any(|x| *x == host_of_uri(a)));
+    let (https, http) = match crate::guard::https_first(address) {
+        Some(https) if !known_http(address) => (https, address.to_string()),
+        Some(_) => return address.to_string(),
+        // a name typed without its scheme, which Sanaga wrote with https
+        None => match crate::guard::http_instead(address).filter(|http| SCHEMELESS.with(|s| s.borrow().iter().any(|a| a == address)) && crate::guard::https_first(http).is_some()) {
+            Some(http) if known_http(address) => return http,
+            Some(http) => (address.to_string(), http),
+            None => return address.to_string(),
+        },
+    };
+    *st.https_try.borrow_mut() = Some((https.clone(), http));
+    // (nothing after a while: http, as when the site refuses)
+    let (weak, tried) = (v.downgrade(), https.clone());
+    gtk::glib::timeout_add_local_once(HTTPS_PATIENCE, move || {
+        let Some(v) = weak.upgrade() else { return };
+        let Some(st) = view_state(&v) else { return };
+        if st.https_try.borrow().as_ref().is_some_and(|(h, _)| *h == tried) {
+            http_instead(&v, &st, &tried);
+        }
+    });
+    https
+}
+
+/// The https address tried first did not answer (refused, a certificate
+/// that is not the site's, nothing at all): its http address is asked for,
+/// and the site is asked over http until Sanaga quits. False when `failed`
+/// is not an address being tried.
+fn http_instead(v: &WebView, st: &ViewState, failed: &str) -> bool {
+    let tried = st.https_try.borrow().as_ref().is_some_and(|(https, _)| https == failed || host_of_uri(https) == host_of_uri(failed));
+    if !tried {
+        return false;
+    }
+    let Some((_, http)) = st.https_try.take() else { return false };
+    let host = host_of_uri(&http);
+    HTTP_ONLY.with(|h| {
+        let mut h = h.borrow_mut();
+        if !h.contains(&host) {
+            h.push(host);
+        }
+    });
+    v.load_uri(&http);
+    true
 }
 
 /// What Sanaga follows for one open page.
@@ -478,6 +603,9 @@ struct ViewState {
     /// The address asked for again so that its site's settings count from
     /// the start of its page (never twice for the same address).
     asked_again: RefCell<String>,
+    /// "HTTPS first": the https address being tried in place of the http
+    /// one asked for, and that http one (until a page is shown or it fails).
+    https_try: RefCell<Option<(String, String)>>,
     /// The engine process the page runs in, as it told Sanaga (see
     /// page-helper/): when it started, and its number as it sees it.
     process: Cell<Option<(u64, u32)>>,
@@ -548,8 +676,7 @@ pub fn answer_downloads(site: &str, allow: bool) {
                     d.push((p.session.clone(), p.site.clone()));
                 }
             });
-            let path = choose_destination(&p.download, &p.suggested, &p.uri);
-            *p.dest.borrow_mut() = Some(path);
+            choose_destination(&p.download, &p.suggested, &p.uri, &p.dest, &p.denied);
         } else {
             p.denied.set(true);
             p.download.cancel();
@@ -1018,16 +1145,41 @@ fn release(p: &Path) {
 }
 
 /// Where a download goes: the Downloads folder, under a safe, free name
-/// made from WebKit's suggestion. WebKit creates the file only if nothing
-/// is there (it never replaces a file).
-fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str) -> PathBuf {
+/// made from WebKit's suggestion (WebKit creates the file only if nothing
+/// is there: it never replaces a file) — or where the person says, when
+/// the settings ask them each time.
+fn choose_destination(download: &webkit6::Download, suggested: &str, uri: &str, dest: &Rc<RefCell<Option<PathBuf>>>, denied: &Rc<Cell<bool>>) {
     let path = crate::net::download_destination(suggested, uri, is_reserved);
-    reserve(&path);
-    // (from here on it is listed as under way: how far it is, a way to stop it)
-    RUNNING.with(|r| r.borrow_mut().push(Running { download: download.clone(), path: path.clone(), stopped: false }));
-    download.set_allow_overwrite(false);
+    if !crate::net::download_asks() {
+        reserve(&path);
+        start_writing(download, &path, false);
+        *dest.borrow_mut() = Some(path);
+        return;
+    }
+    // "Ask where to save each file": the system's own window, with the name
+    // and the folder Sanaga would have used. The download waits meanwhile
+    // (the engine has asked where to put it and goes on once told).
+    let (download, dest, denied) = (download.clone(), dest.clone(), denied.clone());
+    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    crate::shell::save_dialog(&name, path.parent(), move |chosen| match chosen {
+        Some(path) => {
+            // (a file already there: the window asked before replacing it)
+            start_writing(&download, &path, true);
+            *dest.borrow_mut() = Some(path);
+        }
+        None => {
+            denied.set(true);
+            download.cancel();
+        }
+    });
+}
+
+/// The download starts writing its file at `path`; from here on it is
+/// listed as under way (how far it is, a way to stop it).
+fn start_writing(download: &webkit6::Download, path: &Path, replace: bool) {
+    RUNNING.with(|r| r.borrow_mut().push(Running { download: download.clone(), path: path.to_path_buf(), stopped: false }));
+    download.set_allow_overwrite(replace);
     download.set_destination(&path.to_string_lossy());
-    path
 }
 
 /// The most a page's kept state may weigh.
@@ -1106,6 +1258,7 @@ pub fn profile_context(dir: &Path) -> Engine {
     let d = dir.to_string_lossy().to_string();
     limit_network();
     let session = NetworkSession::new(Some(&d), Some(&d));
+    new_session(&session);
     if let Some(cm) = session.cookie_manager() {
         cm.set_persistent_storage(&dir.join("cookies").to_string_lossy(), CookiePersistentStorage::Text);
     }
@@ -1212,6 +1365,7 @@ fn limit_network() {
 pub fn ephemeral_engine() -> Engine {
     limit_network();
     let session = NetworkSession::new_ephemeral();
+    new_session(&session);
     accept_cookies(&session);
     enable_favicons(&session);
     let engine = Engine { ctx: new_context(), session };
@@ -1273,6 +1427,7 @@ fn private_session() -> NetworkSession {
             .get_or_insert_with(|| {
                 limit_network();
                 let s = NetworkSession::new_ephemeral();
+                new_session(&s);
                 accept_cookies(&s);
                 enable_favicons(&s);
                 s
@@ -1361,8 +1516,7 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                     state.typed.set(None);
                 }
             }
-            let path = choose_destination(download, suggested, &uri);
-            *d2.borrow_mut() = Some(path);
+            choose_destination(download, suggested, &uri, &d2, &denied2);
             true
         });
         let f2 = failed.clone();
@@ -1611,6 +1765,9 @@ impl PageView {
                         None => 0,
                     });
                     st.asked_again.borrow_mut().clear();
+                    // (the https address answered — or sent on to another
+                    // page: nothing to fall back from any more)
+                    *st.https_try.borrow_mut() = None;
                     // a new page: its downloads need its own actions
                     st.gesture.set(None);
                     st.typed.set(None);
@@ -1841,13 +1998,21 @@ impl PageView {
             let Some(req) = action.request() else { return false };
             let uri = req.uri().map(|u| u.to_string()).unwrap_or_default();
             let Some(host) = url::Url::parse(&uri).ok().and_then(|u| u.host_str().map(|h| h.to_string())) else { return false };
-            if !set_identity(v, &host, &default_ua) {
+            let get = req.http_method().is_none_or(|m| m == "GET");
+            // "HTTPS first" for a link of the page too (one that opens in
+            // this tab: a link aimed at a named frame stays in its frame)
+            let target = match view_state(v) {
+                Some(st) if get && action.frame_name().is_none_or(|n| n.is_empty()) => https_first(v, &st, &uri),
+                _ => uri.clone(),
+            };
+            if !set_identity(v, &host, &default_ua) && target == uri {
                 return false;
             }
-            // ask again with the new identity (a form being sent goes on as it is)
-            if req.http_method().is_none_or(|m| m == "GET") {
+            // ask again with the new identity, or over https (a form being
+            // sent goes on as it is)
+            if get {
                 decision.ignore();
-                v.load_uri(&uri);
+                v.load_uri(&target);
                 return true;
             }
             false
@@ -1929,12 +2094,16 @@ impl PageView {
         });
         // the page did not load: Sanaga's own error page (not WebKit's)
         let o = on.clone();
-        view.connect_load_failed(move |_, _, uri, e| {
+        let st = state.clone();
+        view.connect_load_failed(move |v, _, uri, e| {
             if std::env::var_os("SANAGA_DEBUG_MENU").is_some() {
                 eprintln!("load failed {uri}: domain={} message={:?}", e.domain().as_str(), e.message());
             }
             match classify(e) {
+                // "HTTPS first": the site has no https, its http address is asked
+                Some(_) if http_instead(v, &st, uri) => true,
                 Some(kind) => {
+                    *st.https_try.borrow_mut() = None;
                     o(PageSignal::LoadFailed(uri.to_string(), kind, e.message().to_string()));
                     true
                 }
@@ -1942,7 +2111,14 @@ impl PageView {
             }
         });
         let o = on.clone();
-        view.connect_load_failed_with_tls_errors(move |_, uri, cert, flags| {
+        let st = state.clone();
+        view.connect_load_failed_with_tls_errors(move |v, uri, cert, flags| {
+            // "HTTPS first": https was Sanaga's idea, and what answers there
+            // is not the site (a certificate for another name): the address
+            // the person asked for is loaded, as without the setting
+            if http_instead(v, &st, uri) {
+                return true;
+            }
             let host = host_of_uri(uri);
             TLS_SEEN.with(|t| {
                 let mut t = t.borrow_mut();
@@ -2043,8 +2219,9 @@ impl PageView {
         if let Some(s) = view_state(&self.view) {
             s.typed.set(by_person.then(Instant::now));
         }
-        set_identity(&self.view, &host_of_uri(url), &self.default_ua);
-        self.view.load_uri(url);
+        let url = https_first(&self.view, &self.state, url);
+        set_identity(&self.view, &host_of_uri(&url), &self.default_ua);
+        self.view.load_uri(&url);
         Ok(())
     }
     /// Run a script in the page's own world (the person's buttons, site

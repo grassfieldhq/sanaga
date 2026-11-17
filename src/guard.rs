@@ -211,6 +211,76 @@ pub fn restricted_port(address: &str) -> bool {
     url::Url::parse(address).ok().filter(|u| matches!(u.scheme(), "http" | "https")).and_then(|u| u.port()).is_some_and(|p| RESTRICTED_PORTS.contains(&p))
 }
 
+/// The https address to try before an http one ("HTTPS first"), when there
+/// is one worth trying: a site of the Internet named by its domain, on the
+/// usual port. Not a computer of the home or the office (an address in
+/// numbers, a single word, `.local`, `.lan`...), which rarely has https and
+/// would only be slower to reach; not another port, where https does not
+/// answer.
+pub fn https_first(address: &str) -> Option<String> {
+    let u = url::Url::parse(address.trim()).ok()?;
+    if u.scheme() != "http" || u.port().is_some() || !u.username().is_empty() {
+        return None;
+    }
+    let Some(url::Host::Domain(host)) = u.host() else { return None };
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    let last = host.rsplit('.').next().unwrap_or("");
+    let local =
+        !host.contains('.') || matches!(last, "local" | "localhost" | "lan" | "home" | "internal" | "intranet" | "corp" | "test" | "invalid" | "example" | "onion") || host.ends_with(".home.arpa");
+    if local {
+        return None;
+    }
+    Some(format!("https{}", &u.as_str()["http".len()..]))
+}
+
+/// The http address a page is asked at when its https one did not answer
+/// (the other way round of `https_first`): only for the very address that
+/// was tried, never for one a page redirected to.
+pub fn http_instead(address: &str) -> Option<String> {
+    let u = url::Url::parse(address.trim()).ok()?;
+    (u.scheme() == "https" && u.port().is_none()).then(|| format!("http{}", &u.as_str()["https".len()..]))
+}
+
+/// What the settings say of the proxy pages go through.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ProxyChoice {
+    /// The one the system is set to use (or none).
+    System,
+    /// A direct connection, whatever the system says.
+    Direct,
+    /// This one: `http://host:3128`, `socks5://host:1080`...
+    Custom(String),
+}
+
+/// The proxy named by the settings' text: "" the system's, "none" a direct
+/// connection, else a proxy's address (a bare `host:port` is an http
+/// proxy). `None`: not an address a proxy can have — nothing is sent
+/// anywhere on a guess.
+pub fn proxy_choice(setting: &str) -> Option<ProxyChoice> {
+    let t = setting.trim();
+    if t.is_empty() {
+        return Some(ProxyChoice::System);
+    }
+    if t.eq_ignore_ascii_case("none") || t.eq_ignore_ascii_case("direct") {
+        return Some(ProxyChoice::Direct);
+    }
+    let full = if t.contains("://") { t.to_string() } else { format!("http://{t}") };
+    let u = url::Url::parse(&full).ok()?;
+    let scheme = u.scheme();
+    if !matches!(scheme, "http" | "socks" | "socks4" | "socks4a" | "socks5") {
+        return None;
+    }
+    let host = u.host_str().filter(|h| !h.is_empty())?;
+    // (the port is said: a proxy has no usual one)
+    let port = u.port()?;
+    let login = match (u.username(), u.password()) {
+        ("", _) => String::new(),
+        (user, Some(pass)) => format!("{user}:{pass}@"),
+        (user, None) => format!("{user}@"),
+    };
+    Some(ProxyChoice::Custom(format!("{scheme}://{login}{host}:{port}")))
+}
+
 /// A link meant for another program of the computer (the mail program, the
 /// phone, a torrent program): handed to the system when the person clicks
 /// it. Only these few: any other scheme could start a program a page has
@@ -462,6 +532,46 @@ pub fn js_str(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn https_is_tried_first_for_sites_of_the_internet_only() {
+        assert_eq!(https_first("http://example.org/a?b=1#c").as_deref(), Some("https://example.org/a?b=1#c"));
+        assert_eq!(https_first("http://WWW.Example.org").as_deref(), Some("https://www.example.org/"));
+        for kept in [
+            "https://example.org/",
+            "http://example.org:8080/",
+            "http://localhost/",
+            "http://router/",
+            "http://192.168.1.1/",
+            "http://[::1]/",
+            "http://printer.local/",
+            "http://nas.lan/x",
+            "http://box.home.arpa/",
+            "http://abc.onion/",
+            "http://user@example.org/",
+            "file:///tmp/a",
+            "sanaga://newtab",
+            "not an address",
+        ] {
+            assert_eq!(https_first(kept), None, "{kept}");
+        }
+        assert_eq!(http_instead("https://example.org/a?b").as_deref(), Some("http://example.org/a?b"));
+        assert_eq!(http_instead("https://example.org:8443/"), None);
+        assert_eq!(http_instead("http://example.org/"), None);
+    }
+
+    #[test]
+    fn the_proxy_setting_is_an_address_or_nothing() {
+        assert_eq!(proxy_choice(""), Some(ProxyChoice::System));
+        assert_eq!(proxy_choice("  none "), Some(ProxyChoice::Direct));
+        assert_eq!(proxy_choice("proxy.example:3128"), Some(ProxyChoice::Custom("http://proxy.example:3128".into())));
+        assert_eq!(proxy_choice("socks5://127.0.0.1:9050"), Some(ProxyChoice::Custom("socks5://127.0.0.1:9050".into())));
+        assert_eq!(proxy_choice("http://awa:secret@proxy.example:8080/"), Some(ProxyChoice::Custom("http://awa:secret@proxy.example:8080".into())));
+        // no port, another kind of address, words
+        for wrong in ["proxy.example", "http://proxy.example", "ftp://proxy.example:21", "https://proxy.example:443", "my proxy", "socks5://:1080"] {
+            assert_eq!(proxy_choice(wrong), None, "{wrong}");
+        }
+    }
 
     #[test]
     fn links_for_other_programs() {

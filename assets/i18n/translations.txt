@@ -1252,3 +1252,21 @@ Sanaga {} est disponible.⟂Sanaga {} is available.⟂Sanaga {} está disponible
 Voir la nouvelle version⟂See the new version⟂Ver la nueva versión⟂Ver a nova versão⟂Neue Version ansehen
 Sanaga est à jour.⟂Sanaga is up to date.⟂Sanaga está actualizado.⟂O Sanaga está atualizado.⟂Sanaga ist auf dem neuesten Stand.
 Vérification impossible (pas de connexion ?).⟂Could not check (no connection?).⟂No se pudo comprobar (¿sin conexión?).⟂Não foi possível verificar (sem ligação?).⟂Prüfung nicht möglich (keine Verbindung?).
+Sanaga {} est disponible (voir la page À propos).⟂Sanaga {} is available (see the About page).⟂Sanaga {} está disponible (vea la página Acerca de).⟂O Sanaga {} está disponível (veja a página Acerca).⟂Sanaga {} ist verfügbar (siehe die Seite „Über“).
+Dossier des téléchargements⟂Downloads folder⟂Carpeta de descargas⟂Pasta das transferências⟂Download-Ordner
+Toujours demander où enregistrer les fichiers⟂Always ask where to save files⟂Preguntar siempre dónde guardar los archivos⟂Perguntar sempre onde guardar os ficheiros⟂Immer fragen, wo Dateien gespeichert werden
+Dossier du système⟂System folder⟂Carpeta del sistema⟂Pasta do sistema⟂Ordner des Systems
+Choisir…⟂Choose…⟂Elegir…⟂Escolher…⟂Auswählen…
+Proxy⟂Proxy⟂Proxy⟂Proxy⟂Proxy
+Mises à jour⟂Updates⟂Actualizaciones⟂Atualizações⟂Aktualisierungen
+Chercher une nouvelle version une fois par jour⟂Look for a new version once a day⟂Buscar una nueva versión una vez al día⟂Procurar uma nova versão uma vez por dia⟂Einmal täglich nach einer neuen Version suchen
+Par où passent les pages et les demandes de Sanaga⟂What pages and Sanaga's own requests go through⟂Por dónde pasan las páginas y las peticiones de Sanaga⟂Por onde passam as páginas e os pedidos do Sanaga⟂Worüber Seiten und Sanagas eigene Anfragen laufen
+Celui du système⟂The system's⟂El del sistema⟂O do sistema⟂Der des Systems
+Aucun (connexion directe)⟂None (direct connection)⟂Ninguno (conexión directa)⟂Nenhum (ligação direta)⟂Keiner (direkte Verbindung)
+Une adresse⟂An address⟂Una dirección⟂Um endereço⟂Eine Adresse
+Adresse du proxy⟂Proxy address⟂Dirección del proxy⟂Endereço do proxy⟂Proxy-Adresse
+Cette adresse n'est pas celle d'un proxy : rien ne part tant qu'elle n'est pas corrigée.⟂This is not a proxy's address: nothing is sent until it is corrected.⟂Esta dirección no es la de un proxy: no se envía nada hasta que se corrija.⟂Este endereço não é o de um proxy: nada é enviado até ser corrigido.⟂Das ist keine Proxy-Adresse: Es wird nichts gesendet, bis sie korrigiert ist.
+Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul⟂One request a day to Sanaga's releases page (github.com); nothing is installed by itself⟂Una sola petición al día a la página de versiones de Sanaga (github.com); nada se instala solo⟂Um único pedido por dia à página de versões do Sanaga (github.com); nada é instalado sozinho⟂Eine Anfrage pro Tag an Sanagas Versionsseite (github.com); nichts wird von selbst installiert
+HTTPS d'abord⟂HTTPS first⟂HTTPS primero⟂HTTPS primeiro⟂HTTPS zuerst
+Les sites sont demandés en https ; en http seulement s'ils n'ont pas https⟂Sites are asked for over https; over http only when they have no https⟂Los sitios se piden por https; por http solo si no tienen https⟂Os sites são pedidos por https; por http apenas se não tiverem https⟂Websites werden über https abgerufen; über http nur, wenn sie kein https haben
+Enregistrer sous⟂Save as⟂Guardar como⟂Guardar como⟂Speichern unter

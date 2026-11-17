@@ -1248,3 +1248,21 @@ Sanaga {} est disponible.	Sanaga {} is available.
 Voir la nouvelle version	See the new version
 Sanaga est à jour.	Sanaga is up to date.
 Vérification impossible (pas de connexion ?).	Could not check (no connection?).
+Sanaga {} est disponible (voir la page À propos).	Sanaga {} is available (see the About page).
+Dossier des téléchargements	Downloads folder
+Toujours demander où enregistrer les fichiers	Always ask where to save files
+Dossier du système	System folder
+Choisir…	Choose…
+Proxy	Proxy
+Mises à jour	Updates
+Chercher une nouvelle version une fois par jour	Look for a new version once a day
+Par où passent les pages et les demandes de Sanaga	What pages and Sanaga's own requests go through
+Celui du système	The system's
+Aucun (connexion directe)	None (direct connection)
+Une adresse	An address
+Adresse du proxy	Proxy address
+Cette adresse n'est pas celle d'un proxy : rien ne part tant qu'elle n'est pas corrigée.	This is not a proxy's address: nothing is sent until it is corrected.
+Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul	One request a day to Sanaga's releases page (github.com); nothing is installed by itself
+HTTPS d'abord	HTTPS first
+Les sites sont demandés en https ; en http seulement s'ils n'ont pas https	Sites are asked for over https; over http only when they have no https
+Enregistrer sous	Save as

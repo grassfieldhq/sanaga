@@ -151,6 +151,22 @@ pub struct Settings {
     /// pages are translated into; the sites where the person said no.
     pub translate_offer: bool,
     pub translate_skip: Vec<String>,
+    /// Where downloads go ("" = the system's Downloads folder), and whether
+    /// each download asks where to save it.
+    pub download_dir: String,
+    pub download_ask: bool,
+    /// Sites are tried over https first when an address says http:// or
+    /// nothing (the engine falls back to http when the site has no https).
+    pub https_first: bool,
+    /// The proxy pages go through: "" the system's, "none" a direct
+    /// connection, else an address (http://host:3128, socks5://host:1080).
+    pub proxy: String,
+    /// Look once a day whether a newer Sanaga was published (one request to
+    /// the releases page; off unless the person asks).
+    pub update_check: bool,
+    /// Warn before a page listed as phishing or malware (the list is
+    /// fetched with the block lists; no address is ever sent anywhere).
+    pub safe_sites: bool,
 }
 
 impl Settings {
@@ -167,6 +183,8 @@ impl Settings {
                 self.engine = d.engine;
                 self.restore_tabs = d.restore_tabs;
                 self.drm_auto = d.drm_auto;
+                self.download_ask = d.download_ask;
+                self.update_check = d.update_check;
             }
             "appearance" => {
                 self.theme = d.theme;
@@ -203,6 +221,8 @@ impl Settings {
                 self.block_lists = d.block_lists;
                 self.itp = d.itp;
                 self.notif_prompts = d.notif_prompts;
+                self.https_first = d.https_first;
+                self.safe_sites = d.safe_sites;
             }
             "passwords" => self.passwords = d.passwords,
             "performance" => {
@@ -322,6 +342,12 @@ impl Default for Settings {
             full_urls: false,
             translate_offer: true,
             translate_skip: Vec::new(),
+            download_dir: String::new(),
+            download_ask: false,
+            https_first: true,
+            proxy: String::new(),
+            update_check: false,
+            safe_sites: true,
         }
     }
 }
@@ -779,6 +805,12 @@ impl Store {
                         "translate_offer" => st.translate_offer = v == "1",
                         "translate_skip" => st.translate_skip = v.split(',').map(str::trim).filter(|h| !h.is_empty()).map(str::to_string).collect(),
                         "close_right" => st.close_right = v == "1",
+                        "download_dir" => st.download_dir = v.to_string(),
+                        "download_ask" => st.download_ask = v == "1",
+                        "https_first" => st.https_first = v == "1",
+                        "proxy" => st.proxy = v.to_string(),
+                        "update_check" => st.update_check = v == "1",
+                        "safe_sites" => st.safe_sites = v == "1",
                         "full_urls" => st.full_urls = v == "1",
                         "toolbar" => {
                             st.toolbar = v.to_string();
@@ -844,7 +876,16 @@ impl Store {
             st.border, st.border_size, st.border_alpha, b(st.compact), b(st.blocker), st.low_power, b(st.tree_tabs), st.app_icon, clean(&st.profile_emoji), b(st.drm_auto), b(st.tab_switcher), clean(&st.translate_to), b(st.close_right), clean(&st.profile_name), st.profile_color, b(st.full_urls)
         );
         let extra = format!("block_lists={}\ntranslate_offer={}\ntranslate_skip={}\n", b(st.block_lists), b(st.translate_offer), clean(&st.translate_skip.join(",")));
-        save_soon(&path, t + &more + &extra);
+        let network = format!(
+            "download_dir={}\ndownload_ask={}\nhttps_first={}\nproxy={}\nupdate_check={}\nsafe_sites={}\n",
+            clean(&st.download_dir),
+            b(st.download_ask),
+            b(st.https_first),
+            clean(&st.proxy),
+            b(st.update_check),
+            b(st.safe_sites)
+        );
+        save_soon(&path, t + &more + &extra + &network);
     }
 
     pub fn save_containers(&self) {

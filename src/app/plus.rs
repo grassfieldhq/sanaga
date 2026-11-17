@@ -249,7 +249,7 @@ impl Sanaga {
         if let Some(req) = self.tabs.get_mut(active).and_then(|t| t.lite_pending.take()) {
             let private = self.tabs[active].private;
             self.tabs[active].loading = true;
-            let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+            let agent = if private { &self.private_agent } else { &self.agent }.for_address(&req.url);
             net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
         }
         let mut source_again = None;
@@ -439,7 +439,7 @@ impl Sanaga {
                     if !self.light_download_sites.iter().any(|(p, s)| *p == private && *s == site) {
                         self.light_download_sites.push((private, site));
                     }
-                    let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+                    let agent = if private { &self.private_agent } else { &self.agent }.for_address(&req.url);
                     net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
                 }
             }

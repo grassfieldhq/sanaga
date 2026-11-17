@@ -299,7 +299,7 @@ impl Sanaga {
                 return;
             }
             let Some(tab) = self.tabs.get_mut(ti) else { return };
-            let agent = if tab.private { self.private_agent.clone() } else { self.agent.clone() };
+            let agent = if tab.private { &self.private_agent } else { &self.agent }.for_address(inner);
             let req = net::Request { tab: tab.id, nav: tab.nav, url: inner.to_string(), post_body: None, full: true, source: true, referrer: String::new(), allow_download: false };
             net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
             return;
@@ -320,7 +320,7 @@ impl Sanaga {
         if !matches!(tab.view, View::Doc(_)) {
             tab.view = View::Loading;
         }
-        let agent = if tab.private { self.private_agent.clone() } else { self.agent.clone() };
+        let agent = if tab.private { &self.private_agent } else { &self.agent }.for_address(&url);
         // (a restored tab: nobody asked for it now, a download from it is asked first)
         let allow_download = !self.restoring;
         let req = net::Request { tab: tab.id, nav: tab.nav, url, post_body: post, full: tab.full && !tab.reader, source: false, referrer, allow_download };
@@ -519,7 +519,7 @@ impl Sanaga {
                     }
                     let private = t.private;
                     if self.light_download_sites.iter().any(|(p, s)| *p == private && *s == site) {
-                        let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+                        let agent = if private { &self.private_agent } else { &self.agent }.for_address(&req.url);
                         net::fetch_page(agent, req, self.tx.clone(), self.ctx.clone());
                     } else {
                         if !self.download_asks.contains(&site) {
@@ -574,7 +574,7 @@ impl Sanaga {
             return;
         }
         self.images.insert(url.clone(), ImgSlot::Loading);
-        let agent = if private { self.private_agent.clone() } else { self.agent.clone() };
+        let agent = if private { &self.private_agent } else { &self.agent }.for_address(&url);
         net::fetch_image(agent, url, self.tx.clone(), self.ctx.clone());
     }
 

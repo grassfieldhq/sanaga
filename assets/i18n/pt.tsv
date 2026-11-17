@@ -1248,3 +1248,21 @@ Sanaga {} est disponible.	O Sanaga {} está disponível.
 Voir la nouvelle version	Ver a nova versão
 Sanaga est à jour.	O Sanaga está atualizado.
 Vérification impossible (pas de connexion ?).	Não foi possível verificar (sem ligação?).
+Sanaga {} est disponible (voir la page À propos).	O Sanaga {} está disponível (veja a página Acerca).
+Dossier des téléchargements	Pasta das transferências
+Toujours demander où enregistrer les fichiers	Perguntar sempre onde guardar os ficheiros
+Dossier du système	Pasta do sistema
+Choisir…	Escolher…
+Proxy	Proxy
+Mises à jour	Atualizações
+Chercher une nouvelle version une fois par jour	Procurar uma nova versão uma vez por dia
+Par où passent les pages et les demandes de Sanaga	Por onde passam as páginas e os pedidos do Sanaga
+Celui du système	O do sistema
+Aucun (connexion directe)	Nenhum (ligação direta)
+Une adresse	Um endereço
+Adresse du proxy	Endereço do proxy
+Cette adresse n'est pas celle d'un proxy : rien ne part tant qu'elle n'est pas corrigée.	Este endereço não é o de um proxy: nada é enviado até ser corrigido.
+Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul	Um único pedido por dia à página de versões do Sanaga (github.com); nada é instalado sozinho
+HTTPS d'abord	HTTPS primeiro
+Les sites sont demandés en https ; en http seulement s'ils n'ont pas https	Os sites são pedidos por https; por http apenas se não tiverem https
+Enregistrer sous	Guardar como

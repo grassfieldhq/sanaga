@@ -64,9 +64,14 @@ fn agent(read_secs: u64) -> ureq::Agent {
     crate::net::builder().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
 }
 
+/// For the model on this computer (Ollama): never through a proxy.
+fn local_agent(read_secs: u64) -> ureq::Agent {
+    crate::net::local_builder().timeout_connect(Duration::from_secs(5)).timeout_read(Duration::from_secs(read_secs)).build()
+}
+
 /// The models installed in Ollama (empty when Ollama is not running).
 pub fn ollama_models() -> Vec<String> {
-    let Ok(r) = agent(3).get(&format!("{OLLAMA}/api/tags")).call() else { return Vec::new() };
+    let Ok(r) = local_agent(3).get(&format!("{OLLAMA}/api/tags")).call() else { return Vec::new() };
     let body = r.into_string().unwrap_or_default();
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else { return Vec::new() };
     v["models"].as_array().map(|m| m.iter().filter_map(|x| x["name"].as_str()).map(|n| n.to_string()).collect()).unwrap_or_default()
@@ -79,7 +84,7 @@ pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> 
         Provider::Cli { tool, model } => crate::ai_cli::ask(*tool, model, system, prompt),
         Provider::Ollama { model } => {
             let body = format!("{{\"model\":{},\"system\":{},\"prompt\":{},\"stream\":false}}", json_str(model), json_str(system), json_str(prompt));
-            let r = agent(240).post(&format!("{OLLAMA}/api/generate")).set("content-type", "application/json").send_string(&body).map_err(err_text)?;
+            let r = local_agent(240).post(&format!("{OLLAMA}/api/generate")).set("content-type", "application/json").send_string(&body).map_err(err_text)?;
             let text = r.into_string().map_err(|e| e.to_string())?;
             ollama_answer(&text).ok_or_else(|| crate::i18n::tr("Réponse du modèle illisible.").into())
         }
@@ -122,7 +127,7 @@ pub fn ask_live(provider: &Provider, system: &str, prompt: &str, max_tokens: u32
         }
         Provider::Ollama { model } => {
             let body = format!("{{\"model\":{},\"system\":{},\"prompt\":{},\"stream\":true}}", json_str(model), json_str(system), json_str(prompt));
-            let r = agent(240).post(&format!("{OLLAMA}/api/generate")).set("content-type", "application/json").send_string(&body).map_err(err_text)?;
+            let r = local_agent(240).post(&format!("{OLLAMA}/api/generate")).set("content-type", "application/json").send_string(&body).map_err(err_text)?;
             std::io::BufReader::new(r.into_reader()).lines()
         }
         Provider::Claude { model, profile } => {
