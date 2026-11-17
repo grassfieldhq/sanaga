@@ -1418,3 +1418,19 @@ Remplissage du formulaire⟂Filling the form⟂Rellenado del formulario⟂Preenc
 Remplir ces champs de la page (rien n'est envoyé) :⟂Fill these fields of the page (nothing is sent):⟂Rellenar estos campos de la página (no se envía nada):⟂Preencher estes campos da página (nada é enviado):⟂Diese Felder der Seite ausfüllen (nichts wird gesendet):
 champ n° {}⟂field no. {}⟂campo n.º {}⟂campo n.º {}⟂Feld Nr. {}
 Une fois remplis, la page peut lire ces champs.⟂Once filled, the page can read these fields.⟂Una vez rellenados, la página puede leer estos campos.⟂Depois de preenchidos, a página pode ler estes campos.⟂Nach dem Ausfüllen kann die Seite diese Felder lesen.
+Voir la note⟂See the note⟂Ver la nota⟂Ver a nota⟂Notiz ansehen
+Garder comme note⟂Keep as a note⟂Guardar como nota⟂Guardar como nota⟂Als Notiz behalten
+Notes⟂Notes⟂Notas⟂Notas⟂Notizen
+Une fenêtre d'invité ne garde pas de notes.⟂A guest window keeps no notes.⟂Una ventana de invitado no guarda notas.⟂Uma janela de convidado não guarda notas.⟂Ein Gastfenster speichert keine Notizen.
+Note gardée le {}.⟂Note kept on {}.⟂Nota guardada el {}.⟂Nota guardada em {}.⟂Notiz behalten am {}.
+Note gardée le {} — réponse de {}.⟂Note kept on {} — answer by {}.⟂Nota guardada el {} — respuesta de {}.⟂Nota guardada em {} — resposta de {}.⟂Notiz behalten am {} — Antwort von {}.
+Réponse gardée dans les notes.⟂Answer kept in the notes.⟂Respuesta guardada en las notas.⟂Resposta guardada nas notas.⟂Antwort in den Notizen behalten.
+‹ Toutes les notes⟂‹ All notes⟂‹ Todas las notas⟂‹ Todas as notas⟂‹ Alle Notizen
+Cette note n'existe plus.⟂This note no longer exists.⟂Esta nota ya no existe.⟂Esta nota já não existe.⟂Diese Notiz gibt es nicht mehr.
+Poursuivre avec l'assistant⟂Go on with the assistant⟂Continuar con el asistente⟂Continuar com o assistente⟂Mit dem Assistenten fortfahren
+Ouvrir comme page à imprimer⟂Open as a page to print⟂Abrir como página para imprimir⟂Abrir como página para imprimir⟂Als Seite zum Drucken öffnen
+La note devient une page : Ctrl+P l'imprime ou l'enregistre en PDF.⟂The note becomes a page: Ctrl+P prints it or saves it as PDF.⟂La nota se convierte en una página: Ctrl+P la imprime o la guarda como PDF.⟂A nota torna-se uma página: Ctrl+P imprime-a ou guarda-a em PDF.⟂Die Notiz wird zu einer Seite: Strg+P druckt sie oder speichert sie als PDF.
+Les réponses de l'assistant que vous avez gardées. Ce sont des fichiers texte dans le dossier du profil : ils restent lisibles sans Sanaga.⟂The assistant's answers you kept. They are text files in the profile's folder: they stay readable without Sanaga.⟂Las respuestas del asistente que ha guardado. Son archivos de texto en la carpeta del perfil: siguen siendo legibles sin Sanaga.⟂As respostas do assistente que guardou. São ficheiros de texto na pasta do perfil: continuam legíveis sem o Sanaga.⟂Die Antworten des Assistenten, die Sie behalten haben. Es sind Textdateien im Ordner des Profils: Sie bleiben auch ohne Sanaga lesbar.
+Aucune note. Sous une réponse de l'assistant : « Garder comme note ».⟂No note. Under an answer of the assistant: “Keep as a note”.⟂Ninguna nota. Bajo una respuesta del asistente: «Guardar como nota».⟂Nenhuma nota. Por baixo de uma resposta do assistente: «Guardar como nota».⟂Keine Notiz. Unter einer Antwort des Assistenten: „Als Notiz behalten“.
+Note copiée.⟂Note copied.⟂Nota copiada.⟂Nota copiada.⟂Notiz kopiert.
+Les réponses que vous avez gardées⟂The answers you kept⟂Las respuestas que ha guardado⟂As respostas que guardou⟂Die Antworten, die Sie behalten haben

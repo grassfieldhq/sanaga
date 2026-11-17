@@ -44,6 +44,7 @@ mod migrate;
 #[cfg(test)]
 mod mutate;
 mod net;
+mod notes;
 mod page;
 mod shell;
 mod site_prefs;

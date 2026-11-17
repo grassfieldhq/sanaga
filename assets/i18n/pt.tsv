@@ -1413,3 +1413,19 @@ Remplissage du formulaire	Preenchimento do formulário
 Remplir ces champs de la page (rien n'est envoyé) :	Preencher estes campos da página (nada é enviado):
 champ n° {}	campo n.º {}
 Une fois remplis, la page peut lire ces champs.	Depois de preenchidos, a página pode ler estes campos.
+Voir la note	Ver a nota
+Garder comme note	Guardar como nota
+Notes	Notas
+Une fenêtre d'invité ne garde pas de notes.	Uma janela de convidado não guarda notas.
+Note gardée le {}.	Nota guardada em {}.
+Note gardée le {} — réponse de {}.	Nota guardada em {} — resposta de {}.
+Réponse gardée dans les notes.	Resposta guardada nas notas.
+‹ Toutes les notes	‹ Todas as notas
+Cette note n'existe plus.	Esta nota já não existe.
+Poursuivre avec l'assistant	Continuar com o assistente
+Ouvrir comme page à imprimer	Abrir como página para imprimir
+La note devient une page : Ctrl+P l'imprime ou l'enregistre en PDF.	A nota torna-se uma página: Ctrl+P imprime-a ou guarda-a em PDF.
+Les réponses de l'assistant que vous avez gardées. Ce sont des fichiers texte dans le dossier du profil : ils restent lisibles sans Sanaga.	As respostas do assistente que guardou. São ficheiros de texto na pasta do perfil: continuam legíveis sem o Sanaga.
+Aucune note. Sous une réponse de l'assistant : « Garder comme note ».	Nenhuma nota. Por baixo de uma resposta do assistente: «Guardar como nota».
+Note copiée.	Nota copiada.
+Les réponses que vous avez gardées	As respostas que guardou

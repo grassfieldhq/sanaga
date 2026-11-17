@@ -1416,6 +1416,9 @@ impl Sanaga {
                 if rows.link(ui, tr("Outils extérieurs"), tr("Vos propres serveurs d'outils (MCP) ; chaque utilisation vous est montrée"), "") {
                     acts.push(Act::Go("sanaga://tools"));
                 }
+                if rows.link(ui, tr("Notes"), tr("Les réponses que vous avez gardées"), "") {
+                    acts.push(Act::Go("sanaga://notes"));
+                }
             });
             footnote(
                 ui,

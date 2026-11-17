@@ -217,6 +217,8 @@ pub(super) struct Assistant {
     pub(super) outside: bool,
     pub(super) allowed: HashSet<String>,
     pub(super) confirm: Option<Confirm>,
+    /// The note the last answer was kept as, if it was.
+    pub(super) kept_note: Option<String>,
     /// The fields of the page last listed for the model (see aiforms.rs).
     pub(super) form: Option<super::aiforms::FormSeen>,
     /// Tabs a tool is reading: answered when their page has.
@@ -265,6 +267,7 @@ impl Assistant {
             allowed: HashSet::new(),
             confirm: None,
             reads: Vec::new(),
+            kept_note: None,
             form: None,
             earlier: None,
             earlier_filter: String::new(),
@@ -293,6 +296,25 @@ impl Assistant {
 
     pub(super) fn is_for(&self, tab: u64) -> bool {
         self.tab == tab
+    }
+
+    /// The last question and its answer, with the pages the model was
+    /// given and who answered — what a note keeps.
+    pub(super) fn last_exchange(&self) -> Option<super::notespage::Exchange> {
+        let at = self.entries.iter().rposition(|e| matches!(e, chat::Entry::User { .. }))?;
+        let question = self.entries.iter().take(at + 1).filter(|e| matches!(e, chat::Entry::User { .. })).count() - 1;
+        let asked = match (&self.entries[at], self.labels.get(&question)) {
+            // (a saved request — a summary: named with the page it was about)
+            (chat::Entry::User { sources, .. }, Some(label)) => match sources.iter().find(|s| s.kind == SourceKind::Page && !s.title.trim().is_empty()) {
+                Some(page) => format!("{label} — {}", page.title.trim()),
+                None => label.clone(),
+            },
+            (chat::Entry::User { text, .. }, None) => text.clone(),
+            _ => String::new(),
+        };
+        // (the words of every step of the answer, tools left out)
+        let answer: Vec<&str> = self.entries[at + 1..].iter().filter_map(|e| if let chat::Entry::Assistant { text, .. } = e { Some(text.trim()) } else { None }).filter(|t| !t.is_empty()).collect();
+        (!answer.is_empty()).then(|| (asked, answer.join("\n\n"), super::notespage::pages_given(&self.entries), self.by.clone()))
     }
 
     fn questions(&self) -> usize {
@@ -483,6 +505,18 @@ impl Sanaga {
             a.with_page = false;
         }
         self.assistant_call(&question);
+    }
+
+    /// A new conversation with a text attached to its first question (a
+    /// note gone on with).
+    pub(super) fn new_assistant_with(&mut self, source: Source) {
+        self.open_assistant();
+        self.new_conversation();
+        if let Some(a) = self.assistant.as_mut() {
+            a.attach.push(Attach::Text(source));
+            a.with_page = false;
+            a.focus = true;
+        }
     }
 
     /// Words selected in a page, to ask about (the page's right-click menu).
@@ -998,6 +1032,7 @@ impl Sanaga {
                 a.busy = false;
                 a.live.clear();
                 a.entries = entries;
+                a.kept_note = None;
                 a.unsaved = true;
                 a.confirm = None;
                 match result {
@@ -1044,6 +1079,8 @@ impl Sanaga {
         let (mut close, mut renew, mut choose, mut stop, mut send, mut again, mut summarise, mut edit, mut copy) = (false, false, false, false, false, false, false, false, None::<String>);
         let mut drop_attach: Option<usize> = None;
         let (mut pick_file, mut pick_tab) = (false, None::<(u64, String)>);
+        let (mut keep_note, mut see_note) = (false, false);
+        let notes_possible = self.store.data_dir().is_some() && !self.guest;
         let (mut allow, mut toggle_earlier, mut search_earlier, mut open_conv, mut delete_conv) = (None::<bool>, false, false, None::<i64>, None::<i64>);
         let kept_possible = self.chats.is_some();
         let titles: HashMap<u64, String> = self.tabs.iter().map(|t| (t.id, t.title())).collect();
@@ -1369,6 +1406,13 @@ impl Sanaga {
                                     if ui.small_button(tr("Copier")).clicked() {
                                         copy = Some(text.clone());
                                     }
+                                    if a.kept_note.is_some() {
+                                        if ui.small_button(tr("Voir la note")).clicked() {
+                                            see_note = true;
+                                        }
+                                    } else if notes_possible && ui.small_button(tr("Garder comme note")).clicked() {
+                                        keep_note = true;
+                                    }
                                     if a.entries.len() <= 2
                                         && a.labels.contains_key(&0)
                                         && ui.small_button(if a.tab == active_id && !fresh { tr("Résumer à nouveau") } else { tr("Résumer cette page") }).clicked()
@@ -1453,6 +1497,14 @@ impl Sanaga {
         }
         if pick_file {
             self.attach_file();
+        }
+        if keep_note {
+            self.keep_note();
+        }
+        if see_note {
+            if let Some(name) = self.assistant.as_ref().and_then(|a| a.kept_note.clone()) {
+                self.open_tab(&format!("sanaga://notes/{name}"), false);
+            }
         }
         if let Some(yes) = allow {
             self.tool_answered(yes);

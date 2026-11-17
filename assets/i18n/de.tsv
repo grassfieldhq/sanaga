@@ -1413,3 +1413,19 @@ Remplissage du formulaire	Formular wird ausgefüllt
 Remplir ces champs de la page (rien n'est envoyé) :	Diese Felder der Seite ausfüllen (nichts wird gesendet):
 champ n° {}	Feld Nr. {}
 Une fois remplis, la page peut lire ces champs.	Nach dem Ausfüllen kann die Seite diese Felder lesen.
+Voir la note	Notiz ansehen
+Garder comme note	Als Notiz behalten
+Notes	Notizen
+Une fenêtre d'invité ne garde pas de notes.	Ein Gastfenster speichert keine Notizen.
+Note gardée le {}.	Notiz behalten am {}.
+Note gardée le {} — réponse de {}.	Notiz behalten am {} — Antwort von {}.
+Réponse gardée dans les notes.	Antwort in den Notizen behalten.
+‹ Toutes les notes	‹ Alle Notizen
+Cette note n'existe plus.	Diese Notiz gibt es nicht mehr.
+Poursuivre avec l'assistant	Mit dem Assistenten fortfahren
+Ouvrir comme page à imprimer	Als Seite zum Drucken öffnen
+La note devient une page : Ctrl+P l'imprime ou l'enregistre en PDF.	Die Notiz wird zu einer Seite: Strg+P druckt sie oder speichert sie als PDF.
+Les réponses de l'assistant que vous avez gardées. Ce sont des fichiers texte dans le dossier du profil : ils restent lisibles sans Sanaga.	Die Antworten des Assistenten, die Sie behalten haben. Es sind Textdateien im Ordner des Profils: Sie bleiben auch ohne Sanaga lesbar.
+Aucune note. Sous une réponse de l'assistant : « Garder comme note ».	Keine Notiz. Unter einer Antwort des Assistenten: „Als Notiz behalten“.
+Note copiée.	Notiz kopiert.
+Les réponses que vous avez gardées	Die Antworten, die Sie behalten haben

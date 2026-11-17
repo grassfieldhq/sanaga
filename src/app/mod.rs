@@ -25,6 +25,7 @@ mod menus;
 mod myframes;
 mod nav;
 mod network;
+mod notespage;
 mod onboarding;
 mod pages;
 mod plus;
@@ -98,6 +99,8 @@ enum Internal {
     Skills,
     /// The assistant's outside tools (`sanaga://tools`).
     Tools,
+    /// The answers kept as notes (`sanaga://notes`, `sanaga://notes/NAME`).
+    Notes,
     Onboarding,
     /// A protected site (Netflix…) opened where it plays: `sanaga://protected?u=…`.
     Protected,
@@ -152,6 +155,8 @@ fn internal_from_url(u: &str) -> Option<Internal> {
         "sanaga://create-extension" => Internal::CreateExtension,
         "sanaga://skills" => Internal::Skills,
         "sanaga://tools" => Internal::Tools,
+        "sanaga://notes" => Internal::Notes,
+        p if p.starts_with("sanaga://notes/") => Internal::Notes,
         "sanaga://start" => Internal::Onboarding,
         p if p.starts_with("sanaga://protected") => Internal::Protected,
         _ => return None,
@@ -177,6 +182,7 @@ fn internal_title(i: Internal) -> &'static str {
         Internal::CreateExtension => tr("Créer une extension"),
         Internal::Skills => tr("Demandes enregistrées"),
         Internal::Tools => tr("Outils extérieurs de l'assistant"),
+        Internal::Notes => tr("Notes"),
         Internal::Onboarding => tr("Bienvenue dans Sanaga"),
         Internal::Protected => tr("Contenu protégé"),
     }
@@ -686,6 +692,8 @@ pub struct Sanaga {
     /// The assistant's outside tools (MCP servers) and the form of their page.
     mcp: mcppage::McpState,
     mcp_form: mcppage::McpForm,
+    /// The answers kept as notes, as their page shows them.
+    notes: notespage::NotesState,
     ai_tx: std::sync::mpsc::Sender<intelligence::AiDone>,
     ai_rx: Receiver<intelligence::AiDone>,
     ext_form: intelligence::ExtForm,
@@ -1072,6 +1080,7 @@ impl Sanaga {
             skill_form: Default::default(),
             mcp: Default::default(),
             mcp_form: Default::default(),
+            notes: Default::default(),
             ai_tx,
             ai_rx,
             ext_form: Default::default(),

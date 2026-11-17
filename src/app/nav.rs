@@ -831,6 +831,9 @@ impl Sanaga {
                 "inspector" => self.open_inspector(),
                 "summary" => self.summarize_page(),
                 "ask" => self.open_assistant(),
+                "notes" => {
+                    self.open_tab("sanaga://notes", false);
+                }
                 "devices" => self.toggle_devices(),
                 "print" => self.print_page(),
                 "source" => self.view_source(),

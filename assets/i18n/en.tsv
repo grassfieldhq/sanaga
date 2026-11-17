@@ -1413,3 +1413,19 @@ Remplissage du formulaire	Filling the form
 Remplir ces champs de la page (rien n'est envoyé) :	Fill these fields of the page (nothing is sent):
 champ n° {}	field no. {}
 Une fois remplis, la page peut lire ces champs.	Once filled, the page can read these fields.
+Voir la note	See the note
+Garder comme note	Keep as a note
+Notes	Notes
+Une fenêtre d'invité ne garde pas de notes.	A guest window keeps no notes.
+Note gardée le {}.	Note kept on {}.
+Note gardée le {} — réponse de {}.	Note kept on {} — answer by {}.
+Réponse gardée dans les notes.	Answer kept in the notes.
+‹ Toutes les notes	‹ All notes
+Cette note n'existe plus.	This note no longer exists.
+Poursuivre avec l'assistant	Go on with the assistant
+Ouvrir comme page à imprimer	Open as a page to print
+La note devient une page : Ctrl+P l'imprime ou l'enregistre en PDF.	The note becomes a page: Ctrl+P prints it or saves it as PDF.
+Les réponses de l'assistant que vous avez gardées. Ce sont des fichiers texte dans le dossier du profil : ils restent lisibles sans Sanaga.	The assistant's answers you kept. They are text files in the profile's folder: they stay readable without Sanaga.
+Aucune note. Sous une réponse de l'assistant : « Garder comme note ».	No note. Under an answer of the assistant: “Keep as a note”.
+Note copiée.	Note copied.
+Les réponses que vous avez gardées	The answers you kept
