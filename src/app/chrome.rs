@@ -129,53 +129,31 @@ impl Sanaga {
             self.suggest_sel = None;
             return;
         }
+        // The pages of the history that answer what is typed are asked for
+        // when the text changes, on a thread of their own. (They were
+        // looked for through every visit, at every frame: what kept the
+        // history to 5,000 visits.)
         let ql = q.to_lowercase();
-        let engine = self.store.settings.engine;
-        let mut items: Vec<(String, String, bool)> = Vec::new(); // (url, label, is_search)
-                                                                 // calculator answer ("calc:" = copy the result)
-        if let Some(v) = super::plus::calculate(&q) {
-            let r = super::plus::format_number(v);
-            items.push((format!("calc:{r}"), tf("= {}   (cliquer pour copier)", &[&r]), true));
-        }
-        // search shortcut ("w ", "yt ", "m "...)
-        if let Some((u, site)) = super::plus::keyword_search(&q) {
-            let rest = q.split_once(' ').map(|x| x.1).unwrap_or("").trim().to_string();
-            items.push((u, tf("Rechercher « {} » sur {}", &[&rest, &site]), true));
-        }
-        // open tabs: switch to them instead of opening the page again
-        for (i, t) in self.tabs.iter().enumerate() {
-            if i == a || items.len() >= 4 {
-                continue;
-            }
-            let title = t.title();
-            if title.to_lowercase().contains(&ql) || t.url().to_lowercase().contains(&ql) {
-                items.push((format!("tab:{i}"), tf("Passer à l'onglet : {}", &[&title]), false));
-            }
-        }
+        let typed = ql.clone();
+        self.history_ask(|app| &mut app.hist.suggest, ql.clone(), move |h| h.suggest(&typed, 12));
         // (the address the field holds: what was typed, completed with a site's name)
         let held = if self.inline_done { self.tabs[a].address.trim().to_string() } else { q.clone() };
-        let direct = input_to_url(&held, engine, "");
-        if direct != engine.search_url(&q) && super::plus::keyword_search(&q).is_none() {
-            items.push((direct.clone(), direct, false));
-        }
-        items.push((engine.search_url(&q), tf("{} — Rechercher avec {}", &[&q, &short_engine(engine)]), true));
-        // one line per page: the same page written two ways (é or %C3%A9, with
-        // or without a last "/") is not listed twice, nor the address typed
-        let mut seen: HashSet<String> = items.iter().map(|i| same_page_key(&i.0)).collect();
-        let bm = self.store.bookmarks.iter().map(|b| (&b.url, &b.title));
-        let hist = self.store.history.iter().rev().map(|v| (&v.url, &v.title));
-        for (u, t) in bm.chain(hist) {
-            if items.len() >= 8 {
-                break;
-            }
-            if (u.to_lowercase().contains(&ql) || t.to_lowercase().contains(&ql)) && seen.insert(same_page_key(u)) {
-                items.push((u.clone(), if t.is_empty() { u.clone() } else { t.clone() }, false));
+        // The list is put together again when what it is made of changes
+        // — the text, the history's answer, the tabs, the favourites — not
+        // at every frame.
+        let made = super::hist::SuggestMade { typed: q.clone(), held: held.clone(), answers: self.hist.suggest.answers, tabs: self.tabs.len(), active: a, favourites: self.store.bookmarks.len() };
+        if made != self.hist.suggest_made || self.suggest_items.is_empty() {
+            self.suggest_items = self.suggestion_lines(&q, &ql, &held);
+            self.hist.suggest_made = made;
+            if std::env::var_os("SANAGA_DEBUG_SUGGEST").is_some() {
+                eprintln!("suggestions for {q:?} at frame {}: {}", self.frame, self.suggest_items.iter().map(|i| i.0.as_str()).collect::<Vec<_>>().join(" | "));
             }
         }
-        self.suggest_items = items.clone();
-        if self.suggest_sel.is_some_and(|k| k >= items.len()) {
+        if self.suggest_sel.is_some_and(|k| k >= self.suggest_items.len()) {
             self.suggest_sel = None;
         }
+        // (taken out while it is drawn, put back after: not copied at every frame)
+        let items = std::mem::take(&mut self.suggest_items);
         let sel = self.suggest_sel;
         let mut go: Option<String> = None;
         // under the field, or above it when the address bar is at the bottom
@@ -191,6 +169,11 @@ impl Sanaga {
                     ui.set_width(addr.width());
                     for (k, (url, label, search)) in items.iter().enumerate() {
                         let (r, resp) = ui.allocate_exact_size(vec2(addr.width(), 34.0), Sense::click());
+                        // (for a screen reader: what the line is, and whether it is the one picked)
+                        resp.widget_info(|| {
+                            let name = if *search || label == url || url.starts_with("tab:") { label.clone() } else { format!("{label} — {}", super::toolbar::display_url(url, false).0) };
+                            egui::WidgetInfo::selected(egui::Role::ListBoxOption, true, sel == Some(k), name)
+                        });
                         if sel == Some(k) {
                             ui.painter().rect_filled(r, 0.0, th.accent.gamma_multiply(0.16));
                             ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(3.0, r.height())), 0.0, th.accent);
@@ -219,10 +202,81 @@ impl Sanaga {
                     }
                 });
         });
+        self.suggest_items = items;
         self.suggest_rect = area.response.rect;
         if let Some(u) = go {
             self.activate_suggestion(&u);
         }
+    }
+
+    /// The lines offered under the address bar for what is typed (`q`; `ql`
+    /// in lower case; `held`: what the field holds), each (address, words
+    /// shown, is it a search): a calculation, a search shortcut, open
+    /// tabs, the address itself, the search — then favourites and visited
+    /// pages, the best first.
+    fn suggestion_lines(&self, q: &str, ql: &str, held: &str) -> Vec<(String, String, bool)> {
+        let a = self.active;
+        let engine = self.store.settings.engine;
+        let mut items: Vec<(String, String, bool)> = Vec::new();
+        // calculator answer ("calc:" = copy the result)
+        if let Some(v) = super::plus::calculate(q) {
+            let r = super::plus::format_number(v);
+            items.push((format!("calc:{r}"), tf("= {}   (cliquer pour copier)", &[&r]), true));
+        }
+        // search shortcut ("w ", "yt ", "m "...)
+        if let Some((u, site)) = super::plus::keyword_search(q) {
+            let rest = q.split_once(' ').map(|x| x.1).unwrap_or("").trim().to_string();
+            items.push((u, tf("Rechercher « {} » sur {}", &[&rest, &site]), true));
+        }
+        // open tabs: switch to them instead of opening the page again
+        for (i, t) in self.tabs.iter().enumerate() {
+            if i == a || items.len() >= 4 {
+                continue;
+            }
+            let title = t.title();
+            if title.to_lowercase().contains(ql) || t.url().to_lowercase().contains(ql) {
+                items.push((format!("tab:{i}"), tf("Passer à l'onglet : {}", &[&title]), false));
+            }
+        }
+        // (a completed site's name leads where the site was really visited)
+        let direct = self.completed_address(a).unwrap_or_else(|| input_to_url(held, engine, ""));
+        if direct != engine.search_url(q) && super::plus::keyword_search(q).is_none() {
+            items.push((direct.clone(), direct, false));
+        }
+        items.push((engine.search_url(q), tf("{} — Rechercher avec {}", &[&q, &short_engine(engine)]), true));
+        // Visited pages and favourites, the best first: sites whose name
+        // starts with what is typed, then those with a part of their name
+        // starting so, then pages that hold it in their address or title;
+        // among equals, the most visited lately (see `history::frecency`).
+        // While the answer to this very text is on its way, the lines of
+        // the last answer that still answer it stay.
+        let words = crate::history::words_of(ql);
+        let site = |url: &str| crate::history::site_of(url).0;
+        let mut pages: Vec<crate::history::Hit> =
+            (self.hist.suggest.got.iter()).filter_map(|h| crate::history::rank(&words, &site(&h.url), &h.url, &h.title).map(|rank| crate::history::Hit { rank, ..h.clone() })).collect();
+        // (a favourite counts as a page visited three times lately, on top of its visits)
+        const FAVOURITE: u64 = 300;
+        for b in &self.store.bookmarks {
+            let Some(rank) = crate::history::rank(&words, &site(&b.url), &b.url, &b.title) else { continue };
+            let key = same_page_key(&b.url);
+            match pages.iter_mut().find(|h| same_page_key(&h.url) == key) {
+                Some(h) => h.score = h.score.max(FAVOURITE + crate::history::frecency(h.visits, h.last, crate::store::now())),
+                None => pages.push(crate::history::Hit { url: b.url.clone(), title: b.title.clone(), visits: 0, last: 0, rank, score: FAVOURITE }),
+            }
+        }
+        pages.sort_by_key(|h| (h.rank, std::cmp::Reverse(h.score), std::cmp::Reverse(h.last)));
+        // one line per page: the same page written two ways (é or %C3%A9, with
+        // or without a last "/") is not listed twice, nor the address typed
+        let mut seen: HashSet<String> = items.iter().map(|i| same_page_key(&i.0)).collect();
+        for h in pages {
+            if items.len() >= 8 {
+                break;
+            }
+            if seen.insert(same_page_key(&h.url)) {
+                items.push((h.url.clone(), if h.title.is_empty() { h.url } else { h.title }, false));
+            }
+        }
+        items
     }
 
     /// What the address field shows while a suggestion is picked with the arrows.
@@ -237,27 +291,88 @@ impl Sanaga {
         url.clone()
     }
 
-    /// Open a suggestion (click, or Enter on the one picked with the arrows).
-    /// The site to complete what is being typed with ("wiki" → "wikipedia.org"):
-    /// the one visited most among favourites and recent history whose name
-    /// starts that way.
-    pub(super) fn site_completion(&self, typed: &str) -> Option<String> {
+    /// Typing forward at the end of the address field: look for the site
+    /// to complete what is typed with ("wiki" → "wikipedia.org") — the one
+    /// that counts most among the sites visited (`history::frecency`) and
+    /// the favourites whose name starts that way. Asked of the history on
+    /// a thread of its own (it was a walk through 4,000 visits at every
+    /// key); the field is completed when the answer comes, a moment later
+    /// (`complete_address`).
+    pub(super) fn ask_completion(&mut self, typed: &str) {
+        self.hist.completed = None;
         let t = typed.to_lowercase();
-        if t.chars().count() < 2 || t.contains(|c: char| c.is_whitespace() || c == '/' || c == ':') {
-            return None;
+        if t.chars().count() < 2 || t.contains(|c: char| c.is_whitespace() || c == '/') {
+            return;
         }
-        let mut count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        let urls = self.store.bookmarks.iter().map(|b| &b.url).chain(self.store.history.iter().rev().take(4000).map(|v| &v.url));
-        for u in urls {
-            let host = host_of(u);
-            let host = host.strip_prefix("www.").unwrap_or(&host);
-            if host.len() > t.len() && host.starts_with(&t) {
-                *count.entry(host.to_string()).or_default() += 1;
-            }
-        }
-        count.into_iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.len().cmp(&a.0.len()))).map(|(h, _)| h)
+        // (a favourite's site counts as one visited once lately; among
+        // favourites, the shortest name)
+        let favourite = (self.store.bookmarks.iter())
+            .filter_map(|b| {
+                let (host, origin) = crate::history::site_of(&b.url);
+                (!host.is_empty() && host.starts_with(&t)).then(|| crate::history::Completion { text: host, url: format!("{origin}/"), score: 100 })
+            })
+            .min_by_key(|c| c.text.len());
+        let history = self.store.history.clone();
+        let (tab, typed) = (self.tabs[self.active].id, typed.to_string());
+        let asked = typed.clone();
+        self.off_thread(
+            move || history.complete_site(&asked),
+            move |app, visited| {
+                let best = match (visited, favourite) {
+                    (Some(v), Some(f)) => Some(if f.score > v.score { f } else { v }),
+                    (v, f) => v.or(f),
+                };
+                if let Some(site) = best {
+                    app.complete_address(tab, &typed, site);
+                }
+            },
+        );
     }
 
+    /// Complete what was typed in the address field with a site's name,
+    /// the added part selected: the next letter replaces it, Enter goes
+    /// there — where the site was really visited (`site.url`:
+    /// "http://nas.lan:8080/"), not always "https://" and its name.
+    fn complete_address(&mut self, tab: u64, typed: &str, site: crate::history::Completion) {
+        let a = self.active;
+        let id = egui::Id::new("address-bar");
+        // (the person typed on, or left the field: this answers a text that is gone)
+        if self.tabs[a].id != tab || self.tabs[a].address != typed || self.inline_typed != typed || self.inline_done || !self.ctx.memory(|m| m.has_focus(id)) {
+            return;
+        }
+        let n = typed.chars().count();
+        let Some(mut state) = TextEdit::load_state(&self.ctx, id) else { return };
+        if !state.cursor.char_range().is_some_and(|r| r.primary.index == egui::text::CharIndex(n) && r.secondary.index == r.primary.index) {
+            return;
+        }
+        // (the rest of the name: what follows as many letters as were
+        // typed — a typed letter may take more bytes than the name's, e.g.
+        // the Kelvin sign for "k")
+        let rest: String = site.text.chars().skip(n).collect();
+        let full = format!("{typed}{rest}");
+        let (from, to) = (egui::text::CCursor::new(n), egui::text::CCursor::new(full.chars().count()));
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::two(from, to)));
+        state.store(&self.ctx, id);
+        self.tabs[a].address = full.clone();
+        self.inline_done = true;
+        // the site's address is looked up now (DNS), so the page starts
+        // sooner on Enter; never for a private tab
+        if !self.tabs[a].private {
+            if let (Some(e), Some(host)) = (&self.web_context, url::Url::parse(&site.url).ok().and_then(|u| u.host_str().map(str::to_string))) {
+                e.session.prefetch_dns(&host);
+            }
+        }
+        self.hist.completed = Some((full, site.url));
+        self.ctx.request_repaint();
+    }
+
+    /// Where the address field leads when it holds a site's name it was
+    /// completed with (see `complete_address`).
+    pub(super) fn completed_address(&self, a: usize) -> Option<String> {
+        self.hist.completed.as_ref().filter(|(text, _)| text == self.tabs[a].address.trim()).map(|(_, url)| url.clone())
+    }
+
+    /// Open a suggestion (click, or Enter on the one picked with the arrows).
     pub(super) fn activate_suggestion(&mut self, u: &str) {
         let a = self.active;
         let u = u.to_string();

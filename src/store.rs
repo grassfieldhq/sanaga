@@ -1,5 +1,6 @@
-//! Saved data: settings, history, bookmarks, open tabs. Plain text files in
-//! ~/.local/share/sanaga, small and fast to read.
+//! Saved data: settings, bookmarks, open tabs. Plain text files in
+//! ~/.local/share/sanaga, small and fast to read. (The history, which
+//! grows without end, is a database of its own: see history.rs.)
 
 use crate::i18n::{tf, tr};
 use std::io::Write;
@@ -327,13 +328,6 @@ impl Default for Settings {
 }
 
 #[derive(Clone, Debug)]
-pub struct Visit {
-    pub time: u64,
-    pub url: String,
-    pub title: String,
-}
-
-#[derive(Clone, Debug)]
 pub struct Bookmark {
     pub url: String,
     pub title: String,
@@ -373,7 +367,9 @@ pub struct Store {
     /// Site permissions decided by the person: (site, kind, allowed).
     pub permissions: Vec<(String, String, bool)>,
     pub settings: Settings,
-    pub history: Vec<Visit>,
+    /// The pages visited: asked for what is shown, never read whole (see
+    /// history.rs).
+    pub history: crate::history::History,
     pub bookmarks: Vec<Bookmark>,
     /// Safari-style reading list: pages kept for later.
     pub reading: Vec<Bookmark>,
@@ -387,14 +383,13 @@ pub struct Store {
     pub containers: Vec<Container>,
     /// The person's own toolbar buttons.
     pub buttons: Vec<CustomButton>,
-    /// Pages whose title changed after their visit was written, and since
-    /// when: written to the file a little later (`settle_history`).
-    titles_late: Vec<String>,
+    /// Pages that told a new title a moment after another one (address,
+    /// title), and since when: written to the history a little later
+    /// (`settle_history`).
+    titles_late: Vec<(String, String)>,
     titles_since: Option<std::time::Instant>,
-    /// This store among those of the run, and how much of what the others
-    /// told about the history it has heard (see `Told`).
-    id: u64,
-    heard: u64,
+    /// The pages whose title was written to the history a moment ago, and when.
+    titles_written: Vec<(String, std::time::Instant)>,
     /// The files of the profile that were there and could not be read when
     /// it was loaded (a disk error, a refusal): what they hold is not in
     /// this store, so this store never writes them (see `file`).
@@ -443,58 +438,9 @@ fn read_text(path: &Path) -> Option<String> {
     }
 }
 
-/// What a window does to the history, told to the other windows of the
-/// same profile. Each window keeps its own copy of the history: without
-/// this, a page visited in one window was missing from the history shown
-/// in another until Sanaga was started again.
-#[derive(Clone)]
-enum Told {
-    Visit(Visit),
-    Title(String, String),
-    /// The file was written again (history cleared, a visit removed): read it.
-    Rewritten,
-}
-
-/// The last things told, each with its number, the profile folder it is
-/// about and the store that told it.
-static TOLD: std::sync::Mutex<Vec<(u64, PathBuf, u64, Told)>> = std::sync::Mutex::new(Vec::new());
-/// The number of the last thing told (read at every frame: no lock).
-static TOLD_LAST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-static STORES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-
-fn new_store_id() -> u64 {
-    STORES.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-}
-
-const MAX_HISTORY: usize = 5000;
-
-/// The history file, read: one visit per line (`time⇥address⇥title`). A
-/// line `=address⇥title` is a title learnt after the visit was written (a
-/// page names itself when it likes, often after it has loaded): it renames
-/// the latest visit of that address. Added at the end like the visits, so
-/// several windows can write the file without undoing one another.
-fn read_history(text: &str) -> Vec<Visit> {
-    let mut all: Vec<Visit> = Vec::new();
-    for line in text.lines() {
-        if let Some(rest) = line.strip_prefix('=') {
-            if let Some((url, title)) = rest.split_once('\t') {
-                if let Some(v) = all.iter_mut().rev().take(TITLE_REACH).find(|v| v.url == url) {
-                    v.title = title.to_string();
-                }
-            }
-            continue;
-        }
-        let mut p = line.splitn(3, '\t');
-        if let (Some(tm), Some(u), Some(ti)) = (p.next(), p.next(), p.next()) {
-            all.push(Visit { time: tm.parse().unwrap_or(0), url: u.into(), title: ti.into() });
-        }
-    }
-    all
-}
-
-/// How far back a late title looks for its visit (other tabs may have
-/// loaded pages in between).
-const TITLE_REACH: usize = 64;
+/// A page that renames itself again and again (a counter, "(3) Messages")
+/// has its title written to the history this often at most.
+const TITLE_PAUSE: std::time::Duration = std::time::Duration::from_secs(20);
 
 impl Store {
     /// In-memory only (used for screenshots so nothing on disk changes).
@@ -506,7 +452,7 @@ impl Store {
             extensions_on: vec!["bloqueur-de-publicites".into(), "sans-bannieres-cookies".into()],
             permissions: Vec::new(),
             settings: Settings::default(),
-            history: Vec::new(),
+            history: crate::history::History::in_memory(),
             bookmarks: default_bookmarks(&Settings::default().language),
             reading: Vec::new(),
             site_zoom: Default::default(),
@@ -517,8 +463,7 @@ impl Store {
             buttons: Vec::new(),
             titles_late: Vec::new(),
             titles_since: None,
-            id: new_store_id(),
-            heard: TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed),
+            titles_written: Vec::new(),
             unreadable: Vec::new(),
         }
     }
@@ -644,7 +589,7 @@ impl Store {
     /// Read a profile from its folder.
     fn load_from(dir: PathBuf, profile: &str) -> Store {
         // (what this run is still writing is read back whole)
-        flush_saves();
+        flush_files();
         // (a first run: no settings yet. Settings that are there and cannot
         // be read are not a first run, and are not written again)
         let first_run = matches!(std::fs::symlink_metadata(dir.join("settings.txt")), Err(e) if e.kind() == std::io::ErrorKind::NotFound);
@@ -657,7 +602,9 @@ impl Store {
             extensions_on: Vec::new(),
             permissions: Vec::new(),
             settings: Settings::default(),
-            history: Vec::new(),
+            // (the same history for every window of the profile; the file
+            // is opened by the history's own thread, not here)
+            history: crate::history::History::open(&dir),
             bookmarks: Vec::new(),
             reading: Vec::new(),
             site_zoom: Default::default(),
@@ -668,8 +615,7 @@ impl Store {
             buttons: Vec::new(),
             titles_late: Vec::new(),
             titles_since: None,
-            id: new_store_id(),
-            heard: TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed),
+            titles_written: Vec::new(),
             unreadable: Vec::new(),
         };
         if let Some(t) = s.text_of("containers.tsv") {
@@ -794,14 +740,6 @@ impl Store {
                 }
             }
         }
-        if let Some(t) = s.text_of("history.tsv") {
-            s.history = read_history(&t);
-            if s.history.len() > MAX_HISTORY {
-                let cut = s.history.len() - MAX_HISTORY;
-                s.history.drain(..cut);
-                s.rewrite_history();
-            }
-        }
         match s.text_of("bookmarks.tsv") {
             Some(t) => {
                 for line in t.lines() {
@@ -869,152 +807,61 @@ impl Store {
         CHANGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// A page was visited. (Not asked of a private tab; a window that
+    /// keeps nothing has a history that ends with it.)
     pub fn add_visit(&mut self, url: &str, title: &str) {
-        // (no address: a page that never loaded, a tab still empty — not a
-        // visit; it made an empty line at the top of the history)
-        if url.trim().is_empty() || url.starts_with("sanaga://") {
-            return;
-        }
-        // Collapse an immediate repeat of the same page.
-        if let Some(last) = self.history.last_mut() {
-            if last.url == url {
-                last.time = now();
-                if !title.is_empty() && last.title != title {
-                    last.title = title.to_string();
-                    self.title_is_late(url);
-                }
-                return;
-            }
-        }
-        let v = Visit { time: now(), url: url.to_string(), title: title.to_string() };
-        if let Some(path) = self.file("history.tsv") {
-            append_soon(&path, format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
-        }
-        self.tell(Told::Visit(v.clone()));
-        self.history.push(v);
-    }
-
-    /// Tell the other windows of this profile what this one did to the history.
-    fn tell(&self, what: Told) {
-        let Some(dir) = &self.dir else { return };
-        let mut told = TOLD.lock().unwrap_or_else(|e| e.into_inner());
-        let n = TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed) + 1;
-        // (kept short: a window that has not drawn for that long reads the file)
-        if told.len() >= 2048 {
-            told.drain(..1024);
-        }
-        told.push((n, dir.clone(), self.id, what));
-        TOLD_LAST.store(n, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    /// Take in what the other windows told since the last time (asked at
-    /// every frame: one number compared when there is nothing new).
-    fn hear(&mut self) {
-        let last = TOLD_LAST.load(std::sync::atomic::Ordering::Relaxed);
-        if last == self.heard {
-            return;
-        }
-        let from = self.heard;
-        self.heard = last;
-        let Some(dir) = self.dir.clone() else { return };
-        let (news, mut read_file) = {
-            let told = TOLD.lock().unwrap_or_else(|e| e.into_inner());
-            // (some of it is gone from the list: only the file has it all)
-            let gone = told.first().is_some_and(|(n, ..)| *n > from + 1);
-            let news: Vec<Told> = told.iter().filter(|(n, d, by, _)| *n > from && *d == dir && *by != self.id).map(|(.., t)| t.clone()).collect();
-            (news, gone)
-        };
-        read_file |= news.iter().any(|t| matches!(t, Told::Rewritten));
-        if read_file {
-            flush_saves();
-            match find(&dir.join("history.tsv")) {
-                Found::Text(t) => self.history = read_history(&t),
-                Found::Missing => self.history.clear(),
-                // (it cannot be read just now: what this window knows stays)
-                Found::Unreadable => {}
-            }
-            return;
-        }
-        for t in news {
-            match t {
-                Told::Visit(v) => self.history.push(v),
-                Told::Title(url, title) => {
-                    if let Some(v) = self.history.iter_mut().rev().take(TITLE_REACH).find(|v| v.url == url) {
-                        v.title = title;
-                    }
-                }
-                Told::Rewritten => {}
-            }
-        }
+        // (its title, if it tells one in a moment, is written at once)
+        self.titles_written.retain(|(u, _)| u != url);
+        self.titles_late.retain(|(u, _)| u != url);
+        self.history.add_visit(url, title, now());
     }
 
     /// A page told its title after its visit was recorded (most do: the
-    /// title of a page that draws itself comes after its load). The visit
-    /// is renamed — it used to stay under its bare address in the file, and
-    /// showed that way after a restart; and when another tab had loaded a
-    /// page in between, the title made a second visit of the same page.
+    /// title of a page that draws itself comes after its load). The page
+    /// is renamed in the history, and no visit is added. Written at once
+    /// the first time; a page that renames itself again within moments (a
+    /// counter, "(3) Messages": some do every second) has its next titles
+    /// wait for `settle_history` — each would be a write to the disk, and
+    /// every list of the history would be read again.
     pub fn title_visit(&mut self, url: &str, title: &str) {
         if title.is_empty() {
             return;
         }
-        if let Some(v) = self.history.iter_mut().rev().take(TITLE_REACH).find(|v| v.url == url) {
-            if v.title != title {
-                v.title = title.to_string();
-                self.title_is_late(url);
-            }
+        if let Some(late) = self.titles_late.iter_mut().find(|(u, _)| u == url) {
+            late.1 = title.to_string();
+            return;
         }
-        // (no visit yet: the page is still loading, and its visit will
-        // carry this title when it is recorded)
+        let now = std::time::Instant::now();
+        self.titles_written.retain(|(_, at)| now.duration_since(*at) < TITLE_PAUSE);
+        if self.titles_written.iter().any(|(u, _)| u == url) {
+            self.titles_late.push((url.to_string(), title.to_string()));
+            self.titles_since.get_or_insert(now);
+            return;
+        }
+        self.titles_written.push((url.to_string(), now));
+        // (a page not visited yet — still loading — is not renamed: its
+        // visit will carry this title when it is recorded)
+        self.history.set_title(url, title);
     }
 
-    fn title_is_late(&mut self, url: &str) {
-        if let Some(v) = self.history.iter().rev().take(TITLE_REACH).find(|v| v.url == url) {
-            self.tell(Told::Title(v.url.clone(), v.title.clone()));
-        }
-        if !self.titles_late.iter().any(|u| u == url) {
-            self.titles_late.push(url.to_string());
-        }
-        self.titles_since.get_or_insert_with(std::time::Instant::now);
-    }
-
-    /// Write the titles learnt late. Not at each change: some pages change
-    /// their title every second (a counter, "(3) Messages"), and each would
-    /// add a line to the file. `now`: Sanaga is closing.
+    /// Write the titles that waited (see `title_visit`). `now`: Sanaga is
+    /// closing, or the profile is read again.
     pub fn settle_history(&mut self, now: bool) {
-        self.hear();
-        if !self.titles_since.is_some_and(|t| now || t.elapsed() >= std::time::Duration::from_secs(20)) {
+        if !self.titles_since.is_some_and(|t| now || t.elapsed() >= TITLE_PAUSE) {
             return;
         }
         self.titles_since = None;
-        let late = std::mem::take(&mut self.titles_late);
-        let Some(path) = self.file("history.tsv") else { return };
-        let mut lines = String::new();
-        for url in late {
-            if let Some(v) = self.history.iter().rev().take(TITLE_REACH).find(|v| v.url == url) {
-                lines.push_str(&format!("={}\t{}\n", clean(&v.url), clean(&v.title)));
-            }
-        }
-        if !lines.is_empty() {
-            append_soon(&path, lines);
+        for (url, title) in std::mem::take(&mut self.titles_late) {
+            self.history.set_title(&url, &title);
         }
     }
 
-    pub fn rewrite_history(&self) {
-        let Some(path) = self.file("history.tsv") else { return };
-        let mut t = String::new();
-        for v in &self.history {
-            t.push_str(&format!("{}\t{}\t{}\n", v.time, clean(&v.url), clean(&v.title)));
-        }
-        save_soon(&path, t);
-        self.tell(Told::Rewritten);
-    }
-
+    /// Forget every visit (and what was kept of the history file of
+    /// earlier versions: what the person clears must be gone).
     pub fn clear_history(&mut self) {
-        self.history.clear();
-        // (emptying it is what the person asked for: done even to a history
-        // file that could not be read)
-        self.unreadable.retain(|n| *n != "history.tsv");
-        self.rewrite_history();
+        self.titles_late.clear();
+        self.titles_since = None;
+        self.history.clear_since(0);
     }
 
     pub fn is_bookmarked(&self, url: &str) -> bool {
@@ -1093,15 +940,6 @@ impl Store {
         save_soon(&path, t);
     }
 
-    /// Forget visits made since `since` (seconds since 1970; 0 = everything).
-    pub fn clear_history_since(&mut self, since: u64) {
-        if since == 0 {
-            return self.clear_history();
-        }
-        self.history.retain(|v| v.time < since);
-        self.rewrite_history();
-    }
-
     pub fn save_logins(&self) {
         let Some(path) = self.file("logins.tsv") else { return };
         let t: String = self.logins.iter().map(|(a, b)| format!("{}\t{}\n", clean(a), clean(b))).collect();
@@ -1142,7 +980,7 @@ impl Store {
 
     pub fn load_session(&self, slot: usize) -> Vec<String> {
         let Some(dir) = &self.dir else { return Vec::new() };
-        flush_saves();
+        flush_files();
         read_lines(&Self::session_file(dir, slot))
     }
 
@@ -1157,7 +995,7 @@ impl Store {
     /// removed: the windows write them again under their new numbers).
     pub fn take_extra_sessions(&self) -> Vec<Vec<String>> {
         let Some(dir) = &self.dir else { return Vec::new() };
-        flush_saves();
+        flush_files();
         let mut found: Vec<(usize, PathBuf)> = std::fs::read_dir(dir)
             .map(|d| {
                 d.flatten()
@@ -1430,7 +1268,6 @@ enum Late {
     Write(PathBuf, Vec<u8>),
     /// The same, with its result waited for (see `write_in_order`).
     WriteTold(PathBuf, Vec<u8>, std::sync::mpsc::Sender<std::io::Result<()>>),
-    Append(PathBuf, Vec<u8>),
     Remove(PathBuf),
     /// Answer once everything asked before is on the disk.
     Flush(std::sync::mpsc::Sender<()>),
@@ -1450,12 +1287,6 @@ fn do_late(op: Late) {
             }
             let _ = done.send(write_file(&path, &data));
         }
-        Late::Append(path, data) => {
-            use std::os::unix::fs::OpenOptionsExt;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&path) {
-                let _ = f.write_all(&data);
-            }
-        }
         Late::Remove(path) => {
             let _ = std::fs::remove_file(path);
         }
@@ -1474,7 +1305,7 @@ fn do_late(op: Late) {
 /// before both.)
 fn settle(batch: Vec<Late>) -> Vec<Late> {
     let path_of = |op: &Late| match op {
-        Late::Write(p, _) | Late::Append(p, _) | Late::Remove(p) => Some(p.clone()),
+        Late::Write(p, _) | Late::Remove(p) => Some(p.clone()),
         // (someone waits for its answer: always done)
         Late::WriteTold(..) | Late::Flush(_) => None,
     };
@@ -1532,12 +1363,6 @@ fn save_soon(path: &Path, data: impl AsRef<[u8]>) {
     late(Late::Write(path.to_path_buf(), data.as_ref().to_vec()));
 }
 
-/// Add a line to a data file a moment later (in order with its saves).
-fn append_soon(path: &Path, line: String) {
-    changed();
-    late(Late::Append(path.to_path_buf(), line.into_bytes()));
-}
-
 /// Write one of the window's data files from another thread (the sync):
 /// after the saves already asked for it, never at the same time as one, and
 /// waited for. The windows are told, as with `write_atomic`. (Not for the
@@ -1552,9 +1377,17 @@ pub fn write_in_order(path: &Path, data: impl AsRef<[u8]>) -> std::io::Result<()
     Ok(())
 }
 
-/// Wait until every save asked so far is on the disk: before reading the
-/// files back, and before Sanaga ends.
+/// Wait until every save asked so far is on the disk, and every visit in
+/// the history: before Sanaga ends, before a sync round.
 pub fn flush_saves() {
+    flush_files();
+    crate::history::flush();
+}
+
+/// Wait until every data file saved so far is on the disk: before reading
+/// the files back. (Not for the history, which is not read back with them:
+/// a window reading its profile again never waits for it.)
+fn flush_files() {
     // (the saving thread itself has nothing to wait for)
     if std::thread::current().name() == Some("sanaga-saver") {
         return;
@@ -1600,18 +1433,18 @@ pub fn relative_time(t: u64) -> String {
     }
 }
 
-pub fn day_group(t: u64) -> &'static str {
-    let d = now().saturating_sub(t);
-    if d < 86400 {
-        tr("Aujourd'hui")
-    } else if d < 2 * 86400 {
-        tr("Hier")
-    } else if d < 7 * 86400 {
-        tr("Cette semaine")
-    } else if d < 30 * 86400 {
-        tr("Ce mois-ci")
-    } else {
-        tr("Plus ancien")
+/// The groups a list of visits is cut into, newest first: the age
+/// (seconds) at which each of the first four ends; the fifth has no end.
+pub const DAY_GROUPS: [u64; 4] = [86400, 2 * 86400, 7 * 86400, 30 * 86400];
+
+/// The name of the group `k` of `DAY_GROUPS`.
+pub fn day_group_name(k: usize) -> &'static str {
+    match k {
+        0 => tr("Aujourd'hui"),
+        1 => tr("Hier"),
+        2 => tr("Cette semaine"),
+        3 => tr("Ce mois-ci"),
+        _ => tr("Plus ancien"),
     }
 }
 
@@ -1744,8 +1577,8 @@ mod write_tests {
         let untouched = |name: &str| std::fs::symlink_metadata(dir.join(name)).unwrap().file_type().is_symlink();
         let mut s = super::Store::load_from(dir.clone(), "");
         // nothing of them is shown — not the first favourites either — and it is known
-        assert!(s.bookmarks.is_empty() && s.reading.is_empty() && s.history.is_empty() && !s.first_run);
-        assert_eq!(s.unreadable(), ["zoom.tsv", "extensions.txt", "reading.tsv", "settings.txt", "history.tsv", "bookmarks.tsv"]);
+        assert!(s.bookmarks.is_empty() && s.reading.is_empty() && s.history.count() == 0 && !s.first_run);
+        assert_eq!(s.unreadable(), ["zoom.tsv", "extensions.txt", "reading.tsv", "settings.txt", "bookmarks.tsv"]);
         // whatever is changed during this run, the files stay as they are
         s.toggle_bookmark("https://a.example/", "A");
         s.toggle_reading("https://b.example/", "B");
@@ -1755,7 +1588,6 @@ mod write_tests {
         s.save_extensions();
         s.set_site_zoom("a.example", 1.5);
         s.add_visit("https://a.example/", "A");
-        s.rewrite_history();
         // (a file that could be read is saved as ever)
         s.set_permission("https://a.example", "camera", Some(true));
         super::flush_saves();
@@ -1771,10 +1603,14 @@ mod write_tests {
         s.toggle_bookmark("https://a.example/", "A");
         super::flush_saves();
         assert_eq!(std::fs::read_to_string(dir.join("bookmarks.tsv")).unwrap(), "https://kept.example/\tKept\nhttps://a.example/\tA\n");
-        // emptying the history is done even to a history that cannot be read
+        // the visit of this run is kept, in the history's own file
+        assert_eq!(s.history.count(), 1);
+        // emptying the history is done even to an earlier history file
+        // that cannot be read: it goes
         s.clear_history();
         super::flush_saves();
-        assert_eq!(std::fs::read_to_string(dir.join("history.tsv")).unwrap(), "");
+        assert_eq!(s.history.count(), 0);
+        assert!(std::fs::symlink_metadata(dir.join("history.tsv")).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1841,9 +1677,9 @@ mod write_tests {
         s.add_visit("", "");
         s.add_visit("  ", "Sans titre");
         s.add_visit("sanaga://newtab", "");
-        assert!(s.history.is_empty());
+        assert_eq!(s.history.count(), 0);
         s.add_visit("https://a.test/", "A");
-        assert_eq!(s.history.len(), 1);
+        assert_eq!(s.history.count(), 1);
     }
 
     #[test]
@@ -1872,27 +1708,18 @@ mod write_tests {
         use std::path::PathBuf;
         let (a, b) = (PathBuf::from("a"), PathBuf::from("b"));
         let (tx, _rx) = std::sync::mpsc::channel();
-        let batch = vec![
-            Late::Write(a.clone(), b"1".to_vec()),
-            Late::Append(a.clone(), b"x".to_vec()),
-            Late::Write(b.clone(), b"1".to_vec()),
-            Late::Write(a.clone(), b"2".to_vec()),
-            Late::Flush(tx),
-            Late::Append(a.clone(), b"y".to_vec()),
-            Late::Remove(b.clone()),
-        ];
+        let batch = vec![Late::Write(a.clone(), b"1".to_vec()), Late::Write(b.clone(), b"1".to_vec()), Late::Write(a.clone(), b"2".to_vec()), Late::Flush(tx), Late::Remove(b.clone())];
         let kept: Vec<String> = settle(batch)
             .iter()
             .map(|op| match op {
                 Late::Write(p, d) => format!("write {} {}", p.display(), String::from_utf8_lossy(d)),
                 Late::WriteTold(p, ..) => format!("told {}", p.display()),
-                Late::Append(p, d) => format!("append {} {}", p.display(), String::from_utf8_lossy(d)),
                 Late::Remove(p) => format!("remove {}", p.display()),
                 Late::Flush(_) => "flush".to_string(),
             })
             .collect();
         // (b is written before the flush: whoever waits for it finds it so)
-        assert_eq!(kept, ["write b 1", "write a 2", "flush", "append a y", "remove b"]);
+        assert_eq!(kept, ["write b 1", "write a 2", "flush", "remove b"]);
         // a write is done before the flush that follows it, even when the
         // same file is written again after
         let (tx, _rx) = std::sync::mpsc::channel();
@@ -1900,62 +1727,67 @@ mod write_tests {
         assert!(matches!(&kept[..], [Late::Write(_, v1), Late::Flush(_), Late::Write(_, v2)] if v1 == b"1" && v2 == b"2"));
     }
 
+    /// The lines of a store's history page, newest first.
+    fn history_lines(s: &super::Store) -> String {
+        let all = s.history.list("", super::now());
+        s.history.rows(&all, 0, 100).into_iter().map(|r| format!("{} {}", r.url, r.title)).collect::<Vec<_>>().join(", ")
+    }
+
     #[test]
-    fn a_title_learnt_late_renames_its_visit() {
-        // as written by a session: two visits, then the first one's title
-        let read = super::read_history("10\thttps://a.test/\t\n20\thttps://b.test/\tB\n=https://a.test/\tThe A page\n=https://nowhere.test/\tx\nbroken line\n");
-        assert_eq!(read.len(), 2);
-        assert_eq!((read[0].time, read[0].title.as_str()), (10, "The A page"));
-        assert_eq!(read[1].title, "B");
-        // in memory: the late title renames, and never adds a visit
+    fn a_title_learnt_late_renames_its_page() {
         let mut s = super::Store::ephemeral();
         s.add_visit("https://a.test/", "");
         s.add_visit("https://b.test/", "B");
+        // the late title renames, and never adds a visit
         s.title_visit("https://a.test/", "The A page");
         s.title_visit("https://not-visited.test/", "x");
-        assert_eq!(s.history.len(), 2);
-        assert_eq!(s.history[0].title, "The A page");
-        // the same page again, with a title this time
+        assert_eq!(history_lines(&s), "https://b.test/ B, https://a.test/ The A page");
+        // a page that renames itself again within moments: its next titles
+        // wait (some do it every second), and the last one is written
+        s.title_visit("https://a.test/", "(1) The A page");
+        s.title_visit("https://a.test/", "(2) The A page");
+        s.settle_history(false);
+        assert_eq!(history_lines(&s), "https://b.test/ B, https://a.test/ The A page");
+        s.settle_history(true);
+        assert_eq!(history_lines(&s), "https://b.test/ B, https://a.test/ (2) The A page");
+        // the same page again, with a title this time: one visit still
         s.add_visit("https://b.test/", "B, renamed");
-        assert_eq!(s.history.len(), 2);
-        assert_eq!(s.history[1].title, "B, renamed");
+        assert_eq!(history_lines(&s), "https://b.test/ B, renamed, https://a.test/ (2) The A page");
     }
 
     #[test]
     fn windows_of_a_profile_share_their_history() {
-        let dir = std::env::temp_dir().join(format!("sanaga-shared-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::create_dir_all(&dir);
-        let window = || {
-            let mut s = super::Store::ephemeral();
-            s.dir = Some(dir.clone());
-            s
-        };
-        let (mut a, mut b) = (window(), window());
-        // another profile, and a window that keeps nothing: they hear nothing
-        let (mut other, mut guest) = (super::Store::ephemeral(), super::Store::ephemeral());
-        other.dir = Some(dir.join("other"));
+        let dir = temp("shared");
+        let (mut a, mut b) = (super::Store::load_from(dir.clone(), ""), super::Store::load_from(dir.clone(), ""));
+        // another profile, and a window that keeps nothing: they see nothing of it
+        let (other, guest) = (super::Store::load_from(dir.join("other"), ""), super::Store::ephemeral());
+        let (told, seen) = (super::told_here(), b.history.version());
         a.add_visit("https://a.test/", "");
         a.title_visit("https://a.test/", "A");
         b.add_visit("https://b.test/", "B");
-        for s in [&mut a, &mut b, &mut other, &mut guest] {
-            s.settle_history(false);
-        }
-        let seen = |s: &super::Store| s.history.iter().map(|v| format!("{} {}", v.url, v.title)).collect::<Vec<_>>().join(", ");
-        assert_eq!(seen(&b), "https://b.test/ B, https://a.test/ A");
-        assert_eq!(seen(&a), "https://a.test/ A, https://b.test/ B");
-        assert!(other.history.is_empty() && guest.history.is_empty());
-        // one window clears the history: the other reads the file again
+        assert_eq!(history_lines(&b), "https://b.test/ B, https://a.test/ A");
+        assert_eq!(history_lines(&a), "https://b.test/ B, https://a.test/ A");
+        assert_eq!((other.history.count(), guest.history.count()), (0, 0));
+        // each window knows that the history changed — and a visit is no
+        // longer a reason for the others to read their whole profile again
+        assert!(b.history.version() > seen);
+        assert_eq!(super::told_here(), told);
+        // one window clears the history: cleared for the other
         a.clear_history();
-        b.settle_history(false);
-        assert!(b.history.is_empty());
-        // and a window that was away for long catches up from the file
-        for k in 0..3000 {
+        assert_eq!(b.history.count(), 0);
+        // more visits than the earlier limit of 5,000: all are kept
+        for k in 0..6000 {
             a.add_visit(&format!("https://a.test/{k}"), "x");
         }
-        b.settle_history(false);
-        assert_eq!(b.history.len(), 3000);
+        assert_eq!(b.history.count(), 6000);
+        // a window that keeps nothing writes no file
+        let mut guest = guest;
+        guest.add_visit("https://guest.test/", "Guest");
+        assert_eq!(guest.history.count(), 1);
         super::flush_saves();
+        assert!(!names_in(&dir).iter().any(|n| n.contains("guest")));
+        let bytes = std::fs::read(dir.join("history.db")).unwrap();
+        assert!(!bytes.windows(10).any(|w| w == b"guest.test"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1968,9 +1800,8 @@ mod write_tests {
         for k in 0..50 {
             super::save_soon(&f, format!("{k}\n"));
         }
-        super::append_soon(&f, "last\n".to_string());
         super::flush_saves();
-        assert_eq!(std::fs::read_to_string(&f).unwrap(), "49\nlast\n");
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "49\n");
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
         assert_eq!(names_in(&dir), ["history.tsv"]);

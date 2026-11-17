@@ -88,20 +88,12 @@ impl Sanaga {
         if n_bm > 0 {
             self.store.save_bookmarks();
         }
+        // The visits of the other browser are added to the history: a
+        // visit already there counts once, and nothing is pushed out (the
+        // history was cut at 5,000 visits: a large import pushed the
+        // person's own out). Written by the history's thread.
         let n_hist = done.history.len();
-        if n_hist > 0 {
-            let mut seen: HashSet<(u64, String)> = self.store.history.iter().map(|v| (v.time, v.url.clone())).collect();
-            for (time, url, title) in done.history {
-                if seen.insert((time, url.clone())) {
-                    self.visited.insert(url.clone());
-                    self.store.history.push(crate::store::Visit { time, url, title });
-                }
-            }
-            self.store.history.sort_by_key(|v| v.time);
-            let extra = self.store.history.len().saturating_sub(5000);
-            self.store.history.drain(..extra);
-            self.store.rewrite_history();
-        }
+        self.store.history.add_past(done.history);
         let n_pw = done.logins.len();
         for l in done.logins {
             if !self.store.logins.contains(&l) {

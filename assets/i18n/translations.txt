@@ -1252,3 +1252,5 @@ Sanaga {} est disponible.⟂Sanaga {} is available.⟂Sanaga {} está disponible
 Voir la nouvelle version⟂See the new version⟂Ver la nueva versión⟂Ver a nova versão⟂Neue Version ansehen
 Sanaga est à jour.⟂Sanaga is up to date.⟂Sanaga está actualizado.⟂O Sanaga está atualizado.⟂Sanaga ist auf dem neuesten Stand.
 Vérification impossible (pas de connexion ?).⟂Could not check (no connection?).⟂No se pudo comprobar (¿sin conexión?).⟂Não foi possível verificar (sem ligação?).⟂Prüfung nicht möglich (keine Verbindung?).
+1 visite⟂1 visit⟂1 visita⟂1 visita⟂1 Besuch
+{} visites⟂{} visits⟂{} visitas⟂{} visitas⟂{} Besuche

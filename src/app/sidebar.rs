@@ -264,16 +264,12 @@ impl Sanaga {
 
             // ---------------- recent history ----------------
             if self.section_header(ui, th, "sb-history", tr("Historique récent"), None) {
-                let mut seen = HashSet::new();
-                let recent: Vec<(String, String)> = self
-                    .store
-                    .history
-                    .iter()
-                    .rev()
-                    .filter(|v| matches(&v.url, &v.title) && seen.insert(v.url.clone()))
-                    .take(if q.is_empty() { 10 } else { 30 })
-                    .map(|v| (v.url.clone(), v.title.clone()))
-                    .collect();
+                // the pages visited last, each once: asked of the history
+                // when it changes or the filter does, not at every frame
+                // (shown meanwhile: the answer of before)
+                let (needle, limit) = (q.clone(), if q.is_empty() { 10 } else { 30 });
+                self.history_ask(|app| &mut app.hist.recent, (self.store.history.version(), q.clone()), move |h| h.recent_pages(&needle, limit));
+                let recent = self.hist.recent.got.clone();
                 if recent.is_empty() {
                     hint(ui, th, if q.is_empty() { tr("Aucune page visitée") } else { tr("Aucun résultat") });
                 }
