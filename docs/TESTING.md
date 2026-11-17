@@ -142,5 +142,6 @@ control; the picture must show a ring around it.
 | `SANAGA_SHOT_STATE=dark,menu,sidebar,…` | states shown by `--screenshot` |
 | `SANAGA_TEST_POPUPS=1` | let pages open windows without a click (to test sign-in windows) |
 | `SANAGA_DANGER_LIST=/a/file` | the list of sites reported as dangerous, one name per line, instead of the lists fetched (to see the warning without going near a real one) |
+| `SANAGA_DEBUG_DNS=1` | encrypted DNS: prints each name that could not be resolved, and why |
 | `SANAGA_UPDATE_URL=http://…` | the address "Look for a new version" asks instead of GitHub (a file holding `{"tag_name": "0.9.0"}`) |
 | `SANAGA_NO_SANDBOX=1` | run pages without the bubblewrap sandbox |

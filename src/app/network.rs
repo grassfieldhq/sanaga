@@ -12,13 +12,8 @@ impl Sanaga {
     /// The settings about the network and downloads, told to the parts that
     /// act on them: at start, and whenever a setting changes.
     pub(super) fn apply_network_settings(&mut self) {
-        let st = &self.store.settings;
-        crate::net::set_download_choice(&st.download_dir, st.download_ask);
-        crate::net::set_proxy(&st.proxy);
-        crate::page::set_proxy(&st.proxy);
-        crate::page::set_https_first(st.https_first);
+        tell(&self.store.settings);
         // (the list of reported sites: read, and fetched when a day old)
-        crate::danger::set_on(st.safe_sites);
         if let Some(dir) = &self.web_dir {
             crate::danger::prepare(&dir.join("filters"));
         }
@@ -27,11 +22,19 @@ impl Sanaga {
         // an automatic configuration is fetched from the network.
         if self.first_time("system-proxy") {
             self.off_thread(system_proxy, |_, answer| {
-                if let Some(answer) = answer {
-                    crate::net::set_system_proxy(answer);
-                }
+                // (it could not say: taken as none, like the engine does)
+                crate::net::set_system_proxy(answer.unwrap_or_else(|| vec!["direct://".to_string()]));
             });
         }
+        self.apply_dns_relay();
+    }
+
+    /// Encrypted DNS: the pages go through Sanaga's relay while it is on
+    /// and nothing else stands between Sanaga and the sites (a proxy of the
+    /// settings or of the system resolves the names itself).
+    fn apply_dns_relay(&self) {
+        let relay = if crate::doh::on() && crate::net::goes_direct() { crate::doh::relay() } else { None };
+        crate::page::set_dns_relay(relay);
     }
 
     /// A shortcut named by the window itself (the keyboard's play / pause keys).
@@ -79,6 +82,7 @@ impl Sanaga {
             self.proxy_seen = generation;
             self.agent = crate::net::Clients::new();
             self.private_agent = crate::net::Clients::new();
+            self.apply_dns_relay();
         }
         // (asked again every hour while Sanaga stays open: the file says
         // whether a day has passed)
@@ -95,6 +99,20 @@ impl Sanaga {
                 },
             );
         }
+    }
+}
+
+/// The settings about the network, told to the parts that act on them
+/// (nothing here waits or needs the window).
+pub(super) fn tell(st: &crate::store::Settings) {
+    crate::net::set_download_choice(&st.download_dir, st.download_ask);
+    crate::net::set_proxy(&st.proxy);
+    crate::page::set_proxy(&st.proxy);
+    crate::page::set_https_first(st.https_first);
+    crate::danger::set_on(st.safe_sites);
+    // (encrypted DNS: Sanaga's own clients are made again with it)
+    if crate::doh::set(&st.doh) {
+        crate::net::bump_generation();
     }
 }
 

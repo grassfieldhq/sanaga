@@ -1274,3 +1274,9 @@ Avertir avant un site dangereux	Vor gefährlichen Websites warnen
 Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing und Schadsoftware: Listen werden einmal täglich abgerufen (malware-filter) und auf diesem Computer abgefragt — keine Adresse wird gesendet
 1 visite	1 Besuch
 {} visites	{} Besuche
+Le nom des sites visités est demandé en clair au réseau (le DNS du système)	Die Namen der besuchten Websites werden unverschlüsselt beim Netzwerk erfragt (DNS des Systems)
+Cette adresse n'est pas celle d'un résolveur (https://…) : le DNS du système est utilisé.	Das ist keine Resolver-Adresse (https://…): Das DNS des Systems wird verwendet.
+Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.	Ein Proxy wird verwendet: Er ermittelt die Adressen der Websites selbst.
+Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau	Die Namen der besuchten Websites werden über https bei diesem Resolver erfragt, nicht mehr unverschlüsselt beim Netzwerk
+DNS chiffré	Verschlüsseltes DNS
+Adresse du résolveur	Resolver-Adresse

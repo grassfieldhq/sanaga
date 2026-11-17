@@ -23,6 +23,7 @@ mod codecs;
 mod crash;
 mod danger;
 mod desktop;
+mod doh;
 mod extensions;
 mod favicon;
 mod frames;

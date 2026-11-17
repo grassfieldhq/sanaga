@@ -1274,3 +1274,9 @@ Avertir avant un site dangereux	Warn before a dangerous site
 Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing and malware: lists fetched once a day (malware-filter), looked up on this computer — no address is sent
 1 visite	1 visit
 {} visites	{} visits
+Le nom des sites visités est demandé en clair au réseau (le DNS du système)	The names of the sites visited are asked of the network in clear (the system's DNS)
+Cette adresse n'est pas celle d'un résolveur (https://…) : le DNS du système est utilisé.	This is not a resolver's address (https://…): the system's DNS is used.
+Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.	A proxy is in use: it finds the sites' addresses itself.
+Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau	The names of the sites visited are asked of this resolver over https, no longer of the network in clear
+DNS chiffré	Encrypted DNS
+Adresse du résolveur	Resolver address

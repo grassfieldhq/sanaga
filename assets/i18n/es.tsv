@@ -1274,3 +1274,9 @@ Avertir avant un site dangereux	Avisar antes de un sitio peligroso
 Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée	Phishing y software malicioso: listas descargadas una vez al día (malware-filter), consultadas en este ordenador — no se envía ninguna dirección
 1 visite	1 visita
 {} visites	{} visitas
+Le nom des sites visités est demandé en clair au réseau (le DNS du système)	El nombre de los sitios visitados se pide a la red sin cifrar (el DNS del sistema)
+Cette adresse n'est pas celle d'un résolveur (https://…) : le DNS du système est utilisé.	Esta dirección no es la de un resolvedor (https://…): se usa el DNS del sistema.
+Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.	Se usa un proxy: es él quien encuentra la dirección de los sitios.
+Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau	El nombre de los sitios visitados se pide por https a este resolvedor, ya no sin cifrar a la red
+DNS chiffré	DNS cifrado
+Adresse du résolveur	Dirección del resolvedor

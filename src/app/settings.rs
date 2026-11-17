@@ -1476,6 +1476,46 @@ impl Sanaga {
                     tr("Hameçonnage et logiciels malveillants : listes récupérées une fois par jour (malware-filter), consultées sur cet ordinateur — aucune adresse n'est envoyée"),
                     &mut st.safe_sites,
                 );
+                // (encrypted DNS: off, one of the resolvers offered, or an address)
+                let dns_custom_id = egui::Id::new("settings-doh-custom");
+                let dns_custom_open = ui.data(|d| d.get_temp::<bool>(dns_custom_id)).unwrap_or(false);
+                let known = crate::doh::RESOLVERS.iter().position(|r| r.1 == st.doh.trim());
+                let dns_mode: usize = match (st.doh.trim(), known) {
+                    ("", _) if dns_custom_open => 99,
+                    ("", _) => 0,
+                    (_, Some(k)) => k + 1,
+                    _ => 99,
+                };
+                let dns_note = if st.doh.trim().is_empty() {
+                    tr("Le nom des sites visités est demandé en clair au réseau (le DNS du système)")
+                } else if !crate::doh::usable(&st.doh) {
+                    tr("Cette adresse n'est pas celle d'un résolveur (https://…) : le DNS du système est utilisé.")
+                } else if !crate::net::goes_direct() {
+                    tr("Un proxy est utilisé : c'est lui qui trouve l'adresse des sites.")
+                } else {
+                    tr("Le nom des sites visités est demandé par https à ce résolveur, plus en clair au réseau")
+                };
+                rows.row(ui, tr("DNS chiffré"), dns_note, false, |ui| {
+                    let mut options: Vec<(usize, &str)> = vec![(0, tr("Désactivé"))];
+                    options.extend(crate::doh::RESOLVERS.iter().enumerate().map(|(k, r)| (k + 1, r.0)));
+                    options.push((99, tr("Une adresse")));
+                    if let Some(m) = popup(ui, "doh", dns_mode, &options) {
+                        ui.data_mut(|d| d.insert_temp(dns_custom_id, m == 99));
+                        let before = st.doh.clone();
+                        match m {
+                            0 => st.doh.clear(),
+                            99 if dns_mode != 99 => st.doh.clear(),
+                            99 => {}
+                            k => st.doh = crate::doh::RESOLVERS[k - 1].1.to_string(),
+                        }
+                        changed |= st.doh != before;
+                    }
+                });
+                if dns_mode == 99 {
+                    rows.row(ui, tr("Adresse du résolveur"), "", false, |ui| {
+                        changed |= finished_field(ui, &mut st.doh, "https://dns.example/dns-query", 260.0);
+                    });
+                }
                 changed |= rows.switch(ui, tr("HTTPS d'abord"), tr("Les sites sont demandés en https ; en http seulement s'ils n'ont pas https"), &mut st.https_first);
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });

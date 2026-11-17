@@ -382,6 +382,11 @@ fn classify(e: &gtk::glib::Error) -> Option<LoadError> {
     // works, and every failure then looked like "no Internet"
     let offline = !gio::NetworkMonitor::default().is_network_available();
     let msg = e.message().to_lowercase();
+    // (encrypted DNS: Sanaga's relay says "no such host" when the resolver
+    // knows no such name — the engine only sees its proxy's answer)
+    if e.matches(gio::IOErrorEnum::HostUnreachable) && DNS_RELAY.with(|r| r.borrow().is_some()) {
+        return Some(if offline && !crate::doh::answers() { LoadError::Offline } else { LoadError::NotFound });
+    }
     if e.matches(gio::ResolverError::NotFound) || e.matches(gio::ResolverError::TemporaryFailure) || msg.contains("resolv") || msg.contains("name or service not known") {
         return Some(if offline { LoadError::Offline } else { LoadError::NotFound });
     }
@@ -446,6 +451,9 @@ thread_local! {
     /// The proxy of the settings, and the sessions it is given to (a
     /// profile's, its containers', the private tabs').
     static PROXY: RefCell<String> = const { RefCell::new(String::new()) };
+    /// Encrypted DNS: Sanaga's own relay (see doh.rs), given to the
+    /// sessions as their proxy while no other proxy is in use.
+    static DNS_RELAY: RefCell<Option<String>> = const { RefCell::new(None) };
     static SESSIONS: RefCell<Vec<gtk::glib::WeakRef<NetworkSession>>> = const { RefCell::new(Vec::new()) };
     /// "HTTPS first" (the setting); the sites that did not answer over
     /// https since Sanaga started (asked over http straight away); and the
@@ -493,12 +501,32 @@ pub fn set_proxy(setting: &str) {
     }
 }
 
+/// Encrypted DNS: the relay the pages go through (`None`: the usual way).
+/// Given only while pages go straight to the sites: a proxy resolves the
+/// names itself.
+pub fn set_dns_relay(relay: Option<String>) {
+    if DNS_RELAY.with(|r| r.replace(relay.clone())) == relay {
+        return;
+    }
+    let sessions: Vec<NetworkSession> = SESSIONS.with(|s| {
+        let mut s = s.borrow_mut();
+        s.retain(|w| w.upgrade().is_some());
+        s.iter().filter_map(|w| w.upgrade()).collect()
+    });
+    for session in sessions {
+        apply_proxy(&session);
+    }
+}
+
 fn apply_proxy(session: &NetworkSession) {
     use crate::guard::ProxyChoice;
     use webkit6::{NetworkProxyMode, NetworkProxySettings};
     // (this computer itself is always reached directly)
     let custom = |address: &str| NetworkProxySettings::new(Some(address), &["localhost", "127.0.0.1", "::1"]);
+    let relay = DNS_RELAY.with(|r| r.borrow().clone());
     match crate::guard::proxy_choice(&PROXY.with(|p| p.borrow().clone())) {
+        // (no proxy in use: the names go through the encrypted DNS's relay)
+        Some(ProxyChoice::System | ProxyChoice::Direct) if relay.is_some() => session.set_proxy_settings(NetworkProxyMode::Custom, Some(&custom(relay.as_deref().unwrap_or_default()))),
         Some(ProxyChoice::System) => session.set_proxy_settings(NetworkProxyMode::Default, None),
         Some(ProxyChoice::Direct) => session.set_proxy_settings(NetworkProxyMode::NoProxy, None),
         Some(ProxyChoice::Custom(address)) => session.set_proxy_settings(NetworkProxyMode::Custom, Some(&custom(&address))),
@@ -511,7 +539,7 @@ fn apply_proxy(session: &NetworkSession) {
 /// A session Sanaga has just made: it follows the settings' proxy.
 fn new_session(session: &NetworkSession) {
     SESSIONS.with(|s| s.borrow_mut().push(session.downgrade()));
-    if !PROXY.with(|p| p.borrow().is_empty()) {
+    if !PROXY.with(|p| p.borrow().is_empty()) || DNS_RELAY.with(|r| r.borrow().is_some()) {
         apply_proxy(session);
     }
 }

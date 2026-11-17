@@ -849,7 +849,14 @@ impl Sanaga {
         // `--automation`: a guest window that test software may drive
         let automation = guest && urls.iter().any(|u| u == "automation:");
         let urls: Vec<String> = urls.into_iter().filter(|u| !u.starts_with("profil:") && !u.starts_with("fenetre:") && u != "nouvelle-fenetre:" && u != "invite:" && u != "automation:").collect();
-        let store = if screenshot.is_some() || guest { Store::ephemeral() } else { Store::load_profile(&profile) };
+        let mut store = if screenshot.is_some() || guest { Store::ephemeral() } else { Store::load_profile(&profile) };
+        // (a guest window reaches the network the way its owner set it)
+        if guest && !automation {
+            Store::peek_network(&profile, &mut store.settings);
+        }
+        // (told before anything can ask the network: nothing leaves around
+        // the proxy or in clear during the first frames)
+        network::tell(&store.settings);
         crate::stage("data read");
         // WebKit keeps cookies and site data per profile
         let web_dir = store.data_dir().map(|d| d.join("webkit"));

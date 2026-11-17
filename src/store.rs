@@ -168,6 +168,9 @@ pub struct Settings {
     /// Warn before a page listed as phishing or malware (the list is
     /// fetched with the block lists; no address is ever sent anywhere).
     pub safe_sites: bool,
+    /// Encrypted DNS: the address of the resolver asked over https for the
+    /// sites' addresses (`https://…/dns-query`); "" = the system's DNS.
+    pub doh: String,
 }
 
 impl Settings {
@@ -224,6 +227,7 @@ impl Settings {
                 self.notif_prompts = d.notif_prompts;
                 self.https_first = d.https_first;
                 self.safe_sites = d.safe_sites;
+                self.doh = d.doh;
             }
             "passwords" => self.passwords = d.passwords,
             "performance" => {
@@ -349,6 +353,7 @@ impl Default for Settings {
             proxy: String::new(),
             update_check: false,
             safe_sites: true,
+            doh: String::new(),
         }
     }
 }
@@ -509,6 +514,28 @@ impl Store {
             Some("1") => false,
             Some("2") => true,
             _ => crate::system_look::current().map(|l| l.dark).unwrap_or(value("dark") == Some("1")),
+        }
+    }
+
+    /// How a profile reaches the network (its proxy, its encrypted DNS,
+    /// "HTTPS first", the warning before dangerous sites), read straight
+    /// from its settings. A guest window keeps nothing of the profile — but
+    /// it must not go round the proxy its owner set, nor ask in clear the
+    /// names the owner has asked not to.
+    pub fn peek_network(profile: &str, into: &mut Settings) {
+        let text = read_text(&Self::profile_dir(profile).join("settings.txt")).unwrap_or_default();
+        let value = |key: &str| text.lines().find_map(|l| l.strip_prefix(key).and_then(|r| r.strip_prefix('=')));
+        if let Some(v) = value("proxy") {
+            into.proxy = v.to_string();
+        }
+        if let Some(v) = value("doh") {
+            into.doh = v.to_string();
+        }
+        if let Some(v) = value("https_first") {
+            into.https_first = v == "1";
+        }
+        if let Some(v) = value("safe_sites") {
+            into.safe_sites = v == "1";
         }
     }
 
@@ -757,6 +784,7 @@ impl Store {
                         "proxy" => st.proxy = v.to_string(),
                         "update_check" => st.update_check = v == "1",
                         "safe_sites" => st.safe_sites = v == "1",
+                        "doh" => st.doh = v.to_string(),
                         "full_urls" => st.full_urls = v == "1",
                         "toolbar" => {
                             st.toolbar = v.to_string();
@@ -815,13 +843,14 @@ impl Store {
         );
         let extra = format!("block_lists={}\ntranslate_offer={}\ntranslate_skip={}\n", b(st.block_lists), b(st.translate_offer), clean(&st.translate_skip.join(",")));
         let network = format!(
-            "download_dir={}\ndownload_ask={}\nhttps_first={}\nproxy={}\nupdate_check={}\nsafe_sites={}\n",
+            "download_dir={}\ndownload_ask={}\nhttps_first={}\nproxy={}\nupdate_check={}\nsafe_sites={}\ndoh={}\n",
             clean(&st.download_dir),
             b(st.download_ask),
             b(st.https_first),
             clean(&st.proxy),
             b(st.update_check),
-            b(st.safe_sites)
+            b(st.safe_sites),
+            clean(&st.doh)
         );
         save_soon(&path, t + &more + &extra + &network);
     }

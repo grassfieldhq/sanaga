@@ -68,6 +68,13 @@ All notable changes to Sanaga are listed here. The format follows
   never does. An address a page goes to by itself (a script, a form, a
   page that sends on) is treated the same once its answer comes: what
   came over http is not shown, https is asked.
+- Encrypted DNS (Settings › Privacy, off unless you choose a resolver:
+  Quad9, Cloudflare, Mullvad or an address): the names of the sites you
+  visit are asked over https instead of being sent in clear to the
+  network's DNS. Pages go through a small relay Sanaga runs on this
+  computer (the web engine has no setting for it), Sanaga's own requests
+  use the same resolver. When the resolver does not answer, nothing is
+  asked in clear instead. Not used together with a proxy.
 - A warning before a site reported as phishing or malware (Settings ›
   Privacy, on). The lists (malware-filter's phishing-filter and
   urlhaus-filter) are fetched once a day and looked up on this computer:
@@ -389,6 +396,11 @@ All notable changes to Sanaga are listed here. The format follows
 - Text typed with an input method (Chinese, Japanese, Korean, dead keys)
   shows in the field while it is being composed; it appeared only once
   finished.
+- A guest window reaches the network the way its owner set it: it went
+  round the proxy of the settings.
+- The proxy and the other network settings count from the very first
+  request: one made during the first frames (the daily look for a new
+  version) could leave before they were told.
 - The thread that listens for other launches of Sanaga sleeps until one
   connects: it woke twenty times a second for as long as Sanaga was open.
 - Packages: the `.deb`, the `.rpm` and the PKGBUILD ask for the versions

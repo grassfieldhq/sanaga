@@ -204,8 +204,20 @@ fn system_tls() -> Option<Arc<rustls::ClientConfig>> {
         .clone()
 }
 
+/// A builder with the system's certificates and nothing else: no proxy, the
+/// system's own DNS. (For the encrypted DNS resolver's own client, which
+/// cannot ask itself where it is.)
+pub fn plain_builder() -> ureq::AgentBuilder {
+    let b = ureq::AgentBuilder::new().try_proxy_from_env(false);
+    match system_tls() {
+        Some(tls) => b.tls_config(tls),
+        None => b,
+    }
+}
+
 /// A builder for Sanaga's own requests, with the system's certificates,
-/// through the proxy the pages go through.
+/// through the proxy the pages go through — or, without a proxy, with the
+/// encrypted DNS of the settings.
 pub fn builder() -> ureq::AgentBuilder {
     let b = ureq::AgentBuilder::new();
     let b = match system_tls() {
@@ -213,10 +225,27 @@ pub fn builder() -> ureq::AgentBuilder {
         None => b,
     };
     match own_proxy() {
+        OwnProxy::Direct if crate::doh::on() => b.try_proxy_from_env(false).resolver(crate::doh::Own),
         OwnProxy::Direct => b.try_proxy_from_env(false),
+        // (the system has not said yet: no name is asked in clear meanwhile)
+        OwnProxy::Environment if crate::doh::on() => b.try_proxy_from_env(true).resolver(crate::doh::Own),
         OwnProxy::Environment => b.try_proxy_from_env(true),
         OwnProxy::Through(proxy) => b.proxy(proxy),
     }
+}
+
+/// Do pages and Sanaga's requests go straight to the sites (no proxy of the
+/// settings, none of the system)? Only then can the encrypted DNS be used:
+/// a proxy resolves the names itself. (While the system has not said yet
+/// whether it has a proxy, it is taken to have none: with the encrypted
+/// DNS on, no name is asked in clear during that moment.)
+pub fn goes_direct() -> bool {
+    matches!(own_proxy(), OwnProxy::Direct | OwnProxy::Environment)
+}
+
+/// (for the settings page: a proxy is in the way of the encrypted DNS)
+pub fn bump_generation() {
+    PROXY_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// The proxy of the settings (see `guard::proxy_choice`), what the system
