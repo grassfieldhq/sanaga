@@ -7,6 +7,31 @@ All notable changes to Sanaga are listed here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Keyboard: the place where the keyboard is shows everywhere — tabs,
+  the star, favourites, the side panel's rows, the new tab's tiles, the
+  menus; the empty part of a bar no longer takes the Tab key.
+- Screen readers: tabs are tabs (the one shown is said), menu lines are
+  menu items, favourites and tiles are links named by their title, the
+  address field has a name, Sanaga's short messages are announced.
+  (Read from what Sanaga publishes; no screen reader was run on it.)
+- Tab titles and group names stand out at 4.5:1 at least against what is
+  behind them, in the light, dark and private looks (43 pairs were under;
+  `tools/contrast.py` computes them).
+- The small crosses and signs (a tab's close and sound, the favourites
+  bar's and the reading list's cross, a group's colours) take the click
+  24 points across.
+- With "reduce animations" set on the system, tabs, the side panel and
+  the border do not animate.
+- Sanaga's own pages no longer read the disk at every frame (Settings,
+  Extensions, Profiles, Import, the reports: up to 4,500 file calls in
+  five seconds of moving the mouse, none now); a tab loading behind no
+  longer redraws the window at the screen's rate; the animated border
+  rests when the window is not the one in use.
+- Site icons are right in every window (a second window showed blank
+  ones), and their memory is bounded.
+- Long lists (favourites, passwords, devices) lay out only the rows in
+  view: 3,000 favourites took 13 ms a frame, 0.5 ms now. A page's source
+  with thousands of scripts no longer freezes the window.
 - The history is kept in a database (`history.db` in the profile's
   folder) instead of a text file read whole into memory. It has no limit
   any more (it was cut at 5,000 visits, and an import could push your own
