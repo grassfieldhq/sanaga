@@ -1164,18 +1164,17 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
             // only this user (the folder is closed already)
             let _ = std::fs::set_permissions(sock, std::fs::Permissions::from_mode(0o600));
             let profile: Vec<String> = urls.iter().filter(|u| u.starts_with("profil:")).cloned().collect();
-            // (accepting never waits for a peer: a slow or silent one can't
-            // hold up the others)
-            let _ = listener.set_nonblocking(true);
+            // (the thread sleeps until another launch connects: it used to
+            // wake twenty times a second to look, for as long as Sanaga was
+            // open. Each connection is read on a thread of its own, with a
+            // deadline: a slow or silent peer can't hold up the others.)
             std::thread::Builder::new()
                 .name("sanaga-instance".into())
                 .spawn(move || loop {
                     let stream = match listener.accept() {
                         Ok((s, _)) => s,
-                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            std::thread::sleep(Duration::from_millis(50));
-                            continue;
-                        }
+                        // (interrupted, or no file left to open one more:
+                        // not a loop that spins)
                         Err(_) => {
                             std::thread::sleep(Duration::from_millis(200));
                             continue;
@@ -1185,7 +1184,6 @@ fn run_inner(urls: Vec<String>, shot: Option<String>) -> Result<(), String> {
                     if !same_user(&stream) || READERS.load(std::sync::atomic::Ordering::Relaxed) >= MAX_READERS {
                         continue;
                     }
-                    let _ = stream.set_nonblocking(false);
                     READERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let profile = profile.clone();
                     let started = std::thread::Builder::new().name("sanaga-instance-read".into()).spawn(move || {
