@@ -1599,10 +1599,32 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     WINDOWS.with(|w| w.borrow_mut().push(Win { host: host_rc.clone(), gui: Rc::downgrade(&gui), input: input.clone(), im: im.clone() }));
     let waker = Wake { area: area.clone(), host: Rc::downgrade(&host_rc) };
     im.set_client_widget(Some(&area));
+    // What is being composed (a dead key waiting for its letter, the
+    // syllables of a Chinese, Japanese or Korean input method) shows in the
+    // field while it is typed. Only the finished text used to arrive: those
+    // were typed blind in every field of Sanaga's.
+    let composing = Rc::new(Cell::new(false));
+    {
+        let (input, area, composing) = (input.clone(), waker.clone(), composing.clone());
+        im.connect_preedit_changed(move |im| {
+            let (text, _, _) = im.preedit_string();
+            let text = text.to_string();
+            // (nothing shown and nothing to show: not a composition)
+            if text.is_empty() && !composing.get() {
+                return;
+            }
+            composing.set(!text.is_empty());
+            input.borrow_mut().events.push(Event::Ime(egui::ImeEvent::Preedit { text, active_range_chars: None }));
+            area.queue_render();
+        });
+    }
     {
         let (input, area) = (input.clone(), waker.clone());
         im.connect_commit(move |_, text| {
-            input.borrow_mut().events.push(Event::Text(text.to_string()));
+            // (the end of a composition replaces what was shown of it; a
+            // plain character is plain text, as before)
+            let event = if composing.replace(false) { Event::Ime(egui::ImeEvent::Commit(text.to_string())) } else { Event::Text(text.to_string()) };
+            input.borrow_mut().events.push(event);
             area.queue_render();
         });
     }
