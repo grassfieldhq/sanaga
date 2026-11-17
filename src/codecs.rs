@@ -209,8 +209,20 @@ pub fn terminal() -> Option<Vec<String>> {
 /// Sites whose videos need the formats above (a bar is offered there).
 pub fn is_video_site(host: &str) -> bool {
     const SITES: [&str; 14] = [
-        "youtube.com", "youtu.be", "youtube-nocookie.com", "vimeo.com", "twitch.tv", "dailymotion.com", "facebook.com", "instagram.com",
-        "tiktok.com", "x.com", "twitter.com", "reddit.com", "linkedin.com", "ted.com",
+        "youtube.com",
+        "youtu.be",
+        "youtube-nocookie.com",
+        "vimeo.com",
+        "twitch.tv",
+        "dailymotion.com",
+        "facebook.com",
+        "instagram.com",
+        "tiktok.com",
+        "x.com",
+        "twitter.com",
+        "reddit.com",
+        "linkedin.com",
+        "ted.com",
     ];
     let h = host.trim_start_matches("www.").trim_start_matches("m.");
     SITES.iter().any(|s| h == *s || h.ends_with(&format!(".{s}")))

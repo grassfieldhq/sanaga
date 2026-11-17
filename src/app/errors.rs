@@ -17,7 +17,9 @@ fn esc(s: &str) -> String {
 /// The picture at the top of the page, by kind (drawn in the accent colour).
 fn icon(kind: LoadError) -> &'static str {
     match kind {
-        LoadError::NotFound => r#"<circle cx="30" cy="30" r="20"/><path d="M10 30h40M30 10c6 6 9 13 9 20s-3 14-9 20M30 10c-6 6-9 13-9 20s3 14 9 20"/><circle cx="48" cy="48" r="9" class="f"/><path d="M45 45.5c.6-2 4.8-2 5 .6.2 2-2.6 2.2-2.6 4.2" class="w"/><circle cx="47.4" cy="53" r=".6" class="w"/>"#,
+        LoadError::NotFound => {
+            r#"<circle cx="30" cy="30" r="20"/><path d="M10 30h40M30 10c6 6 9 13 9 20s-3 14-9 20M30 10c-6 6-9 13-9 20s3 14 9 20"/><circle cx="48" cy="48" r="9" class="f"/><path d="M45 45.5c.6-2 4.8-2 5 .6.2 2-2.6 2.2-2.6 4.2" class="w"/><circle cx="47.4" cy="53" r=".6" class="w"/>"#
+        }
         LoadError::Offline => r#"<path d="M8 24c12-11 32-11 44 0M15 31c8-7 22-7 30 0M22 38c5-4 11-4 16 0"/><circle cx="30" cy="45" r="2.5" class="f"/><path d="M10 10l40 40"/>"#,
         LoadError::Refused | LoadError::BlockedPort => r#"<rect x="12" y="14" width="36" height="24" rx="4"/><path d="M20 46h20M30 38v8"/><path d="M24 22l12 10M36 22l-12 10"/>"#,
         LoadError::Timeout => r#"<circle cx="30" cy="32" r="20"/><path d="M30 20v12l8 5M24 8h12"/>"#,
@@ -72,7 +74,11 @@ impl Sanaga {
         let dark = self.store.settings.dark;
         let host = {
             let h = host_of(url);
-            if h.is_empty() { url.to_string() } else { h }
+            if h.is_empty() {
+                url.to_string()
+            } else {
+                h
+            }
         };
         let (title, text, tips): (&str, String, Vec<&str>) = match kind {
             LoadError::NotFound => (
@@ -97,7 +103,10 @@ impl Sanaga {
             ),
             LoadError::Certificate => (
                 tr("La connexion à ce site n'est pas privée"),
-                tf("Le certificat de {} n'est pas valide. Quelqu'un pourrait lire ou modifier ce que vous échangez avec ce site (mots de passe, messages, cartes bancaires).", &[&format!("<b>{}</b>", esc(&host))]),
+                tf(
+                    "Le certificat de {} n'est pas valide. Quelqu'un pourrait lire ou modifier ce que vous échangez avec ce site (mots de passe, messages, cartes bancaires).",
+                    &[&format!("<b>{}</b>", esc(&host))],
+                ),
                 vec![tr("Revenez en lieu sûr, sauf si vous savez exactement pourquoi ce site a un certificat non valide (un appareil de votre réseau, par exemple).")],
             ),
             LoadError::BlockedPort => (
@@ -105,8 +114,14 @@ impl Sanaga {
                 tr("Pour votre sécurité, les navigateurs n'ouvrent pas ce port : il sert à d'autres services (courrier, transfert de fichiers…).").to_string(),
                 vec![tr("Vérifiez le numéro de port dans l'adresse.")],
             ),
-            LoadError::NoFile => (tr("Ce fichier est introuvable"), tf("Le fichier {} n'existe pas (ou plus) sur cet ordinateur.", &[&format!("<b>{}</b>", esc(url.trim_start_matches("file://")))]), vec![]),
-            LoadError::Other => (tr("Cette page n'a pas pu être chargée"), tf("Le chargement de {} a échoué.", &[&format!("<b>{}</b>", esc(&host))]), vec![tr("Réessayez dans un instant."), tr("Vérifiez votre connexion.")]),
+            LoadError::NoFile => {
+                (tr("Ce fichier est introuvable"), tf("Le fichier {} n'existe pas (ou plus) sur cet ordinateur.", &[&format!("<b>{}</b>", esc(url.trim_start_matches("file://")))]), vec![])
+            }
+            LoadError::Other => (
+                tr("Cette page n'a pas pu être chargée"),
+                tf("Le chargement de {} a échoué.", &[&format!("<b>{}</b>", esc(&host))]),
+                vec![tr("Réessayez dans un instant."), tr("Vérifiez votre connexion.")],
+            ),
         };
         let search = self.store.settings.engine.search_url(&host);
         let archive = format!("https://web.archive.org/web/{url}");
@@ -138,7 +153,8 @@ impl Sanaga {
         let (bg, card, fg, sub, border) = (hex(th.page), hex(th.card), hex(th.text), hex(th.sub), hex(th.border));
         let accent = hex(th.accent);
         let danger = if dark { "#ff6b6b" } else { "#c0302a" };
-        let auto_retry = if kind == LoadError::Offline { "window.addEventListener('online',function(){location.reload()});setInterval(function(){if(navigator.onLine)location.reload()},5000);" } else { "" };
+        let auto_retry =
+            if kind == LoadError::Offline { "window.addEventListener('online',function(){location.reload()});setInterval(function(){if(navigator.onLine)location.reload()},5000);" } else { "" };
         format!(
             r#"<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{title_e}</title><meta name="color-scheme" content="{scheme}"><style>
 *{{box-sizing:border-box}}html,body{{margin:0;height:100%}}

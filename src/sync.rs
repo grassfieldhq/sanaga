@@ -24,11 +24,7 @@ pub struct SyncStatus {
 }
 
 pub fn device_name() -> String {
-    std::fs::read_to_string("/etc/hostname")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "cet-ordinateur".into())
+    std::fs::read_to_string("/etc/hostname").ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| "cet-ordinateur".into())
 }
 
 // ------------------------------------------------------------- secret phrase
@@ -625,7 +621,7 @@ mod tests {
         assert!(round(&pc2, None)); // pc2 gets a and b, keeps c
         assert_eq!(std::fs::read_to_string(pc2.join(f)).unwrap(), "c\tC\na\tA\nb\tB\n");
         assert!(round(&pc1, None)); // pc1 gets c
-        // pc1 removes b; pc2 adds d meanwhile
+                                    // pc1 removes b; pc2 adds d meanwhile
         assert_eq!(std::fs::read_to_string(pc1.join(f)).unwrap(), "c\tC\na\tA\nb\tB\n"); // one order for both
         std::fs::write(pc1.join(f), "c\tC\na\tA\n").unwrap();
         std::fs::write(pc2.join(f), "c\tC\na\tA\nb\tB\nd\tD\n").unwrap();

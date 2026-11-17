@@ -5,8 +5,8 @@
 //! when nothing else holds the window buttons, and the floating address bar.
 
 use super::chrome::site_badge;
-use super::toolbar::{spinner, window_buttons, window_drag};
 use super::chrome::Fit as _;
+use super::toolbar::{spinner, window_buttons, window_drag};
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, Margin, ScrollArea, Sense};
@@ -151,7 +151,13 @@ impl Sanaga {
             for (k, &i) in pinned.iter().enumerate() {
                 let r = Rect::from_min_size(pos2(full.left() + 10.0 + (k % cols) as f32 * cw, y + (k / cols) as f32 * 46.0), vec2(cw - 6.0, 40.0));
                 let resp = ui.interact(r, egui::Id::new(("vpin", self.tabs[i].id)), Sense::click());
-                let fill = if i == self.active { th.accent.gamma_multiply(0.18) } else if resp.hovered() { th.omnibox_hover } else { th.omnibox };
+                let fill = if i == self.active {
+                    th.accent.gamma_multiply(0.18)
+                } else if resp.hovered() {
+                    th.omnibox_hover
+                } else {
+                    th.omnibox
+                };
                 ui.painter().rect_filled(r, CornerRadius::same(10), fill);
                 site_badge(ui.painter(), r.center(), 9.0, self.tabs[i].url(), &self.tabs[i].title());
                 let title = self.tabs[i].title();
@@ -248,7 +254,11 @@ impl Sanaga {
                     let fresp = ui.interact(fr, egui::Id::new(("vtree", tab.id)), Sense::click());
                     let c = fr.center();
                     let col = if fresp.hovered() { th.text } else { th.sub };
-                    let pts = if tab.tree_folded { vec![pos2(c.x - 2.0, c.y - 4.0), pos2(c.x + 3.0, c.y), pos2(c.x - 2.0, c.y + 4.0)] } else { vec![pos2(c.x - 4.0, c.y - 2.0), pos2(c.x + 4.0, c.y - 2.0), pos2(c.x, c.y + 3.0)] };
+                    let pts = if tab.tree_folded {
+                        vec![pos2(c.x - 2.0, c.y - 4.0), pos2(c.x + 3.0, c.y), pos2(c.x - 2.0, c.y + 4.0)]
+                    } else {
+                        vec![pos2(c.x - 4.0, c.y - 2.0), pos2(c.x + 4.0, c.y - 2.0), pos2(c.x, c.y + 3.0)]
+                    };
                     ui.painter().add(egui::Shape::convex_polygon(pts, col, Stroke::NONE));
                     if fresp.tip(if tab.tree_folded { tr("Déplier") } else { tr("Replier") }).clicked() {
                         tree_fold = Some(i);
@@ -279,7 +289,13 @@ impl Sanaga {
                 let show_close = self.store.settings.close_right && (active || ui.rect_contains_pointer(r));
                 let text_right = r.right() - if show_close { 30.0 } else { 10.0 };
                 let clip = Rect::from_min_max(pos2(ic.x + 14.0, r.top()), pos2(text_right, r.bottom()));
-                ui.painter().with_clip_rect(clip).fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, &title, FontId::proportional(13.0), if active { th.text } else { th.text.gamma_multiply(0.85) });
+                ui.painter().with_clip_rect(clip).fit(
+                    pos2(clip.left(), r.center().y),
+                    Align2::LEFT_CENTER,
+                    &title,
+                    FontId::proportional(13.0),
+                    if active { th.text } else { th.text.gamma_multiply(0.85) },
+                );
                 if tab.capturing {
                     icons::paint(ui.painter(), Rect::from_center_size(pos2(text_right - 6.0, r.center().y), vec2(13.0, 13.0)), Icon::Camera, Color32::from_rgb(0xD9, 0x30, 0x25));
                 } else if tab.audio || tab.muted {
@@ -344,7 +360,13 @@ impl Sanaga {
         // bottom: number of tabs and the tab overview
         let foot = Rect::from_min_max(pos2(full.left(), full.bottom() - 44.0), full.right_bottom());
         ui.painter().line_segment([foot.left_top() + vec2(14.0, 0.0), foot.right_top() - vec2(14.0, 0.0)], Stroke::new(1.0, th.border));
-        ui.painter().text(pos2(foot.left() + 18.0, foot.center().y), Align2::LEFT_CENTER, if self.tabs.len() == 1 { tr("1 onglet").to_string() } else { tf("{} onglets", &[&self.tabs.len()]) }, FontId::proportional(12.0), th.sub);
+        ui.painter().text(
+            pos2(foot.left() + 18.0, foot.center().y),
+            Align2::LEFT_CENTER,
+            if self.tabs.len() == 1 { tr("1 onglet").to_string() } else { tf("{} onglets", &[&self.tabs.len()]) },
+            FontId::proportional(12.0),
+            th.sub,
+        );
         let ov = Rect::from_center_size(pos2(foot.right() - 22.0, foot.center().y), vec2(28.0, 28.0));
         let oresp = ui.interact(ov, egui::Id::new("vtabs-overview"), Sense::click());
         if oresp.hovered() {

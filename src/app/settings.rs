@@ -343,7 +343,11 @@ impl Rows<'_> {
             ui.data_mut(|d| d.insert_temp(id, used));
             ui.ctx().request_repaint();
         }
-        if click { resp.on_hover_cursor(CursorIcon::PointingHand) } else { resp }
+        if click {
+            resp.on_hover_cursor(CursorIcon::PointingHand)
+        } else {
+            resp
+        }
     }
 
     /// The next row opens a page: it is also found by what that page holds
@@ -550,7 +554,21 @@ pub(super) fn layout_choice(ui: &mut Ui, th: &Theme, label: &str, tabs: u8, bar:
     let pic = Rect::from_min_size(r.min + vec2(4.0, 4.0), vec2(92.0, 58.0));
     let p = ui.painter();
     p.rect_filled(pic, CornerRadius::same(8), th.page);
-    p.rect_stroke(pic, CornerRadius::same(8), Stroke::new(if selected { 2.5 } else { 1.0 }, if selected { th.accent } else if resp.hovered() { th.sub } else { th.border }), egui::StrokeKind::Outside);
+    p.rect_stroke(
+        pic,
+        CornerRadius::same(8),
+        Stroke::new(
+            if selected { 2.5 } else { 1.0 },
+            if selected {
+                th.accent
+            } else if resp.hovered() {
+                th.sub
+            } else {
+                th.border
+            },
+        ),
+        egui::StrokeKind::Outside,
+    );
     let tabs_col = th.accent.gamma_multiply(0.55);
     let bar_col = th.sub.gamma_multiply(0.55);
     let mut area = pic.shrink(5.0);
@@ -777,7 +795,12 @@ impl Sanaga {
                 if enabled && resp.hovered() {
                     ui.painter().circle_filled(r.center(), 13.0, th.track);
                 }
-                icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(13.0, 13.0)), if k == 0 { Icon::Back } else { Icon::Forward }, if enabled { th.text } else { th.sub.gamma_multiply(0.45) });
+                icons::paint(
+                    ui.painter(),
+                    Rect::from_center_size(r.center(), vec2(13.0, 13.0)),
+                    if k == 0 { Icon::Back } else { Icon::Forward },
+                    if enabled { th.text } else { th.sub.gamma_multiply(0.45) },
+                );
                 let resp = resp.tip(if k == 0 { tr("Précédent") } else { tr("Suivant") });
                 if resp.clicked() {
                     if k == 0 {
@@ -1217,10 +1240,21 @@ impl Sanaga {
                         changed = true;
                     }
                 }
-                changed |= rows.switch(ui, tr("Proposer de traduire les pages dans une autre langue"), tr("Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord"), &mut st.translate_offer);
+                changed |= rows.switch(
+                    ui,
+                    tr("Proposer de traduire les pages dans une autre langue"),
+                    tr("Une barre sous la barre d'outils, quand la page dit sa langue ; rien n'est envoyé avant votre accord"),
+                    &mut st.translate_offer,
+                );
                 rows.row(ui, tr("Traduire vers"), "", false, |ui| {
                     let ctx = ui.ctx().clone();
-                    let label = |code: &str| if code.is_empty() { tf("Langue de Sanaga ({})", &[&super::translate::shown_name(&ctx, super::translate::target("").2)]) } else { super::translate::shown_name(&ctx, super::translate::target(code).2) };
+                    let label = |code: &str| {
+                        if code.is_empty() {
+                            tf("Langue de Sanaga ({})", &[&super::translate::shown_name(&ctx, super::translate::target("").2)])
+                        } else {
+                            super::translate::shown_name(&ctx, super::translate::target(code).2)
+                        }
+                    };
                     egui::ComboBox::from_id_salt("translate-to").selected_text(label(&st.translate_to)).width(220.0).show_ui(ui, |ui| {
                         if ui.selectable_label(st.translate_to.is_empty(), label("")).clicked() && !st.translate_to.is_empty() {
                             st.translate_to.clear();
@@ -1245,11 +1279,16 @@ impl Sanaga {
         }
 
         // ---------------- Privacy ----------------
-        if show.shows(Section::Privacy, tr("Suivi"), &[tr("Bloquer les publicités et les traceurs"), tr("Empêcher le suivi intersites"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")]) {
+        if show.shows(
+            Section::Privacy,
+            tr("Suivi"),
+            &[tr("Bloquer les publicités et les traceurs"), tr("Empêcher le suivi intersites"), tr("Effacer les données"), tr("Paramètres des sites"), tr("Sécurité")],
+        ) {
             any = true;
             group(ui, th, "", |ui, rows| {
                 changed |= rows.switch(ui, tr("Bloquer les publicités et les traceurs"), tr("Les demandes vers les régies publicitaires et les traceurs ne partent jamais"), &mut st.blocker);
-                changed |= rows.switch(ui, tr("Listes de blocage complètes"), tr("EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)"), &mut st.block_lists);
+                changed |=
+                    rows.switch(ui, tr("Listes de blocage complètes"), tr("EasyList et EasyPrivacy, récupérées une fois par semaine auprès de leurs auteurs (easylist.to)"), &mut st.block_lists);
                 changed |= rows.switch(ui, tr("Empêcher le suivi intersites"), "", &mut st.itp);
                 changed |= rows.switch(ui, tr("Laisser les sites demander à envoyer des notifications"), tr("Désactivé : leurs demandes sont refusées sans vous déranger"), &mut st.notif_prompts);
             });
@@ -1289,7 +1328,14 @@ impl Sanaga {
             });
             footnote(ui, th, tr("Sanaga se présente comme Chrome aux quelques applications web qui refusent WebKit (WhatsApp Web, Teams, Zoom…). Vous pouvez choisir pour n'importe quel site."));
             group(ui, th, tr("Données de navigation"), |ui, rows| {
-                let clear_words = [tr("Période"), tr("Historique de navigation et téléchargements"), tr("Cookies et données des sites (vous serez déconnecté de la plupart des sites)"), tr("Images et fichiers en cache"), tr("La dernière heure"), tr("Depuis toujours")];
+                let clear_words = [
+                    tr("Période"),
+                    tr("Historique de navigation et téléchargements"),
+                    tr("Cookies et données des sites (vous serez déconnecté de la plupart des sites)"),
+                    tr("Images et fichiers en cache"),
+                    tr("La dernière heure"),
+                    tr("Depuis toujours"),
+                ];
                 if rows.reaches(&clear_words).link(ui, tr("Effacer les données"), tr("Historique, cookies, cache…"), "") {
                     acts.push(Act::Go("sanaga://clear"));
                 }
@@ -1391,7 +1437,11 @@ impl Sanaga {
                 });
                 changed |= rows.switch(ui, tr("Charger les images"), "", &mut st.images);
             });
-            footnote(ui, th, tr("Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais."));
+            footnote(
+                ui,
+                th,
+                tr("Les onglets que vous n'avez pas regardés depuis longtemps sont mis en veille et se rechargent quand vous y revenez. Les onglets qui jouent du son ne dorment jamais."),
+            );
             group(ui, th, tr("Moteur d'affichage des pages"), |ui, rows| {
                 if rows.choice(ui, "WebKit", tr("Sites complets avec JavaScript, vidéos et applications (recommandé)"), st.webkit) && !st.webkit {
                     st.webkit = true;
@@ -1556,8 +1606,10 @@ impl Sanaga {
                         changed_more = true;
                     }
                 });
-                changed_more |= rows.switch(ui, tr("Toujours afficher les URL en entier"), tr("Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome"), &mut st.full_urls);
-                changed_more |= rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
+                changed_more |=
+                    rows.switch(ui, tr("Toujours afficher les URL en entier"), tr("Sinon la barre d'adresse omet https:// et www. et montre l'adresse décodée, comme Chrome"), &mut st.full_urls);
+                changed_more |=
+                    rows.switch(ui, tr("Sélecteur d'onglets (Ctrl+Tab)"), tr("Les onglets utilisés en dernier, en images ; Ctrl+Page suivante suit la barre d'onglets"), &mut st.tab_switcher);
             });
             footnote(ui, th, tr("Mode focus (F9) : seule la page reste, sans rien autour."));
             let current = self.store.settings.app_icon as usize;
@@ -1607,7 +1659,11 @@ impl Sanaga {
                 changed_more |= self.buttons_settings(ui, th);
             });
             ui.add_space(6.0);
-            footnote(ui, th, tr("Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page."));
+            footnote(
+                ui,
+                th,
+                tr("Un bouton dans la barre d'outils qui ouvre une adresse, lance une commande de Sanaga (mode focus, vidéo flottante, conteneur…) ou exécute votre script dans la page."),
+            );
         }
         if show.shows(Section::Privacy, tr("Conteneurs"), &[tr("Conteneur"), tr("Comptes séparés")]) {
             any = true;
@@ -1670,7 +1726,11 @@ impl Sanaga {
             let sure = asked.is_some_and(|t| now - t < 5.0);
             ui.add_space(8.0);
             group(ui, th, "", |ui, rows| {
-                let sub = if sure { tr("Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.") } else { tr("Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.") };
+                let sub = if sure {
+                    tr("Cliquez encore pour confirmer : les réglages de cette catégorie reviennent à ceux d'origine.")
+                } else {
+                    tr("Vos données (favoris, mots de passe, coordonnées, langue) ne sont pas touchées.")
+                };
                 if rows.action(ui, &tf("Rétablir les réglages d'origine : {}", &[&section.label()]), sub, if sure { tr("Confirmer") } else { tr("Rétablir") }) {
                     if sure {
                         ui.ctx().data_mut(|d| d.remove::<f64>(confirm_id));
@@ -1842,9 +1902,7 @@ impl Sanaga {
             || {
                 // 1. the general list (~/.config/mimeapps.list): what every desktop
                 //    reads, and where Omarchy's routing entry looks for the browser
-                let general = |program: &str, args: &[&str]| {
-                    std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success())
-                };
+                let general = |program: &str, args: &[&str]| std::process::Command::new(program).args(args).env_remove("BROWSER").env("XDG_CURRENT_DESKTOP", "").status().is_ok_and(|s| s.success());
                 general("xdg-settings", &["set", "default-web-browser", "sanaga.desktop"]);
                 // web links and HTML files
                 general("xdg-mime", &["default", "sanaga.desktop", "x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]);

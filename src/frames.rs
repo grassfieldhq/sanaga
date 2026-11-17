@@ -245,8 +245,16 @@ fn plan(style: Style, g: &Geom, landscape: bool, browser: Browser) -> Option<Pla
         Browser::SafariPhone if !landscape => {
             let yb = sy + sh - bb;
             let pill = (sx + 12.0, yb + 7.0, sw - 24.0, 40.0, 12.0, safari_pill);
-            let mut buttons = vec![(Glyph::TextSize, None, pill.0 + 4.0, pill.1, 34.0, pill.3, (0.1, 0.1, 0.12)), (Glyph::Reload, Some(Hot::Reload), pill.0 + pill.2 - 38.0, pill.1, 34.0, pill.3, (0.1, 0.1, 0.12))];
-            buttons.extend(row(&[(Glyph::Back, Some(Hot::Back)), (Glyph::Forward, Some(Hot::Forward)), (Glyph::Share, None), (Glyph::Book, None), (Glyph::Tabs, None)], sx + 8.0, sx + sw - 8.0, yb + 52.0, 44.0, blue));
+            let mut buttons =
+                vec![(Glyph::TextSize, None, pill.0 + 4.0, pill.1, 34.0, pill.3, (0.1, 0.1, 0.12)), (Glyph::Reload, Some(Hot::Reload), pill.0 + pill.2 - 38.0, pill.1, 34.0, pill.3, (0.1, 0.1, 0.12))];
+            buttons.extend(row(
+                &[(Glyph::Back, Some(Hot::Back)), (Glyph::Forward, Some(Hot::Forward)), (Glyph::Share, None), (Glyph::Book, None), (Glyph::Tabs, None)],
+                sx + 8.0,
+                sx + sw - 8.0,
+                yb + 52.0,
+                44.0,
+                blue,
+            ));
             Plan { bars: vec![(sx, yb, sw, bb, safari_bar)], pill, centred: true, buttons, tab: None, font: 15.0 }
         }
         Browser::SafariPhone => {
@@ -280,14 +288,7 @@ fn plan(style: Style, g: &Geom, landscape: bool, browser: Browser) -> Option<Pla
             buttons.push((Glyph::Dots, None, sx + sw - 42.0, ty, 38.0, bar, ink));
             let tw = (sw * 0.28).clamp(140.0, 260.0);
             buttons.push((Glyph::Plus, None, sx + 8.0 + tw + 4.0, top + 6.0, 30.0, strip - 6.0, ink));
-            Plan {
-                bars: vec![(sx, top, sw, strip, (0.87, 0.88, 0.90)), (sx, ty, sw, bar, white)],
-                pill,
-                centred: false,
-                buttons,
-                tab: Some((sx + 8.0, top + 6.0, tw, strip - 6.0)),
-                font: 13.0,
-            }
+            Plan { bars: vec![(sx, top, sw, strip, (0.87, 0.88, 0.90)), (sx, ty, sw, bar, white)], pill, centred: false, buttons, tab: Some((sx + 8.0, top + 6.0, tw, strip - 6.0)), font: 13.0 }
         }
     })
 }
@@ -581,11 +582,7 @@ fn draw(cr: &Context, style: Style, finish: Finish, g: &Geom, landscape: bool, t
         cr.set_source_rgb(r, gg, b);
         let bt = 4.0;
         let along = |f: f64, len: f64| -> (f64, f64) { (f, len) };
-        let buttons: Vec<(bool, f64, f64)> = if style == Style::Tablet {
-            vec![(false, 0.12, 0.06)]
-        } else {
-            vec![(true, 0.17, 0.05), (true, 0.25, 0.09), (true, 0.36, 0.09), (false, 0.27, 0.13)]
-        };
+        let buttons: Vec<(bool, f64, f64)> = if style == Style::Tablet { vec![(false, 0.12, 0.06)] } else { vec![(true, 0.17, 0.05), (true, 0.25, 0.09), (true, 0.36, 0.09), (false, 0.27, 0.13)] };
         for (left_side, f, len) in buttons {
             let (f, len) = along(f, len);
             if !landscape {

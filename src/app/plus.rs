@@ -7,10 +7,10 @@ use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, Layout, Margin, RichText, Sense, TextEdit};
+use gtk::glib::prelude::*;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-use gtk::glib::prelude::*;
 use webkit6::prelude::*;
 
 /// A site asking for the camera, microphone, location or notifications.
@@ -67,8 +67,8 @@ pub(super) fn watch_permissions(w: &crate::page::PageView, tab: u64, queue: Perm
                 "screen"
             } else {
                 match (m.is_for_video_device(), m.is_for_audio_device()) {
-                (true, true) => "camera+micro",
-                (true, false) => "camera",
+                    (true, true) => "camera+micro",
+                    (true, false) => "camera",
                     (false, true) => "micro",
                     _ => return false,
                 }
@@ -469,7 +469,8 @@ impl Sanaga {
         let since = if period == 0 { 0 } else { crate::store::now().saturating_sub(period) };
         // (the sites visited in that period, before their visits are
         // forgotten: their cookies are the ones to remove — see below)
-        let visited: std::collections::HashSet<String> = self.store.history.iter().filter(|v| v.time >= since).map(|v| host_of(&v.url).trim_start_matches("www.").to_string()).filter(|h| !h.is_empty()).collect();
+        let visited: std::collections::HashSet<String> =
+            self.store.history.iter().filter(|v| v.time >= since).map(|v| host_of(&v.url).trim_start_matches("www.").to_string()).filter(|h| !h.is_empty()).collect();
         if history {
             self.store.clear_history_since(since);
             self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
@@ -524,7 +525,8 @@ impl Sanaga {
                     let Ok(found) = found else { return };
                     // (a record is named after its site: "example.org" for
                     // www.example.org and accounts.example.org alike)
-                    let theirs: Vec<webkit6::WebsiteData> = found.into_iter().filter(|d| d.name().is_some_and(|n| visited.iter().any(|h| h == n.as_str() || h.ends_with(&format!(".{n}")) || n.ends_with(&format!(".{h}"))))).collect();
+                    let theirs: Vec<webkit6::WebsiteData> =
+                        found.into_iter().filter(|d| d.name().is_some_and(|n| visited.iter().any(|h| h == n.as_str() || h.ends_with(&format!(".{n}")) || n.ends_with(&format!(".{h}"))))).collect();
                     if !theirs.is_empty() {
                         let list: Vec<&webkit6::WebsiteData> = theirs.iter().collect();
                         dm2.remove(of_sites, &list, None::<&webkit6::gio::Cancellable>, |_| {});
@@ -537,7 +539,13 @@ impl Sanaga {
 
     pub(super) fn page_clear_data(&mut self, ui: &mut Ui, th: &Theme) {
         let mut go = false;
-        let periods = [(3600u64, tr("La dernière heure")), (86_400, tr("Les dernières 24 heures")), (7 * 86_400, tr("Les 7 derniers jours")), (28 * 86_400, tr("Les 4 dernières semaines")), (0, tr("Depuis toujours"))];
+        let periods = [
+            (3600u64, tr("La dernière heure")),
+            (86_400, tr("Les dernières 24 heures")),
+            (7 * 86_400, tr("Les 7 derniers jours")),
+            (28 * 86_400, tr("Les 4 dernières semaines")),
+            (0, tr("Depuis toujours")),
+        ];
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Effacer les données de navigation"));
             Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
@@ -585,7 +593,9 @@ impl Sanaga {
             ui.label(RichText::new(tr("Réglages par site")).size(15.0).family(bold()).color(th.text));
             ui.add_space(6.0);
             if site_prefs.is_empty() {
-                ui.label(RichText::new(tr("JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…")).size(12.5).color(th.sub));
+                ui.label(
+                    RichText::new(tr("JavaScript, polices, bloqueur, mode sombre, police, éléments retirés : site par site. Clic droit dans une page › Réglages de ce site…")).size(12.5).color(th.sub),
+                );
             }
             for (host, p) in &site_prefs {
                 ui.horizontal(|ui| {

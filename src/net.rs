@@ -1,9 +1,9 @@
 //! Background loading: pages, images and downloads run on worker threads so the
 //! window never freezes. Results come back through a channel.
 
+use crate::html::{self, Document};
 use crate::i18n::{tf, tr};
 use eframe::egui;
-use crate::html::{self, Document};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
@@ -107,14 +107,38 @@ pub fn disposition_name(header: &str) -> Option<String> {
 }
 
 pub enum NetMsg {
-    Page { tab: u64, nav: u64, result: Result<Arc<Document>, String> },
+    Page {
+        tab: u64,
+        nav: u64,
+        result: Result<Arc<Document>, String>,
+    },
     /// A page's source text ("view source").
-    Source { tab: u64, nav: u64, url: String, result: Result<String, String> },
-    Image { url: String, result: Result<egui::ColorImage, String> },
-    Download { tab: u64, nav: u64, name: String, path: PathBuf, bytes: u64, result: Result<(), String> },
+    Source {
+        tab: u64,
+        nav: u64,
+        url: String,
+        result: Result<String, String>,
+    },
+    Image {
+        url: String,
+        result: Result<egui::ColorImage, String>,
+    },
+    Download {
+        tab: u64,
+        nav: u64,
+        name: String,
+        path: PathBuf,
+        bytes: u64,
+        result: Result<(), String>,
+    },
     /// A fetch no action of the person's started (a restored tab) turned out
     /// to be a download: asked first (the request, to run again if allowed).
-    DownloadAsk { tab: u64, nav: u64, site: String, req: Request },
+    DownloadAsk {
+        tab: u64,
+        nav: u64,
+        site: String,
+        req: Request,
+    },
 }
 
 /// Ask sites for pages in the interface language first.
@@ -223,12 +247,7 @@ pub fn is_newer(latest: &str, current: &str) -> bool {
 }
 
 pub fn agent() -> ureq::Agent {
-    builder()
-        .user_agent(USER_AGENT)
-        .timeout_connect(Duration::from_secs(10))
-        .timeout_read(Duration::from_secs(20))
-        .redirects(8)
-        .build()
+    builder().user_agent(USER_AGENT).timeout_connect(Duration::from_secs(10)).timeout_read(Duration::from_secs(20)).redirects(8).build()
 }
 
 pub struct Request {
@@ -387,11 +406,7 @@ pub fn fetch_page(agent: ureq::Agent, req: Request, tx: Sender<NetMsg>, ctx: egu
                     ctx.request_repaint();
                 }
                 Ok(body) => {
-                    let doc = if ctype.starts_with("text/html") || ctype.contains("xhtml") || ctype.is_empty() {
-                        html::parse_page(&body, &final_url, !full)
-                    } else {
-                        html::plain(&body, &final_url)
-                    };
+                    let doc = if ctype.starts_with("text/html") || ctype.contains("xhtml") || ctype.is_empty() { html::parse_page(&body, &final_url, !full) } else { html::plain(&body, &final_url) };
                     send(Ok(Arc::new(doc)));
                 }
                 Err(e) => send(Err(tf("La page n'a pas pu être lue : {}", &[&e]))),
@@ -461,11 +476,7 @@ pub fn fetch_image(agent: ureq::Agent, url: String, tx: Sender<NetMsg>, ctx: egu
 pub fn decode_image(bytes: &[u8]) -> Result<egui::ColorImage, String> {
     let img = image::load_from_memory(bytes).map_err(|e| e.to_string())?;
     // Downscale big pictures right away: keeps memory use low.
-    let img = if img.width() > MAX_IMAGE_SIDE || img.height() > MAX_IMAGE_SIDE {
-        img.thumbnail(MAX_IMAGE_SIDE, MAX_IMAGE_SIDE)
-    } else {
-        img
-    };
+    let img = if img.width() > MAX_IMAGE_SIDE || img.height() > MAX_IMAGE_SIDE { img.thumbnail(MAX_IMAGE_SIDE, MAX_IMAGE_SIDE) } else { img };
     let rgba = img.to_rgba8();
     let size = [rgba.width() as usize, rgba.height() as usize];
     Ok(egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()))
@@ -482,11 +493,7 @@ pub fn memory_used() -> Option<u64> {
                 return kb * 1024;
             }
         }
-        std::fs::read_to_string(format!("/proc/{pid}/statm"))
-            .ok()
-            .and_then(|s| s.split_whitespace().nth(1).and_then(|p| p.parse::<u64>().ok()))
-            .unwrap_or(0)
-            * 4096
+        std::fs::read_to_string(format!("/proc/{pid}/statm")).ok().and_then(|s| s.split_whitespace().nth(1).and_then(|p| p.parse::<u64>().ok())).unwrap_or(0) * 4096
     };
     let me = std::process::id();
     let mut parents: Vec<(u32, u32)> = Vec::new();
@@ -557,10 +564,8 @@ pub struct Process {
 
 /// (start time, number as seen from inside its sandbox) of a process.
 fn process_identity(pid: u32) -> (u64, u32) {
-    let start = std::fs::read_to_string(format!("/proc/{pid}/stat"))
-        .ok()
-        .and_then(|s| s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(19).and_then(|v| v.parse::<u64>().ok())))
-        .unwrap_or(0);
+    let start =
+        std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|s| s.rsplit_once(')').and_then(|(_, r)| r.split_whitespace().nth(19).and_then(|v| v.parse::<u64>().ok()))).unwrap_or(0);
     // "NSpid: 15700 2": its number in each nested set of processes, innermost last
     let inner = std::fs::read_to_string(format!("/proc/{pid}/status"))
         .ok()

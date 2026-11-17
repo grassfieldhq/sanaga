@@ -58,7 +58,16 @@ impl Sanaga {
         let Some(info) = crate::page::dialog(key) else { return };
         if self.dialog_state.key != key {
             let same_site = self.last_dialog_host == info.host;
-            self.dialog_state = DialogState { key, text: if let DialogKind::Prompt(d) = &info.kind { d.clone() } else { String::new() }, password: String::new(), fresh: true, count: if same_site { self.dialog_state.count + 1 } else { 1 }, silence: false, since: ctx.input(|i| i.time), fields: Vec::new() };
+            self.dialog_state = DialogState {
+                key,
+                text: if let DialogKind::Prompt(d) = &info.kind { d.clone() } else { String::new() },
+                password: String::new(),
+                fresh: true,
+                count: if same_site { self.dialog_state.count + 1 } else { 1 },
+                silence: false,
+                since: ctx.input(|i| i.time),
+                fields: Vec::new(),
+            };
             self.last_dialog_host = info.host.clone();
         }
         let screen = ctx.content_rect();
@@ -150,7 +159,8 @@ impl Sanaga {
                             if ui.add(b).clicked() {
                                 ok = true;
                             }
-                            if !cancel_label.is_empty() && ui.add(egui::Button::new(RichText::new(cancel_label).size(13.5)).corner_radius(CornerRadius::same(10)).min_size(vec2(84.0, 32.0))).clicked() {
+                            if !cancel_label.is_empty() && ui.add(egui::Button::new(RichText::new(cancel_label).size(13.5)).corner_radius(CornerRadius::same(10)).min_size(vec2(84.0, 32.0))).clicked()
+                            {
                                 cancel = true;
                             }
                         });
@@ -164,7 +174,8 @@ impl Sanaga {
         // was there. The key is then used up: nothing else reads it.
         self.dialog_state.fields = fields;
         let just_shown = ctx.input(|i| i.time) - self.dialog_state.since < 0.4;
-        let (enter, esc) = if typing_elsewhere || just_shown { (false, false) } else { ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape))) };
+        let (enter, esc) =
+            if typing_elsewhere || just_shown { (false, false) } else { ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape))) };
         if enter {
             ok = true;
         }

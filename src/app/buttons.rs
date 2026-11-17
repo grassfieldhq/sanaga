@@ -98,14 +98,12 @@ impl Sanaga {
                 self.open_tab(&u, self.tabs[self.active].private);
             }
             1 => self.run_shortcut(&b.value),
-            _ => {
-                match self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
-                    Some(w) => {
-                        let _ = w.evaluate_script(&format!("try{{{}\n}}catch(e){{console.warn('bouton Sanaga',e)}}", b.value));
-                    }
-                    None => self.notice = Some((tr("Ce bouton agit sur une page web.").into(), self.ctx.input(|i| i.time))),
+            _ => match self.tabs.get(self.active).and_then(|t| t.web.as_ref()) {
+                Some(w) => {
+                    let _ = w.evaluate_script(&format!("try{{{}\n}}catch(e){{console.warn('bouton Sanaga',e)}}", b.value));
                 }
-            }
+                None => self.notice = Some((tr("Ce bouton agit sur une page web.").into(), self.ctx.input(|i| i.time))),
+            },
         }
     }
 
@@ -253,7 +251,8 @@ impl Sanaga {
             }
         }
         let ready = !f.label.trim().is_empty() && !f.value.trim().is_empty();
-        if ui.add_enabled(ready, egui::Button::new(RichText::new(tr("Ajouter le bouton")).color(if ready { Color32::WHITE } else { th.sub })).fill(if ready { th.accent } else { th.track })).clicked() {
+        if ui.add_enabled(ready, egui::Button::new(RichText::new(tr("Ajouter le bouton")).color(if ready { Color32::WHITE } else { th.sub })).fill(if ready { th.accent } else { th.track })).clicked()
+        {
             let b = CustomButton { label: f.label.trim().to_string(), symbol: f.symbol.trim().to_string(), kind: f.kind, value: f.value.trim().to_string() };
             *f = ButtonForm::default();
             self.store.buttons.push(b);

@@ -103,7 +103,11 @@ pub(super) fn lang_in_sentence(code: &str) -> &'static str {
 /// are both "pt". Empty when it is not a language code.
 pub(super) fn main_language(code: &str) -> String {
     let main = code.trim().split(['-', '_']).next().unwrap_or("").to_ascii_lowercase();
-    if (2..=3).contains(&main.len()) && main.chars().all(|c| c.is_ascii_lowercase()) { main } else { String::new() }
+    if (2..=3).contains(&main.len()) && main.chars().all(|c| c.is_ascii_lowercase()) {
+        main
+    } else {
+        String::new()
+    }
 }
 
 /// At most this many batches of a page are translated (80 texts or 5000
@@ -247,7 +251,9 @@ impl Sanaga {
     }
 
     pub(super) fn translate_offer_visible(&self) -> bool {
-        !self.focus_mode && !self.translation_bar_visible() && self.translate_offered.as_ref().is_some_and(|(tab, _)| self.tabs.get(self.active).is_some_and(|a| a.id == *tab && matches!(a.view, View::Web)))
+        !self.focus_mode
+            && !self.translation_bar_visible()
+            && self.translate_offered.as_ref().is_some_and(|(tab, _)| self.tabs.get(self.active).is_some_and(|a| a.id == *tab && matches!(a.view, View::Web)))
     }
 
     /// "This page is not in French." — translate it, not now, or never on this site.

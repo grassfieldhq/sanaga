@@ -5,8 +5,8 @@
 //! with a way back (Undo), with a complete right-click menu.
 
 use super::chrome::site_badge;
-use super::sidebar::menu_item;
 use super::chrome::Fit as _;
+use super::sidebar::menu_item;
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align, Align2, Color32, CursorIcon, Layout, Margin, RichText, Sense, TextEdit};
@@ -158,7 +158,13 @@ impl Sanaga {
                         ui.allocate_ui_with_layout(vec2(220.0, 28.0), Layout::left_to_right(Align::Center), |ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(13.0, 13.0), Sense::hover());
                             icons::paint(ui.painter(), r, Icon::Search, th.sub);
-                            ui.add(TextEdit::singleline(&mut self.bm_filter).frame(Frame::NONE).hint_text(RichText::new(tr("Rechercher")).color(th.sub)).vertical_align(Align::Center).desired_width(ui.available_width()));
+                            ui.add(
+                                TextEdit::singleline(&mut self.bm_filter)
+                                    .frame(Frame::NONE)
+                                    .hint_text(RichText::new(tr("Rechercher")).color(th.sub))
+                                    .vertical_align(Align::Center)
+                                    .desired_width(ui.available_width()),
+                            );
                         });
                     });
                 });
@@ -175,7 +181,14 @@ impl Sanaga {
                 });
                 return;
             }
-            let rows: Vec<(usize, String, String)> = self.store.bookmarks.iter().enumerate().filter(|(_, b)| q.is_empty() || b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q)).map(|(i, b)| (i, b.url.clone(), b.title.clone())).collect();
+            let rows: Vec<(usize, String, String)> = self
+                .store
+                .bookmarks
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| q.is_empty() || b.url.to_lowercase().contains(&q) || b.title.to_lowercase().contains(&q))
+                .map(|(i, b)| (i, b.url.clone(), b.title.clone()))
+                .collect();
             if rows.is_empty() {
                 ui.label(RichText::new(tr("Aucun résultat")).color(th.sub));
             }
@@ -191,7 +204,9 @@ impl Sanaga {
                             ui.add(TextEdit::singleline(&mut self.bm_edit.0).hint_text(tr("Nom")).desired_width(f32::INFINITY));
                             ui.add(TextEdit::singleline(&mut self.bm_edit.1).hint_text(tr("Adresse")).desired_width(f32::INFINITY));
                             ui.horizontal(|ui| {
-                                if ui.add(egui::Button::new(RichText::new(tr("Enregistrer")).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(7))).clicked() || ui.input(|x| x.key_pressed(Key::Enter)) {
+                                if ui.add(egui::Button::new(RichText::new(tr("Enregistrer")).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(7))).clicked()
+                                    || ui.input(|x| x.key_pressed(Key::Enter))
+                                {
                                     save = Some((i, self.bm_edit.0.clone(), self.bm_edit.1.clone()));
                                 }
                                 if ui.button(tr("Annuler")).clicked() || ui.input(|x| x.key_pressed(Key::Escape)) {

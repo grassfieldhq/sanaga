@@ -14,7 +14,17 @@ fn section_title(ui: &mut Ui, th: &Theme, text: &str) {
 
 fn card_bg(p: &egui::Painter, r: Rect, radius: u8, th: &Theme, hovered: bool) {
     p.rect_filled(r.translate(vec2(0.0, 1.0)), CornerRadius::same(radius), Color32::from_black_alpha(14));
-    p.rect_filled(r, CornerRadius::same(radius), if hovered { th.omnibox_hover } else if th.page == Color32::WHITE { th.page } else { th.card });
+    p.rect_filled(
+        r,
+        CornerRadius::same(radius),
+        if hovered {
+            th.omnibox_hover
+        } else if th.page == Color32::WHITE {
+            th.page
+        } else {
+            th.card
+        },
+    );
     p.rect_stroke(r, CornerRadius::same(radius), Stroke::new(0.6, th.border), egui::StrokeKind::Inside);
 }
 
@@ -105,7 +115,13 @@ impl Sanaga {
                         card_bg(ui.painter(), sq, 16, th, resp.hovered());
                         site_badge(ui.painter(), sq.center(), 17.0, url, title);
                         // (the room of its tile, no more: names ran into one another)
-                        ui.painter().with_clip_rect(r.shrink2(vec2(5.0, 0.0))).fit(pos2(r.center().x, r.top() + 90.0), Align2::CENTER_CENTER, if title.is_empty() { host_of(url) } else { title.clone() }, FontId::proportional(12.5), th.text);
+                        ui.painter().with_clip_rect(r.shrink2(vec2(5.0, 0.0))).fit(
+                            pos2(r.center().x, r.top() + 90.0),
+                            Align2::CENTER_CENTER,
+                            if title.is_empty() { host_of(url) } else { title.clone() },
+                            FontId::proportional(12.5),
+                            th.text,
+                        );
                         if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                             go = Some(url.clone());
                         }
@@ -138,31 +154,31 @@ impl Sanaga {
 
                 // frequently visited
                 if show_frequent {
-                section_title(ui, th, tr("Consultés fréquemment"));
-                if freq.is_empty() {
-                    ui.label(RichText::new(tr("Les sites que vous visitez souvent apparaîtront ici.")).color(th.sub));
-                } else {
-                    let cols = ((cw + 12.0) / 182.0).floor().max(1.0) as usize;
-                    let card_w = (cw - (cols as f32 - 1.0) * 12.0) / cols as f32;
-                    for row in freq.chunks(cols) {
-                        let (rr, _) = ui.allocate_exact_size(vec2(cw, 64.0), Sense::hover());
-                        for (k, (url, _, title)) in row.iter().enumerate() {
-                            let r = Rect::from_min_size(pos2(rr.left() + k as f32 * (card_w + 12.0), rr.top()), vec2(card_w, 58.0));
-                            let resp = ui.interact(r, egui::Id::new(("freq", url)), Sense::click());
-                            card_bg(ui.painter(), r, 12, th, resp.hovered());
-                            site_badge(ui.painter(), pos2(r.left() + 24.0, r.center().y), 11.0, url, title);
-                            let clip = Rect::from_min_max(pos2(r.left() + 44.0, r.top()), pos2(r.right() - 10.0, r.bottom()));
-                            let p = ui.painter().with_clip_rect(clip);
-                            let t = if title.is_empty() { host_of(url) } else { title.clone() };
-                            p.fit(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, t, FontId::new(13.0, bold()), th.text);
-                            p.fit(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
-                            if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                go = Some(url.clone());
+                    section_title(ui, th, tr("Consultés fréquemment"));
+                    if freq.is_empty() {
+                        ui.label(RichText::new(tr("Les sites que vous visitez souvent apparaîtront ici.")).color(th.sub));
+                    } else {
+                        let cols = ((cw + 12.0) / 182.0).floor().max(1.0) as usize;
+                        let card_w = (cw - (cols as f32 - 1.0) * 12.0) / cols as f32;
+                        for row in freq.chunks(cols) {
+                            let (rr, _) = ui.allocate_exact_size(vec2(cw, 64.0), Sense::hover());
+                            for (k, (url, _, title)) in row.iter().enumerate() {
+                                let r = Rect::from_min_size(pos2(rr.left() + k as f32 * (card_w + 12.0), rr.top()), vec2(card_w, 58.0));
+                                let resp = ui.interact(r, egui::Id::new(("freq", url)), Sense::click());
+                                card_bg(ui.painter(), r, 12, th, resp.hovered());
+                                site_badge(ui.painter(), pos2(r.left() + 24.0, r.center().y), 11.0, url, title);
+                                let clip = Rect::from_min_max(pos2(r.left() + 44.0, r.top()), pos2(r.right() - 10.0, r.bottom()));
+                                let p = ui.painter().with_clip_rect(clip);
+                                let t = if title.is_empty() { host_of(url) } else { title.clone() };
+                                p.fit(pos2(clip.left(), r.center().y - 8.0), Align2::LEFT_CENTER, t, FontId::new(13.0, bold()), th.text);
+                                p.fit(pos2(clip.left(), r.center().y + 9.0), Align2::LEFT_CENTER, site_label(url), FontId::proportional(12.0), th.sub);
+                                if resp.tip(url).on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                                    go = Some(url.clone());
+                                }
                             }
                         }
                     }
-                }
-                ui.add_space(22.0);
+                    ui.add_space(22.0);
                 }
 
                 // tabs open on the person's other computers (sync folder)
@@ -193,48 +209,44 @@ impl Sanaga {
 
                 // privacy and sobriety reports, side by side when there is room
                 if show_reports {
-                section_title(ui, th, tr("Rapports"));
-                let two = cw >= 640.0;
-                let card_w = if two { (cw - 14.0) / 2.0 } else { cw };
-                let (rr, _) = ui.allocate_exact_size(vec2(cw, 132.0), Sense::hover());
-                let pr = Rect::from_min_size(rr.min, vec2(card_w, 132.0));
-                card_bg(ui.painter(), pr, 14, th, false);
-                let blue = Color32::from_rgb(0x0A, 0x84, 0xFF);
-                let pic = Rect::from_center_size(pos2(pr.left() + 36.0, pr.center().y), vec2(36.0, 36.0));
-                ui.painter().circle_filled(pic.center(), 22.0, blue.gamma_multiply(0.14));
-                icons::paint(ui.painter(), pic.shrink(7.0), Icon::Shield, blue);
-                let lines: Vec<String> = if !itp {
-                    vec![tr("Rapport de confidentialité").into(), tr("La protection contre le suivi intersites est désactivée.").into(), tr("Activez-la dans les Paramètres.").into()]
-                } else if privacy.is_empty() {
-                    vec![tr("Rapport de confidentialité").into(), tr("Sanaga empêche les traceurs de vous suivre").into(), tr("d'un site à l'autre. Aucun repéré pour l'instant.").into()]
-                } else {
-                    let (d, n) = &privacy[0];
-                    vec![
-                        tr("Rapport de confidentialité").into(),
-                        tf("Traceurs empêchés de vous profiler : {}", &[&privacy.len()]),
-                        tf("Le plus présent : {} (sites : {})", &[&d, &n]),
-                    ]
-                };
-                let pclip = ui.painter().with_clip_rect(pr.shrink(4.0));
-                for (k, line) in lines.iter().enumerate() {
-                    let (size, col, font) = if k == 0 { (14.0, th.text, bold()) } else { (12.5, th.sub, FontFamily::Proportional) };
-                    pclip.fit(pos2(pr.left() + 72.0, pr.top() + 30.0 + k as f32 * 22.0), Align2::LEFT_CENTER, line, FontId::new(size, font), col);
-                }
-                let r = if two {
-                    Rect::from_min_size(pos2(pr.right() + 14.0, rr.top()), vec2(card_w, 132.0))
-                } else {
-                    let (r2, _) = ui.allocate_exact_size(vec2(cw, 144.0), Sense::hover());
-                    Rect::from_min_size(pos2(r2.left(), r2.top() + 12.0), vec2(cw, 132.0))
-                };
-                card_bg(ui.painter(), r, 14, th, false);
-                let ic = Rect::from_center_size(pos2(r.left() + 36.0, r.center().y), vec2(36.0, 36.0));
-                ui.painter().circle_filled(ic.center(), 22.0, Color32::from_rgb(0x34, 0xC7, 0x59).gamma_multiply(0.16));
-                icons::paint(ui.painter(), ic.shrink(6.0), Icon::Leaf, Color32::from_rgb(0x34, 0xC7, 0x59));
-                let sclip = ui.painter().with_clip_rect(r.shrink(4.0));
-                sclip.fit(pos2(r.left() + 72.0, r.top() + 30.0), Align2::LEFT_CENTER, tr("Rapport de sobriété"), FontId::new(14.0, bold()), th.text);
-                for (k, line) in report.iter().enumerate() {
-                    sclip.fit(pos2(r.left() + 72.0, r.top() + 52.0 + k as f32 * 19.0), Align2::LEFT_CENTER, line, FontId::proportional(12.5), th.sub);
-                }
+                    section_title(ui, th, tr("Rapports"));
+                    let two = cw >= 640.0;
+                    let card_w = if two { (cw - 14.0) / 2.0 } else { cw };
+                    let (rr, _) = ui.allocate_exact_size(vec2(cw, 132.0), Sense::hover());
+                    let pr = Rect::from_min_size(rr.min, vec2(card_w, 132.0));
+                    card_bg(ui.painter(), pr, 14, th, false);
+                    let blue = Color32::from_rgb(0x0A, 0x84, 0xFF);
+                    let pic = Rect::from_center_size(pos2(pr.left() + 36.0, pr.center().y), vec2(36.0, 36.0));
+                    ui.painter().circle_filled(pic.center(), 22.0, blue.gamma_multiply(0.14));
+                    icons::paint(ui.painter(), pic.shrink(7.0), Icon::Shield, blue);
+                    let lines: Vec<String> = if !itp {
+                        vec![tr("Rapport de confidentialité").into(), tr("La protection contre le suivi intersites est désactivée.").into(), tr("Activez-la dans les Paramètres.").into()]
+                    } else if privacy.is_empty() {
+                        vec![tr("Rapport de confidentialité").into(), tr("Sanaga empêche les traceurs de vous suivre").into(), tr("d'un site à l'autre. Aucun repéré pour l'instant.").into()]
+                    } else {
+                        let (d, n) = &privacy[0];
+                        vec![tr("Rapport de confidentialité").into(), tf("Traceurs empêchés de vous profiler : {}", &[&privacy.len()]), tf("Le plus présent : {} (sites : {})", &[&d, &n])]
+                    };
+                    let pclip = ui.painter().with_clip_rect(pr.shrink(4.0));
+                    for (k, line) in lines.iter().enumerate() {
+                        let (size, col, font) = if k == 0 { (14.0, th.text, bold()) } else { (12.5, th.sub, FontFamily::Proportional) };
+                        pclip.fit(pos2(pr.left() + 72.0, pr.top() + 30.0 + k as f32 * 22.0), Align2::LEFT_CENTER, line, FontId::new(size, font), col);
+                    }
+                    let r = if two {
+                        Rect::from_min_size(pos2(pr.right() + 14.0, rr.top()), vec2(card_w, 132.0))
+                    } else {
+                        let (r2, _) = ui.allocate_exact_size(vec2(cw, 144.0), Sense::hover());
+                        Rect::from_min_size(pos2(r2.left(), r2.top() + 12.0), vec2(cw, 132.0))
+                    };
+                    card_bg(ui.painter(), r, 14, th, false);
+                    let ic = Rect::from_center_size(pos2(r.left() + 36.0, r.center().y), vec2(36.0, 36.0));
+                    ui.painter().circle_filled(ic.center(), 22.0, Color32::from_rgb(0x34, 0xC7, 0x59).gamma_multiply(0.16));
+                    icons::paint(ui.painter(), ic.shrink(6.0), Icon::Leaf, Color32::from_rgb(0x34, 0xC7, 0x59));
+                    let sclip = ui.painter().with_clip_rect(r.shrink(4.0));
+                    sclip.fit(pos2(r.left() + 72.0, r.top() + 30.0), Align2::LEFT_CENTER, tr("Rapport de sobriété"), FontId::new(14.0, bold()), th.text);
+                    for (k, line) in report.iter().enumerate() {
+                        sclip.fit(pos2(r.left() + 72.0, r.top() + 52.0 + k as f32 * 19.0), Align2::LEFT_CENTER, line, FontId::proportional(12.5), th.sub);
+                    }
                 }
                 // choose what the start page shows
                 ui.add_space(26.0);

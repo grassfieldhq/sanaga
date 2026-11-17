@@ -481,7 +481,13 @@ pub fn set_page_area(insets: [i32; 4]) {
     }
     h.insets.set(insets);
     for c in children(&h.overlay) {
-        if c != *h.area.upcast_ref::<gtk::Widget>() && c != *h.top.upcast_ref::<gtk::Widget>() && c != *h.swipe_hint.upcast_ref::<gtk::Widget>() && c != *h.device_frame.upcast_ref::<gtk::Widget>() && c != *h.toast.upcast_ref::<gtk::Widget>() && c != *h.status.upcast_ref::<gtk::Widget>() {
+        if c != *h.area.upcast_ref::<gtk::Widget>()
+            && c != *h.top.upcast_ref::<gtk::Widget>()
+            && c != *h.swipe_hint.upcast_ref::<gtk::Widget>()
+            && c != *h.device_frame.upcast_ref::<gtk::Widget>()
+            && c != *h.toast.upcast_ref::<gtk::Widget>()
+            && c != *h.status.upcast_ref::<gtk::Widget>()
+        {
             apply_insets(&c, insets);
         }
     }
@@ -564,10 +570,7 @@ pub fn widget_texture(w: &impl IsA<gtk::Widget>) -> Option<gdk::Texture> {
 /// Is Ctrl held down right now? (The keyboard's real state, even while a
 /// page had the keyboard.)
 pub fn ctrl_held() -> Option<bool> {
-    gdk::Display::default()
-        .and_then(|d| d.default_seat())
-        .and_then(|s| s.keyboard())
-        .map(|k| k.modifier_state().contains(gdk::ModifierType::CONTROL_MASK))
+    gdk::Display::default().and_then(|d| d.default_seat()).and_then(|s| s.keyboard()).map(|k| k.modifier_state().contains(gdk::ModifierType::CONTROL_MASK))
 }
 
 /// Can menus be drawn over the living page (the layer above the pages works)?
@@ -757,11 +760,7 @@ impl accesskit::DeactivationHandler for A11yDeactivate {
 fn new_a11y(ctx: &egui::Context) -> A11y {
     let on = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let actions = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let adapter = accesskit_unix::Adapter::new(
-        A11yActivate { on: on.clone(), ctx: ctx.clone() },
-        A11yAction { actions: actions.clone(), ctx: ctx.clone() },
-        A11yDeactivate { on: on.clone() },
-    );
+    let adapter = accesskit_unix::Adapter::new(A11yActivate { on: on.clone(), ctx: ctx.clone() }, A11yAction { actions: actions.clone(), ctx: ctx.clone() }, A11yDeactivate { on: on.clone() });
     A11y { adapter, on, actions }
 }
 
@@ -790,13 +789,7 @@ struct Gui {
 
 fn modifiers_of(state: gdk::ModifierType) -> Modifiers {
     let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
-    Modifiers {
-        alt: state.contains(gdk::ModifierType::ALT_MASK),
-        ctrl,
-        shift: state.contains(gdk::ModifierType::SHIFT_MASK),
-        mac_cmd: false,
-        command: ctrl,
-    }
+    Modifiers { alt: state.contains(gdk::ModifierType::ALT_MASK), ctrl, shift: state.contains(gdk::ModifierType::SHIFT_MASK), mac_cmd: false, command: ctrl }
 }
 
 fn key_of(kv: gdk::Key) -> Option<egui::Key> {
@@ -1275,7 +1268,14 @@ fn watch_stalls(limit: Duration) {
                 ANSWERED.store(n, Ordering::Relaxed);
                 let [layout, paint] = COSTS.with(|c| c.replace([Duration::ZERO; 2]));
                 if late >= limit {
-                    eprintln!("stall {} ms at {:.1} s after {} (layout {} ms, painting {} ms)", late.as_millis(), asked.duration_since(started).as_secs_f64(), if what.is_empty() { "start" } else { &what }, layout.as_millis(), paint.as_millis());
+                    eprintln!(
+                        "stall {} ms at {:.1} s after {} (layout {} ms, painting {} ms)",
+                        late.as_millis(),
+                        asked.duration_since(started).as_secs_f64(),
+                        if what.is_empty() { "start" } else { &what },
+                        layout.as_millis(),
+                        paint.as_millis()
+                    );
                 }
             });
             let mut shown = false;
@@ -1575,7 +1575,22 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
     crate::stage("window built");
     let app = Sanaga::new(&ctx, urls, SHOT_JOB.with(|s| s.borrow_mut().take()));
     crate::stage("app ready");
-    let gui = Rc::new(RefCell::new(Gui { a11y: new_a11y(&ctx), app, ctx: ctx.clone(), gl: None, painter: None, start: Instant::now(), cursor: egui::CursorIcon::Default, text_focus: false, failed_frames: 0, frame: None, delta: Default::default(), painter_top: None, delta_top: Default::default(), free_top: Vec::new() }));
+    let gui = Rc::new(RefCell::new(Gui {
+        a11y: new_a11y(&ctx),
+        app,
+        ctx: ctx.clone(),
+        gl: None,
+        painter: None,
+        start: Instant::now(),
+        cursor: egui::CursorIcon::Default,
+        text_focus: false,
+        failed_frames: 0,
+        frame: None,
+        delta: Default::default(),
+        painter_top: None,
+        delta_top: Default::default(),
+        free_top: Vec::new(),
+    }));
     crate::page::ACTIVE_WINDOW.store(slot, std::sync::atomic::Ordering::Relaxed);
     let input = Rc::new(RefCell::new(Input { focused: true, ..Default::default() }));
 
@@ -1617,7 +1632,13 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             if std::env::var_os("SANAGA_DEBUG_GL").is_some() {
                 use glow::HasContext;
                 unsafe {
-                    eprintln!("GL {} | {} | GLSL {} | es={}", gl.get_parameter_string(glow::VERSION), gl.get_parameter_string(glow::RENDERER), gl.get_parameter_string(glow::SHADING_LANGUAGE_VERSION), area.uses_es());
+                    eprintln!(
+                        "GL {} | {} | GLSL {} | es={}",
+                        gl.get_parameter_string(glow::VERSION),
+                        gl.get_parameter_string(glow::RENDERER),
+                        gl.get_parameter_string(glow::SHADING_LANGUAGE_VERSION),
+                        area.uses_es()
+                    );
                 }
             }
             match egui_glow::Painter::new(gl.clone(), "", None, true) {
@@ -1777,7 +1798,8 @@ fn open_window(urls: Vec<String>) -> Option<Rc<RefCell<Gui>>> {
             let (input, a) = (input0.clone(), waker.clone());
             scroll.connect_scroll(move |c, dx, dy| {
                 // a mouse wheel moves by lines, a touchpad by points
-                let (unit, delta) = if c.unit() == gdk::ScrollUnit::Wheel { (egui::MouseWheelUnit::Line, vec2(-dx as f32, -dy as f32)) } else { (egui::MouseWheelUnit::Point, vec2(-dx as f32, -dy as f32) * 1.0) };
+                let (unit, delta) =
+                    if c.unit() == gdk::ScrollUnit::Wheel { (egui::MouseWheelUnit::Line, vec2(-dx as f32, -dy as f32)) } else { (egui::MouseWheelUnit::Point, vec2(-dx as f32, -dy as f32) * 1.0) };
                 let mut i = input.borrow_mut();
                 i.modifiers = modifiers_of(c.current_event_state());
                 let modifiers = i.modifiers;

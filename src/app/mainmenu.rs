@@ -67,7 +67,9 @@ impl Sanaga {
                         if presp.tip(tr("Réinitialiser le zoom")).clicked() {
                             act.set(Some("z0"));
                         }
-                        for (rr, id, icon, tip) in [(minus, "zout", None, tr("Réduire (Ctrl+−)")), (plus, "zin", Some(Icon::Plus), tr("Agrandir (Ctrl++)")), (fs, "fullscreen", Some(Icon::Grid), tr("Plein écran (F11)"))] {
+                        for (rr, id, icon, tip) in
+                            [(minus, "zout", None, tr("Réduire (Ctrl+−)")), (plus, "zin", Some(Icon::Plus), tr("Agrandir (Ctrl++)")), (fs, "fullscreen", Some(Icon::Grid), tr("Plein écran (F11)"))]
+                        {
                             let resp = ui.interact(rr, egui::Id::new(("menu-z", id)), Sense::click());
                             ui.painter().rect_filled(rr, CornerRadius::same(8), if resp.hovered() { th.track.gamma_multiply(1.5) } else { th.card });
                             match (icon, id) {

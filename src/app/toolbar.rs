@@ -17,7 +17,13 @@ pub(super) fn tool_button(ui: &mut Ui, r: Rect, icon: Icon, enabled: bool, on: b
     } else if enabled && resp.hovered() {
         ui.painter().rect_filled(spot, CornerRadius::same(14), th.track);
     }
-    let col = if on { th.accent } else if enabled { th.text.gamma_multiply(0.82) } else { th.sub.gamma_multiply(0.4) };
+    let col = if on {
+        th.accent
+    } else if enabled {
+        th.text.gamma_multiply(0.82)
+    } else {
+        th.sub.gamma_multiply(0.4)
+    };
     icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(17.0, 17.0)), icon, col);
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -74,7 +80,6 @@ pub(super) fn spinner(p: &egui::Painter, c: egui::Pos2, r: f32, time: f64, col: 
         .collect();
     p.add(egui::Shape::line(pts, Stroke::new(1.8, col)));
 }
-
 
 /// The three round window buttons; returns where they end on the right.
 pub(super) fn window_buttons(ui: &mut Ui, x: f32, cy: f32) -> f32 {
@@ -184,7 +189,6 @@ pub(super) fn toolbar_checkboxes(ui: &mut Ui, toolbar: &mut String) -> bool {
 }
 
 impl Sanaga {
-
     pub(super) fn toolbar(&mut self, ui: &mut Ui, th: &Theme) {
         let a = self.active;
         let full = ui.max_rect();
@@ -378,18 +382,18 @@ impl Sanaga {
         }
         let now = ui.input(|i| i.time);
         if self.tb("memory") {
-        if now - self.mem.0 > 2.0 {
-            self.mem = (now, net::memory_used_cached());
-        }
-        let mg = ui.painter().layout_no_wrap(tf("{} Mo", &[&format!("{:.0}", self.mem.1 as f64 / 1048576.0)]), FontId::proportional(11.5), th.sub);
-        let mr = slot_r(&mut rx, mg.size().x + 30.0);
-        let mresp = ui.interact(mr, egui::Id::new("memchip"), Sense::hover());
-        if mresp.hovered() {
-            ui.painter().rect_filled(mr, CornerRadius::same(7), th.omnibox_hover);
-        }
-        icons::paint(ui.painter(), Rect::from_center_size(pos2(mr.left() + 12.0, cy), vec2(12.0, 12.0)), Icon::Leaf, Color32::from_rgb(0x34, 0xC7, 0x59));
-        ui.painter().galley(pos2(mr.left() + 22.0, cy - mg.size().y / 2.0), mg, th.sub);
-        mresp.tip(tr("Mémoire utilisée par Sanaga et son moteur, en ce moment"));
+            if now - self.mem.0 > 2.0 {
+                self.mem = (now, net::memory_used_cached());
+            }
+            let mg = ui.painter().layout_no_wrap(tf("{} Mo", &[&format!("{:.0}", self.mem.1 as f64 / 1048576.0)]), FontId::proportional(11.5), th.sub);
+            let mr = slot_r(&mut rx, mg.size().x + 30.0);
+            let mresp = ui.interact(mr, egui::Id::new("memchip"), Sense::hover());
+            if mresp.hovered() {
+                ui.painter().rect_filled(mr, CornerRadius::same(7), th.omnibox_hover);
+            }
+            icons::paint(ui.painter(), Rect::from_center_size(pos2(mr.left() + 12.0, cy), vec2(12.0, 12.0)), Icon::Leaf, Color32::from_rgb(0x34, 0xC7, 0x59));
+            ui.painter().galley(pos2(mr.left() + 22.0, cy - mg.size().y / 2.0), mg, th.sub);
+            mresp.tip(tr("Mémoire utilisée par Sanaga et son moteur, en ce moment"));
         }
         let right_start = rx - 8.0;
 
@@ -442,11 +446,7 @@ impl Sanaga {
             // Sanaga's own pages: nothing to bookmark
         } else {
             let bookmarked = self.store.is_bookmarked(&url);
-            let sresp = ui.interact(star_r, egui::Id::new("star"), Sense::click()).tip(if bookmarked {
-                tr("Retirer des favoris (Ctrl+D)")
-            } else {
-                tr("Ajouter aux favoris (Ctrl+D)")
-            });
+            let sresp = ui.interact(star_r, egui::Id::new("star"), Sense::click()).tip(if bookmarked { tr("Retirer des favoris (Ctrl+D)") } else { tr("Ajouter aux favoris (Ctrl+D)") });
             let (icon, col) = if bookmarked { (Icon::StarFilled, th.accent) } else { (Icon::Star, th.sub) };
             icons::paint(ui.painter(), star_r.shrink(5.0), icon, if sresp.hovered() && !bookmarked { th.text } else { col });
             if sresp.clicked() {
@@ -613,7 +613,9 @@ impl Sanaga {
             // next letter replaces it, Enter goes there). Erasing never does.
             let typed = tab.address.clone();
             let forward = typed.len() > self.inline_typed.len() && typed.starts_with(&self.inline_typed);
-            let at_end = TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).is_some_and(|r| r.primary.index == egui::text::CharIndex(typed.chars().count()) && r.secondary.index == r.primary.index);
+            let at_end = TextEdit::load_state(ui.ctx(), id)
+                .and_then(|s| s.cursor.char_range())
+                .is_some_and(|r| r.primary.index == egui::text::CharIndex(typed.chars().count()) && r.secondary.index == r.primary.index);
             self.inline_typed = typed.clone();
             self.inline_done = false;
             if forward && at_end {

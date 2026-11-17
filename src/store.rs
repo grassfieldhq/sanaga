@@ -525,11 +525,7 @@ impl Store {
 
     /// Sanaga's data folder (the main profile lives here, others in `profils/`).
     pub fn root_dir() -> PathBuf {
-        std::env::var_os("XDG_DATA_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("sanaga")
+        std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share"))).unwrap_or_else(|| PathBuf::from(".")).join("sanaga")
     }
 
     /// Light or dark, read straight from a profile's settings before
@@ -586,9 +582,8 @@ impl Store {
 
     /// Names of the extra profiles.
     pub fn profiles() -> Vec<String> {
-        let mut v: Vec<String> = std::fs::read_dir(Self::root_dir().join("profils"))
-            .map(|d| d.flatten().filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().to_string()).collect())
-            .unwrap_or_default();
+        let mut v: Vec<String> =
+            std::fs::read_dir(Self::root_dir().join("profils")).map(|d| d.flatten().filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().to_string()).collect()).unwrap_or_default();
         v.sort();
         v
     }
@@ -1133,7 +1128,11 @@ impl Store {
     /// The tabs of window `slot` (0 = the first window: `session.txt`; the
     /// others: `session-N.txt`).
     fn session_file(dir: &Path, slot: usize) -> PathBuf {
-        if slot == 0 { dir.join("session.txt") } else { dir.join(format!("session-{slot}.txt")) }
+        if slot == 0 {
+            dir.join("session.txt")
+        } else {
+            dir.join(format!("session-{slot}.txt"))
+        }
     }
 
     pub fn save_session(&self, slot: usize, urls: &[String]) {
@@ -1483,7 +1482,9 @@ fn settle(batch: Vec<Late>) -> Vec<Late> {
         .iter()
         .enumerate()
         .map(|(k, op)| match path_of(op) {
-            Some(p) => batch[k + 1..].iter().take_while(|later| !matches!(later, Late::Flush(_))).any(|later| matches!(later, Late::Write(q, _) | Late::WriteTold(q, _, _) | Late::Remove(q) if *q == p)),
+            Some(p) => {
+                batch[k + 1..].iter().take_while(|later| !matches!(later, Late::Flush(_))).any(|later| matches!(later, Late::Write(q, _) | Late::WriteTold(q, _, _) | Late::Remove(q) if *q == p))
+            }
             None => false,
         })
         .collect();
@@ -1575,16 +1576,10 @@ fn is_old_default(list: &[Bookmark]) -> bool {
 
 fn default_bookmarks(lang: &str) -> Vec<Bookmark> {
     crate::i18n::set_language(lang);
-    [
-        ("https://wajub.com/", "Wajub"),
-        ("https://komerxe.com/", "Komerxe"),
-        ("https://moniwa.app/", "Moniwa"),
-        ("https://lekalao.com/", "Lekalao"),
-        ("https://grassfield.site/", "Grassfield"),
-    ]
-    .iter()
-    .map(|(u, t)| Bookmark { url: u.to_string(), title: t.to_string() })
-    .collect()
+    [("https://wajub.com/", "Wajub"), ("https://komerxe.com/", "Komerxe"), ("https://moniwa.app/", "Moniwa"), ("https://lekalao.com/", "Lekalao"), ("https://grassfield.site/", "Grassfield")]
+        .iter()
+        .map(|(u, t)| Bookmark { url: u.to_string(), title: t.to_string() })
+        .collect()
 }
 
 /// "il y a 5 min", "hier", ...
@@ -1834,7 +1829,10 @@ mod write_tests {
         assert!(text.contains("/\\d+\\s*"));
         // a file of an earlier version: read as that version read it
         let before = "Go\tG\t2\talert(1);\\nalert('\\\\d')\nSite\tS\t0\thttps://a.example/\n";
-        assert_eq!(super::read_buttons(before), vec![button("alert(1);\nalert('\\\\d')"), super::CustomButton { label: "Site".into(), symbol: "S".into(), kind: 0, value: "https://a.example/".into() }]);
+        assert_eq!(
+            super::read_buttons(before),
+            vec![button("alert(1);\nalert('\\\\d')"), super::CustomButton { label: "Site".into(), symbol: "S".into(), kind: 0, value: "https://a.example/".into() }]
+        );
     }
 
     #[test]

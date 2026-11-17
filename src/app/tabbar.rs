@@ -85,7 +85,12 @@ impl Sanaga {
                 if can && resp.hovered() {
                     ui.painter().circle_filled(r.center(), TRACK_H / 2.0 - 2.0, th.pill);
                 }
-                icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(12.0, 12.0)), if dir < 0.0 { Icon::Back } else { Icon::Forward }, if can { th.text } else { th.sub.gamma_multiply(0.4) });
+                icons::paint(
+                    ui.painter(),
+                    Rect::from_center_size(r.center(), vec2(12.0, 12.0)),
+                    if dir < 0.0 { Icon::Back } else { Icon::Forward },
+                    if can { th.text } else { th.sub.gamma_multiply(0.4) },
+                );
                 let tip = if dir < 0.0 { tr("Onglets précédents") } else { tr("Onglets suivants") };
                 if resp.tip(tip).clicked() {
                     self.tab_scroll += dir * area.width() * 0.8;
@@ -184,7 +189,10 @@ impl Sanaga {
             let p = ui.painter();
             if active {
                 // the shown tab: a light pill, lifted by a faint shadow
-                p.add(egui::Shadow { offset: [0, 1], blur: 4, spread: 0, color: Color32::from_black_alpha(if self.store.settings.dark { 60 } else { 22 }) }.as_shape(pill, CornerRadius::same((pill.height() / 2.0) as u8)));
+                p.add(
+                    egui::Shadow { offset: [0, 1], blur: 4, spread: 0, color: Color32::from_black_alpha(if self.store.settings.dark { 60 } else { 22 }) }
+                        .as_shape(pill, CornerRadius::same((pill.height() / 2.0) as u8)),
+                );
                 p.rect_filled(pill, CornerRadius::same((pill.height() / 2.0) as u8), if tab.private { tth.tab_active } else { th.pill });
             } else if hovered {
                 p.rect_filled(pill, CornerRadius::same((pill.height() / 2.0) as u8), th.pill.gamma_multiply(0.45));

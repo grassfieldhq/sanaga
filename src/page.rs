@@ -765,7 +765,9 @@ fn apply_site(v: &WebView, host: &str) {
 /// when it starts (JavaScript on or off, the video formats)?
 fn starts_with_process(v: &WebView, host: &str) -> bool {
     let prefs = crate::site_prefs::for_host(host);
-    WebViewExt::settings(v).is_some_and(|st| st.enables_javascript_markup() != prefs.js || st.media_content_types_requiring_hardware_support().map(|g| g.to_string()) != crate::codecs::hardware_only_types(is_video_site(host)))
+    WebViewExt::settings(v).is_some_and(|st| {
+        st.enables_javascript_markup() != prefs.js || st.media_content_types_requiring_hardware_support().map(|g| g.to_string()) != crate::codecs::hardware_only_types(is_video_site(host))
+    })
 }
 
 /// The address of the page a view really shows (the one its scripts, its
@@ -1340,7 +1342,15 @@ pub fn watch_downloads(session: &NetworkSession, done: impl Fn(String, Option<Pa
                 if download_needs_ask(fresh, false, allowed) {
                     // the download waits (WebKit 2.40+) until the person answers
                     PENDING_DOWNLOADS.with(|q| {
-                        q.borrow_mut().push(PendingDownload { download: download.clone(), session, suggested: suggested.to_string(), uri, site: site.clone(), dest: d2.clone(), denied: denied2.clone() })
+                        q.borrow_mut().push(PendingDownload {
+                            download: download.clone(),
+                            session,
+                            suggested: suggested.to_string(),
+                            uri,
+                            site: site.clone(),
+                            dest: d2.clone(),
+                            denied: denied2.clone(),
+                        })
                     });
                     ask_downloads(site);
                     return true;
@@ -1459,7 +1469,16 @@ impl PageView {
     /// `opener`: the page that opened this one (its windows share the engine).
     /// `popups`: makes the pages this one opens; without it they open as new tabs.
     /// `automation`: the page belongs to a window driven by test software.
-    pub fn new(engine: Option<&Engine>, private: bool, own: &[&str], page: &[&str], opener: Option<&WebView>, popups: Option<PopupMaker>, automation: bool, on: impl Fn(PageSignal) + 'static) -> PageView {
+    pub fn new(
+        engine: Option<&Engine>,
+        private: bool,
+        own: &[&str],
+        page: &[&str],
+        opener: Option<&WebView>,
+        popups: Option<PopupMaker>,
+        automation: bool,
+        on: impl Fn(PageSignal) + 'static,
+    ) -> PageView {
         let ucm = UserContentManager::new();
         add_scripts(&ucm, own, page);
         let on = Rc::new(on);
@@ -1730,7 +1749,13 @@ impl PageView {
                     let page = v.uri().map(|u| u.to_string()).unwrap_or_default();
                     if a.navigation_type() == webkit6::NavigationType::LinkClicked && (ctrl || middle || shift) && a.is_user_gesture() {
                         if let Some(u) = a.request().and_then(|r| r.uri()).map(|u| u.to_string()).filter(|u| crate::guard::link_may_open_elsewhere(u, &page)) {
-                            let how = if (ctrl || middle) && shift { 1 } else if ctrl || middle { 0 } else { 2 };
+                            let how = if (ctrl || middle) && shift {
+                                1
+                            } else if ctrl || middle {
+                                0
+                            } else {
+                                2
+                            };
                             decision.ignore();
                             o(PageSignal::OpenLink(u, how));
                             return true;
@@ -1743,7 +1768,13 @@ impl PageView {
             if kind == webkit6::PolicyDecisionType::Response {
                 if let Some(r) = decision.downcast_ref::<webkit6::ResponsePolicyDecision>() {
                     if std::env::var_os("SANAGA_DEBUG_DOWNLOADS").is_some() {
-                        eprintln!("response {:?} {:?} main={} shown={}", r.response().and_then(|x| x.mime_type()), r.response().and_then(|x| x.uri()), r.is_main_frame_main_resource(), r.is_mime_type_supported());
+                        eprintln!(
+                            "response {:?} {:?} main={} shown={}",
+                            r.response().and_then(|x| x.mime_type()),
+                            r.response().and_then(|x| x.uri()),
+                            r.is_main_frame_main_resource(),
+                            r.is_mime_type_supported()
+                        );
                     }
                     if r.is_main_frame_main_resource() && !r.is_mime_type_supported() {
                         let status = r.response().map(|x| x.status_code()).unwrap_or(200);

@@ -147,7 +147,10 @@ mod tests {
     #[test]
     fn names_starting_with_a_dash_are_not_read_as_options() {
         let args = |c: std::process::Command| c.get_args().map(|a| a.to_string_lossy().to_string()).collect::<Vec<_>>();
-        assert_eq!(args(super::tool(&["lookup"], &super::attrs("-travail", "https://a.example", "-anna"))), ["lookup", "--", "application", "sanaga", "profile", "-travail", "site", "https://a.example", "user", "-anna"]);
+        assert_eq!(
+            args(super::tool(&["lookup"], &super::attrs("-travail", "https://a.example", "-anna"))),
+            ["lookup", "--", "application", "sanaga", "profile", "-travail", "site", "https://a.example", "user", "-anna"]
+        );
         assert_eq!(args(super::tool(&["store", "--label", "Sanaga : x (-anna)"], &["user", "-anna"])), ["store", "--label", "Sanaga : x (-anna)", "--", "user", "-anna"]);
         assert_eq!(args(super::tool(&["search", "--all"], &["profile", "--all"])), ["search", "--all", "--", "profile", "--all"]);
     }

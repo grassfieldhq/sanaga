@@ -4,8 +4,8 @@
 //! mobile browser identity (iOS / Android), touch — with screenshots. Devices
 //! are picked in a side panel (search, categories, silhouettes).
 
-use super::*;
 use super::myframes::{self, CustomFrame};
+use super::*;
 use crate::frames::{self, Finish, Style};
 use eframe::egui::{Align2, Color32, RichText, ScrollArea, Sense};
 use webkit6::prelude::*;
@@ -172,7 +172,8 @@ const ANDROID_PHONE_UA: &str = "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/5
 const ANDROID_TABLET_UA: &str = "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 /// Makes pages see a touch screen (many sites switch their menus on this).
-pub(super) const TOUCH_JS: &str = "try{Object.defineProperty(Navigator.prototype,'maxTouchPoints',{get:function(){return 5;},configurable:true});if(!('ontouchstart' in window))window.ontouchstart=null;}catch(e){}";
+pub(super) const TOUCH_JS: &str =
+    "try{Object.defineProperty(Navigator.prototype,'maxTouchPoints',{get:function(){return 5;},configurable:true});if(!('ontouchstart' in window))window.ontouchstart=null;}catch(e){}";
 
 /// Device categories shown in the panel.
 const CATEGORIES: [&str; 5] = ["Tous", "iPhone", "Android", "Tablettes", "Ordinateurs"];
@@ -658,7 +659,17 @@ impl Sanaga {
 
 /// The page picture, inside the drawn device when `style` is given.
 #[allow(clippy::too_many_arguments)]
-fn save_capture(page: &gtk::gdk::Texture, style: Option<Style>, custom: Option<&CustomFrame>, finish: Finish, screen: Vec2, landscape: bool, time: &str, look: &frames::Page, file: &std::path::Path) -> Result<(), String> {
+fn save_capture(
+    page: &gtk::gdk::Texture,
+    style: Option<Style>,
+    custom: Option<&CustomFrame>,
+    finish: Finish,
+    screen: Vec2,
+    landscape: bool,
+    time: &str,
+    look: &frames::Page,
+    file: &std::path::Path,
+) -> Result<(), String> {
     let out = compose_capture(page, style, custom, finish, screen, landscape, time, look)?;
     let mut f = std::fs::File::create(file).map_err(|e| e.to_string())?;
     out.write_to_png(&mut f).map_err(|e| e.to_string())
@@ -666,7 +677,16 @@ fn save_capture(page: &gtk::gdk::Texture, style: Option<Style>, custom: Option<&
 
 /// The page picture inside the drawn device (screenshots, video frames).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compose_capture(page: &gtk::gdk::Texture, style: Option<Style>, custom: Option<&CustomFrame>, finish: Finish, screen: Vec2, landscape: bool, time: &str, look: &frames::Page) -> Result<gtk::cairo::ImageSurface, String> {
+pub(super) fn compose_capture(
+    page: &gtk::gdk::Texture,
+    style: Option<Style>,
+    custom: Option<&CustomFrame>,
+    finish: Finish,
+    screen: Vec2,
+    landscape: bool,
+    time: &str,
+    look: &frames::Page,
+) -> Result<gtk::cairo::ImageSurface, String> {
     use gtk::cairo::{Context, Format, ImageSurface};
     let page_img = crate::page::texture_to_surface(page).ok_or_else(|| "image".to_string())?;
     let out = match (custom, style) {

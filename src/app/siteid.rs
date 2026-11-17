@@ -45,7 +45,8 @@ impl Sanaga {
                 if ui.button(tr("Ignorer")).clicked() {
                     dismiss = true;
                 }
-                if !ways.is_empty() && ui.button(tr("Toujours ouvrir ainsi")).on_hover_text(tr("Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)")).clicked() {
+                if !ways.is_empty() && ui.button(tr("Toujours ouvrir ainsi")).on_hover_text(tr("Les sites protégés s'ouvriront directement dans ce navigateur (Paramètres › Général)")).clicked()
+                {
                     always = true;
                 }
                 for (k, w) in ways.iter().take(2).enumerate() {
@@ -100,7 +101,17 @@ impl Sanaga {
                     for i in Identity::ALL {
                         let (r, resp) = ui.allocate_exact_size(vec2(400.0, 36.0), Sense::click());
                         let chosen = i == current;
-                        ui.painter().rect_filled(r, CornerRadius::same(9), if chosen { th.accent.gamma_multiply(0.14) } else if resp.hovered() { th.card } else { Color32::TRANSPARENT });
+                        ui.painter().rect_filled(
+                            r,
+                            CornerRadius::same(9),
+                            if chosen {
+                                th.accent.gamma_multiply(0.14)
+                            } else if resp.hovered() {
+                                th.card
+                            } else {
+                                Color32::TRANSPARENT
+                            },
+                        );
                         ui.painter().text(pos2(r.left() + 14.0, r.center().y), egui::Align2::LEFT_CENTER, i.label(), FontId::proportional(14.0), th.text);
                         if chosen {
                             ui.painter().text(pos2(r.right() - 14.0, r.center().y), egui::Align2::RIGHT_CENTER, "✓", FontId::proportional(14.0), th.accent);

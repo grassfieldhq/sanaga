@@ -167,7 +167,8 @@ impl Sanaga {
             // in other letter case, or with the same folder — opens that
             // one: the tab used to open in a container that was in no list
             // and could never be removed)
-            let listed = self.store.containers.iter().find(|c| c.name == name || c.name.eq_ignore_ascii_case(&name) || folder_name(&c.name).eq_ignore_ascii_case(&folder_name(&name))).map(|c| c.name.clone());
+            let listed =
+                self.store.containers.iter().find(|c| c.name == name || c.name.eq_ignore_ascii_case(&name) || folder_name(&c.name).eq_ignore_ascii_case(&folder_name(&name))).map(|c| c.name.clone());
             if let Some(name) = listed {
                 self.open_in_container(&url, &name);
             }

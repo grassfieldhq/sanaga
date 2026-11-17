@@ -1,8 +1,8 @@
 //! Safari-style tab features: pinned tabs, tab groups, sound control,
 //! duplicate / close others, and the tab overview with page thumbnails.
 
-use super::chrome::{menu_item, menu_item_dot, menu_item_keys, menu_sub, site_badge};
 use super::chrome::Fit as _;
+use super::chrome::{menu_item, menu_item_dot, menu_item_keys, menu_sub, site_badge};
 use super::*;
 use crate::icons::{self, Icon};
 use eframe::egui::{Align2, Color32, CursorIcon, RichText, ScrollArea, Sense};
@@ -353,12 +353,7 @@ impl Sanaga {
         let keep_id = self.tabs[keep].id;
         let order = self.visible_tabs();
         let pos = order.iter().position(|&i| i == keep).unwrap_or(0);
-        let doomed: Vec<u64> = order
-            .iter()
-            .enumerate()
-            .filter(|(k, &i)| self.tabs[i].id != keep_id && !self.tabs[i].pinned && (!only_right || *k > pos))
-            .map(|(_, &i)| self.tabs[i].id)
-            .collect();
+        let doomed: Vec<u64> = order.iter().enumerate().filter(|(k, &i)| self.tabs[i].id != keep_id && !self.tabs[i].pinned && (!only_right || *k > pos)).map(|(_, &i)| self.tabs[i].id).collect();
         for id in doomed {
             if let Some(i) = self.tabs.iter().position(|t| t.id == id) {
                 self.close_tab(i);
@@ -663,9 +658,7 @@ impl Sanaga {
                     match &tab.thumb {
                         Some(tex) => {
                             p.rect_filled(thumb, CornerRadius::same(12), th.card);
-                            egui::Image::from_texture(egui::load::SizedTexture::new(tex.id(), thumb.size()))
-                                .corner_radius(CornerRadius::same(12))
-                                .paint_at(ui, thumb);
+                            egui::Image::from_texture(egui::load::SizedTexture::new(tex.id(), thumb.size())).corner_radius(CornerRadius::same(12)).paint_at(ui, thumb);
                         }
                         None => {
                             p.rect_filled(thumb, CornerRadius::same(12), th.card);
@@ -677,7 +670,13 @@ impl Sanaga {
                         ui.painter().rect_filled(badge, CornerRadius::same(10), Color32::from_black_alpha(150));
                         ui.painter().text(badge.center(), Align2::CENTER_CENTER, tr("En veille"), FontId::proportional(11.0), Color32::WHITE);
                     }
-                    let ring = if active { Stroke::new(3.0, th.accent) } else if resp.hovered() { Stroke::new(2.0, th.border) } else { Stroke::new(0.8, th.border) };
+                    let ring = if active {
+                        Stroke::new(3.0, th.accent)
+                    } else if resp.hovered() {
+                        Stroke::new(2.0, th.border)
+                    } else {
+                        Stroke::new(0.8, th.border)
+                    };
                     ui.painter().rect_stroke(thumb, CornerRadius::same(12), ring, egui::StrokeKind::Outside);
                     let title = tab.title();
                     site_badge(ui.painter(), pos2(r.left() + 9.0, thumb.bottom() + 17.0), 7.0, tab.url(), &title);

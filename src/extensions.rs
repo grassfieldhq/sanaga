@@ -313,7 +313,15 @@ pub(crate) fn in_page(address: &str, script: &str) -> bool {
     let host = u.host_str().unwrap_or("").to_string();
     let with_port = u.port().map(|p| format!("{host}:{p}")).unwrap_or_else(|| host.clone());
     let search = u.query().map(|q| format!("?{q}")).unwrap_or_default();
-    let location = format!("var location={{href:{},protocol:{},host:{},hostname:{},pathname:{},search:{}}};", js_lit(address), js_lit(&format!("{}:", u.scheme())), js_lit(&with_port), js_lit(&host), js_lit(u.path()), js_lit(&search));
+    let location = format!(
+        "var location={{href:{},protocol:{},host:{},hostname:{},pathname:{},search:{}}};",
+        js_lit(address),
+        js_lit(&format!("{}:", u.scheme())),
+        js_lit(&with_port),
+        js_lit(&host),
+        js_lit(u.path()),
+        js_lit(&search)
+    );
     let engine = webkit6::javascriptcore::Context::new();
     let answer = engine.evaluate(&format!("{location}{script}"));
     assert!(engine.exception().is_none(), "{script}: {:?}", engine.exception().and_then(|e| e.message()));

@@ -15,36 +15,36 @@
 compile_error!("Sanaga currently runs on Linux (and BSD) only: it is built on GTK 4 and WebKitGTK. See docs/PORTING.md for the Windows and macOS plan.");
 
 mod ai;
-mod blocklist;
 mod ai_cli;
 mod app;
+mod blocklist;
+mod codecs;
+mod crash;
 mod desktop;
 mod extensions;
 mod favicon;
-mod keyring;
-mod migrate;
-mod sync;
-mod system_look;
-mod html;
-mod i18n;
-mod import;
-mod icons;
-mod identity;
-mod net;
 mod frames;
-mod guard;
-#[cfg(test)]
-mod mutate;
 #[cfg(test)]
 mod glyphs;
+mod guard;
+mod html;
+mod i18n;
+mod icons;
+mod identity;
+mod import;
+mod keyring;
+mod migrate;
+#[cfg(test)]
+mod mutate;
+mod net;
 mod page;
 mod shell;
 mod site_prefs;
-mod codecs;
-mod crash;
-mod webext;
 mod store;
+mod sync;
+mod system_look;
 mod theme;
+mod webext;
 
 use eframe::egui;
 use std::sync::atomic::AtomicBool;
@@ -77,13 +77,32 @@ pub fn setup_fonts(ctx: &egui::Context) {
     // Other alphabets: use the system's Noto fonts when they are installed.
     // They are mapped, not read: a font takes memory only for the parts
     // really used (the Chinese / Japanese / Korean one weighs 19 MB).
-    let dirs = ["/usr/share/fonts/noto", "/usr/share/fonts/truetype/noto", "/usr/share/fonts/google-noto", "/usr/share/fonts/noto-cjk", "/usr/share/fonts/opentype/noto", "/usr/share/fonts/google-noto-sans-cjk-fonts", "/usr/share/fonts/google-noto-cjk", "/usr/share/fonts/google-noto-color-emoji-fonts", "/usr/share/fonts/google-noto-emoji"];
+    let dirs = [
+        "/usr/share/fonts/noto",
+        "/usr/share/fonts/truetype/noto",
+        "/usr/share/fonts/google-noto",
+        "/usr/share/fonts/noto-cjk",
+        "/usr/share/fonts/opentype/noto",
+        "/usr/share/fonts/google-noto-sans-cjk-fonts",
+        "/usr/share/fonts/google-noto-cjk",
+        "/usr/share/fonts/google-noto-color-emoji-fonts",
+        "/usr/share/fonts/google-noto-emoji",
+    ];
     let find = |file: &str| dirs.iter().find_map(|d| system_font(&format!("{d}/{file}")));
     let mut extra = Vec::new();
     for name in [
-        "NotoSansArabic-Regular", "NotoSansHebrew-Regular", "NotoSansDevanagari-Regular", "NotoSansBengali-Regular",
-        "NotoSansThai-Regular", "NotoSansArmenian-Regular", "NotoSansGeorgian-Regular", "NotoSansEthiopic-Regular",
-        "NotoSansTamil-Regular", "NotoSansMath-Regular", "NotoSansSymbols-Regular", "NotoSansSymbols2-Regular",
+        "NotoSansArabic-Regular",
+        "NotoSansHebrew-Regular",
+        "NotoSansDevanagari-Regular",
+        "NotoSansBengali-Regular",
+        "NotoSansThai-Regular",
+        "NotoSansArmenian-Regular",
+        "NotoSansGeorgian-Regular",
+        "NotoSansEthiopic-Regular",
+        "NotoSansTamil-Regular",
+        "NotoSansMath-Regular",
+        "NotoSansSymbols-Regular",
+        "NotoSansSymbols2-Regular",
     ] {
         if let Some(bytes) = find(&format!("{name}.ttf")) {
             f.font_data.insert(name.to_string(), Arc::new(egui::FontData::from_static(bytes)));

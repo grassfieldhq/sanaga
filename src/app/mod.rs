@@ -1,46 +1,46 @@
 //! The Sanaga window: shared state, the frame loop and the screenshot mode.
 
 mod accounts;
-mod chrome;
-mod devices;
-mod myframes;
-mod scene;
-mod recorder;
-mod source;
-mod menus;
-mod nav;
-mod plus;
-mod profiles;
-mod pages;
-mod settings;
-mod layout;
-mod tabbar;
-mod siteid;
-mod onboarding;
-mod translate;
-mod mainmenu;
-mod sidebar;
 mod bookmarks;
 mod buttons;
-mod groups;
-mod dialogs;
-mod errors;
-mod switcher;
-mod media;
+mod chrome;
 mod containers;
 mod crashes;
-mod sitepanel;
-mod tools;
-mod intelligence;
+mod devices;
+mod dialogs;
+mod errors;
 mod extras;
+mod groups;
 mod importer;
+mod intelligence;
+mod layout;
+mod mainmenu;
+mod media;
+mod menus;
+mod myframes;
+mod nav;
+mod onboarding;
+mod pages;
+mod plus;
+mod profiles;
+mod recorder;
 mod render;
-mod start;
-mod tabs;
-mod toolbar;
-mod web;
 #[cfg(test)]
 mod robust;
+mod scene;
+mod settings;
+mod sidebar;
+mod siteid;
+mod sitepanel;
+mod source;
+mod start;
+mod switcher;
+mod tabbar;
+mod tabs;
+mod toolbar;
+mod tools;
+mod translate;
+mod web;
 
 pub use web::web_engine_available;
 
@@ -306,7 +306,11 @@ fn page_name(url: &str) -> String {
         Some(path) => {
             let name = path.split(['?', '#']).next().unwrap_or("").trim_end_matches('/').rsplit('/').next().unwrap_or("");
             let name = percent_encoding::percent_decode_str(name).decode_utf8_lossy().to_string();
-            if name.is_empty() { "/".to_string() } else { name }
+            if name.is_empty() {
+                "/".to_string()
+            } else {
+                name
+            }
         }
         None => host_of(url),
     }
@@ -386,10 +390,7 @@ pub fn input_to_url(s: &str, engine: Engine, home: &str) -> String {
     }
     let no_space = !t.contains(char::is_whitespace);
     let hostish = t.split(['/', '?', '#']).next().unwrap_or("");
-    let looks_host = hostish.contains('.')
-        && !hostish.ends_with('.')
-        && !hostish.starts_with('.')
-        && hostish.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == ':');
+    let looks_host = hostish.contains('.') && !hostish.ends_with('.') && !hostish.starts_with('.') && hostish.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == ':');
     if no_space && (looks_host || hostish.starts_with("localhost")) {
         let scheme = if hostish.starts_with("localhost") || hostish.starts_with("127.") { "http" } else { "https" };
         return format!("{scheme}://{t}");
@@ -1466,7 +1467,13 @@ impl Sanaga {
             return None;
         }
         let me = self.tabs.get(self.active)?;
-        let other = if me.id == a { b } else if me.id == b { a } else { return None };
+        let other = if me.id == a {
+            b
+        } else if me.id == b {
+            a
+        } else {
+            return None;
+        };
         let i = self.tabs.iter().position(|t| t.id == other)?;
         (matches!(me.view, View::Web) && matches!(self.tabs[i].view, View::Web)).then_some(i)
     }
@@ -1537,7 +1544,12 @@ impl Sanaga {
             self.notice = Some((tr("La vue partagée montre deux pages web : ouvrez-en une d'abord.").into(), now));
             return;
         };
-        let other = self.tabs.iter().enumerate().filter(|(i, t)| *i != self.active && matches!(t.view, View::Web) && t.private == me.private && t.group == me.group).max_by(|a, b| a.1.last_active.partial_cmp(&b.1.last_active).unwrap_or(std::cmp::Ordering::Equal));
+        let other = self
+            .tabs
+            .iter()
+            .enumerate()
+            .filter(|(i, t)| *i != self.active && matches!(t.view, View::Web) && t.private == me.private && t.group == me.group)
+            .max_by(|a, b| a.1.last_active.partial_cmp(&b.1.last_active).unwrap_or(std::cmp::Ordering::Equal));
         match other {
             Some((_, t)) => self.split = Some((me.id, t.id)),
             None => self.notice = Some((tr("Ouvrez une deuxième page web pour la vue partagée.").into(), now)),
@@ -1623,7 +1635,11 @@ impl Sanaga {
 
     /// "profil:NAME" for windows of the same profile (nothing for the main one).
     pub fn profile_marker(&self) -> Vec<String> {
-        if self.store.profile.is_empty() { Vec::new() } else { vec![format!("profil:{}", self.store.profile)] }
+        if self.store.profile.is_empty() {
+            Vec::new()
+        } else {
+            vec![format!("profil:{}", self.store.profile)]
+        }
     }
 
     /// A new window was asked for (with these addresses; none = the home page).
@@ -1751,7 +1767,15 @@ impl Sanaga {
 
     /// Close whatever menu or floating panel is open; false when none was.
     pub(super) fn close_panels(&mut self) -> bool {
-        let any = self.share_open || self.ai_menu_open || self.profile_open || self.overflow_open || self.site_panel || self.bm_popover || self.translate_ask || self.container_ask.is_some() || self.group_editor.is_some();
+        let any = self.share_open
+            || self.ai_menu_open
+            || self.profile_open
+            || self.overflow_open
+            || self.site_panel
+            || self.bm_popover
+            || self.translate_ask
+            || self.container_ask.is_some()
+            || self.group_editor.is_some();
         self.share_open = false;
         self.ai_menu_open = false;
         self.profile_open = false;
@@ -1997,7 +2021,8 @@ impl Sanaga {
                         }
                         "title" => eprintln!("live title {}", self.tabs[self.active].title()),
                         "tabs" => {
-                            let list: Vec<String> = self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
+                            let list: Vec<String> =
+                                self.tabs.iter().enumerate().map(|(k, t)| format!("{}{}{}", if k == self.active { "*" } else { "" }, if t.private { "[private]" } else { "" }, t.url())).collect();
                             eprintln!("live tabs {}", list.join(" | "));
                         }
                         "address" => {
@@ -2079,7 +2104,8 @@ impl Sanaga {
         // The keyboard alone: in one of Sanaga's own pages (settings,
         // history…), the first Tab goes to the page's first control, not
         // to the window's toolbar (which comes after the page's last one).
-        if self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Internal(_))) && ui.ctx().memory(|m| m.focused().is_none()) && ui.input(|i| i.key_pressed(Key::Tab) && !i.modifiers.any()) {
+        if self.tabs.get(self.active).is_some_and(|t| matches!(t.view, View::Internal(_))) && ui.ctx().memory(|m| m.focused().is_none()) && ui.input(|i| i.key_pressed(Key::Tab) && !i.modifiers.any())
+        {
             ui.ctx().memory_mut(|m| m.request_focus(egui::Id::new("page-start")));
         }
         self.finish_jobs();
@@ -2264,17 +2290,13 @@ impl Sanaga {
         let slide = ctx.animate_bool_with_time(egui::Id::new("sidebar-slide"), self.sidebar_open && !self.focus_mode, 0.16);
         if slide > 0.0 {
             let eased = slide * slide * (3.0 - 2.0 * slide);
-            egui::Panel::left("sidebar")
-                .exact_size((264.0 * eased).max(1.0))
-                .show_separator_line(false)
-                .frame(Frame::NONE.fill(th.page))
-                .show(ui, |ui| {
-                    let shown = ui.max_rect();
-                    let whole = Rect::from_min_max(pos2(shown.right() - 264.0, shown.top()), shown.right_bottom());
-                    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(whole));
-                    inner.set_clip_rect(shown);
-                    self.sidebar(&mut inner, &th);
-                });
+            egui::Panel::left("sidebar").exact_size((264.0 * eased).max(1.0)).show_separator_line(false).frame(Frame::NONE.fill(th.page)).show(ui, |ui| {
+                let shown = ui.max_rect();
+                let whole = Rect::from_min_max(pos2(shown.right() - 264.0, shown.top()), shown.right_bottom());
+                let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(whole));
+                inner.set_clip_rect(shown);
+                self.sidebar(&mut inner, &th);
+            });
         }
         if self.summary.is_some() && !self.focus_mode {
             // (its left edge can be dragged: wider to read, narrower for the page)

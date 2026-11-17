@@ -178,11 +178,7 @@ impl Sanaga {
                         icons::paint(ui.painter(), r, Icon::Download, th.accent);
                         ui.vertical(|ui| {
                             ui.label(RichText::new(&d.name).size(14.0).color(th.text));
-                            let s = if d.ok {
-                                format!("{} · {} · {}", net::human_bytes(d.bytes), store::relative_time(d.time), d.path.display())
-                            } else {
-                                tf("Échec : {}", &[&d.error])
-                            };
+                            let s = if d.ok { format!("{} · {} · {}", net::human_bytes(d.bytes), store::relative_time(d.time), d.path.display()) } else { tf("Échec : {}", &[&d.error]) };
                             ui.label(RichText::new(s).size(12.0).color(th.sub));
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -228,7 +224,9 @@ impl Sanaga {
         centered_column(ui, |ui| {
             ui.add_space(26.0);
             ui.label(RichText::new(tr("Activité")).size(26.0).family(bold()).color(th.text));
-            ui.label(RichText::new(tf("{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)", &[&net::human_bytes(total), &format!("{cpu:.0}"), &running, &self.tabs.len()])).color(th.sub));
+            ui.label(
+                RichText::new(tf("{} de mémoire · {} % d'un cœur · {} page(s) en cours sur {} onglet(s)", &[&net::human_bytes(total), &format!("{cpu:.0}"), &running, &self.tabs.len()])).color(th.sub),
+            );
             ui.add_space(16.0);
             let card = |ui: &mut Ui, body: &mut dyn FnMut(&mut Ui)| {
                 Frame::new().fill(th.card).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).show(ui, |ui| {
@@ -250,7 +248,11 @@ impl Sanaga {
                             match serves.iter().position(|s| *s == Some(k)) {
                                 Some(i) => {
                                     let title: String = self.tabs[i].title().chars().take(48).collect();
-                                    if shared(k) { format!("{title} *") } else { title }
+                                    if shared(k) {
+                                        format!("{title} *")
+                                    } else {
+                                        title
+                                    }
                                 }
                                 None => tf("Page {}", &[&page]),
                             }
@@ -293,7 +295,9 @@ impl Sanaga {
             };
             ui.label(RichText::new(note).size(12.0).color(th.sub));
             if any_shared {
-                ui.label(RichText::new(tr("* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.")).size(12.0).color(th.sub));
+                ui.label(
+                    RichText::new(tr("* Processus partagé par plusieurs onglets (des pages ouvertes l'une par l'autre) : sa mémoire et son processeur comptent pour chacun.")).size(12.0).color(th.sub),
+                );
             }
             ui.add_space(18.0);
             ui.label(RichText::new(tr("Onglets")).size(15.0).family(bold()).color(th.text));

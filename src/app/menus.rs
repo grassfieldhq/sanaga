@@ -131,13 +131,7 @@ impl Sanaga {
             icons::paint(ui.painter(), r, Icon::Search, th.sub);
             ui.add_space(6.0);
             let id = egui::Id::new("find-input");
-            let resp = ui.add(
-                TextEdit::singleline(&mut self.find_query)
-                    .id(id)
-                    .hint_text(tr("Rechercher dans la page"))
-                    .desired_width(260.0)
-                    .background_color(th.omnibox),
-            );
+            let resp = ui.add(TextEdit::singleline(&mut self.find_query).id(id).hint_text(tr("Rechercher dans la page")).desired_width(260.0).background_color(th.omnibox));
             if self.focus_find {
                 resp.request_focus();
                 self.focus_find = false;

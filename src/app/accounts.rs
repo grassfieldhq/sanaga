@@ -212,12 +212,7 @@ impl Sanaga {
 
     /// Exchange favourites, reading list and open tabs with the sync folder.
     pub(super) fn sync_now(&mut self) {
-        let tabs: Vec<(String, String)> = self
-            .tabs
-            .iter()
-            .filter(|t| !t.private && !t.entries.is_empty() && t.url().starts_with("http"))
-            .map(|t| (t.url().to_string(), t.title()))
-            .collect();
+        let tabs: Vec<(String, String)> = self.tabs.iter().filter(|t| !t.private && !t.entries.is_empty() && t.url().starts_with("http")).map(|t| (t.url().to_string(), t.title())).collect();
         // one round at a time, on its own thread (the folder may be slow)
         let Some(local_dir) = self.store.data_dir().cloned() else { return };
         if self.sync_running {
@@ -285,7 +280,11 @@ impl Sanaga {
             ui.label(RichText::new(tr("Les mots de passe sont gardés dans le trousseau de votre système, pas dans les fichiers de Sanaga. Sanaga propose de les enregistrer quand vous vous connectez à un site, et de les remplir la fois suivante.")).size(13.0).color(th.sub));
             if !keyring_ok {
                 ui.add_space(6.0);
-                ui.label(RichText::new(tr("Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés.")).size(13.0).color(Color32::from_rgb(0xD0, 0x40, 0x30)));
+                ui.label(
+                    RichText::new(tr("Le trousseau du système (Secret Service) est introuvable : les mots de passe ne peuvent pas être enregistrés."))
+                        .size(13.0)
+                        .color(Color32::from_rgb(0xD0, 0x40, 0x30)),
+                );
             }
             ui.add_space(12.0);
             ui.add(TextEdit::singleline(&mut self.pw_filter).hint_text(tr("Rechercher un site")).desired_width(320.0));
@@ -452,7 +451,13 @@ impl Sanaga {
             let (flip, _) = row(ui, true, tr("Simulateur mobile"), &[tf("Voir et tester un site comme sur un téléphone ou une tablette : {} appareils, cadre, rotation, zoom, version mobile des sites, écran tactile et captures. Bouton téléphone de la barre d'outils ou Ctrl+Maj+M.", &[&devices]), tr("Intégrée à Sanaga").to_string()], None, self.tb("mobile"));
             toggle_mobile |= flip;
             for e in &list {
-                let place = if e.builtin { String::new() } else if e.matches.is_empty() { tr("Tous les sites").to_string() } else { e.matches.join(", ") };
+                let place = if e.builtin {
+                    String::new()
+                } else if e.matches.is_empty() {
+                    tr("Tous les sites").to_string()
+                } else {
+                    e.matches.join(", ")
+                };
                 let (flip, gone) = row(ui, false, &e.name, &[e.description.clone(), place], (!e.builtin).then_some(e.id.as_str()), on.contains(&e.id));
                 if flip {
                     toggle = Some(e.id.clone());

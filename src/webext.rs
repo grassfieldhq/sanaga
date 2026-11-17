@@ -285,7 +285,11 @@ pub fn with_todays_matching(script: String) -> String {
 fn safe_name(s: &str) -> String {
     let n: String = s.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '-' }).collect();
     let n = n.trim().to_string();
-    if n.is_empty() { "extension".into() } else { n.chars().take(60).collect() }
+    if n.is_empty() {
+        "extension".into()
+    } else {
+        n.chars().take(60).collect()
+    }
 }
 
 fn js_lit(s: &str) -> String {

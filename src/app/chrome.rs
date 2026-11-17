@@ -48,11 +48,7 @@ pub(super) fn confirm_button(ui: &mut Ui, what: impl std::hash::Hash + std::fmt:
     let id = egui::Id::new(("confirm-button", what));
     let now = ui.input(|i| i.time);
     let armed = ui.ctx().data(|d| d.get_temp::<f64>(id)).is_some_and(|t| now - t < 4.0);
-    let button = if armed {
-        egui::Button::new(egui::RichText::new(tr("Confirmer ?")).color(Color32::WHITE)).fill(Color32::from_rgb(0xC8, 0x3A, 0x2B))
-    } else {
-        egui::Button::new(label)
-    };
+    let button = if armed { egui::Button::new(egui::RichText::new(tr("Confirmer ?")).color(Color32::WHITE)).fill(Color32::from_rgb(0xC8, 0x3A, 0x2B)) } else { egui::Button::new(label) };
     if !ui.add(button).clicked() {
         return false;
     }
@@ -136,7 +132,7 @@ impl Sanaga {
         let ql = q.to_lowercase();
         let engine = self.store.settings.engine;
         let mut items: Vec<(String, String, bool)> = Vec::new(); // (url, label, is_search)
-        // calculator answer ("calc:" = copy the result)
+                                                                 // calculator answer ("calc:" = copy the result)
         if let Some(v) = super::plus::calculate(&q) {
             let r = super::plus::format_number(v);
             items.push((format!("calc:{r}"), tf("= {}   (cliquer pour copier)", &[&r]), true));
@@ -184,49 +180,45 @@ impl Sanaga {
         let mut go: Option<String> = None;
         // under the field, or above it when the address bar is at the bottom
         let (at, pivot, _) = super::layout::popover_place(ui.ctx(), addr, addr.left(), 4.0);
-        let area = egui::Area::new(egui::Id::new("suggestions"))
-            .order(egui::Order::Foreground)
-            .pivot(pivot)
-            .fixed_pos(at)
-            .show(ui.ctx(), |ui| {
-                Frame::new()
-                    .fill(th.page)
-                    .stroke(Stroke::new(1.0, th.border))
-                    .corner_radius(CornerRadius::same(14))
-                    .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(40) })
-                    .inner_margin(Margin::symmetric(0, 6))
-                    .show(ui, |ui| {
-                        ui.set_width(addr.width());
-                        for (k, (url, label, search)) in items.iter().enumerate() {
-                            let (r, resp) = ui.allocate_exact_size(vec2(addr.width(), 34.0), Sense::click());
-                            if sel == Some(k) {
-                                ui.painter().rect_filled(r, 0.0, th.accent.gamma_multiply(0.16));
-                                ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(3.0, r.height())), 0.0, th.accent);
-                            } else if resp.hovered() {
-                                ui.painter().rect_filled(r, 0.0, th.omnibox);
-                            }
-                            let ic = Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(15.0, 15.0));
-                            if *search {
-                                icons::paint(ui.painter(), ic, Icon::Search, th.sub);
-                            } else if url.starts_with("tab:") {
-                                icons::paint(ui.painter(), ic, Icon::Grid, th.accent);
-                            } else {
-                                site_badge(ui.painter(), ic.center(), 7.5, url, label);
-                            }
-                            let clip = Rect::from_min_max(pos2(ic.right() + 12.0, r.top()), pos2(r.right() - 12.0, r.bottom()));
-                            let p = ui.painter().with_clip_rect(clip);
-                            let g = p.fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
-                            if !*search && label != url && !url.starts_with("tab:") {
-                                // (as in the address bar: decoded, no https:// nor www.)
-                                let (site, rest) = super::toolbar::display_url(url, false);
-                                p.fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {site}{rest}"), FontId::proportional(13.0), th.link);
-                            }
-                            if resp.clicked() {
-                                go = Some(url.clone());
-                            }
+        let area = egui::Area::new(egui::Id::new("suggestions")).order(egui::Order::Foreground).pivot(pivot).fixed_pos(at).show(ui.ctx(), |ui| {
+            Frame::new()
+                .fill(th.page)
+                .stroke(Stroke::new(1.0, th.border))
+                .corner_radius(CornerRadius::same(14))
+                .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(40) })
+                .inner_margin(Margin::symmetric(0, 6))
+                .show(ui, |ui| {
+                    ui.set_width(addr.width());
+                    for (k, (url, label, search)) in items.iter().enumerate() {
+                        let (r, resp) = ui.allocate_exact_size(vec2(addr.width(), 34.0), Sense::click());
+                        if sel == Some(k) {
+                            ui.painter().rect_filled(r, 0.0, th.accent.gamma_multiply(0.16));
+                            ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(3.0, r.height())), 0.0, th.accent);
+                        } else if resp.hovered() {
+                            ui.painter().rect_filled(r, 0.0, th.omnibox);
                         }
-                    });
-            });
+                        let ic = Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(15.0, 15.0));
+                        if *search {
+                            icons::paint(ui.painter(), ic, Icon::Search, th.sub);
+                        } else if url.starts_with("tab:") {
+                            icons::paint(ui.painter(), ic, Icon::Grid, th.accent);
+                        } else {
+                            site_badge(ui.painter(), ic.center(), 7.5, url, label);
+                        }
+                        let clip = Rect::from_min_max(pos2(ic.right() + 12.0, r.top()), pos2(r.right() - 12.0, r.bottom()));
+                        let p = ui.painter().with_clip_rect(clip);
+                        let g = p.fit(pos2(clip.left(), r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.0), th.text);
+                        if !*search && label != url && !url.starts_with("tab:") {
+                            // (as in the address bar: decoded, no https:// nor www.)
+                            let (site, rest) = super::toolbar::display_url(url, false);
+                            p.fit(pos2(g.right() + 10.0, r.center().y), Align2::LEFT_CENTER, format!("— {site}{rest}"), FontId::proportional(13.0), th.link);
+                        }
+                        if resp.clicked() {
+                            go = Some(url.clone());
+                        }
+                    }
+                });
+        });
         self.suggest_rect = area.response.rect;
         if let Some(u) = go {
             self.activate_suggestion(&u);
@@ -381,7 +373,13 @@ pub(super) fn menu_sub<R>(ui: &mut Ui, icon: Icon, label: &str, add: impl FnOnce
             v.widgets.inactive.bg_stroke = Stroke::NONE;
             ui.spacing_mut().button_padding = vec2(8.0, 4.0);
             // (the symbol's place is kept empty in the button, and painted below)
-            let button = egui::Button::new((egui::Atom::custom(egui::IdSalt::new("menu-symbol"), vec2(18.0, 13.0)), egui::RichText::new(label).size(13.0), egui::Atom::grow(), egui::containers::menu::SubMenuButton::arrow_atom(None))).min_size(vec2(w, 26.0));
+            let button = egui::Button::new((
+                egui::Atom::custom(egui::IdSalt::new("menu-symbol"), vec2(18.0, 13.0)),
+                egui::RichText::new(label).size(13.0),
+                egui::Atom::grow(),
+                egui::containers::menu::SubMenuButton::arrow_atom(None),
+            ))
+            .min_size(vec2(w, 26.0));
             egui::containers::menu::SubMenuButton::from_button(button).ui(ui, add)
         })
         .inner;

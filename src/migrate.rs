@@ -12,8 +12,13 @@ type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 #[derive(Clone, Debug)]
 pub enum Kind {
     /// Chrome-family profile folder, and the names its key may have in the keyring.
-    Chromium { profile: PathBuf, keyring_apps: Vec<&'static str> },
-    Firefox { profile: PathBuf },
+    Chromium {
+        profile: PathBuf,
+        keyring_apps: Vec<&'static str>,
+    },
+    Firefox {
+        profile: PathBuf,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -175,12 +180,9 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
     if history {
         match open_copy(&profile.join("History")) {
             Ok((db, tmp)) => {
-                let rows = db
-                    .prepare("SELECT url, title, last_visit_time FROM urls WHERE hidden = 0 ORDER BY last_visit_time DESC LIMIT 5000")
-                    .and_then(|mut st| {
-                        st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?)))
-                            .map(|it| it.flatten().collect::<Vec<_>>())
-                    });
+                let rows = db.prepare("SELECT url, title, last_visit_time FROM urls WHERE hidden = 0 ORDER BY last_visit_time DESC LIMIT 5000").and_then(|mut st| {
+                    st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>())
+                });
                 match rows {
                     Ok(rows) => {
                         for (url, title, t) in rows {
@@ -205,10 +207,7 @@ fn chromium_import(profile: &Path, apps: &[&str], bookmarks: bool, history: bool
                 let keys = chromium_keys(apps);
                 let rows = db
                     .prepare("SELECT origin_url, username_value, password_value FROM logins WHERE blacklisted_by_user = 0")
-                    .and_then(|mut st| {
-                        st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Vec<u8>>(2)?)))
-                            .map(|it| it.flatten().collect::<Vec<_>>())
-                    });
+                    .and_then(|mut st| st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Vec<u8>>(2)?))).map(|it| it.flatten().collect::<Vec<_>>()));
                 match rows {
                     Ok(rows) => {
                         let mut failed = 0;
@@ -246,10 +245,7 @@ fn firefox_import(profile: &Path, bookmarks: bool, history: bool, out: &mut Impo
     if history {
         let rows = db
             .prepare("SELECT url, title, last_visit_date FROM moz_places WHERE last_visit_date IS NOT NULL AND hidden = 0 ORDER BY last_visit_date DESC LIMIT 5000")
-            .and_then(|mut st| {
-                st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?)))
-                    .map(|it| it.flatten().collect::<Vec<_>>())
-            });
+            .and_then(|mut st| st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?.unwrap_or_default(), r.get::<_, i64>(2)?))).map(|it| it.flatten().collect::<Vec<_>>()));
         match rows {
             Ok(rows) => {
                 for (url, title, t) in rows {

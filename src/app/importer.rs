@@ -131,7 +131,13 @@ impl Sanaga {
         let mut html = false;
         super::pages::centered_column(ui, |ui| {
             super::pages::page_title(ui, th, tr("Importer depuis un autre navigateur"));
-            ui.label(RichText::new(tr("Reprenez vos favoris, votre historique et vos mots de passe. Rien n'est modifié dans l'autre navigateur ; les mots de passe vont dans le trousseau de votre système.")).size(13.0).color(th.sub));
+            ui.label(
+                RichText::new(tr(
+                    "Reprenez vos favoris, votre historique et vos mots de passe. Rien n'est modifié dans l'autre navigateur ; les mots de passe vont dans le trousseau de votre système.",
+                ))
+                .size(13.0)
+                .color(th.sub),
+            );
             ui.add_space(12.0);
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.import_bookmarks, tr("Favoris"));

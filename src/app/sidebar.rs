@@ -5,8 +5,8 @@
 //! selection, icons in the accent colour, and a complete right-click menu on
 //! every row. Groups are renamed in place (double-click), favourites too.
 
-use super::chrome::site_badge;
 pub(super) use super::chrome::menu_item;
+use super::chrome::site_badge;
 use super::chrome::Fit as _;
 use super::*;
 use crate::icons::{self, Icon};
@@ -36,7 +36,11 @@ enum Do {
 /// The neutral selection and hover fills of the rows (macOS 27 Finder).
 fn select_fill(dark: bool, strong: bool) -> Color32 {
     let a = if strong { 24 } else { 12 };
-    if dark { Color32::from_white_alpha(a) } else { Color32::from_black_alpha(a) }
+    if dark {
+        Color32::from_white_alpha(a)
+    } else {
+        Color32::from_black_alpha(a)
+    }
 }
 
 impl Sanaga {
@@ -59,7 +63,15 @@ impl Sanaga {
                 let (r, _) = ui.allocate_exact_size(vec2(13.0, 13.0), Sense::hover());
                 icons::paint(ui.painter(), r, Icon::Search, th.sub);
                 ui.add_space(2.0);
-                ui.add(TextEdit::singleline(&mut self.sidebar_filter).id(egui::Id::new("sidebar-search")).frame(Frame::NONE).font(FontId::proportional(13.0)).vertical_align(Align::Center).hint_text(RichText::new(tr("Rechercher")).color(th.sub)).desired_width(ui.available_width()));
+                ui.add(
+                    TextEdit::singleline(&mut self.sidebar_filter)
+                        .id(egui::Id::new("sidebar-search"))
+                        .frame(Frame::NONE)
+                        .font(FontId::proportional(13.0))
+                        .vertical_align(Align::Center)
+                        .hint_text(RichText::new(tr("Rechercher")).color(th.sub))
+                        .desired_width(ui.available_width()),
+                );
             });
         });
         ui.add_space(6.0);
@@ -540,4 +552,3 @@ fn link_menu(ui: &mut Ui, url: &str, acts: &mut Vec<Do>) {
         acts.push(Do::Copy(url.to_string()));
     }
 }
-

@@ -194,7 +194,13 @@ impl Sanaga {
             let x0 = ((full_w - content_w) / 2.0).max(16.0);
             let base = if reader { reader_size * tab.zoom } else { 15.5 * tab.zoom };
             let key = (content_w as u32, (base * 10.0) as u32 + if reader { 1 } else { 0 });
-            let top_pad = if reader { 150.0 } else if doc.trimmed { 70.0 } else { 24.0 };
+            let top_pad = if reader {
+                150.0
+            } else if doc.trimmed {
+                70.0
+            } else {
+                24.0
+            };
             if tab.heights.len() != doc.blocks.len() || tab.layout_key != key {
                 tab.heights = doc.blocks.iter().map(|b| estimate_height(b, content_w, base)).collect();
                 tab.layout_key = key;
@@ -240,21 +246,8 @@ impl Sanaga {
                         });
                     });
                 }
-                let mut rc = RenderCtx {
-                    th,
-                    base,
-                    images_on,
-                    images,
-                    forced: forced_images,
-                    visited,
-                    actions: &mut actions,
-                    hover: &mut hover,
-                    find: &find_q,
-                    frame: frame_no,
-                    doc,
-                    private,
-                    serif: reader,
-                };
+                let mut rc =
+                    RenderCtx { th, base, images_on, images, forced: forced_images, visited, actions: &mut actions, hover: &mut hover, find: &find_q, frame: frame_no, doc, private, serif: reader };
                 for i in 0..doc.blocks.len() {
                     if skip.get(i).copied().unwrap_or(false) {
                         continue;
@@ -383,11 +376,7 @@ fn reader_skip(doc: &Document) -> Vec<bool> {
         Some((Document::plain_text(spans), all_links))
     };
     // the article starts at the first real paragraph
-    let start = doc
-        .blocks
-        .iter()
-        .position(|b| matches!(b, Block::Para(_)) && text_of(b).map(|(t, links)| t.chars().count() >= 80 && !links).unwrap_or(false))
-        .unwrap_or(0);
+    let start = doc.blocks.iter().position(|b| matches!(b, Block::Para(_)) && text_of(b).map(|(t, links)| t.chars().count() >= 80 && !links).unwrap_or(false)).unwrap_or(0);
     let mut lead_image = false;
     doc.blocks
         .iter()

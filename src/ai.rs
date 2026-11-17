@@ -19,11 +19,19 @@ pub const KEY_SITE: &str = "https://api.anthropic.com";
 pub enum Provider {
     /// No model: Sanaga's own summary.
     Local,
-    Ollama { model: String },
+    Ollama {
+        model: String,
+    },
     /// (its key is read from the keyring of this profile when a request is made)
-    Claude { model: String, profile: String },
+    Claude {
+        model: String,
+        profile: String,
+    },
     /// An assistant installed on the computer (Claude Code, Codex…).
-    Cli { tool: crate::ai_cli::CliTool, model: String },
+    Cli {
+        tool: crate::ai_cli::CliTool,
+        model: String,
+    },
 }
 
 impl Provider {
@@ -44,10 +52,9 @@ impl Provider {
 /// the assistants that can be started tool-less.
 pub fn page_content_allowed(provider: &Provider) -> Result<(), String> {
     match provider {
-        Provider::Cli { tool, .. } if !tool.tool_less() => Err(crate::i18n::tf(
-            "{} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.",
-            &[&tool.name()],
-        )),
+        Provider::Cli { tool, .. } if !tool.tool_less() => {
+            Err(crate::i18n::tf("{} peut lire vos fichiers : Sanaga ne lui envoie pas le texte des pages. Choisissez Claude Code, Claude ou Ollama dans Paramètres › Intelligence.", &[&tool.name()]))
+        }
         _ => Ok(()),
     }
 }
@@ -77,13 +84,10 @@ pub fn ask(provider: &Provider, system: &str, prompt: &str, max_tokens: u32) -> 
             ollama_answer(&text).ok_or_else(|| crate::i18n::tr("Réponse du modèle illisible.").into())
         }
         Provider::Claude { model, profile } => {
-            let key = crate::keyring::lookup(profile, KEY_SITE, "claude").filter(|k| !k.is_empty()).ok_or_else(|| crate::i18n::tr("Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.").to_string())?;
-            let body = format!(
-                "{{\"model\":{},\"max_tokens\":{max_tokens},\"system\":{},\"messages\":[{{\"role\":\"user\",\"content\":{}}}]}}",
-                json_str(model),
-                json_str(system),
-                json_str(prompt)
-            );
+            let key = crate::keyring::lookup(profile, KEY_SITE, "claude")
+                .filter(|k| !k.is_empty())
+                .ok_or_else(|| crate::i18n::tr("Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.").to_string())?;
+            let body = format!("{{\"model\":{},\"max_tokens\":{max_tokens},\"system\":{},\"messages\":[{{\"role\":\"user\",\"content\":{}}}]}}", json_str(model), json_str(system), json_str(prompt));
             let r = agent(180)
                 .post("https://api.anthropic.com/v1/messages")
                 .set("content-type", "application/json")
@@ -122,7 +126,9 @@ pub fn ask_live(provider: &Provider, system: &str, prompt: &str, max_tokens: u32
             std::io::BufReader::new(r.into_reader()).lines()
         }
         Provider::Claude { model, profile } => {
-            let key = crate::keyring::lookup(profile, KEY_SITE, "claude").filter(|k| !k.is_empty()).ok_or_else(|| crate::i18n::tr("Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.").to_string())?;
+            let key = crate::keyring::lookup(profile, KEY_SITE, "claude")
+                .filter(|k| !k.is_empty())
+                .ok_or_else(|| crate::i18n::tr("Clé d'API refusée : vérifiez-la dans Paramètres › Intelligence.").to_string())?;
             let body = format!(
                 "{{\"model\":{},\"max_tokens\":{max_tokens},\"stream\":true,\"system\":{},\"messages\":[{{\"role\":\"user\",\"content\":{}}}]}}",
                 json_str(model),
@@ -348,14 +354,11 @@ fn push_sentence(out: &mut Vec<String>, s: &str) {
 
 fn words(s: &str) -> Vec<String> {
     const STOP: [&str; 60] = [
-        "this", "that", "with", "from", "have", "were", "which", "their", "there", "about", "would", "these", "other", "into", "more", "also", "been", "than", "they", "will",
-        "dans", "pour", "avec", "sont", "être", "elle", "leur", "plus", "mais", "comme", "cette", "nous", "vous", "était", "aussi", "tout", "fait", "dont", "entre", "sans",
-        "para", "como", "pero", "esta", "este", "sobre", "entre", "desde", "eine", "einer", "nicht", "sich", "auch", "wird", "oder", "über", "werden", "dass", "sind", "mais",
+        "this", "that", "with", "from", "have", "were", "which", "their", "there", "about", "would", "these", "other", "into", "more", "also", "been", "than", "they", "will", "dans", "pour", "avec",
+        "sont", "être", "elle", "leur", "plus", "mais", "comme", "cette", "nous", "vous", "était", "aussi", "tout", "fait", "dont", "entre", "sans", "para", "como", "pero", "esta", "este", "sobre",
+        "entre", "desde", "eine", "einer", "nicht", "sich", "auch", "wird", "oder", "über", "werden", "dass", "sind", "mais",
     ];
-    s.split(|c: char| !c.is_alphanumeric())
-        .map(|w| w.to_lowercase())
-        .filter(|w| w.chars().count() >= 4 && !STOP.contains(&w.as_str()) && !w.chars().all(|c| c.is_numeric()))
-        .collect()
+    s.split(|c: char| !c.is_alphanumeric()).map(|w| w.to_lowercase()).filter(|w| w.chars().count() >= 4 && !STOP.contains(&w.as_str()) && !w.chars().all(|c| c.is_numeric())).collect()
 }
 
 // ---------------------------------------------------------------- extensions
@@ -396,7 +399,11 @@ fn one_line(s: &str) -> String {
 fn slug(name: &str) -> String {
     let s: String = name.to_lowercase().chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
     let s = s.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-");
-    if s.is_empty() { "mon-extension".into() } else { s.chars().take(48).collect() }
+    if s.is_empty() {
+        "mon-extension".into()
+    } else {
+        s.chars().take(48).collect()
+    }
 }
 
 fn strip_fences(s: &str) -> String {

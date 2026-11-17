@@ -241,11 +241,7 @@ pub fn decode_entities(s: &str) -> String {
             _ => ("", false),
         };
         let decoded: Option<String> = if let Some(num) = ent.strip_prefix('#') {
-            let n = if let Some(hex) = num.strip_prefix('x').or_else(|| num.strip_prefix('X')) {
-                u32::from_str_radix(hex, 16).ok()
-            } else {
-                num.parse::<u32>().ok()
-            };
+            let n = if let Some(hex) = num.strip_prefix('x').or_else(|| num.strip_prefix('X')) { u32::from_str_radix(hex, 16).ok() } else { num.parse::<u32>().ok() };
             n.and_then(char::from_u32).map(|c| c.to_string())
         } else {
             named_entity(ent).map(|c| c.to_string())
@@ -267,39 +263,150 @@ pub fn decode_entities(s: &str) -> String {
 
 fn named_entity(n: &str) -> Option<&'static str> {
     Some(match n {
-        "amp" => "&", "lt" => "<", "gt" => ">", "quot" => "\"", "apos" => "'",
-        "nbsp" => "\u{a0}", "copy" => "©", "reg" => "®", "trade" => "™",
-        "mdash" => "—", "ndash" => "–", "hellip" => "…", "middot" => "·", "bull" => "•",
-        "laquo" => "«", "raquo" => "»", "lsquo" => "‘", "rsquo" => "’", "ldquo" => "“", "rdquo" => "”",
-        "sbquo" => "‚", "bdquo" => "„", "deg" => "°", "euro" => "€", "pound" => "£", "yen" => "¥", "cent" => "¢",
-        "times" => "×", "divide" => "÷", "plusmn" => "±", "para" => "¶", "sect" => "§", "frac12" => "½",
-        "frac14" => "¼", "frac34" => "¾", "sup2" => "²", "sup3" => "³", "micro" => "µ", "shy" => "",
-        "zwj" => "", "zwnj" => "", "thinsp" => " ", "ensp" => " ", "emsp" => " ", "larr" => "←", "rarr" => "→",
-        "uarr" => "↑", "darr" => "↓", "harr" => "↔", "hearts" => "♥", "check" => "✓", "dagger" => "†",
-        "aacute" => "á", "agrave" => "à", "acirc" => "â", "auml" => "ä", "atilde" => "ã", "aring" => "å", "aelig" => "æ",
-        "ccedil" => "ç", "eacute" => "é", "egrave" => "è", "ecirc" => "ê", "euml" => "ë",
-        "iacute" => "í", "igrave" => "ì", "icirc" => "î", "iuml" => "ï", "ntilde" => "ñ",
-        "oacute" => "ó", "ograve" => "ò", "ocirc" => "ô", "ouml" => "ö", "otilde" => "õ", "oslash" => "ø", "oelig" => "œ",
-        "uacute" => "ú", "ugrave" => "ù", "ucirc" => "û", "uuml" => "ü", "yacute" => "ý", "yuml" => "ÿ", "szlig" => "ß",
-        "Aacute" => "Á", "Agrave" => "À", "Acirc" => "Â", "Auml" => "Ä", "Ccedil" => "Ç", "Eacute" => "É",
-        "Egrave" => "È", "Ecirc" => "Ê", "Euml" => "Ë", "Icirc" => "Î", "Iuml" => "Ï", "Ocirc" => "Ô", "Ouml" => "Ö",
-        "OElig" => "Œ", "Ucirc" => "Û", "Ugrave" => "Ù", "Uuml" => "Ü", "Ntilde" => "Ñ",
+        "amp" => "&",
+        "lt" => "<",
+        "gt" => ">",
+        "quot" => "\"",
+        "apos" => "'",
+        "nbsp" => "\u{a0}",
+        "copy" => "©",
+        "reg" => "®",
+        "trade" => "™",
+        "mdash" => "—",
+        "ndash" => "–",
+        "hellip" => "…",
+        "middot" => "·",
+        "bull" => "•",
+        "laquo" => "«",
+        "raquo" => "»",
+        "lsquo" => "‘",
+        "rsquo" => "’",
+        "ldquo" => "“",
+        "rdquo" => "”",
+        "sbquo" => "‚",
+        "bdquo" => "„",
+        "deg" => "°",
+        "euro" => "€",
+        "pound" => "£",
+        "yen" => "¥",
+        "cent" => "¢",
+        "times" => "×",
+        "divide" => "÷",
+        "plusmn" => "±",
+        "para" => "¶",
+        "sect" => "§",
+        "frac12" => "½",
+        "frac14" => "¼",
+        "frac34" => "¾",
+        "sup2" => "²",
+        "sup3" => "³",
+        "micro" => "µ",
+        "shy" => "",
+        "zwj" => "",
+        "zwnj" => "",
+        "thinsp" => " ",
+        "ensp" => " ",
+        "emsp" => " ",
+        "larr" => "←",
+        "rarr" => "→",
+        "uarr" => "↑",
+        "darr" => "↓",
+        "harr" => "↔",
+        "hearts" => "♥",
+        "check" => "✓",
+        "dagger" => "†",
+        "aacute" => "á",
+        "agrave" => "à",
+        "acirc" => "â",
+        "auml" => "ä",
+        "atilde" => "ã",
+        "aring" => "å",
+        "aelig" => "æ",
+        "ccedil" => "ç",
+        "eacute" => "é",
+        "egrave" => "è",
+        "ecirc" => "ê",
+        "euml" => "ë",
+        "iacute" => "í",
+        "igrave" => "ì",
+        "icirc" => "î",
+        "iuml" => "ï",
+        "ntilde" => "ñ",
+        "oacute" => "ó",
+        "ograve" => "ò",
+        "ocirc" => "ô",
+        "ouml" => "ö",
+        "otilde" => "õ",
+        "oslash" => "ø",
+        "oelig" => "œ",
+        "uacute" => "ú",
+        "ugrave" => "ù",
+        "ucirc" => "û",
+        "uuml" => "ü",
+        "yacute" => "ý",
+        "yuml" => "ÿ",
+        "szlig" => "ß",
+        "Aacute" => "Á",
+        "Agrave" => "À",
+        "Acirc" => "Â",
+        "Auml" => "Ä",
+        "Ccedil" => "Ç",
+        "Eacute" => "É",
+        "Egrave" => "È",
+        "Ecirc" => "Ê",
+        "Euml" => "Ë",
+        "Icirc" => "Î",
+        "Iuml" => "Ï",
+        "Ocirc" => "Ô",
+        "Ouml" => "Ö",
+        "OElig" => "Œ",
+        "Ucirc" => "Û",
+        "Ugrave" => "Ù",
+        "Uuml" => "Ü",
+        "Ntilde" => "Ñ",
         _ => return None,
     })
 }
 
 // ---------------------------------------------------------------- builder
 
-const VOID: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr",
-];
-const SKIP: &[&str] = &[
-    "script", "style", "head", "svg", "template", "iframe", "canvas", "object", "math", "map", "dialog",
-];
+const VOID: &[&str] = &["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"];
+const SKIP: &[&str] = &["script", "style", "head", "svg", "template", "iframe", "canvas", "object", "math", "map", "dialog"];
 const BLOCKISH: &[&str] = &[
-    "p", "div", "section", "article", "header", "footer", "nav", "main", "aside", "figure", "figcaption",
-    "table", "tbody", "thead", "tfoot", "tr", "dl", "dt", "dd", "address", "details", "summary", "center",
-    "fieldset", "legend", "form", "caption", "ul", "ol", "menu", "body", "html", "hgroup", "search",
+    "p",
+    "div",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "nav",
+    "main",
+    "aside",
+    "figure",
+    "figcaption",
+    "table",
+    "tbody",
+    "thead",
+    "tfoot",
+    "tr",
+    "dl",
+    "dt",
+    "dd",
+    "address",
+    "details",
+    "summary",
+    "center",
+    "fieldset",
+    "legend",
+    "form",
+    "caption",
+    "ul",
+    "ol",
+    "menu",
+    "body",
+    "html",
+    "hgroup",
+    "search",
 ];
 
 struct Builder {
@@ -416,13 +523,7 @@ impl Builder {
                 return;
             }
         }
-        let span = Span {
-            text: String::new(),
-            bold: self.bold > 0 || self.heading > 0,
-            italic: self.italic > 0,
-            code: self.code > 0,
-            link: self.cur_link(),
-        };
+        let span = Span { text: String::new(), bold: self.bold > 0 || self.heading > 0, italic: self.italic > 0, code: self.code > 0, link: self.cur_link() };
         if let Some(last) = self.spans.last_mut() {
             if last.bold == span.bold && last.italic == span.italic && last.code == span.code && last.link == span.link {
                 last.text.push_str(&norm);
@@ -479,8 +580,17 @@ impl Builder {
                         // screen-reader-only text and drop-down menus that are folded by default
                         if matches!(
                             c,
-                            "sr-only" | "visually-hidden" | "screen-reader-text" | "mw-jump-link" | "hidden" | "noprint" | "dropdown-menu"
-                                | "dropdown-content" | "vector-dropdown-content" | "mw-portlet-lang" | "skip-link"
+                            "sr-only"
+                                | "visually-hidden"
+                                | "screen-reader-text"
+                                | "mw-jump-link"
+                                | "hidden"
+                                | "noprint"
+                                | "dropdown-menu"
+                                | "dropdown-content"
+                                | "vector-dropdown-content"
+                                | "mw-portlet-lang"
+                                | "skip-link"
                         ) {
                             return true;
                         }
@@ -628,10 +738,7 @@ impl Builder {
                 self.in_cell = self.tables.last().copied().unwrap_or(0) + 1;
             }
             "img" => {
-                let src = Self::attr(&attrs, "src")
-                    .filter(|s| !s.starts_with("data:"))
-                    .or_else(|| Self::attr(&attrs, "data-src"))
-                    .and_then(|s| self.resolve_loaded(s));
+                let src = Self::attr(&attrs, "src").filter(|s| !s.starts_with("data:")).or_else(|| Self::attr(&attrs, "data-src")).and_then(|s| self.resolve_loaded(s));
                 let width = Self::attr(&attrs, "width").and_then(|w| w.trim_end_matches("px").parse::<f32>().ok());
                 let alt = Self::attr(&attrs, "alt").unwrap_or("").to_string();
                 if let Some(src) = src {
@@ -856,11 +963,7 @@ impl Builder {
                 if let Some((f, fi)) = self.select.take() {
                     let field = &mut self.doc.forms[f].fields[fi];
                     if let FieldKind::Select(opts) = &field.kind {
-                        field.value = if field.checked && field.placeholder != "\u{0}" {
-                            field.placeholder.clone()
-                        } else {
-                            opts.first().map(|o| o.0.clone()).unwrap_or_default()
-                        };
+                        field.value = if field.checked && field.placeholder != "\u{0}" { field.placeholder.clone() } else { opts.first().map(|o| o.0.clone()).unwrap_or_default() };
                     }
                     field.checked = false;
                     field.placeholder.clear();
@@ -987,13 +1090,7 @@ pub fn parse_page(src: &str, url: &str, main_only: bool) -> Document {
 
 /// A plain-text document (text/plain responses, or "view source").
 pub fn plain(text: &str, url: &str) -> Document {
-    Document {
-        url: url.to_string(),
-        title: url.rsplit('/').find(|s| !s.is_empty()).unwrap_or(url).to_string(),
-        blocks: vec![Block::Pre(text.to_string())],
-        bytes: text.len(),
-        ..Default::default()
-    }
+    Document { url: url.to_string(), title: url.rsplit('/').find(|s| !s.is_empty()).unwrap_or(url).to_string(), blocks: vec![Block::Pre(text.to_string())], bytes: text.len(), ..Default::default() }
 }
 
 /// A document showing a single image.

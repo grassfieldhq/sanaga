@@ -214,7 +214,10 @@ impl Sanaga {
             "tls-allow" => {
                 let showing = self.tab_shows(tab);
                 let ok = self.error_pages.get(&tab).is_some_and(|e| {
-                    e.shown && e.kind == crate::page::LoadError::Certificate && showing.as_deref() == Some(e.url.as_str()) && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
+                    e.shown
+                        && e.kind == crate::page::LoadError::Certificate
+                        && showing.as_deref() == Some(e.url.as_str())
+                        && super::errors::error_action_arg(arg, e.token) == Some(host_of(&e.url).as_str())
                 });
                 if ok {
                     let host = self.error_pages.remove(&tab).map(|e| host_of(&e.url)).unwrap_or_default();

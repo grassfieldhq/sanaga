@@ -191,7 +191,10 @@ impl Sanaga {
                         ui.label(RichText::new(sub).size(12.0).color(th.sub));
                         ui.add_space(10.0);
                         if me.key != GUEST {
-                            let b = egui::Button::new(RichText::new(tr("Personnaliser le profil")).size(13.0).color(th.accent)).fill(th.accent.gamma_multiply(0.12)).corner_radius(CornerRadius::same(14)).min_size(vec2(200.0, 30.0));
+                            let b = egui::Button::new(RichText::new(tr("Personnaliser le profil")).size(13.0).color(th.accent))
+                                .fill(th.accent.gamma_multiply(0.12))
+                                .corner_radius(CornerRadius::same(14))
+                                .min_size(vec2(200.0, 30.0));
                             if ui.add(b).clicked() {
                                 act = Some(("customize", String::new()));
                             }
@@ -373,7 +376,11 @@ impl Sanaga {
                 section(ui, th, |ui| {
                     ui.label(RichText::new(tf("Supprimer le profil « {} » ?", &[&name])).size(15.0).family(bold()).color(th.text));
                     ui.add_space(4.0);
-                    ui.label(RichText::new(tr("Ses favoris, son historique, ses mots de passe enregistrés dans Sanaga et ses cookies seront effacés de cet ordinateur. Fermez d'abord ses fenêtres.")).size(12.5).color(th.sub));
+                    ui.label(
+                        RichText::new(tr("Ses favoris, son historique, ses mots de passe enregistrés dans Sanaga et ses cookies seront effacés de cet ordinateur. Fermez d'abord ses fenêtres."))
+                            .size(12.5)
+                            .color(th.sub),
+                    );
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
                         let b = egui::Button::new(RichText::new(tr("Supprimer")).color(Color32::WHITE)).fill(Color32::from_rgb(0xD7, 0x3A, 0x31));

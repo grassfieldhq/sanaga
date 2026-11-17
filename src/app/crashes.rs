@@ -159,7 +159,14 @@ impl Sanaga {
                 ui.add_space(8.0);
             }
             ui.add_space(4.0);
-            ui.add(Label::new(RichText::new(tr("« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez.")).size(12.0).color(th.sub)).wrap());
+            ui.add(
+                Label::new(
+                    RichText::new(tr("« Envoyer sur GitHub » ouvre un nouveau signalement déjà rempli avec ce texte : vous pouvez encore le modifier, et c'est vous qui l'envoyez."))
+                        .size(12.0)
+                        .color(th.sub),
+                )
+                .wrap(),
+            );
             ui.add_space(30.0);
         });
         if let Some((path, text)) = copy {

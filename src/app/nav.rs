@@ -173,7 +173,18 @@ impl Sanaga {
                 };
                 let color = if g > 0 { self.group_colors.get(g).map(|c| c.to_string()).unwrap_or_default() } else { String::new() };
                 let folded = if self.group_folded(g) { "1" } else { "" };
-                format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", t.url(), group, if t.pinned { "1" } else { "0" }, t.title().replace(['\t', '\n'], " "), t.container.replace('\t', " "), parent, active, color, folded)
+                format!(
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    t.url(),
+                    group,
+                    if t.pinned { "1" } else { "0" },
+                    t.title().replace(['\t', '\n'], " "),
+                    t.container.replace('\t', " "),
+                    parent,
+                    active,
+                    color,
+                    folded
+                )
             })
             .collect();
         self.store.save_session(self.slot, &urls);
@@ -271,7 +282,13 @@ impl Sanaga {
             // ordinary tab, nor the other way round)
             let (private, container) = (tab.private, tab.container.clone());
             use webkit6::prelude::*;
-            let open_page = self.tabs.iter().filter(|t| t.private == private && t.container == container).filter_map(|t| t.web.as_ref()).map(|w| w.webview()).find(|w| w.uri().map(|u| u.as_str() == inner).unwrap_or(false));
+            let open_page = self
+                .tabs
+                .iter()
+                .filter(|t| t.private == private && t.container == container)
+                .filter_map(|t| t.web.as_ref())
+                .map(|w| w.webview())
+                .find(|w| w.uri().map(|u| u.as_str() == inner).unwrap_or(false));
             if let Some(res) = open_page.and_then(|w| w.main_resource()) {
                 let (tx, ctx, u) = (self.tx.clone(), self.ctx.clone(), inner.to_string());
                 res.data(None::<&webkit6::gio::Cancellable>, move |r| {
@@ -544,11 +561,7 @@ impl Sanaga {
     /// Free the least recently drawn pictures when they use too much memory.
     fn trim_images(&mut self) {
         while self.img_bytes > IMAGE_BUDGET {
-            let oldest = self
-                .images
-                .iter()
-                .filter_map(|(k, v)| if let ImgSlot::Ready(_, _, f) = v { Some((k.clone(), *f)) } else { None })
-                .min_by_key(|(_, f)| *f);
+            let oldest = self.images.iter().filter_map(|(k, v)| if let ImgSlot::Ready(_, _, f) = v { Some((k.clone(), *f)) } else { None }).min_by_key(|(_, f)| *f);
             let Some((k, _)) = oldest else { break };
             if let Some(ImgSlot::Ready(_, s, _)) = self.images.remove(&k) {
                 self.img_bytes = self.img_bytes.saturating_sub((s.x * s.y * 4.0) as usize);
@@ -736,12 +749,10 @@ impl Sanaga {
                 "prev" | "tableft" => self.tab_bar_step(false),
                 "addr" => self.focus_address = true,
                 "reload" => self.reload(a),
-                "hardreload" => {
-                    match self.tabs.get(a).filter(|t| matches!(t.view, View::Web)).and_then(|t| t.web.as_ref()) {
-                        Some(w) => w.reload_fresh(),
-                        None => self.reload(a),
-                    }
-                }
+                "hardreload" => match self.tabs.get(a).filter(|t| matches!(t.view, View::Web)).and_then(|t| t.web.as_ref()) {
+                    Some(w) => w.reload_fresh(),
+                    None => self.reload(a),
+                },
                 // Ctrl+1…8: that tab of the bar; Ctrl+9: the last one
                 "tab1" | "tab2" | "tab3" | "tab4" | "tab5" | "tab6" | "tab7" | "tab8" | "tablast" => {
                     let order = self.visible_tabs();

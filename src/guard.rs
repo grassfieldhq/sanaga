@@ -200,8 +200,9 @@ pub fn plausible_selector(s: &str) -> bool {
 /// standard, which the engine follows): mail, shells, printers… A page
 /// could otherwise make the browser speak to those services.
 const RESTRICTED_PORTS: &[u16] = &[
-    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532,
-    540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697, 10080,
+    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512,
+    513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669,
+    6679, 6697, 10080,
 ];
 
 /// Is this a web address on a port browsers refuse? The engine then shows
@@ -440,8 +441,6 @@ pub fn close_files(dir: &Path) {
     }
 }
 
-
-
 /// A JavaScript string literal (for handing values to a page safely).
 pub fn js_str(s: &str) -> String {
     let mut out = String::from("\"");
@@ -531,7 +530,6 @@ mod tests {
         let long = "x".repeat(400);
         assert_eq!(safe_download_name(&long).len(), MAX_NAME);
     }
-
 
     #[test]
     fn download_marks_hide_passwords() {
@@ -646,7 +644,18 @@ mod tests {
         assert_eq!(accept_forwarded("apercu:").as_deref(), Some("apercu:"));
         assert_eq!(accept_forwarded("preview:https://example.org/").as_deref(), Some("preview:https://example.org/"));
         assert_eq!(accept_forwarded("lecteur:https://example.org/").as_deref(), Some("lecteur:https://example.org/"));
-        for bad in ["javascript:alert(1)", "data:text/html,<script>x</script>", "sanaga://settings", "view-source:https://a.org", "about:config", "preview:javascript:x", "preview:apercu:", "profil:Travail", "https://a.org/\u{0}x", ""] {
+        for bad in [
+            "javascript:alert(1)",
+            "data:text/html,<script>x</script>",
+            "sanaga://settings",
+            "view-source:https://a.org",
+            "about:config",
+            "preview:javascript:x",
+            "preview:apercu:",
+            "profil:Travail",
+            "https://a.org/\u{0}x",
+            "",
+        ] {
             assert_eq!(accept_forwarded(bad), None, "{bad}");
         }
         assert_eq!(accept_forwarded(&format!("https://a.org/{}", "x".repeat(9000))), None);
