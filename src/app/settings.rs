@@ -13,6 +13,107 @@ use crate::icons::{self, Icon};
 use crate::store;
 use eframe::egui::{Align, Align2, Color32, CursorIcon, Layout, Margin, Pos2, RichText, ScrollArea, Sense, TextEdit, UiBuilder};
 
+/// What a read of the disk gave, kept. Settings and Sanaga's other pages
+/// are drawn again at every frame: reading the extensions folder, the
+/// profiles or the crash reports each time opened dozens of files sixty
+/// times a second while the pointer moved over the page. Read once
+/// instead, on a thread (a folder may be slow), and again when what is
+/// there may have changed: Sanaga changed it (`changed`), the page that
+/// shows it has just been opened, or the window has just come back to the
+/// front — the person may have added a file with another program
+/// meanwhile. While a new read is under way the last answer shows.
+pub(super) struct Kept<T> {
+    value: Option<std::rc::Rc<T>>,
+    /// A read is under way, since then.
+    reading: Option<std::time::Instant>,
+    /// What is on the disk may have changed after the last read began.
+    stale: bool,
+}
+
+impl<T> Kept<T> {
+    /// A read whose answer never came (its window closed meanwhile) is started again.
+    const LOST: std::time::Duration = std::time::Duration::from_secs(10);
+
+    pub(super) const fn new() -> Self {
+        Kept { value: None, reading: None, stale: false }
+    }
+
+    /// What is on the disk has changed (an extension installed, a report
+    /// deleted, a profile made): the next look reads it again.
+    pub(super) fn changed(&mut self) {
+        self.stale = true;
+    }
+
+    /// The answer kept (None before the first), and whether a read must be
+    /// started now — the caller starts it and hands its answer to `set`.
+    /// `again`: the one who looks was away (see `Sanaga::looks_again`).
+    pub(super) fn look(&mut self, again: bool) -> (Option<std::rc::Rc<T>>, bool) {
+        self.look_at(again, std::time::Instant::now())
+    }
+
+    fn look_at(&mut self, again: bool, now: std::time::Instant) -> (Option<std::rc::Rc<T>>, bool) {
+        self.stale |= again;
+        let reading = self.reading.is_some_and(|t| now.duration_since(t) < Self::LOST);
+        let start = (self.value.is_none() || self.stale) && !reading;
+        if start {
+            self.reading = Some(now);
+            self.stale = false;
+        }
+        (self.value.clone(), start)
+    }
+
+    pub(super) fn set(&mut self, value: T) {
+        self.value = Some(std::rc::Rc::new(value));
+        self.reading = None;
+    }
+}
+
+thread_local! {
+    /// The extensions (the built-in ones and the files of the extensions
+    /// folder, read whole): shown by Settings and by the Extensions page.
+    static EXTENSIONS: std::cell::RefCell<Kept<Vec<crate::extensions::Extension>>> = const { std::cell::RefCell::new(Kept::new()) };
+}
+
+/// An extension's file was written or removed by Sanaga.
+pub(super) fn extensions_changed() {
+    EXTENSIONS.with(|k| k.borrow_mut().changed());
+}
+
+impl Sanaga {
+    /// Is `what` (a kept read, named by its place in memory) looked at
+    /// afresh in this window: it was not asked for at the frame before
+    /// (its page has just been opened), or the window has just come back
+    /// to the front?
+    pub(super) fn looks_again(&self, what: usize) -> bool {
+        let pass = self.ctx.cumulative_pass_nr();
+        let id = egui::Id::new(("kept-seen", what));
+        let before: Option<u64> = self.ctx.data_mut(|d| {
+            let before = d.get_temp(id);
+            d.insert_temp(id, pass);
+            before
+        });
+        let opened = before.is_none_or(|b| pass > b + 1);
+        opened || self.ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(true))))
+    }
+
+    /// The kept answer of `read` — a read of the disk, run on a thread when
+    /// it has to be made (again). None until the first answer is back.
+    pub(super) fn kept<T: Send + 'static>(&self, slot: &'static std::thread::LocalKey<std::cell::RefCell<Kept<T>>>, read: fn() -> T) -> Option<std::rc::Rc<T>> {
+        let again = self.looks_again(slot as *const _ as usize);
+        let (value, start) = slot.with(|k| k.borrow_mut().look(again));
+        if start {
+            self.off_thread(read, move |_, answer| slot.with(|k| k.borrow_mut().set(answer)));
+        }
+        value
+    }
+
+    /// The extensions, as last read (none until the first read is back, a
+    /// frame or two after a page that lists them opens).
+    pub(super) fn extensions_kept(&self) -> std::rc::Rc<Vec<crate::extensions::Extension>> {
+        self.kept(&EXTENSIONS, crate::extensions::all).unwrap_or_default()
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum Section {
     General,
@@ -623,6 +724,13 @@ fn xdg_default_browser(general: bool) -> String {
     cmd.output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
 }
 
+/// This computer's name, as the sync shows it. Read once: its file was
+/// opened at every frame of the Sync settings.
+fn this_computer() -> &'static String {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(crate::sync::device_name)
+}
+
 fn default_browser_is_sanaga() -> bool {
     // Omarchy says itself which browser its routing entry opens
     if let Ok(o) = std::process::Command::new("omarchy-cmd-default-browser").output() {
@@ -958,7 +1066,7 @@ impl Sanaga {
         let login_list = self.store.logins.clone();
         let permissions = self.store.permissions.clone();
         let identities = self.store.identities.clone();
-        let extensions = crate::extensions::all();
+        let extensions = self.extensions_kept();
         let ext_on = self.store.extensions_on.clone();
         let mobile_on = self.tb("mobile");
         let confirm_key = egui::Id::new("settings-confirm-delete");
@@ -969,7 +1077,8 @@ impl Sanaga {
         site_words.sort();
         site_words.dedup();
         let account_words: Vec<String> = login_list.iter().map(|(site, user)| format!("{} {user}", host_of(site))).collect();
-        let profile_words = Store::profiles();
+        // (the other profiles' folder names; the first of the list is the main profile)
+        let profile_words: Vec<String> = self.profiles_kept().iter().skip(1).map(|p| p.key.clone()).collect();
         let restorable = self.store.settings.differs_from_origin(self.settings_section.slug());
         let now = ui.input(|i| i.time);
         let confirm_clear = self.settings_confirm.is_some_and(|t| now - t < 4.0);
@@ -1461,7 +1570,7 @@ impl Sanaga {
             let state = if !sync.error.is_empty() {
                 sync.error.clone()
             } else if let Some(t) = sync.last {
-                tf("Dernière synchronisation {} · autres appareils : {} · cet ordinateur : {}", &[&store::relative_time(t), &sync.devices.len(), &crate::sync::device_name()])
+                tf("Dernière synchronisation {} · autres appareils : {} · cet ordinateur : {}", &[&store::relative_time(t), &sync.devices.len(), this_computer()])
             } else {
                 tr("Désactivée").to_string()
             };
@@ -1518,7 +1627,7 @@ impl Sanaga {
                 if rows.switch(ui, tr("Simulateur mobile"), tr("Intégrée à Sanaga"), &mut m) {
                     acts.push(Act::ToggleMobile);
                 }
-                for e in &extensions {
+                for e in extensions.iter() {
                     let mut on = ext_on.contains(&e.id);
                     let sub = if e.builtin { tr("Intégrée à Sanaga").to_string() } else { e.description.clone() };
                     let id = e.id.clone();
@@ -1874,6 +1983,7 @@ impl Sanaga {
         let now = self.ctx.input(|i| i.time);
         match crate::webext::install(&path) {
             Ok((name, id)) => {
+                extensions_changed();
                 // installed switched off: the person reads what it would do
                 // (sites, code) on the Extensions page, then turns it on
                 self.ext_review = Some(id);
@@ -1924,6 +2034,39 @@ impl Sanaga {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_was_read_is_kept_until_it_may_have_changed() {
+        use std::time::{Duration, Instant};
+        let t0 = Instant::now();
+        let at = |ms: u64| t0 + Duration::from_millis(ms);
+        let mut k: Kept<u32> = Kept::new();
+        // the first look starts the read; the next frames wait for it
+        assert_eq!(k.look_at(true, at(0)), (None, true));
+        assert_eq!(k.look_at(false, at(16)), (None, false));
+        k.set(7);
+        // then every frame gets the answer, and nothing is read
+        for frame in 2..200 {
+            let (v, read) = k.look_at(false, at(frame * 16));
+            assert_eq!((v.as_deref(), read), (Some(&7), false));
+        }
+        // Sanaga changed what is there: read again, the old answer showing meanwhile
+        k.changed();
+        let (v, read) = k.look_at(false, at(3300));
+        assert_eq!((v.as_deref(), read), (Some(&7), true));
+        assert!(!k.look_at(false, at(3316)).1);
+        // (a change during the read is not lost)
+        k.changed();
+        k.set(8);
+        assert!(k.look_at(false, at(3332)).1);
+        k.set(9);
+        assert_eq!(k.look_at(false, at(3348)), (Some(std::rc::Rc::new(9)), false));
+        // the page is opened again, or the window comes back: read again
+        assert!(k.look_at(true, at(9000)).1);
+        // an answer that never comes back does not block the next reads for ever
+        assert!(!k.look_at(true, at(9100)).1);
+        assert!(k.look_at(false, at(9000 + 10_500)).1);
+    }
 
     #[test]
     fn searching_ignores_accents_and_capitals() {
