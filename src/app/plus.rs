@@ -778,7 +778,11 @@ impl Sanaga {
                         self.palette_sel = 0;
                     }
                     ui.add_space(6.0);
-                    egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                    // (the list takes the room its lines need, up to 400 points,
+                    // also when lines are added after it was shorter — the
+                    // visited pages come a moment after the text: it stayed
+                    // cut at the height of before, to be scrolled)
+                    egui::ScrollArea::vertical().max_height(400.0).min_scrolled_height(400.0).show(ui, |ui| {
                         for (k, (what, icon, title, sub)) in lines.iter().enumerate() {
                             let (r, rr) = ui.allocate_exact_size(vec2(w - 20.0, 38.0), Sense::click());
                             if k == sel {
