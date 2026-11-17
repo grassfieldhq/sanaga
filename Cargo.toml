@@ -29,7 +29,11 @@ path = "src/main.rs"
 maintainer = "Grassfield"
 section = "web"
 priority = "optional"
-depends = "libgtk-4-1, libwebkitgtk-6.0-4, bubblewrap, xdg-dbus-proxy, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-nice, libsecret-tools"
+# ($auto: the libraries the program is linked with, at the versions it was
+# built against; then what it starts or loads by name. The code needs
+# GTK 4.14 and WebKitGTK 2.48: an older system is refused at install time,
+# not at the first page.)
+depends = "$auto, libgtk-4-1 (>= 4.14), libwebkitgtk-6.0-4 (>= 2.48), bubblewrap, xdg-dbus-proxy, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-nice, libsecret-tools"
 recommends = "gstreamer1.0-vaapi"
 suggests = "ffmpeg, chromium"
 extended-description = "A fast, light web browser built on WebKitGTK: containers, a network blocker of ads and trackers, settings for each website, tab groups and tree tabs, a reader, and a mobile simulator for web developers."
@@ -58,8 +62,9 @@ assets = [
 ]
 
 [package.metadata.generate-rpm.requires]
-gtk4 = "*"
-"webkitgtk6.0" = "*"
+# (the oldest versions the code can use)
+gtk4 = ">= 4.14"
+"webkitgtk6.0" = ">= 2.48"
 bubblewrap = "*"
 xdg-dbus-proxy = "*"
 gstreamer1-plugins-base = "*"

@@ -64,7 +64,11 @@ modules:
       - install -Dm644 packaging/sanaga.svg /app/share/icons/hicolor/scalable/apps/site.grassfield.Sanaga.svg
       - sed -e 's/^Icon=sanaga$/Icon=site.grassfield.Sanaga/' packaging/sanaga.desktop > site.grassfield.Sanaga.desktop
       - install -Dm644 site.grassfield.Sanaga.desktop /app/share/applications/site.grassfield.Sanaga.desktop
-      - install -Dm644 packaging/site.grassfield.Sanaga.metainfo.xml /app/share/metainfo/site.grassfield.Sanaga.metainfo.xml
+      # (the launcher is named after the application's id in a Flatpak:
+      # the description must name that file, not the packages' sanaga.desktop)
+      - sed -e 's|<launchable type="desktop-id">sanaga.desktop</launchable>|<launchable type="desktop-id">site.grassfield.Sanaga.desktop</launchable>|' packaging/site.grassfield.Sanaga.metainfo.xml > site.grassfield.Sanaga.metainfo.xml
+      - grep -q 'site.grassfield.Sanaga.desktop' site.grassfield.Sanaga.metainfo.xml
+      - install -Dm644 site.grassfield.Sanaga.metainfo.xml /app/share/metainfo/site.grassfield.Sanaga.metainfo.xml
     sources:
       - type: dir
         path: ../..

@@ -19,7 +19,7 @@
       <li>A mobile simulator for web developers</li>
     </ul>
   </description>
-  <launchable type="desktop-id">site.grassfield.Sanaga.desktop</launchable>
+  <launchable type="desktop-id">sanaga.desktop</launchable>
   <url type="homepage">https://github.com/grassfieldhq/sanaga</url>
   <url type="bugtracker">https://github.com/grassfieldhq/sanaga/issues</url>
   <screenshots>

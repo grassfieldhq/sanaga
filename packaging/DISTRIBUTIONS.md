@@ -54,3 +54,27 @@ The security audit of 8 November 2026 and its fixes are in
 Before switching the default, on a machine with WebKitGTK 6: `cargo build`,
 `cargo test`, and the live checks listed at the end of that file, with their
 results recorded.
+
+## Publishing in the distributions' own channels
+
+The release workflow builds and signs every package; putting them where
+each distribution looks for software needs an account there, so it is done
+by a maintainer — what is ready, and what is left to do each time:
+
+- **AUR** (Arch, Manjaro, EndeavourOS): the release's files include a
+  `PKGBUILD` with the checksum of the tag's source in place of `SKIP`
+  (`updpkgsums` does the same by hand). Copy it into the AUR repository
+  `sanaga`, run `makepkg --printsrcinfo > .SRCINFO`, commit and push.
+- **Flathub**: Flathub builds from its own repository
+  (`flathub/site.grassfield.Sanaga`). Its manifest is this one with two
+  changes: the `sanaga` module's source is the tag (`type: git`, `tag:` and
+  `commit:`) instead of `type: dir`, and `cargo-sources.json` (made by
+  `flatpak-cargo-generator.py` from `Cargo.lock`, as the release workflow
+  does) is committed next to it. The description file needs a `<release>`
+  entry for each version. Submit with a pull request to `flathub/flathub`.
+- **Debian / Ubuntu and Fedora**: the `.deb` and `.rpm` of a release are
+  complete packages (their dependencies and the oldest versions of GTK and
+  WebKitGTK they need are declared). A repository that `apt` or `dnf`
+  follows (a PPA, a COPR, or a folder served with its signing key) needs a
+  key that only the maintainers hold: none is set up here.
+
