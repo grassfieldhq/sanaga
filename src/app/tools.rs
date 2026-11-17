@@ -102,6 +102,15 @@ impl Sanaga {
 
     // ------------------------------------------------------------ border
 
+    /// The system asks for no animations (GNOME: Accessibility › Reduce
+    /// animation; KDE: animation speed "instant"): what slides, grows or
+    /// turns in Sanaga's interface takes its final place at once.
+    pub(super) fn reduce_motion(&self) -> bool {
+        // (asked of GTK, which follows the desktop's setting; no GTK when
+        // Sanaga only draws a picture of itself)
+        self.web_ok && gtk::Settings::default().is_some_and(|s| !s.is_gtk_enable_animations())
+    }
+
     /// The border around the window (Settings › Appearance): drawn, and its width returned.
     pub(super) fn draw_border(&mut self, ui: &mut Ui, now: f64) -> f32 {
         let st = &self.store.settings;
@@ -111,7 +120,12 @@ impl Sanaga {
         let w = st.border_size.clamp(1, 16) as f32;
         let alpha = (st.border_alpha.clamp(10, 100) as f32 / 100.0 * 255.0) as u8;
         let accent = crate::theme::theme(st.dark, false).accent;
-        let animated = st.border == 3 && !self.low_power_active();
+        // Its colours turn only in the window in use. Each step redraws
+        // the whole interface, fifteen times a second: for a window behind
+        // another, hidden or minimised — which nobody looks at — that was
+        // work for ever, for nothing. They stand still too when the system
+        // asks for no animations.
+        let animated = st.border == 3 && !self.low_power_active() && ui.input(|i| i.focused) && !self.reduce_motion();
         // the four corners' colours: top-left, top-right, bottom-right, bottom-left
         let corners: [Color32; 4] = match st.border {
             1 => [accent; 4],

@@ -70,7 +70,9 @@ impl Sanaga {
         // equal widths, never so narrow that the titles go (then it scrolls)
         let w = (room / normal_n).max(MIN_W);
         // the tabs take their new width smoothly when one opens or closes
-        let w = ui.ctx().animate_value_with_time(egui::Id::new("tabbar-width"), w, 0.14);
+        // (at once when the system asks for no animations)
+        let still = self.reduce_motion();
+        let w = if still { w } else { ui.ctx().animate_value_with_time(egui::Id::new("tabbar-width"), w, 0.14) };
         let total = pinned_n as f32 * PIN_W + labels_w + normal_n * w;
         let max_scroll = (total - area.width()).max(0.0);
         if max_scroll > 0.0 && ui.rect_contains_pointer(full) {
@@ -119,7 +121,7 @@ impl Sanaga {
                 }
                 super::groups::StripItem::Tab(i) => {
                     // a tab just opened grows into its place
-                    let grow = (((now - self.tabs[i].born) / 0.16).clamp(0.0, 1.0)) as f32;
+                    let grow = if still { 1.0 } else { (((now - self.tabs[i].born) / 0.16).clamp(0.0, 1.0)) as f32 };
                     if grow < 1.0 {
                         ui.ctx().request_repaint();
                     }
