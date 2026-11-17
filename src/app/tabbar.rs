@@ -342,7 +342,7 @@ impl Sanaga {
             self.save_session();
         }
         if let Some(i) = close {
-            self.close_tab(i);
+            self.ask_close_tab(i);
         }
     }
 }

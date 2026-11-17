@@ -87,6 +87,29 @@ impl Sanaga {
         self.focus_address = false;
     }
 
+    /// The person closes a tab. When something was typed in its page, the
+    /// page is asked first: a page that guards unsaved work ("leave this
+    /// page?") gets to ask, and the tab closes once that is answered — at
+    /// once when the page has nothing to say. (A tab used to close with
+    /// what had been typed, whatever the page wanted.) Asked a second time
+    /// within a few seconds, the tab closes regardless: a page that no
+    /// longer answers cannot keep it open.
+    pub(super) fn ask_close_tab(&mut self, i: usize) {
+        let now = self.ctx.input(|t| t.time);
+        if let Some(t) = self.tabs.get(i) {
+            let again = self.close_asked.is_some_and(|(id, at)| id == t.id && now - at < 4.0);
+            if t.form_dirty && matches!(t.view, View::Web) && !again {
+                if let Some(w) = &t.web {
+                    self.close_asked = Some((t.id, now));
+                    w.try_close();
+                    return;
+                }
+            }
+        }
+        self.close_asked = None;
+        self.close_tab(i);
+    }
+
     pub(super) fn close_tab(&mut self, i: usize) {
         if i >= self.tabs.len() {
             return;
@@ -686,7 +709,7 @@ impl Sanaga {
                     self.open_settings("sanaga://settings");
                 }
                 "translate" => self.translate_page(),
-                "close" => self.close_tab(a),
+                "close" => self.ask_close_tab(a),
                 // Ctrl+Tab: the tabs used last, as pictures (or the tab bar's order)
                 "next" | "prev" if self.store.settings.tab_switcher => self.switch_tabs(if t == "next" { 1 } else { -1 }),
                 "next" | "tabright" => self.tab_bar_step(true),

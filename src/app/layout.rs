@@ -379,7 +379,7 @@ impl Sanaga {
             self.move_tab(from, to);
         }
         if let Some(i) = close {
-            self.close_tab(i);
+            self.ask_close_tab(i);
         }
         if new_tab {
             self.overview_open = false;

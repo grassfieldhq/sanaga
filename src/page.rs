@@ -2059,6 +2059,12 @@ impl PageView {
         self.view.reload();
         Ok(())
     }
+    /// Ask the page to close: its "leave this page?" question is asked if
+    /// it has one; the page then closes itself (`PageSignal::Close`) unless
+    /// the person chooses to stay.
+    pub fn try_close(&self) {
+        self.view.try_close();
+    }
     /// Load the page again from the network, nothing taken from the cache.
     pub fn reload_fresh(&self) {
         self.view.reload_bypass_cache();

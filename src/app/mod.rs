@@ -453,6 +453,9 @@ pub struct Sanaga {
     hover_url: Option<String>,
     /// The link under the mouse in the web page shown.
     web_hover: Option<String>,
+    /// The tab the person asked to close while its page held typed text,
+    /// and when (see `ask_close_tab`).
+    close_asked: Option<(u64, f64)>,
     /// The text field of Sanaga's that had the keyboard when this frame
     /// began (the address field, the search of a page…), if any.
     typing_at_frame_start: Option<egui::Id>,
@@ -892,6 +895,7 @@ impl Sanaga {
             suggest_rect: Rect::NOTHING,
             hover_url: None,
             web_hover: None,
+            close_asked: None,
             typing_at_frame_start: None,
             downloads_seen: 0,
             page_fullscreen: None,
