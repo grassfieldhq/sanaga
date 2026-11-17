@@ -214,8 +214,12 @@ impl Sanaga {
             let icon_only = tab.pinned || rect.width() < MIN_W - 0.5;
             // favicon + title, centred together (Safari); the icon alone when narrow
             let font = FontId::proportional(12.0);
-            let g = ui.painter().layout_no_wrap(title.clone(), font.clone(), text_col);
             let max_text = (rect.width() - 2.0 * (16.0 + 10.0) - 20.0).max(0.0);
+            // (a right-to-left title: in the order it is seen, and cut at
+            // the end of what is read rather than faded on the right, where
+            // its beginning is)
+            let drawn = if crate::bidi::has_rtl(&title) { super::chrome::fitted(ui.painter(), &title, &font, max_text) } else { title.clone() };
+            let g = ui.painter().layout_no_wrap(drawn, font.clone(), text_col);
             let tw = g.size().x.min(max_text);
             // (a group's colour runs under its tabs; no dot needed)
             let group_dot: Option<Color32> = None;

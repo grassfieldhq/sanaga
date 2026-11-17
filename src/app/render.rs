@@ -356,7 +356,11 @@ fn reader_header(ui: &mut Ui, th: &Theme, doc: &Document, origin: egui::Pos2, x0
     let title_rect = Rect::from_min_size(pos2(origin.x + x0, row.bottom() + 26.0), vec2(w, 600.0));
     let mut child = ui.new_child(UiBuilder::new().max_rect(title_rect).layout(Layout::top_down(Align::Min)).id_salt("reader-title"));
     let title = if doc.title.is_empty() { host_of(&doc.url) } else { reader_title(&doc.title) };
-    child.add(Label::new(RichText::new(title).family(FontFamily::Name("serif-bold".into())).size(base * 1.6).color(th.text)).wrap());
+    if crate::bidi::has_rtl(&title) {
+        wrapped_bidi(&mut child, &title, FontId::new(base * 1.6, FontFamily::Name("serif-bold".into())), th.text);
+    } else {
+        child.add(Label::new(RichText::new(title).family(FontFamily::Name("serif-bold".into())).size(base * 1.6).color(th.text)).wrap());
+    }
     child.add_space(6.0);
     child.label(RichText::new(host_of(&doc.url)).size(base * 0.72).color(th.sub));
     let bottom = child.min_rect().bottom() + 14.0;
@@ -492,7 +496,215 @@ pub(super) fn split_find<'t>(text: &'t str, q: &str) -> Vec<(&'t str, bool)> {
     out
 }
 
+/// A text of one font with right-to-left words in it, on as many lines as
+/// it needs: lines filled in reading order, each drawn in the order it is
+/// seen, set against the right when the text is read from right to left.
+fn wrapped_bidi(ui: &mut Ui, text: &str, font: FontId, color: Color32) {
+    let room = ui.available_width();
+    let width = |t: &str| ui.painter().layout_no_wrap(crate::bidi::visual(t).into_owned(), font.clone(), color).size().x;
+    let mut lines: Vec<String> = Vec::new();
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        let longer = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
+        if !line.is_empty() && width(&longer) > room {
+            lines.push(std::mem::take(&mut line));
+            line = word.to_string();
+        } else {
+            line = longer;
+        }
+    }
+    if !line.is_empty() {
+        lines.push(line);
+    }
+    let (_, rtl) = crate::bidi::seen(text);
+    for line in lines {
+        let g = ui.painter().layout_no_wrap(crate::bidi::visual(&line).into_owned(), font.clone(), color);
+        let (row, _) = ui.allocate_exact_size(vec2(room, g.size().y), Sense::hover());
+        let x = if rtl { row.right() - g.size().x } else { row.left() };
+        ui.painter().galley(pos2(x, row.top()), g, color);
+    }
+}
+
+/// How one span of a paragraph is written: its font, and the colour behind it.
+fn span_font(span: &Span, size: f32, rc: &RenderCtx) -> FontId {
+    if span.code {
+        FontId::new(size * 0.9, FontFamily::Monospace)
+    } else if span.bold {
+        FontId::new(size, if rc.serif { FontFamily::Name("serif-bold".into()) } else { bold() })
+    } else if span.italic {
+        FontId::new(size, FontFamily::Name(if rc.serif { "serif-italic" } else { "italic" }.into()))
+    } else if rc.serif {
+        FontId::new(size, FontFamily::Name("serif".into()))
+    } else {
+        FontId::proportional(size)
+    }
+}
+
+/// One piece of a line of a right-to-left paragraph, as it is drawn: its
+/// text (as the text engine wants it, see bidi.rs), the span it comes from,
+/// and whether the search found it.
+#[derive(Clone)]
+struct BidiPiece {
+    text: String,
+    span: usize,
+    found: bool,
+}
+
+/// The lines of a paragraph with right-to-left text in it, each as its
+/// pieces from left to right; and whether the paragraph is set against the
+/// right. Lines are filled in the order the text is read (words are
+/// measured in the order they are written), then each line is put in the
+/// order it is seen.
+fn bidi_lines(ui: &Ui, spans: &[Span], size: f32, room: f32, rc: &RenderCtx) -> (Vec<Vec<BidiPiece>>, bool) {
+    // the paragraph as one text; for each of its parts, the span it comes
+    // from and whether the search found it
+    let mut text = String::new();
+    let mut parts: Vec<(usize, usize, bool)> = Vec::new(); // (start byte, span, found)
+    for (k, span) in spans.iter().enumerate() {
+        for (seg, found) in split_find(&span.text, rc.find) {
+            parts.push((text.len(), k, found));
+            text.push_str(seg);
+        }
+    }
+    let part_at = |byte: usize| parts[parts.partition_point(|p| p.0 <= byte).saturating_sub(1)];
+    let width = |from: usize, to: usize| -> f32 {
+        // (a word may be written in two ways: each part in its own font)
+        let mut w = 0.0;
+        let mut at = from;
+        while at < to {
+            let (_, k, _) = part_at(at);
+            let next = parts.iter().map(|p| p.0).find(|s| *s > at).unwrap_or(text.len()).min(to);
+            w += ui.painter().layout_no_wrap(crate::bidi::visual(&text[at..next]).into_owned(), span_font(&spans[k], size, rc), Color32::WHITE).size().x;
+            at = next;
+        }
+        w
+    };
+    // words, each with the spaces after it; lines filled in reading order
+    let mut lines: Vec<(usize, usize)> = Vec::new();
+    let (mut line_start, mut line_w, mut word_start) = (0usize, 0.0f32, 0usize);
+    let mut ends: Vec<usize> = Vec::new();
+    let mut in_space = false;
+    for (i, c) in text.char_indices() {
+        if in_space && !c.is_whitespace() {
+            ends.push(i);
+        }
+        in_space = c.is_whitespace();
+    }
+    ends.push(text.len());
+    for end in ends {
+        let w = width(word_start, end);
+        if line_w > 0.0 && line_w + width(word_start, text[..end].trim_end().len().max(word_start)) > room {
+            lines.push((line_start, word_start));
+            line_start = word_start;
+            line_w = 0.0;
+        }
+        line_w += w;
+        word_start = end;
+    }
+    if line_start < text.len() {
+        lines.push((line_start, text.len()));
+    }
+    let (_, rtl) = crate::bidi::seen(&text);
+    let made = lines
+        .into_iter()
+        .map(|(from, to)| {
+            let line = text[from..to].trim_end();
+            let (chars, _) = crate::bidi::seen(line);
+            // consecutive characters, as seen, of the same part: one piece
+            let mut pieces: Vec<BidiPiece> = Vec::new();
+            let mut k = 0;
+            while k < chars.len() {
+                let (_, span, found) = part_at(from + chars[k].1);
+                let mut end = k + 1;
+                while end < chars.len() && {
+                    let (_, s2, f2) = part_at(from + chars[end].1);
+                    s2 == span && f2 == found
+                } {
+                    end += 1;
+                }
+                pieces.push(BidiPiece { text: crate::bidi::piece(chars[k..end].iter().map(|(c, _)| *c)), span, found });
+                k = end;
+            }
+            pieces
+        })
+        .collect();
+    (made, rtl)
+}
+
+/// A paragraph with right-to-left text in it (Arabic, Hebrew): its lines
+/// are made here — the widgets' own wrapping puts the pieces one after the
+/// other from the left, in the order they are written — and set against
+/// the right when the paragraph is read from right to left.
+fn render_spans_bidi(ui: &mut Ui, spans: &[Span], size: f32, color: Color32, rc: &mut RenderCtx) {
+    use std::hash::{Hash, Hasher};
+    thread_local! {
+        /// (kept from one frame to the next: a paragraph is drawn at every frame, laid out once)
+        static KEPT: std::cell::RefCell<HashMap<u64, std::rc::Rc<(Vec<Vec<BidiPiece>>, bool)>>> = std::cell::RefCell::new(HashMap::new());
+    }
+    let room = ui.available_width();
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for s in spans {
+        (&s.text, s.bold, s.italic, s.code).hash(&mut h);
+    }
+    (size.to_bits(), room.round() as i32, rc.find, rc.serif, ui.ctx().pixels_per_point().to_bits()).hash(&mut h);
+    let key = h.finish();
+    let lines = match KEPT.with(|k| k.borrow().get(&key).cloned()) {
+        Some(l) => l,
+        None => {
+            let made = std::rc::Rc::new(bidi_lines(ui, spans, size, room, rc));
+            KEPT.with(|k| {
+                let mut k = k.borrow_mut();
+                if k.len() >= 512 {
+                    k.clear();
+                }
+                k.insert(key, made.clone());
+            });
+            made
+        }
+    };
+    let (lines, rtl) = (&lines.0, lines.1);
+    let gap = size * 0.32;
+    for (n, line) in lines.iter().enumerate() {
+        let galleys: Vec<_> = line
+            .iter()
+            .map(|p| {
+                let span = &spans[p.span];
+                let link = span.link.and_then(|l| rc.doc.links.get(l as usize));
+                let col = match link {
+                    _ if p.found => Color32::BLACK,
+                    Some(u) if rc.visited.contains(u) => rc.th.visited,
+                    Some(_) => rc.th.link,
+                    None => color,
+                };
+                ui.painter().layout_no_wrap(p.text.clone(), span_font(span, size, rc), col)
+            })
+            .collect();
+        let w: f32 = galleys.iter().map(|g| g.size().x).sum();
+        let h = galleys.iter().map(|g| g.size().y).fold(size * 1.2, f32::max);
+        let (row, _) = ui.allocate_exact_size(vec2(room, h + if n + 1 < lines.len() { gap } else { 0.0 }), Sense::hover());
+        let mut x = if rtl { row.right() - w } else { row.left() };
+        for (p, g) in line.iter().zip(galleys) {
+            let span = &spans[p.span];
+            let r = Rect::from_min_size(pos2(x, row.top() + (h - g.size().y) / 2.0), g.size());
+            if p.found {
+                ui.painter().rect_filled(r, 0.0, rc.th.highlight);
+            } else if span.code {
+                ui.painter().rect_filled(r, 0.0, rc.th.code_bg);
+            }
+            x += g.size().x;
+            ui.painter().galley(r.min, g, color);
+            if let Some(u) = span.link.and_then(|l| rc.doc.links.get(l as usize)).cloned() {
+                let resp = ui.interact(r, ui.id().with(("bidi-link", key, n, p.span, r.left() as i32)), Sense::click());
+                link_behaviour(ui, &resp, &u, rc);
+            }
+        }
+    }
+}
+
 fn render_spans(ui: &mut Ui, spans: &[Span], size: f32, color: Color32, rc: &mut RenderCtx) {
+    if spans.iter().any(|s| crate::bidi::has_rtl(&s.text)) {
+        return render_spans_bidi(ui, spans, size, color, rc);
+    }
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, size * 0.32);
         for span in spans {

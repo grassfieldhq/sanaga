@@ -337,9 +337,10 @@ engine bridge and a few system services.
   Hyprland; on other desktops the desktop decides.
 - Emoji in Sanaga's own interface are in colour when the system has a colour
   emoji font (black and white otherwise). Other alphabets there use the
-  system's fonts; in a right-to-left sentence each word is drawn properly
-  but the words follow one another from left to right (pages are not
-  concerned: the web engine draws them).
+  system's fonts. Right-to-left sentences (Arabic, Hebrew) read right
+  wherever a title or a name is shown; in a field being typed in (the
+  address bar), each word is drawn properly but the words follow one
+  another from left to right until the text is shown elsewhere.
 - Encrypted DNS (DNS over HTTPS) is the system's to set (systemd-resolved,
   NetworkManager...): the web engine resolves names through the system and
   has no setting of its own for it. A proxy can be chosen in Settings.

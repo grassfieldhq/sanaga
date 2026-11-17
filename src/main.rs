@@ -17,6 +17,7 @@ compile_error!("Sanaga currently runs on Linux (and BSD) only: it is built on GT
 mod ai;
 mod ai_cli;
 mod app;
+mod bidi;
 mod blocklist;
 mod codecs;
 mod crash;

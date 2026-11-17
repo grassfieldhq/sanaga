@@ -395,6 +395,12 @@ All notable changes to Sanaga are listed here. The format follows
   folder whose name has spaces or signs and says when the sandbox's two
   programs are missing; the launcher's actions are in five languages
   ("Open with the Travail profile" gives way to "Choose a profile").
+- Right-to-left sentences (Arabic, Hebrew...) read right in the interface:
+  tab titles, favourites, the history, suggestions, the tab overview. The
+  words came one after the other from left to right; a title too long is
+  now cut where reading stops, its "…" on the left, as pages do. The
+  Reader and the Light engine set such paragraphs against the right, line
+  by line, with their links and numbers in place.
 - Titles and names in other alphabets (Arabic, Hebrew, Devanagari, Chinese,
   Cherokee...) show in the interface with whatever font the system has for
   them (asked to fontconfig when first needed); only a fixed list of Noto

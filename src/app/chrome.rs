@@ -31,13 +31,45 @@ impl Fit for egui::Painter {
             egui::Align::Max => pos.x - clip.left(),
             egui::Align::Center => 2.0 * (clip.right() - pos.x).min(pos.x - clip.left()),
         };
-        let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), font, color);
+        // (a right-to-left sentence: its words in the order they are seen,
+        // cut where reading stops — see bidi.rs)
+        let text = text.to_string();
+        let text = if crate::bidi::has_rtl(&text) { fitted(self, &text, &font, room.max(0.0)) } else { text };
+        let mut job = egui::text::LayoutJob::simple_singleline(text, font, color);
         job.wrap = egui::text::TextWrapping { max_width: room.max(0.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
         let galley = self.layout_job(job);
         let rect = anchor.anchor_size(pos, galley.size());
         self.galley(rect.min, galley, color);
         rect
     }
+}
+
+/// A text with something written from right to left in it (an Arabic or
+/// Hebrew title), as to draw it in `room`: in the order it is seen, and cut
+/// at the end of what is read when it is too long. Kept from one frame to
+/// the next (a title is asked for at every frame, measured once).
+pub(super) fn fitted(painter: &egui::Painter, text: &str, font: &FontId, room: f32) -> String {
+    use std::hash::{Hash, Hasher};
+    thread_local! {
+        static KEPT: std::cell::RefCell<std::collections::HashMap<u64, String>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    }
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (text, font, room.round() as i32, painter.ctx().pixels_per_point().to_bits()).hash(&mut h);
+    let key = h.finish();
+    if let Some(known) = KEPT.with(|k| k.borrow().get(&key).cloned()) {
+        return known;
+    }
+    let mut width = |t: &str| painter.layout_no_wrap(t.to_string(), font.clone(), Color32::WHITE).size().x;
+    let made = crate::bidi::fit(text, room, &mut width);
+    KEPT.with(|k| {
+        let mut k = k.borrow_mut();
+        // (bounded: titles come and go with the pages)
+        if k.len() >= 512 {
+            k.clear();
+        }
+        k.insert(key, made.clone());
+    });
+    made
 }
 
 /// A button for what can't be undone (erase the history, delete a password,

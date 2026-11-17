@@ -87,6 +87,9 @@ epaint = { version = "0.37", default-features = false, features = ["color_fonts"
 # the system's big fonts (Chinese, Japanese, Korean, emoji) are mapped, not copied
 memmap2 = "0.9"
 url = "2.5"
+# right-to-left sentences in the interface: the order words are seen in
+# (the Unicode bidirectional algorithm; no other crate comes with it)
+unicode-bidi = { version = "0.3", default-features = false, features = ["hardcoded-data", "std"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico", "bmp"] }
 percent-encoding = "2"
 qrcode = { version = "0.14", default-features = false }

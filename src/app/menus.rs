@@ -39,7 +39,8 @@ impl Sanaga {
             }
             for (k, b) in self.store.bookmarks.iter().enumerate() {
                 let title: String = if b.title.chars().count() > 22 { format!("{}…", b.title.chars().take(21).collect::<String>()) } else { b.title.clone() };
-                let galley = ui.painter().layout_no_wrap(title, FontId::proportional(12.5), th.text);
+                // (a right-to-left name: its words in the order they are seen)
+                let galley = ui.painter().layout_no_wrap(crate::bidi::visual(&title).into_owned(), FontId::proportional(12.5), th.text);
                 let w = galley.size().x + 34.0;
                 if ui.available_width() < w + 40.0 {
                     break;
