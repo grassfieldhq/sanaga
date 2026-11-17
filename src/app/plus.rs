@@ -458,6 +458,9 @@ impl Sanaga {
     /// Erase history and site data for a period (seconds; 0 = all time).
     pub(super) fn clear_browsing_data(&mut self, period: u64, history: bool, cookies: bool, cache: bool) {
         let since = if period == 0 { 0 } else { crate::store::now().saturating_sub(period) };
+        // (the sites visited in that period, before their visits are
+        // forgotten: their cookies are the ones to remove — see below)
+        let visited: std::collections::HashSet<String> = self.store.history.iter().filter(|v| v.time >= since).map(|v| host_of(&v.url).trim_start_matches("www.").to_string()).filter(|h| !h.is_empty()).collect();
         if history {
             self.store.clear_history_since(since);
             self.visited = self.store.history.iter().map(|v| v.url.clone()).collect();
@@ -494,7 +497,30 @@ impl Sanaga {
             }
             let span = glib_timespan(period);
             for dm in sessions.iter().filter_map(|s| s.website_data_manager()) {
-                dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {});
+                if period == 0 || !cookies {
+                    dm.clear(types, span, None::<&webkit6::gio::Cancellable>, |_| {});
+                    continue;
+                }
+                // The engine cannot remove cookies "since a time" (it says
+                // so, and removes none): for a period, the cookies and site
+                // data of the sites visited in it are removed, site by
+                // site. They used to stay, under "Browsing data cleared".
+                let cache = types & (webkit6::WebsiteDataTypes::MEMORY_CACHE | webkit6::WebsiteDataTypes::DISK_CACHE);
+                if !cache.is_empty() {
+                    dm.clear(cache, span, None::<&webkit6::gio::Cancellable>, |_| {});
+                }
+                let of_sites = types & !cache;
+                let (dm2, visited) = (dm.clone(), visited.clone());
+                dm.fetch(of_sites, None::<&webkit6::gio::Cancellable>, move |found| {
+                    let Ok(found) = found else { return };
+                    // (a record is named after its site: "example.org" for
+                    // www.example.org and accounts.example.org alike)
+                    let theirs: Vec<webkit6::WebsiteData> = found.into_iter().filter(|d| d.name().is_some_and(|n| visited.iter().any(|h| h == n.as_str() || h.ends_with(&format!(".{n}")) || n.ends_with(&format!(".{h}"))))).collect();
+                    if !theirs.is_empty() {
+                        let list: Vec<&webkit6::WebsiteData> = theirs.iter().collect();
+                        dm2.remove(of_sites, &list, None::<&webkit6::gio::Cancellable>, |_| {});
+                    }
+                });
             }
         }
         self.notice = Some((tr("Données de navigation effacées.").into(), self.ctx.input(|i| i.time)));
