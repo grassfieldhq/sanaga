@@ -11,7 +11,7 @@ Legend: ✅ done · 🟡 partly · ❌ not yet
 |---|---|---|
 | Pages isolated from the computer | ✅ | WebKit's bubblewrap sandbox is on when `bwrap` and `xdg-dbus-proxy` are installed (both are on Arch/Omarchy). |
 | Engine security updates | 🟡 | Come from the distribution's WebKitGTK package — keep the system updated. Sanaga should warn when WebKitGTK is old. |
-| Data files never half-written | ✅ | Settings, history, bookmarks, session… are written to a copy then swapped in. |
+| Data files never half-written | ✅ | Settings, bookmarks, session… are written to a copy then swapped in; the history is a SQLite database (write-ahead log). |
 | Crash information kept | ✅ | A report per crash in `~/.local/share/sanaga/crashes/` (Sanaga itself, a page's process, an abrupt end), read on `sanaga://crashes`, sent only by the person (a GitHub issue, pre-filled). After an abrupt end the tabs come back and a bar says so. A crash inside a system library leaves no detail, only the note that the run ended abruptly. |
 | One Sanaga per profile | ✅ | Links opened from other apps go to the running Sanaga as new tabs. |
 | Passwords | ✅ | In the system keyring (libsecret); AutoFill only for the site really shown. |
