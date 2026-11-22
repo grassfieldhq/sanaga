@@ -454,7 +454,8 @@ mod tests {
         assert!(waiting.join().unwrap());
         drop(c);
         assert_eq!(*places.used.lock().unwrap(), 0, "every place given back");
-        assert!(MAX_CONNECTIONS >= 64 && MAX_CONNECTIONS <= 1024);
+        const { assert!(MAX_CONNECTIONS >= 64) };
+        const { assert!(MAX_CONNECTIONS <= 1024) };
     }
 
     /// An answer to `question(name, kind)` with these records (kind, ttl, data).
