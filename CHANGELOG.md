@@ -12,13 +12,18 @@ The security review and the functional review of 0.6.0.
 - **An outside tool's call is shown whole before it is accepted**: what is
   sent is shown in full, in a box of its own (monospace, wrapped), with the
   characters that draw nothing written out; "Accept" waits until the box
-  has been scrolled to its end. A call too long to be read is refused, not
-  shown in part. (It was cut at 600 characters, without a mark.)
+  has been scrolled to its end, in a box tall enough to be read. A call too
+  long to be read is refused, not shown in part. A word that mixes letters
+  of alphabets with look-alikes is pointed out. (It was cut at 600
+  characters, without a mark.)
 - **A site the administrator keeps from models stays kept when the person
   changes tabs**: the model is chosen, and the policy applied, for the tab
   the question was asked in, as decided when it was asked — and again for
-  what each tab shows when its page is read. (Going to another tab while a
-  summary of such a site was loading sent its text to the model.)
+  what each tab shows when its page is read, by a question or by a tool.
+  A conversation that holds Sanaga's own summary of such a site is kept
+  from every model from then on (its follow-ups too), and the assistant's
+  search of earlier conversations never returns it. (Going to another tab
+  while a summary of such a site was loading sent its text to the model.)
 - **"Accept" is inert for half a second** after a new action appears, and
   takes a click begun after that: the second click of a double click no
   longer accepts the next action unread.
@@ -36,7 +41,7 @@ The security review and the functional review of 0.6.0.
   of Sanaga's (keys, tokens, sessions).
 - **Sync folder**: its files are read as plain files only (a link, a pipe
   or a device in their place is refused) and the folders Sanaga keeps in it
-  must be real folders; saved requests travel only through a folder
+  must be real folders, held open for the whole round; saved requests travel only through a folder
   encrypted with a secret phrase — in a plain folder anyone who can write
   in it could slip one in.
 
@@ -46,7 +51,8 @@ The security review and the functional review of 0.6.0.
 - A Sanaga packaged by a distribution (`SANAGA_DISTRO`) no longer offers to
   look for new versions on GitHub: they come with the system's updates.
 - The encrypted DNS relay serves at most 256 connections at once; more wait
-  a moment, then are refused.
+  a moment, then are refused. A connection that has not given the relay's
+  secret yet has one of 32 places of its own and 10 seconds to give it.
 - A message longer than 4 MB from an outside tools' server ends the call
   cleanly instead of being read whole into memory.
 
