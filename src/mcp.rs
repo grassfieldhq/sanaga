@@ -18,7 +18,7 @@
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read, Write};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -32,6 +32,9 @@ const PATIENCE: Duration = Duration::from_secs(60);
 /// The most tools taken from one server, and the longest answer kept.
 const MAX_TOOLS: usize = 60;
 const MAX_ANSWER: usize = 60_000;
+/// The longest message (one line) taken from a server. A longer one ends
+/// the call: it is not read whole into memory first.
+const MAX_LINE: usize = 4 << 20;
 
 /// A server the person added.
 #[derive(Clone, Debug, PartialEq)]
@@ -146,6 +149,26 @@ pub fn split_command(line: &str) -> Vec<String> {
     out
 }
 
+/// One line of what a server sends, without its line break; `Err` when it
+/// is longer than `most` bytes (then only `most` and a byte were read).
+/// None: the end.
+fn read_line(from: &mut impl BufRead, most: usize) -> std::io::Result<Option<Result<String, ()>>> {
+    let mut buf = Vec::new();
+    let n = from.take(most as u64 + 1).read_until(b'\n', &mut buf)?;
+    if n == 0 {
+        return Ok(None);
+    }
+    if buf.last() == Some(&b'\n') {
+        buf.pop();
+        if buf.last() == Some(&b'\r') {
+            buf.pop();
+        }
+    } else if buf.len() > most {
+        return Ok(Some(Err(())));
+    }
+    Ok(Some(Ok(String::from_utf8_lossy(&buf).into_owned())))
+}
+
 /// The variables of Sanaga's own environment a server program is given:
 /// what a program needs to start and to speak the person's language. The
 /// rest — keys and tokens of other programs, Sanaga's sessions — is not
@@ -248,7 +271,9 @@ enum Link {
     Program {
         child: std::process::Child,
         stdin: std::process::ChildStdin,
-        lines: Receiver<String>,
+        /// Its lines; `Err`: one was longer than `MAX_LINE` (nothing more
+        /// is read).
+        lines: Receiver<Result<String, ()>>,
         /// The empty private folder it runs in (removed with the session).
         _dir: crate::store::PrivateDir,
     },
@@ -303,8 +328,10 @@ impl Session {
             std::thread::Builder::new()
                 .name("sanaga-mcp".into())
                 .spawn(move || {
-                    for line in std::io::BufReader::new(stdout).lines().map_while(Result::ok) {
-                        if tx.send(line).is_err() {
+                    let mut out = std::io::BufReader::new(stdout);
+                    while let Ok(Some(line)) = read_line(&mut out, MAX_LINE) {
+                        let too_long = line.is_err();
+                        if tx.send(line).is_err() || too_long {
                             break;
                         }
                     }
@@ -371,13 +398,14 @@ impl Session {
         self.next += 1;
         let msg = request(id, method, params);
         let silent = || crate::i18n::tr("Le serveur ne répond pas.").to_string();
+        let too_long = || crate::i18n::tr("Le serveur a envoyé un message trop long : l'appel est arrêté.").to_string();
         match &mut self.link {
             Link::Program { stdin, lines, .. } => {
                 writeln!(stdin, "{msg}").and_then(|()| stdin.flush()).map_err(|e| e.to_string())?;
                 let until = std::time::Instant::now() + PATIENCE;
                 loop {
                     let left = until.saturating_duration_since(std::time::Instant::now());
-                    let line = lines.recv_timeout(left).map_err(|_| silent())?;
+                    let line = lines.recv_timeout(left).map_err(|_| silent())?.map_err(|()| too_long())?;
                     if let Some(answer) = answer_to(&line, id) {
                         return answer;
                     }
@@ -390,7 +418,9 @@ impl Session {
                 let resp = self.post(&msg)?;
                 if resp.content_type() == "text/event-stream" {
                     // (the answer comes among the events of a stream)
-                    for line in std::io::BufReader::new(resp.into_reader()).lines().map_while(Result::ok) {
+                    let mut events = std::io::BufReader::new(resp.into_reader());
+                    while let Ok(Some(line)) = read_line(&mut events, MAX_LINE) {
+                        let line = line.map_err(|()| too_long())?;
                         if let Some(answer) = line.strip_prefix("data:").and_then(|d| answer_to(d, id)) {
                             return answer;
                         }
@@ -502,6 +532,23 @@ mod tests {
         assert!(tool_name(&"s".repeat(80), "t").len() <= 64);
         assert_eq!(split_command("npx -y  @acme/notes --dir \"/home/me/Mes notes\" 'a b' \"\""), ["npx", "-y", "@acme/notes", "--dir", "/home/me/Mes notes", "a b", ""]);
         assert!(split_command("   ").is_empty());
+    }
+
+    #[test]
+    fn a_servers_lines_are_bounded() {
+        let mut r = std::io::Cursor::new(b"{\"a\":1}\r\nshort\n".to_vec());
+        assert_eq!(read_line(&mut r, 16).unwrap(), Some(Ok("{\"a\":1}".to_string())));
+        assert_eq!(read_line(&mut r, 16).unwrap(), Some(Ok("short".to_string())));
+        assert_eq!(read_line(&mut r, 16).unwrap(), None);
+        // exactly the most, with or without its line break: taken
+        let mut r = std::io::Cursor::new([vec![b'x'; 16], b"\n".to_vec(), vec![b'y'; 16]].concat());
+        assert_eq!(read_line(&mut r, 16).unwrap(), Some(Ok("x".repeat(16))));
+        assert_eq!(read_line(&mut r, 16).unwrap(), Some(Ok("y".repeat(16))));
+        // longer: refused, and only the most and a byte are read
+        let mut r = std::io::Cursor::new(vec![b'z'; 1_000]);
+        assert_eq!(read_line(&mut r, 16).unwrap(), Some(Err(())));
+        assert_eq!(r.position(), 17);
+        assert!(MAX_LINE >= MAX_ANSWER * 4, "an answer that is cut afterwards still arrives");
     }
 
     #[test]

@@ -1445,3 +1445,4 @@ Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est ch
 {} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} is not a regular file (a link, for example): it is not read.
 {} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} is not a regular folder (a link, for example): sync stops.
 Les nouvelles versions de Sanaga arrivent avec les mises à jour de votre système.	New versions of Sanaga come with your system's updates.
+Le serveur a envoyé un message trop long : l'appel est arrêté.	The server sent a message that is too long: the call is stopped.

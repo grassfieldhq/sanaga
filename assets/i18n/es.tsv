@@ -1445,3 +1445,4 @@ Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est ch
 {} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} no es un archivo normal (un enlace, por ejemplo): no se lee.
 {} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} no es una carpeta normal (un enlace, por ejemplo): la sincronización se detiene.
 Les nouvelles versions de Sanaga arrivent avec les mises à jour de votre système.	Las nuevas versiones de Sanaga llegan con las actualizaciones de su sistema.
+Le serveur a envoyé un message trop long : l'appel est arrêté.	El servidor envió un mensaje demasiado largo: la llamada se detiene.
