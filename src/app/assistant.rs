@@ -1301,7 +1301,7 @@ impl Sanaga {
                                     // (wrapped: nothing goes past the right edge either)
                                     ui.add(egui::Label::new(RichText::new(detail).monospace().size(12.0).color(th.text)).wrap());
                                 });
-                                reached_end = seen_to_the_end(out.state.offset.y, out.inner_rect.height(), out.content_size.y);
+                                reached_end = seen_to_the_end(out.state.clamped_offset().y, out.inner_rect.height(), out.content_size.y);
                             });
                             if !c.seen_all && !reached_end {
                                 ui.add(egui::Label::new(RichText::new(tr("Faites défiler jusqu'au bout pour pouvoir accepter.")).size(11.5).color(th.sub)).wrap());
