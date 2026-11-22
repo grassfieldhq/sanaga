@@ -1441,3 +1441,6 @@ Lien copié en Markdown.	Link copied as Markdown.
 {} › {} — envoyé :	{} › {} — sent:
 Faites défiler jusqu'au bout pour pouvoir accepter.	Scroll to the end to be able to accept.
 Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'il lui faut devant la commande : NOM=valeur commande…	It does not get Sanaga's environment variables; write the ones it needs before the command: NAME=value command…
+Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est chiffré par une phrase secrète : sans elle, quiconque peut écrire dans le dossier pourrait y glisser une demande.	Your saved requests for the assistant travel only when the folder is encrypted with a secret phrase: without one, anyone who can write in the folder could slip a request in.
+{} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} is not a regular file (a link, for example): it is not read.
+{} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} is not a regular folder (a link, for example): sync stops.

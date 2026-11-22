@@ -1441,3 +1441,6 @@ Lien copié en Markdown.	Ligação copiada em Markdown.
 {} › {} — envoyé :	{} › {} — enviado:
 Faites défiler jusqu'au bout pour pouvoir accepter.	Desloque até ao fim para poder aceitar.
 Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'il lui faut devant la commande : NOM=valeur commande…	Não recebe as variáveis de ambiente do Sanaga; escreva as de que precisa antes do comando: NOME=valor comando…
+Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est chiffré par une phrase secrète : sans elle, quiconque peut écrire dans le dossier pourrait y glisser une demande.	Os seus pedidos guardados para o assistente só viajam se a pasta estiver cifrada com uma frase secreta: sem ela, qualquer pessoa que possa escrever na pasta poderia lá meter um pedido.
+{} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} não é um ficheiro normal (uma ligação, por exemplo): não é lido.
+{} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} não é uma pasta normal (uma ligação, por exemplo): a sincronização para.

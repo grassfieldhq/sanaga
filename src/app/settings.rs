@@ -1753,6 +1753,7 @@ impl Sanaga {
                 }
             });
             footnote(ui, th, tr("Choisissez un dossier partagé entre vos ordinateurs (Syncthing, Nextcloud, Dropbox, clé USB…). Sanaga y garde vos favoris, votre liste de lecture et vos onglets ouverts, et montre sur la page d'accueil les onglets de vos autres appareils."));
+            footnote(ui, th, tr("Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est chiffré par une phrase secrète : sans elle, quiconque peut écrire dans le dossier pourrait y glisser une demande."));
             group(ui, th, tr("Profils"), |ui, rows| {
                 if rows.reaches(&profile_words.iter().map(String::as_str).collect::<Vec<_>>()).link(ui, tr("Gérer les profils"), "", &profile) {
                     acts.push(Act::Go("sanaga://profiles"));
