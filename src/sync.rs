@@ -147,24 +147,54 @@ fn read_folder_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
 }
 
 /// Make the folders Sanaga keeps in the sync folder (`Sanaga`, the
-/// profile's, `appareils`), one inside the other: each must be a real
-/// folder, not a link that would take what is read and written there
-/// elsewhere — checked before anything is made inside it. (The sync folder
-/// itself is the person's choice, link or not.)
-fn make_own_folders(root: &Path, inside: &[&str]) -> Result<(), String> {
-    let mut path = root.to_path_buf();
+/// profile's, `appareils`), one inside the other, and hold each open: each
+/// is made and opened from the one before (mkdirat, openat with
+/// O_DIRECTORY|O_NOFOLLOW), so it must be a real folder, not a link that
+/// would take what is read and written there elsewhere — and swapping one
+/// for a link afterwards changes nothing, the round works from the folders
+/// held (`held_path`). (The sync folder itself is the person's choice,
+/// link or not.)
+fn make_own_folders(root: &Path, inside: &[&str]) -> Result<Vec<std::os::fd::OwnedFd>, String> {
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    use std::os::unix::ffi::OsStrExt;
+    let cannot = || crate::i18n::tr("Impossible d'écrire dans le dossier de synchronisation.").to_string();
+    let open = |at: libc::c_int, name: &std::ffi::CStr, follow: bool| -> Option<OwnedFd> {
+        let flags = libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC | if follow { 0 } else { libc::O_NOFOLLOW };
+        // SAFETY: a file name ending in NUL, and a descriptor this function holds (or AT_FDCWD).
+        let fd = unsafe { libc::openat(at, name.as_ptr(), flags) };
+        // SAFETY: a descriptor just opened, owned by nothing else.
+        (fd >= 0).then(|| unsafe { OwnedFd::from_raw_fd(fd) })
+    };
+    let root_name = std::ffi::CString::new(root.as_os_str().as_bytes()).map_err(|_| cannot())?;
+    let mut at = open(libc::AT_FDCWD, &root_name, true).ok_or_else(cannot)?;
+    let (mut path, mut held) = (root.to_path_buf(), Vec::new());
     for part in inside {
         path.push(part);
-        match std::fs::create_dir(&path) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(_) => return Err(crate::i18n::tr("Impossible d'écrire dans le dossier de synchronisation.").into()),
+        let name = std::ffi::CString::new(*part).ok().filter(|_| !part.is_empty() && !part.contains('/') && *part != "." && *part != "..").ok_or_else(cannot)?;
+        // SAFETY: a file name ending in NUL, and a descriptor held above.
+        if unsafe { libc::mkdirat(at.as_raw_fd(), name.as_ptr(), 0o777) } != 0 && std::io::Error::last_os_error().kind() != std::io::ErrorKind::AlreadyExists {
+            return Err(cannot());
         }
-        if !std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_dir()) {
+        let Some(next) = open(at.as_raw_fd(), &name, false) else {
             return Err(crate::i18n::tf("{} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.", &[&path.display()]));
-        }
+        };
+        held.push(next.try_clone().map_err(|_| cannot())?);
+        at = next;
     }
-    Ok(())
+    Ok(held)
+}
+
+/// A path that reaches a folder held open (`make_own_folders`) through its
+/// handle, whatever has been put in its place since; `real` where the
+/// system has no such paths (/proc/self/fd).
+fn held_path(fd: &std::os::fd::OwnedFd, real: &Path) -> PathBuf {
+    use std::os::fd::AsRawFd;
+    let through = PathBuf::from(format!("/proc/self/fd/{}", fd.as_raw_fd()));
+    if through.is_dir() {
+        through
+    } else {
+        real.to_path_buf()
+    }
 }
 
 /// Does the folder hold sealed files (lists, or the tabs of a computer)?
@@ -628,6 +658,16 @@ pub fn sync(job: &SyncJob, status: &mut SyncStatus) -> Synced {
 
 /// A sync round with the secret phrase in hand (None: the folder is not encrypted).
 fn sync_with(job: &SyncJob, phrase: Option<&str>, status: &mut SyncStatus) -> Synced {
+    // (an error says the folder's own name, not the path through its handle)
+    let mut names: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let synced = sync_held(job, phrase, status, &mut names);
+    for (through, real) in names {
+        status.error = status.error.replace(&*through.to_string_lossy(), &real.to_string_lossy());
+    }
+    synced
+}
+
+fn sync_held(job: &SyncJob, phrase: Option<&str>, status: &mut SyncStatus, names: &mut Vec<(PathBuf, PathBuf)>) -> Synced {
     let mut synced = Synced::default();
     let folder = job.folder.trim();
     if folder.is_empty() {
@@ -643,12 +683,18 @@ fn sync_with(job: &SyncJob, phrase: Option<&str>, status: &mut SyncStatus) -> Sy
     // what the window is still saving is on the disk before it is read
     crate::store::flush_saves();
     let profile = if job.profile.is_empty() { "Personnel" } else { job.profile.as_str() };
-    let dir = root.join("Sanaga").join(profile);
-    let devices_dir = dir.join("appareils");
-    if let Err(e) = make_own_folders(&root, &["Sanaga", profile, "appareils"]) {
-        status.error = e;
-        return synced;
-    }
+    let held = match make_own_folders(&root, &["Sanaga", profile, "appareils"]) {
+        Ok(held) => held,
+        Err(e) => {
+            status.error = e;
+            return synced;
+        }
+    };
+    // (from here on, the folders held: see make_own_folders)
+    let real_dir = root.join("Sanaga").join(profile);
+    let (dir, devices_dir) = (held_path(&held[1], &real_dir), held_path(&held[2], &real_dir.join("appareils")));
+    names.push((devices_dir.clone(), real_dir.join("appareils")));
+    names.push((dir.clone(), real_dir.clone()));
     let key = match phrase {
         Some(p) => match folder_key(&dir, p) {
             Ok(k) => Some(k),
@@ -660,7 +706,8 @@ fn sync_with(job: &SyncJob, phrase: Option<&str>, status: &mut SyncStatus) -> Sy
         None => None,
     };
     status.encrypted = key.is_some();
-    let memory = Memory::of(local_dir, &dir);
+    // (what is remembered of the folder goes by its name, not its handle)
+    let memory = Memory::of(local_dir, &real_dir);
     for f in ["bookmarks.tsv", "reading.tsv"] {
         match exchange(&local_dir.join(f), &memory, &dir.join(f), key.as_ref()) {
             Ok(list) if f == "bookmarks.tsv" => synced.bookmarks = list,
@@ -867,6 +914,28 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&other_root);
+    }
+
+    #[test]
+    fn the_folders_held_stay_those_written_in() {
+        use std::os::unix::fs::symlink;
+        let (root, [shared, elsewhere]) = temp("held", ["shared", "elsewhere"]);
+        let held = make_own_folders(&shared, &["Sanaga", "Personnel", "appareils"]).unwrap();
+        let real = shared.join("Sanaga/Personnel");
+        let through = held_path(&held[1], &real);
+        assert_ne!(through, real, "reached through its handle");
+        // the profile's folder is swapped for a link to elsewhere after it
+        // was checked: what is written still goes to the folder held
+        std::fs::rename(&real, shared.join("Sanaga/moved")).unwrap();
+        symlink(&elsewhere, &real).unwrap();
+        crate::store::write_quietly(&through.join("bookmarks.tsv"), "a\tA\n").unwrap();
+        assert!(shared.join("Sanaga/moved/bookmarks.tsv").exists());
+        assert_eq!(std::fs::read_dir(&elsewhere).unwrap().count(), 0, "nothing reached the link's target");
+        assert!(read_folder_file(&held_path(&held[1], &real).join("bookmarks.tsv")).unwrap().is_some());
+        // a name that would climb out is refused
+        assert!(make_own_folders(&shared, &["Sanaga", "../x"]).is_err());
+        assert!(make_own_folders(&shared, &[".."]).is_err());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
