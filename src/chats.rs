@@ -277,6 +277,15 @@ impl Chats {
     }
 }
 
+/// Clear the conversations of a period (`Chats::clear_since`) in those
+/// already open — or, not opened yet, in the profile's file (`dir`), opened
+/// for it. Run it on a thread: opening the file waits for the disk.
+pub fn clear_period(open: Option<Chats>, dir: Option<&Path>, since: u64) {
+    if let Some(chats) = open.or_else(|| dir.and_then(Chats::open)) {
+        chats.clear_since(since);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,6 +344,25 @@ mod tests {
         assert_eq!(chats.list("", 1).len(), 1);
         assert_eq!(chats.said_in(a, 1000), "Person: Quelle est la longueur de la Sanaga ?\nAssistant: Environ 918 km.\n");
         assert!(chats.said_in(a, 10).ends_with('…'));
+    }
+
+    #[test]
+    fn clearing_the_history_reaches_conversations_not_opened_yet() {
+        let dir = std::env::temp_dir().join(format!("sanaga-chats-clear-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        Chats::open(&dir).unwrap().save(None, &conv("Gardée", "q", "r"), 5_000).unwrap();
+        // the window has not opened them: the file is opened for the clearing
+        clear_period(None, Some(&dir), 0);
+        assert!(Chats::open(&dir).unwrap().list("", 10).is_empty());
+        // already open: those are used
+        let open = Chats::open(&dir).unwrap();
+        open.save(None, &conv("Encore", "q", "r"), 5_000).unwrap();
+        clear_period(Some(open), None, 0);
+        assert!(Chats::open(&dir).unwrap().list("", 10).is_empty());
+        // no profile folder (a guest window): nothing to do
+        clear_period(None, None, 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
