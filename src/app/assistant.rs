@@ -157,11 +157,16 @@ fn accept_armed(shown: f64, now: f64, press: Option<f64>, by_pointer: bool) -> b
     now - shown >= ARM_DELAY && (!by_pointer || press.is_some_and(|p| p - shown >= ARM_DELAY))
 }
 
-/// Has the end of a box scrolled through been on the screen? (`offset`:
-/// how far it is scrolled; `shown`: the height seen; `content`: the whole
-/// height.)
+/// The least height of the box scrolled through that counts as reading
+/// it (about four lines): in a sliver of a box, scrolling to the end
+/// shows nothing readable on the way.
+const MIN_SHOWN: f32 = 60.0;
+
+/// Has the end of a box scrolled through been on the screen, in a box
+/// tall enough to be read? (`offset`: how far it is scrolled; `shown`: the
+/// height seen; `content`: the whole height.)
 fn seen_to_the_end(offset: f32, shown: f32, content: f32) -> bool {
-    offset + shown >= content - 1.0
+    offset + shown >= content - 1.0 && shown >= MIN_SHOWN.min(content) - 0.5
 }
 
 /// One thing shown in the conversation.
@@ -1793,6 +1798,10 @@ mod tests {
         assert!(!seen_to_the_end(0.0, 220.0, 900.0));
         assert!(!seen_to_the_end(600.0, 220.0, 900.0));
         assert!(seen_to_the_end(680.0, 220.0, 900.0));
+        // a sliver of a box (a very short window): its end shown is not read
+        assert!(!seen_to_the_end(880.0, 20.0, 900.0));
+        // what is shorter than that, and shown whole, is read
+        assert!(seen_to_the_end(0.0, 20.0, 20.0));
         // what has to be scrolled through starts unread; the rest is read
         let (reply, _rx) = channel();
         let ask = || ToolAsk { call: chat::Call { id: "1".into(), name: "mcp__s__t".into(), input: serde_json::json!({}) }, reply: reply.clone() };

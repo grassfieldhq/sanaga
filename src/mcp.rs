@@ -19,7 +19,7 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{BufRead, Read, Write};
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{sync_channel, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -35,6 +35,8 @@ const MAX_ANSWER: usize = 60_000;
 /// The longest message (one line) taken from a server. A longer one ends
 /// the call: it is not read whole into memory first.
 const MAX_LINE: usize = 4 << 20;
+/// How many of a program's lines wait, read and not yet taken.
+const LINES_WAITING: usize = 8;
 
 /// A server the person added.
 #[derive(Clone, Debug, PartialEq)]
@@ -324,7 +326,9 @@ impl Session {
             let stdout = child.stdout.take().ok_or("no output")?;
             // (its lines are read on a thread: a server that says nothing
             // is waited for a while, not for ever)
-            let (tx, lines) = channel();
+            // (a few lines waiting at most: the program waits for them to
+            // be read, its messages do not pile up in memory)
+            let (tx, lines) = sync_channel(LINES_WAITING);
             std::thread::Builder::new()
                 .name("sanaga-mcp".into())
                 .spawn(move || {
@@ -549,6 +553,7 @@ mod tests {
         assert_eq!(read_line(&mut r, 16).unwrap(), Some(Err(())));
         assert_eq!(r.position(), 17);
         const { assert!(MAX_LINE >= MAX_ANSWER * 4, "an answer that is cut afterwards still arrives") };
+        const { assert!(LINES_WAITING * MAX_LINE <= 64 << 20, "what waits stays bounded") };
     }
 
     #[test]
