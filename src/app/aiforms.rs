@@ -2,9 +2,23 @@
 //! for, and propose values for them. Nothing is typed into a page before
 //! the person has seen each value next to the field's name and accepted.
 //!
-//! What it never touches: password fields, card numbers and codes, hidden
-//! and file fields, buttons — they are not even listed to the model — and
-//! it never sends a form: the person does that themselves.
+//! What it never touches — they are not even listed to the model:
+//! - password, hidden and file fields, buttons (by their kind);
+//! - fields a page marks as secret (`autocomplete` of a password, a
+//!   one-time code, a payment card: `cc-…`), and fields whose name, id,
+//!   label or placeholder says card number, security code (CVC), expiry
+//!   date, password, PIN or one-time code, in the interface's languages;
+//! - fields that are not visibly on the page: not displayed, invisible,
+//!   transparent, of no size, clipped away, or placed outside the page;
+//! - fields inside frames (the payment forms of payment services are
+//!   frames of theirs) and inside web components: the scripts read the
+//!   top page's own fields only.
+//!
+//! These are heuristics for what a page shows; a page that disguises a
+//! card field as an ordinary one (an unlabelled box) is not told apart.
+//! What holds whatever the page does: each value is shown to the person
+//! next to the field's name before anything is typed, and a form is never
+//! sent — the person does that themselves.
 //!
 //! Once a field is filled the page can read it, like anything typed there:
 //! the question the person is asked says so.
@@ -14,12 +28,15 @@ use super::*;
 use crate::chat::{Call, ToolResult};
 use serde_json::{json, Value};
 
-/// Lists the fields of the page that can be filled (as JSON), and keeps
-/// them, in Sanaga's own world, for `FILL_JS`. A field is known afterwards
-/// by its place in that list.
-const FORM_JS: &str = r#"(function(){
-  var KINDS = ['text','email','tel','url','number','search','date','time','datetime-local','month','week','checkbox','radio',''];
-  function secret(el){ return /(^|\s)(cc-|current-password|new-password|one-time-code)/.test((el.getAttribute('autocomplete') || '').toLowerCase()); }
+/// What both scripts below keep from a model, written once: `secret(el)`
+/// (a field that holds a secret, by its `autocomplete` or by its words)
+/// and `unseen(el)` (a field the person can't see on the page). See the
+/// top of this file.
+macro_rules! form_guard {
+    () => {
+        r#"
+  var SECRET_AC = /(^|\s)(cc-|current-password|new-password|one-time-code)/;
+  var SECRET_WORDS = /\b(credit ?card|debit ?card|card ?(number|num|no|nr|code|verification|security|exp\w*|holder|cvc|cvv)|cardnumber|cc ?(num\w*|exp\w*|csc|cvc|cvv|code)|ccnum\w*|cvc2?|cvv2?|cvn|csc|cid|security ?code|verification ?(code|value)|exp(iry|iration)? ?(date|month|year|mm|yy)|expdate|mm ?\/ ?(yy|aa|jj)|num[eé]ro de (la )?carte|carte (bancaire|de cr[eé]dit)|cryptogramme|date d.?expiration|tarjeta|cart[aã]o|validade|kartennummer|karteninhaber|pr[uü]fnummer|ablaufdatum|g[uü]ltig bis|password|passwort|mot de passe|contrase[nñ]a|senha|one ?time|otp|pin)\b/;
   function label(el){
     var t = '';
     if (el.labels && el.labels.length) t = el.labels[0].innerText || '';
@@ -28,11 +45,50 @@ const FORM_JS: &str = r#"(function(){
     if (!t) t = el.placeholder || el.name || el.id || '';
     return t.replace(/\s+/g, ' ').trim().slice(0, 120);
   }
+  function words(el){
+    var parts = [el.getAttribute('name'), el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.getAttribute('autocomplete'), label(el)];
+    // (cardNumber, card_number, card-number: words apart)
+    return parts.map(function(p){ return String(p || '').replace(/([a-z])([A-Z])/g, '$1 $2'); }).join(' ').toLowerCase().replace(/[_\-.\[\]:]+/g, ' ').replace(/\s+/g, ' ');
+  }
+  function secret(el){ return SECRET_AC.test((el.getAttribute('autocomplete') || '').toLowerCase()) || SECRET_WORDS.test(words(el)); }
+  function unseen(el){
+    var st = getComputedStyle(el);
+    if (el.offsetParent === null && st.position !== 'fixed') return true;
+    if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true })) return true;
+    if (el.closest('[hidden],[inert],[aria-hidden="true"]')) return true;
+    var r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return true;
+    var de = document.documentElement, W = Math.max(de.scrollWidth, innerWidth), H = Math.max(de.scrollHeight, innerHeight);
+    if (r.right + scrollX <= 0 || r.bottom + scrollY <= 0 || r.left + scrollX >= W || r.top + scrollY >= H) return true;
+    var opacity = 1;
+    for (var e = el; e && e.nodeType === 1; e = e.parentElement) {
+      var s = e === el ? st : getComputedStyle(e);
+      if (s.display === "none" || s.visibility === "hidden" || s.visibility === "collapse") return true;
+      opacity *= parseFloat(s.opacity);
+      if (opacity < 0.1) return true;
+      if (s.clipPath && s.clipPath !== 'none' && /inset\(\s*(50|[5-9]\d|100)%|circle\(\s*0/.test(s.clipPath)) return true;
+      if (s.clip && /rect\(\s*0(px)?,?\s+0(px)?,?\s+0(px)?,?\s+0(px)?\s*\)/.test(s.clip)) return true;
+      if (e !== el && s.overflow !== 'visible') { var q = e.getBoundingClientRect(); if (q.width < 4 || q.height < 4) return true; }
+    }
+    return false;
+  }
+"#
+    };
+}
+
+/// Lists the fields of the page that can be filled (as JSON), and keeps
+/// them, in Sanaga's own world, for `FILL_JS`. A field is known afterwards
+/// by its place in that list.
+const FORM_JS: &str = concat!(
+    "(function(){",
+    form_guard!(),
+    r#"
+  var KINDS = ['text','email','tel','url','number','search','date','time','datetime-local','month','week','checkbox','radio',''];
   var kept = [], out = [];
   var all = document.querySelectorAll('input, textarea, select');
   for (var i = 0; i < all.length && kept.length < 80; i++) {
     var el = all[i], tag = el.tagName, type = (el.getAttribute('type') || '').toLowerCase();
-    if (el.disabled || el.readOnly || el.offsetParent === null || secret(el)) continue;
+    if (el.disabled || el.readOnly || secret(el) || unseen(el)) continue;
     if (tag === 'INPUT' && KINDS.indexOf(type) < 0) continue;
     var item = { n: kept.length, label: label(el), kind: tag === 'INPUT' ? (type || 'text') : tag.toLowerCase() };
     if (tag === 'SELECT') {
@@ -50,14 +106,18 @@ const FORM_JS: &str = r#"(function(){
   }
   window.__sanagaForm = kept;
   return JSON.stringify(out);
-})()"#;
+})()"#
+);
 
 /// Fills the fields given (their place in the list `FORM_JS` kept, and a
 /// value); answers how many were filled. A field that has become a
-/// password field, or left the page, since it was listed is passed over.
-const FILL_JS: &str = r#"(function(list){
+/// secret or hidden one, or left the page, since it was listed is passed
+/// over.
+const FILL_JS: &str = concat!(
+    "(function(list){",
+    form_guard!(),
+    r#"
   var KINDS = ['text','email','tel','url','number','search','date','time','datetime-local','month','week','checkbox','radio',''];
-  function secret(el){ return /(^|\s)(cc-|current-password|new-password|one-time-code)/.test((el.getAttribute('autocomplete') || '').toLowerCase()); }
   var fields = window.__sanagaForm || [], done = 0;
   function put(el, v){
     var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -66,7 +126,7 @@ const FILL_JS: &str = r#"(function(list){
   }
   list.forEach(function(item){
     var el = fields[item.n];
-    if (!el || !el.isConnected || el.disabled || el.readOnly || secret(el)) return;
+    if (!el || !el.isConnected || el.disabled || el.readOnly || secret(el) || unseen(el)) return;
     var tag = el.tagName, type = (el.getAttribute('type') || '').toLowerCase(), v = String(item.value);
     if (tag === 'INPUT' && KINDS.indexOf(type) < 0) return;
     if (tag === 'SELECT') {
@@ -86,7 +146,8 @@ const FILL_JS: &str = r#"(function(list){
     done++;
   });
   return String(done);
-})"#;
+})"#
+);
 
 /// A field of the page that can be filled.
 #[derive(Clone, Debug, PartialEq)]
@@ -188,7 +249,7 @@ impl Sanaga {
             return answer(ask, "This page has no field that can be filled.", false);
         }
         a.form = Some(FormSeen { tab, address, fields });
-        answer(ask, format!("{said}\nPassword, payment and hidden fields are not listed and cannot be filled. Nothing is sent: the person sends the form themselves."), false);
+        answer(ask, format!("{said}\nFields that look like passwords, codes or payment cards, fields not visible on the page, and fields inside frames are not listed and cannot be filled. Nothing is sent: the person sends the form themselves."), false);
     }
 
     /// What a `fill_form` call would put where, for the person to read —
@@ -298,6 +359,17 @@ mod tests {
             }
             assert!(js.contains("cc-|current-password|new-password|one-time-code"));
             assert!(!js.contains("submit()") && !js.contains(".click("));
+            // a field that looks secret, or is not visibly on the page, is
+            // neither listed nor filled — the same checks in both scripts
+            assert!(js.contains("secret(el) || unseen(el)"), "both checks are used");
+            for check in ["card ?(number", "cvc2?", "exp(iry|iration)?", "cryptogramme", "visibility === \"hidden\"", "opacity < 0.1", "r.width < 4", "r.right + scrollX <= 0", "clipPath"] {
+                assert!(js.contains(check), "{check}");
+            }
+        }
+        // the scripts read the top page's own fields: never those of a
+        // frame (a payment service's form is a frame of its own)
+        for js in [FORM_JS, FILL_JS] {
+            assert!(!js.contains("contentDocument") && !js.contains("frames[") && !js.contains("shadowRoot"));
         }
     }
 }

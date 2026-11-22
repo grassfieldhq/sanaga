@@ -61,7 +61,7 @@ pub(super) fn all() -> Vec<Tool> {
         ),
         tool(
             "read_form",
-            "List the fields of the form on the page shown that can be filled: each one's number, label, kind, choices and present value. Password, payment and hidden fields are never listed. Use it before fill_form.",
+            "List the fields of the form on the page shown that can be filled: each one's number, label, kind, choices and present value. Fields that look like passwords, codes or payment cards, fields not visible on the page and fields inside frames are never listed. Use it before fill_form.",
             json!({"type": "object", "properties": {}}),
             false,
         ),

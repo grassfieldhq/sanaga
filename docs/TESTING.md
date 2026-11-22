@@ -122,8 +122,11 @@ More scripted actions for the assistant: `ask`, `summary`, `attach:/a/file`
 person's answer to a tool the model asks for), `mcpadd:Name|command or address`
 (an outside tools' server added without the form). `tests/assistant.html`
 has a frame and a web component whose text must reach the model;
-`tests/form.html` has a password, a card number and a hidden field that
-must never be listed nor filled, and says whether it was sent.
+`tests/form.html` has a password, card fields (marked by `autocomplete`,
+or only by their name, label or placeholder), fields hidden in several
+ways (a hidden input, invisible, transparent, placed outside the page, of
+no size) and a field in a frame: none of them may be listed nor filled.
+It says whether the form was sent.
 
 ## Outside tools without a server
 
