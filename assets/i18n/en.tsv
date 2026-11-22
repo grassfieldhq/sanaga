@@ -1444,3 +1444,4 @@ Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'i
 Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est chiffré par une phrase secrète : sans elle, quiconque peut écrire dans le dossier pourrait y glisser une demande.	Your saved requests for the assistant travel only when the folder is encrypted with a secret phrase: without one, anyone who can write in the folder could slip a request in.
 {} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} is not a regular file (a link, for example): it is not read.
 {} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} is not a regular folder (a link, for example): sync stops.
+Les nouvelles versions de Sanaga arrivent avec les mises à jour de votre système.	New versions of Sanaga come with your system's updates.

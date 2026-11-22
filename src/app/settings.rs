@@ -1204,12 +1204,15 @@ impl Sanaga {
                         changed |= finished_field(ui, &mut st.proxy, "socks5://127.0.0.1:9050", 240.0);
                     });
                 }
-                changed |= rows.switch(
-                    ui,
-                    tr("Chercher une nouvelle version une fois par jour"),
-                    tr("Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul"),
-                    &mut st.update_check,
-                );
+                // (a distribution's package: its updates bring new versions)
+                if crate::net::looks_for_updates() {
+                    changed |= rows.switch(
+                        ui,
+                        tr("Chercher une nouvelle version une fois par jour"),
+                        tr("Une seule demande par jour à la page des versions de Sanaga (github.com) ; rien n'est installé tout seul"),
+                        &mut st.update_check,
+                    );
+                }
             });
         }
 

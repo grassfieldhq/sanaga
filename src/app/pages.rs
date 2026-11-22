@@ -478,7 +478,15 @@ impl Sanaga {
             // by itself (Sanaga makes no request of its own). Until now
             // nothing told that a newer Sanaga existed.
             ui.add_space(12.0);
+            // (in a distribution's package, new versions come with the
+            // system's updates: nothing to look for here)
+            if !net::looks_for_updates() {
+                ui.label(RichText::new(tr("Les nouvelles versions de Sanaga arrivent avec les mises à jour de votre système.")).color(th.sub));
+            }
             ui.horizontal(|ui| {
+                if !net::looks_for_updates() {
+                    return;
+                }
                 let asking = matches!(self.update_check, Some(None));
                 if ui.add_enabled(!asking, egui::Button::new(tr("Rechercher une nouvelle version"))).clicked() {
                     check_update = true;

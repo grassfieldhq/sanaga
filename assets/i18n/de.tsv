@@ -1444,3 +1444,4 @@ Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'i
 Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est chiffré par une phrase secrète : sans elle, quiconque peut écrire dans le dossier pourrait y glisser une demande.	Ihre gespeicherten Anfragen für den Assistenten werden nur übertragen, wenn der Ordner mit einer geheimen Phrase verschlüsselt ist: ohne sie könnte jeder, der in den Ordner schreiben kann, eine Anfrage einschleusen.
 {} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} ist keine gewöhnliche Datei (zum Beispiel ein Link): sie wird nicht gelesen.
 {} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} ist kein gewöhnlicher Ordner (zum Beispiel ein Link): die Synchronisierung hält an.
+Les nouvelles versions de Sanaga arrivent avec les mises à jour de votre système.	Neue Sanaga-Versionen kommen mit den Updates Ihres Systems.
