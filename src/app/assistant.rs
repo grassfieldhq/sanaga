@@ -242,8 +242,12 @@ fn admit_page(policy: &crate::policy::Policy, address: &str, summary: bool, aske
 }
 
 /// The model that answers a question: the one of the tab asked about —
-/// none when a page of it is kept from every model.
-fn question_model(local_only: bool, for_asked_tab: impl FnOnce() -> Result<Provider, String>) -> Result<Provider, String> {
+/// none when a page of it is kept from every model, or when the
+/// conversation already holds such a page (`kept`).
+fn question_model(local_only: bool, kept: bool, for_asked_tab: impl FnOnce() -> Result<Provider, String>) -> Result<Provider, String> {
+    if kept {
+        return Err(tr("Cette conversation contient un site que l'administrateur garde de tout modèle : commencez une nouvelle conversation.").to_string());
+    }
     if local_only {
         return Err(tr("L'administrateur de cet ordinateur ne laisse pas l'assistant lire ce site.").to_string());
     }
@@ -319,6 +323,11 @@ pub(super) struct Assistant {
     /// Something of a private tab is in it: only a model on this computer
     /// may answer from then on, and nothing is kept.
     pub(super) private: bool,
+    /// Sanaga's own extract of a site the administrator keeps from every
+    /// model is in it: no model answers it from then on (a follow-up would
+    /// hand the extract over with the conversation), and it is never given
+    /// to one (`Chats::list_for_models`).
+    pub(super) kept_from_models: bool,
     /// The list of tabs and files to attach is open.
     picker: bool,
     /// The question being typed, and what is attached to it.
@@ -366,6 +375,7 @@ impl Assistant {
             system: String::new(),
             tools: Vec::new(),
             private,
+            kept_from_models: false,
             picker: false,
             input: String::new(),
             attach: Vec::new(),
@@ -878,11 +888,14 @@ impl Sanaga {
         let page_words: usize = sources.iter().filter(|s| s.kind == SourceKind::Page).map(|s| s.text.split_whitespace().count()).sum();
         let own_summary = sources.iter().find(|s| s.kind == SourceKind::Page).map(|s| ai::local_summary(&s.text, 6)).unwrap_or_default();
         let private = self.assistant.as_ref().is_some_and(|a| a.private);
+        let kept = self.assistant.as_ref().is_some_and(|a| a.kept_from_models);
         // (the model of the tab asked about, as decided then: never that of
         // the tab shown now)
-        let provider = question_model(local_only, || self.chat_provider(p.tab, private)).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
+        let provider = question_model(local_only, kept, || self.chat_provider(p.tab, private)).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
         let outside_tools = self.mcp_tools();
         let Some(a) = self.assistant.as_mut() else { return };
+        // (from now on the whole conversation is kept from models)
+        a.kept_from_models |= local_only;
         if !unread.is_empty() && !p.summary {
             a.note = tf("Non lu (page vide ou trop lente à charger) : {}", &[&unread.join(", ")]);
         }
@@ -1087,6 +1100,7 @@ impl Sanaga {
             tools: a.tools.clone(),
             labels: a.labels.clone(),
             entries: a.entries.clone(),
+            kept_from_models: a.kept_from_models,
         };
         let (id, run) = (a.id, a.run);
         self.off_thread(
@@ -1133,6 +1147,7 @@ impl Sanaga {
                 a.tools = conv.tools;
                 a.labels = conv.labels;
                 a.entries = conv.entries;
+                a.kept_from_models = conv.kept_from_models;
                 // (its pages were given long ago: the page shown is not
                 // sent again unless the person asks)
                 a.with_page = false;
@@ -1199,7 +1214,8 @@ impl Sanaga {
         let page_can = active.web.is_some() && matches!(active.view, View::Web);
         let no_model = self.ai_provider() == Provider::Local;
         let private = self.assistant.as_ref().is_some_and(|a| a.private) || active.private;
-        let available = self.chat_provider(active_id, private);
+        let kept = self.assistant.as_ref().is_some_and(|a| a.kept_from_models);
+        let available = question_model(false, kept, || self.chat_provider(active_id, private));
         // the other tabs whose page can go with a question (a private
         // tab's only into a conversation that is already private)
         let others: Vec<(u64, String, String)> = self
@@ -1779,9 +1795,13 @@ mod tests {
         let local_only = admit_page(&policy, blocked, true, true) == Admit::LocalOnly;
         let shown_now_is_open = admit_page(&policy, open, true, true) == Admit::Read;
         assert!(shown_now_is_open);
-        assert!(question_model(local_only, model).is_err());
+        assert!(question_model(local_only, false, model).is_err());
         // a question asked of an open site goes to the model of its tab
-        assert_eq!(question_model(false, model), model());
+        assert_eq!(question_model(false, false, model), model());
+        // a follow-up, asked from an open site, in a conversation that holds
+        // the bank's extract: still no model (it would get the extract
+        // with the conversation)
+        assert!(question_model(false, true, model).is_err());
     }
 
     #[test]

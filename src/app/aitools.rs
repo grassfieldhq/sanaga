@@ -356,7 +356,7 @@ impl Sanaga {
                 let Some(chats) = self.chats.clone() else { return answer(ask, "No conversation is kept.", false) };
                 let current = self.assistant.as_ref().and_then(|a| a.id);
                 self.off_thread(
-                    move || chats.list(&words, 6).into_iter().filter(|k| Some(k.id) != current).map(|k| (k.updated, k.title.clone(), chats.said_in(k.id, 1_200))).collect::<Vec<_>>(),
+                    move || chats.list_for_models(&words, 6).into_iter().filter(|k| Some(k.id) != current).map(|k| (k.updated, k.title.clone(), chats.said_in(k.id, 1_200))).collect::<Vec<_>>(),
                     move |_, found| {
                         let mut out = String::new();
                         for (updated, title, said) in &found {
