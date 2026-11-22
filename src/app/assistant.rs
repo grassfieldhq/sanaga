@@ -191,6 +191,46 @@ struct Pending {
     pages: Vec<PageWait>,
     extra: Vec<Attach>,
     since: f64,
+    /// The tab shown when it was asked: the model is chosen for it, never
+    /// for the tab shown when the pages have come (the person may have
+    /// gone to another one meanwhile).
+    tab: u64,
+    /// A page read for it is one the administrator keeps from every model
+    /// (the summary of such a site): only Sanaga's own extract, made on
+    /// this computer, answers it. Decided when it is asked, and kept.
+    local_only: bool,
+}
+
+/// What the administrator's policy makes of a page read for a question.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Admit {
+    /// It goes to the model.
+    Read,
+    /// It is read for Sanaga's own extract only: no model answers.
+    LocalOnly,
+    /// It is not read.
+    KeptOut,
+}
+
+/// May the page at `address` go with a question? A site the administrator
+/// keeps from every model is not read — except the page of the tab asked
+/// about for its summary (`summary`, `asked_tab`), which then gets Sanaga's
+/// own extract only.
+fn admit_page(policy: &crate::policy::Policy, address: &str, summary: bool, asked_tab: bool) -> Admit {
+    match policy.ai_allowed_on(address) {
+        true => Admit::Read,
+        false if summary && asked_tab => Admit::LocalOnly,
+        false => Admit::KeptOut,
+    }
+}
+
+/// The model that answers a question: the one of the tab asked about —
+/// none when a page of it is kept from every model.
+fn question_model(local_only: bool, for_asked_tab: impl FnOnce() -> Result<Provider, String>) -> Result<Provider, String> {
+    if local_only {
+        return Err(tr("L'administrateur de cet ordinateur ne laisse pas l'assistant lire ce site.").to_string());
+    }
+    for_asked_tab()
 }
 
 /// A tab whose page is read for a question.
@@ -660,16 +700,20 @@ impl Sanaga {
             _ => true,
         });
         let mut pages = Vec::new();
-        let mut private = false;
+        let (mut private, mut local_only) = (false, false);
         let mut kept_out: Vec<String> = Vec::new();
         for id in tabs {
             let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) else { continue };
             // (a site the administrator keeps from every model is not read —
             // except for its summary, which is then Sanaga's own extract,
             // made on this computer: see assistant_step)
-            if !crate::policy::get().ai_allowed_on(t.url()) && !(summary && id == active) {
-                kept_out.push(host_of(t.url()));
-                continue;
+            match admit_page(crate::policy::get(), t.url(), summary, id == active) {
+                Admit::Read => {}
+                Admit::LocalOnly => local_only = true,
+                Admit::KeptOut => {
+                    kept_out.push(host_of(t.url()));
+                    continue;
+                }
             }
             private |= t.private;
             let address = t.url().to_string();
@@ -700,7 +744,7 @@ impl Sanaga {
             if !kept_out.is_empty() {
                 a.note = tf("Non lu, par réglage de l'administrateur : {}", &[&kept_out.join(", ")]);
             }
-            a.pending = Some(Pending { text, label, summary, pages, extra, since: now });
+            a.pending = Some(Pending { text, label, summary, pages, extra, since: now, tab: active, local_only });
         }
     }
 
@@ -738,10 +782,18 @@ impl Sanaga {
         self.keep_conversation();
         // the pages that can answer now are asked (a tab whose page had to
         // start answers once it has loaded)
-        let waiting: Vec<u64> =
-            self.assistant.as_ref().and_then(|a| a.pending.as_ref()).map(|p| p.pages.iter().filter(|x| x.got.is_none() && x.ticket.is_none()).map(|x| x.tab).collect()).unwrap_or_default();
+        let (waiting, asked): (Vec<u64>, Option<(u64, bool)>) = self
+            .assistant
+            .as_ref()
+            .and_then(|a| a.pending.as_ref())
+            .map(|p| (p.pages.iter().filter(|x| x.got.is_none() && x.ticket.is_none()).map(|x| x.tab).collect(), Some((p.tab, p.summary))))
+            .unwrap_or_default();
         for tab in waiting {
-            let state = self.tabs.iter().find(|t| t.id == tab).map(|t| t.web.is_some() && !t.loading);
+            // (a tab that has gone, since it was asked, to a site kept from
+            // every model is not read: the policy is that of what is read)
+            let (asked_tab, summary) = asked.unwrap_or_default();
+            let state =
+                self.tabs.iter().find(|t| t.id == tab).and_then(|t| (admit_page(crate::policy::get(), t.url(), summary, tab == asked_tab) != Admit::KeptOut).then_some(t.web.is_some() && !t.loading));
             let ticket = match state {
                 Some(true) => self.request_page_text(tab),
                 Some(false) => continue,
@@ -766,8 +818,8 @@ impl Sanaga {
             }
             return;
         }
-        let active = self.tabs[self.active].id;
         let Some(p) = self.assistant.as_mut().and_then(|a| a.pending.take()) else { return };
+        let mut local_only = p.local_only;
         let mut sources: Vec<Source> = Vec::new();
         let mut files: Vec<Attachment> = Vec::new();
         let mut given: Vec<(u64, String)> = Vec::new();
@@ -782,6 +834,17 @@ impl Sanaga {
         // text — is said, not passed over in silence)
         let mut unread: Vec<String> = Vec::new();
         for w in p.pages {
+            // the policy again, for what the tab shows now (it may have
+            // gone to another site since the question was asked)
+            let now_at = self.tabs.iter().find(|t| t.id == w.tab).map(|t| t.url().to_string()).unwrap_or_else(|| w.address.clone());
+            match (admit_page(crate::policy::get(), &w.address, p.summary, w.tab == p.tab), admit_page(crate::policy::get(), &now_at, p.summary, w.tab == p.tab)) {
+                (Admit::KeptOut, _) | (_, Admit::KeptOut) => {
+                    unread.push(host_of(&now_at));
+                    continue;
+                }
+                (Admit::LocalOnly, _) | (_, Admit::LocalOnly) => local_only = true,
+                _ => {}
+            }
             if let Some(file) = w.file {
                 given.push((w.tab, w.address));
                 files.push(file);
@@ -798,7 +861,9 @@ impl Sanaga {
         let page_words: usize = sources.iter().filter(|s| s.kind == SourceKind::Page).map(|s| s.text.split_whitespace().count()).sum();
         let own_summary = sources.iter().find(|s| s.kind == SourceKind::Page).map(|s| ai::local_summary(&s.text, 6)).unwrap_or_default();
         let private = self.assistant.as_ref().is_some_and(|a| a.private);
-        let provider = self.chat_provider(active, private).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
+        // (the model of the tab asked about, as decided then: never that of
+        // the tab shown now)
+        let provider = question_model(local_only, || self.chat_provider(p.tab, private)).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
         let outside_tools = self.mcp_tools();
         let Some(a) = self.assistant.as_mut() else { return };
         if !unread.is_empty() && !p.summary {
@@ -1665,6 +1730,28 @@ mod tests {
         assert!(Confirm::new(ask(), "x".into(), false).seen_all);
         assert!(!Confirm::new(ask(), "x".into(), false).with_detail("{}".into()).seen_all);
         assert_ne!(Confirm::new(ask(), "x".into(), false).serial, Confirm::new(ask(), "x".into(), false).serial, "each its own box");
+    }
+
+    #[test]
+    fn a_site_kept_from_models_stays_kept_when_the_person_changes_tabs() {
+        let policy = crate::policy::parse("ai_no_sites=bank.example");
+        let (blocked, open) = ("https://www.bank.example/account", "https://example.org/");
+        // asked when it is asked: only the tab asked about may be read for
+        // its summary, and then by Sanaga alone
+        assert_eq!(admit_page(&policy, blocked, true, true), Admit::LocalOnly);
+        assert_eq!(admit_page(&policy, blocked, true, false), Admit::KeptOut);
+        assert_eq!(admit_page(&policy, blocked, false, true), Admit::KeptOut);
+        assert_eq!(admit_page(&policy, open, true, true), Admit::Read);
+        // the summary of the bank's page was asked; the person then shows
+        // an open site while the page is read: the model is still none —
+        // the decision kept with the question, not the tab shown now
+        let model = || Ok(Provider::Ollama { model: "llama3.2".into() });
+        let local_only = admit_page(&policy, blocked, true, true) == Admit::LocalOnly;
+        let shown_now_is_open = admit_page(&policy, open, true, true) == Admit::Read;
+        assert!(shown_now_is_open);
+        assert!(question_model(local_only, model).is_err());
+        // a question asked of an open site goes to the model of its tab
+        assert_eq!(question_model(false, model), model());
     }
 
     #[test]
