@@ -1440,3 +1440,4 @@ Lien copié en Markdown.	Link copied as Markdown.
 (coupé ici : {} caractères de plus)	(cut here: {} more characters)
 {} › {} — envoyé :	{} › {} — sent:
 Faites défiler jusqu'au bout pour pouvoir accepter.	Scroll to the end to be able to accept.
+Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'il lui faut devant la commande : NOM=valeur commande…	It does not get Sanaga's environment variables; write the ones it needs before the command: NAME=value command…

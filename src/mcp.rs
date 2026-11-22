@@ -146,6 +146,33 @@ pub fn split_command(line: &str) -> Vec<String> {
     out
 }
 
+/// The variables of Sanaga's own environment a server program is given:
+/// what a program needs to start and to speak the person's language. The
+/// rest — keys and tokens of other programs, Sanaga's sessions — is not
+/// its business. (`PATH` is given apart: see `Session::open`.)
+fn env_kept(name: &str) -> bool {
+    matches!(name, "HOME" | "LANG" | "LANGUAGE" | "XDG_RUNTIME_DIR") || name.starts_with("LC_")
+}
+
+/// The part of an environment a server program is given (`env_kept`).
+fn kept_env(vars: impl Iterator<Item = (std::ffi::OsString, std::ffi::OsString)>) -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
+    vars.filter(|(k, _)| k.to_str().is_some_and(env_kept)).collect()
+}
+
+/// The variables the person gave a server, as in a shell: `NAME=value`
+/// words before the program (`GITHUB_TOKEN=… npx -y server`). Gives them,
+/// and the words of the command itself.
+fn server_env(words: &[String]) -> (Vec<(String, String)>, &[String]) {
+    let is_name = |n: &str| n.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    let mut vars = Vec::new();
+    let mut k = 0;
+    while let Some((name, value)) = words.get(k).and_then(|w| w.split_once('=')).filter(|(n, _)| is_name(n)) {
+        vars.push((name.to_string(), value.to_string()));
+        k += 1;
+    }
+    (vars, &words[k..])
+}
+
 // ---------------------------------------------------------------- messages
 
 fn request(id: u64, method: &str, params: Value) -> Value {
@@ -254,14 +281,19 @@ impl Session {
     pub fn open(server: &Server, token: Option<String>) -> Result<Session, String> {
         let link = if server.program {
             let words = split_command(&server.target);
+            let (vars, words) = server_env(&words);
             let (program, args) = words.split_first().ok_or_else(|| "no program".to_string())?;
             let dir = crate::store::PrivateDir::new("sanaga-mcp").map_err(|e| e.to_string())?;
             let mut cmd = std::process::Command::new(program);
             cmd.args(args).current_dir(dir.path()).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
+            // its environment: a few of Sanaga's variables (env_kept), and
+            // those the person gave this server — nothing else
+            cmd.env_clear().envs(kept_env(std::env::vars_os()));
             // (a launcher often gives a shorter PATH than a terminal)
             if let Ok(path) = std::env::join_paths(crate::ai_cli::search_path()) {
                 cmd.env("PATH", path);
             }
+            cmd.envs(vars);
             let mut child = cmd.spawn().map_err(|e| format!("{program}: {e}"))?;
             let stdin = child.stdin.take().ok_or("no input")?;
             let stdout = child.stdout.take().ok_or("no output")?;
@@ -470,6 +502,40 @@ mod tests {
         assert!(tool_name(&"s".repeat(80), "t").len() <= 64);
         assert_eq!(split_command("npx -y  @acme/notes --dir \"/home/me/Mes notes\" 'a b' \"\""), ["npx", "-y", "@acme/notes", "--dir", "/home/me/Mes notes", "a b", ""]);
         assert!(split_command("   ").is_empty());
+    }
+
+    #[test]
+    fn a_server_program_gets_a_small_environment() {
+        use std::ffi::OsString;
+        let os = |k: &str, v: &str| (OsString::from(k), OsString::from(v));
+        let given = kept_env(
+            [
+                os("HOME", "/home/me"),
+                os("LANG", "fr_FR.UTF-8"),
+                os("LC_TIME", "fr_FR.UTF-8"),
+                os("XDG_RUNTIME_DIR", "/run/user/1000"),
+                os("ANTHROPIC_API_KEY", "sk-secret"),
+                os("GITHUB_TOKEN", "ghp_x"),
+                os("AWS_SECRET_ACCESS_KEY", "x"),
+                os("SSH_AUTH_SOCK", "/run/user/1000/ssh"),
+                os("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus"),
+                os("LD_PRELOAD", "/tmp/x.so"),
+                os("PATH", "/usr/bin"),
+            ]
+            .into_iter(),
+        );
+        let names: Vec<&str> = given.iter().map(|(k, _)| k.to_str().unwrap()).collect();
+        assert_eq!(names, ["HOME", "LANG", "LC_TIME", "XDG_RUNTIME_DIR"], "PATH is given apart");
+        // variables the person wrote before the program, as in a shell
+        let words = split_command("GITHUB_TOKEN=ghp_1 _X=\"a b\" npx -y server A=1");
+        let (vars, command) = server_env(&words);
+        assert_eq!(vars, [("GITHUB_TOKEN".to_string(), "ghp_1".to_string()), ("_X".to_string(), "a b".to_string())]);
+        assert_eq!(command, ["npx", "-y", "server", "A=1"], "only before the program");
+        let words = split_command("./serve --opt=1");
+        assert_eq!(server_env(&words), (Vec::new(), &words[..]));
+        let words = split_command("1A=x =y prog");
+        assert!(server_env(&words).0.is_empty(), "not names: the program's words");
+        assert!(server_env(&split_command("ONLY=1")).1.is_empty());
         assert_eq!(server_name("  Mes\tnotes\n"), "Mes notes");
     }
 

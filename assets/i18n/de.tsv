@@ -1440,3 +1440,4 @@ Lien copié en Markdown.	Link als Markdown kopiert.
 (coupé ici : {} caractères de plus)	(hier gekürzt: {} weitere Zeichen)
 {} › {} — envoyé :	{} › {} — gesendet:
 Faites défiler jusqu'au bout pour pouvoir accepter.	Scrollen Sie bis zum Ende, um annehmen zu können.
+Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'il lui faut devant la commande : NOM=valeur commande…	Es erhält die Umgebungsvariablen von Sanaga nicht; schreiben Sie die benötigten vor den Befehl: NAME=Wert Befehl…
