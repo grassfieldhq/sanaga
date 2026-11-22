@@ -115,6 +115,36 @@ pub(super) struct Confirm {
     /// A tool that only reads, wanted by a model outside this computer:
     /// asked once per conversation. Otherwise a tool that acts: every time.
     pub once: bool,
+    /// What is sent, whole (an outside tool's call): shown in a box of its
+    /// own, scrolled through.
+    pub detail: Option<String>,
+    /// All of `detail` has been on the screen: until then it can't be
+    /// accepted (what is below the box's edge is not read).
+    pub seen_all: bool,
+    /// Its own number (the box scrolled through is its own: it starts at
+    /// the top, not where the last question's was left).
+    serial: u64,
+}
+
+impl Confirm {
+    pub(super) fn new(ask: ToolAsk, what: String, once: bool) -> Confirm {
+        static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let serial = SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Confirm { ask, what, once, detail: None, seen_all: true, serial }
+    }
+
+    pub(super) fn with_detail(mut self, detail: String) -> Confirm {
+        self.detail = Some(detail);
+        self.seen_all = false;
+        self
+    }
+}
+
+/// Has the end of a box scrolled through been on the screen? (`offset`:
+/// how far it is scrolled; `shown`: the height seen; `content`: the whole
+/// height.)
+fn seen_to_the_end(offset: f32, shown: f32, content: f32) -> bool {
+    offset + shown >= content - 1.0
 }
 
 /// One thing shown in the conversation.
@@ -1159,6 +1189,7 @@ impl Sanaga {
 
         egui::Panel::bottom("assistant-foot").show_separator_line(false).frame(Frame::NONE.inner_margin(Margin { left: 14, right: 14, top: 6, bottom: 12 })).show(ui, |ui| {
             // a tool the model wants, which the person decides
+            let mut seen_now = false;
             if let Some(c) = &a.confirm {
                 Frame::new()
                     .fill(th.accent.gamma_multiply(0.12))
@@ -1172,13 +1203,30 @@ impl Sanaga {
                         for line in c.what.lines() {
                             ui.add(egui::Label::new(RichText::new(line).size(13.0).color(th.text)).wrap());
                         }
+                        // (what an outside tool is sent: all of it, scrolled
+                        // through to its end before it can be accepted)
+                        let mut reached_end = false;
+                        if let Some(detail) = &c.detail {
+                            Frame::new().fill(th.card).corner_radius(CornerRadius::same(6)).inner_margin(Margin::same(6)).show(ui, |ui| {
+                                let out = egui::ScrollArea::vertical().id_salt(("confirm-detail", c.serial)).max_height(220.0).auto_shrink([false, true]).show(ui, |ui| {
+                                    // (wrapped: nothing goes past the right edge either)
+                                    ui.add(egui::Label::new(RichText::new(detail).monospace().size(12.0).color(th.text)).wrap());
+                                });
+                                reached_end = seen_to_the_end(out.state.offset.y, out.inner_rect.height(), out.content_size.y);
+                            });
+                            if !c.seen_all && !reached_end {
+                                ui.add(egui::Label::new(RichText::new(tr("Faites défiler jusqu'au bout pour pouvoir accepter.")).size(11.5).color(th.sub)).wrap());
+                            }
+                        }
                         if c.once {
                             ui.add(egui::Label::new(RichText::new(tr("Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.")).size(11.5).color(th.sub)).wrap());
                         }
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
                             let yes = if c.once { tr("Autoriser pour cette conversation") } else { tr("Accepter") };
-                            if ui.add(egui::Button::new(RichText::new(yes).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(9))).clicked() {
+                            let readable = c.seen_all || reached_end;
+                            seen_now = reached_end;
+                            if ui.add_enabled(readable, egui::Button::new(RichText::new(yes).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(9))).clicked() {
                                 allow = Some(true);
                             }
                             if ui.add(egui::Button::new(tr("Refuser")).corner_radius(CornerRadius::same(9))).clicked() {
@@ -1187,6 +1235,11 @@ impl Sanaga {
                         });
                     });
                 ui.add_space(6.0);
+            }
+            if seen_now {
+                if let Some(c) = a.confirm.as_mut() {
+                    c.seen_all = true;
+                }
             }
             if !a.note.is_empty() {
                 ui.add(egui::Label::new(RichText::new(&a.note).size(12.0).color(Color32::from_rgb(0xD0, 0x60, 0x30))).wrap());
@@ -1596,6 +1649,22 @@ mod tests {
         crate::mutate::run(&[br#"{"title":"t","text":"x","whole":1,"selection":""}"#], 5_000, |d| {
             let _ = read_page_text(&String::from_utf8_lossy(d));
         });
+    }
+
+    #[test]
+    fn a_box_scrolled_through_is_read_once_its_end_was_shown() {
+        // fits: seen at once
+        assert!(seen_to_the_end(0.0, 120.0, 120.0));
+        // longer than the box: not until scrolled to its end
+        assert!(!seen_to_the_end(0.0, 220.0, 900.0));
+        assert!(!seen_to_the_end(600.0, 220.0, 900.0));
+        assert!(seen_to_the_end(680.0, 220.0, 900.0));
+        // what has to be scrolled through starts unread; the rest is read
+        let (reply, _rx) = channel();
+        let ask = || ToolAsk { call: chat::Call { id: "1".into(), name: "mcp__s__t".into(), input: serde_json::json!({}) }, reply: reply.clone() };
+        assert!(Confirm::new(ask(), "x".into(), false).seen_all);
+        assert!(!Confirm::new(ask(), "x".into(), false).with_detail("{}".into()).seen_all);
+        assert_ne!(Confirm::new(ask(), "x".into(), false).serial, Confirm::new(ask(), "x".into(), false).serial, "each its own box");
     }
 
     #[test]
