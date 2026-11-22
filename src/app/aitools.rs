@@ -208,9 +208,36 @@ pub(super) fn outside_input(input: &Value) -> Option<String> {
     (out.chars().count() <= OUTSIDE_MAX).then_some(out)
 }
 
-/// A character that draws nothing, or changes the order of what follows.
+/// A character that draws nothing, or changes the order of what follows
+/// (C1 controls, soft hyphen, joiners and marks, variation selectors,
+/// shorthand format controls, musical formatting, tags…).
 fn invisible(c: char) -> bool {
-    matches!(c as u32, 0xAD | 0x34F | 0x61C | 0x115F | 0x1160 | 0x17B4 | 0x17B5 | 0x180B..=0x180F | 0x200B..=0x200F | 0x2028..=0x202E | 0x2060..=0x206F | 0x3164 | 0xFE00..=0xFE0F | 0xFEFF | 0xFFA0 | 0xFFF0..=0xFFFB | 0xE0000..=0xE0FFF)
+    matches!(c as u32, 0x80..=0x9F | 0xAD | 0x1BCA0..=0x1BCA3 | 0x1D173..=0x1D17A | 0x34F | 0x61C | 0x115F | 0x1160 | 0x17B4 | 0x17B5 | 0x180B..=0x180F | 0x200B..=0x200F | 0x2028..=0x202E | 0x2060..=0x206F | 0x3164 | 0xFE00..=0xFE0F | 0xFEFF | 0xFFA0 | 0xFFF0..=0xFFFB | 0xE0000..=0xE0FFF)
+}
+
+/// Does a word of `text` mix letters of alphabets that have look-alikes
+/// (Latin, Greek, Cyrillic, Armenian, Cherokee)? "pаypal" with a Cyrillic
+/// "а" reads as "paypal". A warning, not a proof: some words mix
+/// alphabets on purpose.
+pub(super) fn mixed_scripts(text: &str) -> bool {
+    let script = |c: char| match c as u32 {
+        0x41..=0x5A | 0x61..=0x7A | 0xC0..=0x24F => 1,
+        0x370..=0x3FF => 2,
+        0x400..=0x52F => 3,
+        0x530..=0x58F => 4,
+        0x13A0..=0x13FF => 5,
+        _ => 0,
+    };
+    text.split(|c: char| !c.is_alphanumeric()).any(|word| {
+        let mut seen = 0u8;
+        for c in word.chars() {
+            let s = script(c);
+            if s != 0 {
+                seen |= 1 << s;
+            }
+        }
+        seen.count_ones() > 1
+    })
 }
 
 fn answer(ask: ToolAsk, text: impl Into<String>, error: bool) {
@@ -243,7 +270,11 @@ impl Sanaga {
             let Some(input) = outside_input(&ask.call.input) else {
                 return answer(ask, "What this call would send is too long to be shown to the person: it was not made. Send less.", true);
             };
-            let what = tf("{} › {} — envoyé :", &[&server, &name]);
+            let mut what = tf("{} › {} — envoyé :", &[&server, &name]);
+            if mixed_scripts(&input) {
+                what.push('\n');
+                what.push_str(tr("Attention : des lettres de plusieurs alphabets se mêlent dans un même mot (des lettres qui se ressemblent peuvent tromper)."));
+            }
             a.confirm = Some(Confirm::new(ask, what, false).with_detail(input));
             return;
         }
@@ -492,6 +523,16 @@ mod tests {
         // what draws nothing, or turns the text around, is written out
         let hidden = outside_input(&json!({"a": "ok\u{202E}\u{200B}evil"})).unwrap();
         assert!(hidden.contains("\\u{202E}") && hidden.contains("\\u{200B}") && !hidden.contains('\u{202E}'), "{hidden}");
+        // C1 controls, shorthand format controls, musical formatting
+        let more = outside_input(&json!({"a": "x\u{85}\u{9B}\u{1BCA1}\u{1D175}y"})).unwrap();
+        for hidden in ["\\u{0085}", "\\u{009B}", "\\u{1BCA1}", "\\u{1D175}"] {
+            assert!(more.contains(hidden), "{hidden} in {more}");
+        }
+        // look-alike letters of another alphabet in a word are pointed out
+        assert!(mixed_scripts("send to p\u{430}ypal.com"), "a Cyrillic а in a Latin word");
+        assert!(mixed_scripts("\u{3BF}k"));
+        assert!(!mixed_scripts("paypal.com — Москва — Ελλάδα — café"), "each word in one alphabet");
+        assert!(!mixed_scripts("rm -rf ~ 123"));
         // too long to be read: refused, never shown in part
         assert_eq!(outside_input(&json!({"a": "y".repeat(OUTSIDE_MAX)})), None);
         assert!(outside_input(&json!({"a": "y".repeat(OUTSIDE_MAX - 20)})).is_some());
