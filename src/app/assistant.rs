@@ -124,13 +124,17 @@ pub(super) struct Confirm {
     /// Its own number (the box scrolled through is its own: it starts at
     /// the top, not where the last question's was left).
     serial: u64,
+    /// When it was first on the screen, and when a pointer button was last
+    /// pressed since (see `accept_armed`).
+    pub shown: Option<f64>,
+    pub press: Option<f64>,
 }
 
 impl Confirm {
     pub(super) fn new(ask: ToolAsk, what: String, once: bool) -> Confirm {
         static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let serial = SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        Confirm { ask, what, once, detail: None, seen_all: true, serial }
+        Confirm { ask, what, once, detail: None, seen_all: true, serial, shown: None, press: None }
     }
 
     pub(super) fn with_detail(mut self, detail: String) -> Confirm {
@@ -138,6 +142,19 @@ impl Confirm {
         self.seen_all = false;
         self
     }
+}
+
+/// How long "Accept" stays inert once a question about a tool appears: the
+/// next one comes in the same place the moment the last is answered, and
+/// the second click of a double click would accept it unread.
+const ARM_DELAY: f64 = 0.5;
+
+/// May "Accept" be taken now? Not before `ARM_DELAY` after the question
+/// appeared (`shown`), and a click must come from a press begun after that
+/// (`press`), not one begun before; Space or Enter (`by_pointer` false)
+/// only after the delay.
+fn accept_armed(shown: f64, now: f64, press: Option<f64>, by_pointer: bool) -> bool {
+    now - shown >= ARM_DELAY && (!by_pointer || press.is_some_and(|p| p - shown >= ARM_DELAY))
 }
 
 /// Has the end of a box scrolled through been on the screen? (`offset`:
@@ -1255,7 +1272,14 @@ impl Sanaga {
         egui::Panel::bottom("assistant-foot").show_separator_line(false).frame(Frame::NONE.inner_margin(Margin { left: 14, right: 14, top: 6, bottom: 12 })).show(ui, |ui| {
             // a tool the model wants, which the person decides
             let mut seen_now = false;
+            let now = ui.input(|i| i.time);
+            let pressed_now = ui.input(|i| i.pointer.any_pressed());
+            let mut timing = None::<(f64, Option<f64>)>;
             if let Some(c) = &a.confirm {
+                // (when it appeared, and the latest press since)
+                let shown = c.shown.unwrap_or(now);
+                let press = if pressed_now { Some(now) } else { c.press };
+                timing = Some((shown, press));
                 Frame::new()
                     .fill(th.accent.gamma_multiply(0.12))
                     .stroke(Stroke::new(1.0, th.accent.gamma_multiply(0.5)))
@@ -1291,7 +1315,12 @@ impl Sanaga {
                             let yes = if c.once { tr("Autoriser pour cette conversation") } else { tr("Accepter") };
                             let readable = c.seen_all || reached_end;
                             seen_now = reached_end;
-                            if ui.add_enabled(readable, egui::Button::new(RichText::new(yes).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(9))).clicked() {
+                            let waited = now - shown >= ARM_DELAY;
+                            if !waited {
+                                ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64((shown + ARM_DELAY - now).max(0.01)));
+                            }
+                            let accept = ui.add_enabled(readable && waited, egui::Button::new(RichText::new(yes).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(9)));
+                            if accept.clicked() && accept_armed(shown, now, press, accept.clicked_by(egui::PointerButton::Primary)) {
                                 allow = Some(true);
                             }
                             if ui.add(egui::Button::new(tr("Refuser")).corner_radius(CornerRadius::same(9))).clicked() {
@@ -1301,9 +1330,10 @@ impl Sanaga {
                     });
                 ui.add_space(6.0);
             }
-            if seen_now {
-                if let Some(c) = a.confirm.as_mut() {
-                    c.seen_all = true;
+            if let Some(c) = a.confirm.as_mut() {
+                c.seen_all |= seen_now;
+                if let Some((shown, press)) = timing {
+                    (c.shown, c.press) = (Some(shown), press);
                 }
             }
             if !a.note.is_empty() {
@@ -1752,6 +1782,25 @@ mod tests {
         assert!(question_model(local_only, model).is_err());
         // a question asked of an open site goes to the model of its tab
         assert_eq!(question_model(false, model), model());
+    }
+
+    #[test]
+    fn a_double_click_does_not_accept_the_next_action() {
+        // the next action appears at 10.0, where the last one was accepted
+        let shown = 10.0;
+        // the second click of a double click: pressed at 10.1, released at 10.15
+        assert!(!accept_armed(shown, 10.15, Some(10.1), true));
+        // a press begun early and held past the delay: still not a fresh press
+        assert!(!accept_armed(shown, 10.8, Some(10.2), true));
+        // a press begun before the action appeared
+        assert!(!accept_armed(shown, 10.9, Some(9.95), true));
+        assert!(!accept_armed(shown, 10.9, None, true));
+        // a fresh press after the delay
+        assert!(accept_armed(shown, 10.7, Some(10.6), true));
+        assert!(accept_armed(shown, shown + ARM_DELAY, Some(shown + ARM_DELAY), true));
+        // Space or Enter: after the delay only
+        assert!(!accept_armed(shown, 10.3, None, false));
+        assert!(accept_armed(shown, 10.5, None, false));
     }
 
     #[test]
