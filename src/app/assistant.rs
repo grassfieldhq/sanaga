@@ -241,6 +241,14 @@ fn admit_page(policy: &crate::policy::Policy, address: &str, summary: bool, aske
     }
 }
 
+/// May the page a tool reads go to the model? Its address when it was
+/// asked (`asked`) and what the tab shows now (`now`: None, the tab has
+/// gone) must both be allowed: a tab asleep may land, once loaded, on a
+/// site the administrator keeps from models, or go there while it is read.
+fn tool_read_allowed(policy: &crate::policy::Policy, asked: &str, now: Option<&str>) -> bool {
+    policy.ai_allowed_on(asked) && now.is_none_or(|now| policy.ai_allowed_on(now))
+}
+
 /// The model that answers a question: the one of the tab asked about —
 /// none when a page of it is kept from every model, or when the
 /// conversation already holds such a page (`kept`).
@@ -1036,9 +1044,12 @@ impl Sanaga {
     /// The tabs tools are reading: asked when their page can answer,
     /// answered when it has (or after a while).
     fn tool_reads_step(&mut self, now: f64) {
-        let waiting: Vec<u64> = self.assistant.as_ref().map(|a| a.reads.iter().filter(|r| r.0.got.is_none() && r.0.ticket.is_none()).map(|r| r.0.tab).collect()).unwrap_or_default();
-        for tab in waiting {
-            let state = self.tabs.iter().find(|t| t.id == tab).map(|t| t.web.is_some() && !t.loading);
+        let waiting: Vec<(u64, String)> =
+            self.assistant.as_ref().map(|a| a.reads.iter().filter(|r| r.0.got.is_none() && r.0.ticket.is_none()).map(|r| (r.0.tab, r.0.address.clone())).collect()).unwrap_or_default();
+        let policy = crate::policy::get();
+        for (tab, asked) in waiting {
+            // (a tab now at a site kept from models is not read)
+            let state = self.tabs.iter().find(|t| t.id == tab).filter(|t| tool_read_allowed(policy, &asked, Some(t.url()))).map(|t| t.web.is_some() && !t.loading);
             let ticket = match state {
                 Some(true) => self.request_page_text(tab),
                 Some(false) => continue,
@@ -1052,6 +1063,9 @@ impl Sanaga {
             }
         }
         let budget = self.assistant.as_ref().map(|a| if a.outside { 120_000 } else { 12_000 }).unwrap_or(12_000);
+        // what each tab shows now, for the policy's second look when the
+        // text is used
+        let shown_now: HashMap<u64, String> = self.tabs.iter().map(|t| (t.id, t.url().to_string())).collect();
         let Some(a) = self.assistant.as_mut() else { return };
         let mut k = 0;
         while k < a.reads.len() {
@@ -1060,6 +1074,15 @@ impl Sanaga {
                 continue;
             }
             let (wait, ask, _) = a.reads.remove(k);
+            if !tool_read_allowed(policy, &wait.address, shown_now.get(&wait.tab).map(String::as_str)) {
+                let _ = ask.reply.send(chat::ToolResult {
+                    id: ask.call.id.clone(),
+                    name: ask.call.name.clone(),
+                    text: "The administrator of this computer does not let this site's pages be given.".into(),
+                    error: true,
+                });
+                continue;
+            }
             let result = match wait.got {
                 Some(s) if !s.text.trim().is_empty() => {
                     let mut one = [s];
@@ -1802,6 +1825,21 @@ mod tests {
         // the bank's extract: still no model (it would get the extract
         // with the conversation)
         assert!(question_model(false, true, model).is_err());
+    }
+
+    #[test]
+    fn a_tab_read_by_a_tool_is_checked_again_when_its_text_is_used() {
+        let policy = crate::policy::parse("ai_no_sites=bank.example");
+        // asked at an open site, still there
+        assert!(tool_read_allowed(&policy, "https://example.org/a", Some("https://example.org/a")));
+        // a tab asleep that, once loaded, landed at the bank (a redirect),
+        // or went there while it was read: not given
+        assert!(!tool_read_allowed(&policy, "https://example.org/a", Some("https://www.bank.example/login")));
+        // asked at the bank: never
+        assert!(!tool_read_allowed(&policy, "https://bank.example/", Some("https://example.org/")));
+        // the tab has gone: what was asked decides
+        assert!(tool_read_allowed(&policy, "https://example.org/a", None));
+        assert!(!tool_read_allowed(&policy, "https://bank.example/", None));
     }
 
     #[test]
