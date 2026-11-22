@@ -263,6 +263,14 @@ impl Sanaga {
                         )
                         .wrap(),
                     );
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(tr("Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'il lui faut devant la commande : NOM=valeur commande…"))
+                                .size(11.5)
+                                .color(th.sub),
+                        )
+                        .wrap(),
+                    );
                 } else {
                     ui.add(TextEdit::singleline(&mut f.target).hint_text("https://…/mcp").desired_width(f32::INFINITY));
                     ui.add_space(6.0);

@@ -233,6 +233,73 @@ impl ureq::Resolver for Own {
 
 // ------------------------------------------------------------------- relay
 
+/// The most connections the relay serves at once (one small thread each).
+/// More wait in line for a moment, then are refused: whatever opens them,
+/// the relay never grows without bound.
+const MAX_CONNECTIONS: usize = 256;
+/// How long a connection waits in line for a place.
+const LINE_WAIT: Duration = Duration::from_secs(10);
+/// Connections that have not said who they are yet have places of their
+/// own, few, and all of their opening (greeting, secret, request) must
+/// come within `OPENING_TIME`: one that trickles its bytes can hold
+/// neither a place of the connections served nor its own for long.
+const MAX_OPENINGS: usize = 32;
+const OPENING_TIME: Duration = Duration::from_secs(10);
+/// How long a new connection waits for an opening place.
+const OPENING_WAIT: Duration = Duration::from_secs(2);
+
+/// A connection read until a moment: each read waits only for what is left.
+struct Until<'a> {
+    s: &'a TcpStream,
+    until: Instant,
+}
+
+impl Read for Until<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let left = self.until.checked_duration_since(Instant::now()).filter(|d| !d.is_zero()).ok_or(std::io::ErrorKind::TimedOut)?;
+        self.s.set_read_timeout(Some(left))?;
+        let mut s = self.s;
+        s.read(buf)
+    }
+}
+
+/// Places for connections: taken by each one served, given back when it ends.
+struct Places {
+    used: Mutex<usize>,
+    freed: std::sync::Condvar,
+    most: usize,
+}
+
+/// A place taken (given back when dropped).
+struct Place(Arc<Places>);
+
+impl Drop for Place {
+    fn drop(&mut self) {
+        if let Ok(mut used) = self.0.used.lock() {
+            *used = used.saturating_sub(1);
+        }
+        self.0.freed.notify_one();
+    }
+}
+
+impl Places {
+    fn new(most: usize) -> Arc<Places> {
+        Arc::new(Places { used: Mutex::new(0), freed: std::sync::Condvar::new(), most })
+    }
+
+    /// A place, waiting at most `wait` for one to be given back.
+    fn take(places: &Arc<Places>, wait: Duration) -> Option<Place> {
+        let until = Instant::now() + wait;
+        let mut used = places.used.lock().ok()?;
+        while *used >= places.most {
+            let left = until.checked_duration_since(Instant::now()).filter(|d| !d.is_zero())?;
+            used = places.freed.wait_timeout(used, left).ok()?.0;
+        }
+        *used += 1;
+        Some(Place(places.clone()))
+    }
+}
+
 /// The relay's address as a proxy for the web engine (with its secret),
 /// started at the first call. `None`: it could not be started.
 pub fn relay() -> Option<String> {
@@ -250,11 +317,19 @@ pub fn relay() -> Option<String> {
             std::thread::Builder::new()
                 .name("sanaga-dns-relay".into())
                 .spawn(move || {
+                    let (places, openings) = (Places::new(MAX_CONNECTIONS), Places::new(MAX_OPENINGS));
                     for client in listener.incoming().flatten() {
-                        let secret = known.clone();
+                        // (an opening place first: a place of the
+                        // connections served is taken once it has said
+                        // who it is — see serve)
+                        let Some(opening) = Places::take(&openings, OPENING_WAIT) else {
+                            drop(client);
+                            continue;
+                        };
+                        let (secret, places) = (known.clone(), places.clone());
                         // (one small thread per connection: it sleeps until bytes come)
                         let _ = std::thread::Builder::new().name("sanaga-dns-conn".into()).stack_size(128 * 1024).spawn(move || {
-                            let _ = serve(client, &secret);
+                            let _ = serve(client, &secret, OPENING_TIME, opening, &places);
                         });
                     }
                 })
@@ -264,13 +339,13 @@ pub fn relay() -> Option<String> {
         .clone()
 }
 
-fn bytes<const N: usize>(s: &mut TcpStream) -> std::io::Result<[u8; N]> {
+fn bytes<const N: usize>(s: &mut impl Read) -> std::io::Result<[u8; N]> {
     let mut b = [0u8; N];
     s.read_exact(&mut b)?;
     Ok(b)
 }
 
-fn text(s: &mut TcpStream) -> std::io::Result<Vec<u8>> {
+fn text(s: &mut impl Read) -> std::io::Result<Vec<u8>> {
     let [len] = bytes::<1>(s)?;
     let mut b = vec![0u8; len as usize];
     s.read_exact(&mut b)?;
@@ -279,37 +354,49 @@ fn text(s: &mut TcpStream) -> std::io::Result<Vec<u8>> {
 
 /// One connection of the engine: who it is (the secret), where it wants to
 /// go (a name, or a number), then the bytes both ways until one side ends.
-fn serve(mut client: TcpStream, secret: &str) -> std::io::Result<()> {
+///
+/// Its opening (all of it within `opening_time`) holds an opening place
+/// (`opening`); once it has given the secret it waits for a place of the
+/// connections served (`places`), then gives the opening place back.
+fn serve(mut client: TcpStream, secret: &str, opening_time: Duration, opening: Place, places: &Arc<Places>) -> std::io::Result<()> {
     let refuse = |_: ()| std::io::Error::other("refused");
-    client.set_read_timeout(Some(Duration::from_secs(10)))?;
+    let until = Instant::now() + opening_time;
+    let mut said = Until { s: &client, until };
     // greeting: SOCKS 5, the ways it can say who it is
-    let [version, ways] = bytes::<2>(&mut client)?;
+    let [version, ways] = bytes::<2>(&mut said)?;
     let mut offered = vec![0u8; ways as usize];
-    client.read_exact(&mut offered)?;
+    said.read_exact(&mut offered)?;
     if version != 5 || !offered.contains(&2) {
         let _ = client.write_all(&[5, 0xFF]);
         return Err(refuse(()));
     }
     client.write_all(&[5, 2])?;
     // name and secret (RFC 1929)
-    let [auth] = bytes::<1>(&mut client)?;
-    let (_user, pass) = (text(&mut client)?, text(&mut client)?);
+    let mut said = Until { s: &client, until };
+    let [auth] = bytes::<1>(&mut said)?;
+    let (_user, pass) = (text(&mut said)?, text(&mut said)?);
     // (compared whole, in the same time whatever differs)
     let same = pass.len() == secret.len() && pass.iter().zip(secret.as_bytes()).fold(0u8, |d, (a, b)| d | (a ^ b)) == 0;
     if auth != 1 || !same {
         let _ = client.write_all(&[1, 1]);
         return Err(refuse(()));
     }
+    // (who it is is known: a place of the connections served, and the
+    // opening place goes back)
+    let place = Places::take(places, LINE_WAIT);
+    drop(opening);
+    let Some(_place) = place else { return Err(refuse(())) };
     client.write_all(&[1, 0])?;
     // the request: connect to a name or a number
-    let [version, command, _, kind] = bytes::<4>(&mut client)?;
+    let mut said = Until { s: &client, until };
+    let [version, command, _, kind] = bytes::<4>(&mut said)?;
     let host = match kind {
-        1 => IpAddr::V4(Ipv4Addr::from(bytes::<4>(&mut client)?)).to_string(),
-        4 => IpAddr::V6(Ipv6Addr::from(bytes::<16>(&mut client)?)).to_string(),
-        3 => String::from_utf8(text(&mut client)?).map_err(|_| refuse(()))?,
+        1 => IpAddr::V4(Ipv4Addr::from(bytes::<4>(&mut said)?)).to_string(),
+        4 => IpAddr::V6(Ipv6Addr::from(bytes::<16>(&mut said)?)).to_string(),
+        3 => String::from_utf8(text(&mut said)?).map_err(|_| refuse(()))?,
         _ => return Err(refuse(())),
     };
-    let port = u16::from_be_bytes(bytes::<2>(&mut client)?);
+    let port = u16::from_be_bytes(bytes::<2>(&mut said)?);
     let answer = |code: u8| [5, code, 0, 1, 0, 0, 0, 0, 0, 0];
     if version != 5 || command != 1 {
         let _ = client.write_all(&answer(7)); // (only "connect")
@@ -380,6 +467,70 @@ fn pass_along(a: TcpStream, b: TcpStream) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_connection_that_trickles_its_opening_holds_no_place_for_long() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        // a client that says the greeting one byte at a time, each well
+        // within a read's patience — never all of it in time
+        let trickler = std::thread::spawn(move || {
+            let mut c = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
+            for b in [5u8, 1, 2, 1, 4] {
+                if c.write_all(&[b]).is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(150));
+            }
+        });
+        let (client, _) = listener.accept().unwrap();
+        let (places, openings) = (Places::new(2), Places::new(1));
+        let opening = Places::take(&openings, Duration::ZERO).unwrap();
+        // (the only opening place is taken: another connection would wait)
+        assert!(Places::take(&openings, Duration::ZERO).is_none());
+        let started = Instant::now();
+        assert!(serve(client, "secret", Duration::from_millis(400), opening, &places).is_err());
+        let took = started.elapsed();
+        assert!(took >= Duration::from_millis(350) && took < Duration::from_secs(2), "{took:?}");
+        // it never took a place of the connections served, and gave its
+        // opening place back
+        assert_eq!(*places.used.lock().unwrap(), 0);
+        assert_eq!(*openings.used.lock().unwrap(), 0);
+        let _ = trickler.join();
+        // a read that waits only for what is left of the time
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let _quiet = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
+        let (s, _) = listener.accept().unwrap();
+        let mut late = Until { s: &s, until: Instant::now() };
+        assert_eq!(late.read(&mut [0u8; 1]).unwrap_err().kind(), std::io::ErrorKind::TimedOut);
+        const { assert!(MAX_OPENINGS < MAX_CONNECTIONS) };
+    }
+
+    #[test]
+    fn the_relay_serves_a_bounded_number_of_connections() {
+        let places = Places::new(2);
+        let (a, b) = (Places::take(&places, Duration::ZERO).unwrap(), Places::take(&places, Duration::ZERO).unwrap());
+        // full: refused once the wait is over
+        let started = Instant::now();
+        assert!(Places::take(&places, Duration::from_millis(50)).is_none());
+        assert!(started.elapsed() >= Duration::from_millis(50));
+        // a connection that ends gives its place back
+        drop(a);
+        let c = Places::take(&places, Duration::ZERO).unwrap();
+        // one waiting in line gets the place given back meanwhile
+        let waiting = {
+            let places = places.clone();
+            std::thread::spawn(move || Places::take(&places, Duration::from_secs(5)).is_some())
+        };
+        std::thread::sleep(Duration::from_millis(30));
+        drop(b);
+        assert!(waiting.join().unwrap());
+        drop(c);
+        assert_eq!(*places.used.lock().unwrap(), 0, "every place given back");
+        const { assert!(MAX_CONNECTIONS >= 64) };
+        const { assert!(MAX_CONNECTIONS <= 1024) };
+    }
 
     /// An answer to `question(name, kind)` with these records (kind, ttl, data).
     fn answer(name: &str, kind: u16, records: &[(u16, u32, &[u8])]) -> Vec<u8> {

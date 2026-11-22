@@ -48,6 +48,9 @@ pub struct Conversation {
     /// What the person sees for the questions shown under another name.
     pub labels: HashMap<usize, String>,
     pub entries: Vec<Entry>,
+    /// It holds Sanaga's own extract of a site the administrator keeps
+    /// from every model: it is never given to a model again.
+    pub kept_from_models: bool,
 }
 
 /// One line of the list of conversations.
@@ -56,6 +59,8 @@ pub struct Kept {
     pub id: i64,
     pub title: String,
     pub updated: u64,
+    /// See `Conversation::kept_from_models`.
+    pub kept_from_models: bool,
 }
 
 /// A profile's conversations. Cheap to copy: every copy is the same database.
@@ -86,6 +91,7 @@ fn head_json(c: &Conversation) -> Value {
         "system": c.system,
         "tools": c.tools.iter().map(|t| json!({"name": t.name, "description": t.description, "schema": t.schema, "acts": t.acts})).collect::<Vec<_>>(),
         "labels": c.labels.iter().map(|(k, v)| json!([k, v])).collect::<Vec<_>>(),
+        "kept_from_models": c.kept_from_models,
     })
 }
 
@@ -102,6 +108,7 @@ fn head_into(c: &mut Conversation, text: &str) {
                 .collect()
         })
         .unwrap_or_default();
+    c.kept_from_models = v["kept_from_models"] == true;
     c.labels = v["labels"].as_array().map(|l| l.iter().filter_map(|p| Some((p[0].as_u64()? as usize, p[1].as_str()?.to_string()))).collect()).unwrap_or_default();
 }
 
@@ -187,14 +194,29 @@ impl Chats {
     /// The conversations kept, the latest first; `words`: only those where
     /// each word was said (by the person or the model) or is in the title.
     pub fn list(&self, words: &str, limit: usize) -> Vec<Kept> {
+        self.list_where(words, limit, false)
+    }
+
+    /// The conversations that may be given to a model (the assistant's
+    /// search of earlier conversations): as `list`, without those that
+    /// hold a site kept from every model.
+    pub fn list_for_models(&self, words: &str, limit: usize) -> Vec<Kept> {
+        self.list_where(words, limit, true)
+    }
+
+    fn list_where(&self, words: &str, limit: usize, for_models: bool) -> Vec<Kept> {
         let words = crate::history::words_of(words);
         self.with("list", |c| {
-            let mut st = c.prepare_cached("SELECT id, title, updated FROM chats ORDER BY updated DESC, id DESC")?;
+            // (the head is the JSON head_json writes: the mark is found as written)
+            let mut st = c.prepare_cached("SELECT id, title, updated, instr(head, '\"kept_from_models\":true') > 0 FROM chats ORDER BY updated DESC, id DESC")?;
             let mut said = c.prepare_cached("SELECT said FROM steps WHERE chat=?1")?;
             let mut rows = st.query([])?;
             let mut out = Vec::new();
             while let Some(r) = rows.next()? {
-                let kept = Kept { id: r.get(0)?, title: r.get(1)?, updated: r.get::<_, i64>(2)?.max(0) as u64 };
+                let kept = Kept { id: r.get(0)?, title: r.get(1)?, updated: r.get::<_, i64>(2)?.max(0) as u64, kept_from_models: r.get(3)? };
+                if for_models && kept.kept_from_models {
+                    continue;
+                }
                 if !words.is_empty() {
                     let mut all = kept.title.to_lowercase();
                     let mut steps = said.query([kept.id])?;
@@ -277,6 +299,15 @@ impl Chats {
     }
 }
 
+/// Clear the conversations of a period (`Chats::clear_since`) in those
+/// already open — or, not opened yet, in the profile's file (`dir`), opened
+/// for it. Run it on a thread: opening the file waits for the disk.
+pub fn clear_period(open: Option<Chats>, dir: Option<&Path>, since: u64) {
+    if let Some(chats) = open.or_else(|| dir.and_then(Chats::open)) {
+        chats.clear_since(since);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -298,6 +329,7 @@ mod tests {
                 },
                 Entry::Results(vec![ToolResult { id: "1".into(), name: "list_tabs".into(), text: "secret de la page".into(), error: false }]),
             ],
+            kept_from_models: false,
         }
     }
 
@@ -312,7 +344,7 @@ mod tests {
         more.entries.push(Entry::User { text: "Et le débit ?".into(), sources: Vec::new(), files: Vec::new() });
         assert_eq!(chats.save(Some(id), &more, 200), Some(id));
         assert_eq!(chats.load(id).unwrap().entries.len(), 4);
-        assert_eq!(chats.list("", 10), vec![Kept { id, title: "Sanaga".into(), updated: 200 }]);
+        assert_eq!(chats.list("", 10), vec![Kept { id, title: "Sanaga".into(), updated: 200, kept_from_models: false }]);
         // a number that is not kept (deleted meanwhile): kept as a new one
         chats.delete(id);
         assert!(chats.load(id).is_none() && chats.list("", 10).is_empty());
@@ -335,6 +367,45 @@ mod tests {
         assert_eq!(chats.list("", 1).len(), 1);
         assert_eq!(chats.said_in(a, 1000), "Person: Quelle est la longueur de la Sanaga ?\nAssistant: Environ 918 km.\n");
         assert!(chats.said_in(a, 10).ends_with('…'));
+    }
+
+    #[test]
+    fn a_conversation_kept_from_models_is_never_given_to_one() {
+        let chats = Chats::in_memory().unwrap();
+        let open = chats.save(None, &conv("Banque", "q", "le solde du compte"), 100).unwrap();
+        let mut blocked = conv("Banque", "Résumer", "le solde du compte");
+        blocked.kept_from_models = true;
+        let kept = chats.save(None, &blocked, 200).unwrap();
+        // the person sees both, marked
+        let all = chats.list("solde", 10);
+        assert_eq!(all.iter().map(|k| (k.id, k.kept_from_models)).collect::<Vec<_>>(), vec![(kept, true), (open, false)]);
+        // a model's search never finds the one kept from models
+        assert_eq!(chats.list_for_models("solde", 10).iter().map(|k| k.id).collect::<Vec<_>>(), vec![open]);
+        assert_eq!(chats.list_for_models("", 10).iter().map(|k| k.id).collect::<Vec<_>>(), vec![open]);
+        // the mark stays with it when it is opened again, and when it is saved again
+        assert!(chats.load(kept).unwrap().kept_from_models);
+        assert!(!chats.load(open).unwrap().kept_from_models);
+        chats.save(Some(kept), &chats.load(kept).unwrap(), 300);
+        assert!(chats.list_for_models("", 10).iter().all(|k| k.id != kept));
+    }
+
+    #[test]
+    fn clearing_the_history_reaches_conversations_not_opened_yet() {
+        let dir = std::env::temp_dir().join(format!("sanaga-chats-clear-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        Chats::open(&dir).unwrap().save(None, &conv("Gardée", "q", "r"), 5_000).unwrap();
+        // the window has not opened them: the file is opened for the clearing
+        clear_period(None, Some(&dir), 0);
+        assert!(Chats::open(&dir).unwrap().list("", 10).is_empty());
+        // already open: those are used
+        let open = Chats::open(&dir).unwrap();
+        open.save(None, &conv("Encore", "q", "r"), 5_000).unwrap();
+        clear_period(Some(open), None, 0);
+        assert!(Chats::open(&dir).unwrap().list("", 10).is_empty());
+        // no profile folder (a guest window): nothing to do
+        clear_period(None, None, 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

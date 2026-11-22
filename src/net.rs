@@ -317,8 +317,25 @@ fn own_proxy() -> OwnProxy {
 const RELEASES_API: &str = "https://api.github.com/repos/grassfieldhq/sanaga/releases/latest";
 pub const RELEASES_PAGE: &str = "https://github.com/grassfieldhq/sanaga/releases/latest";
 
+/// Does Sanaga itself look for its new versions? Not when a distribution
+/// packaged it (`SANAGA_DISTRO`, see `codecs::distribution`): the system's
+/// updates bring them, and the releases page would offer a build its
+/// package manager does not know.
+pub fn looks_for_updates() -> bool {
+    static OWN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OWN.get_or_init(|| own_updates(crate::codecs::distribution().as_deref()))
+}
+
+fn own_updates(distribution: Option<&str>) -> bool {
+    distribution.is_none()
+}
+
 /// The newest released version ("0.5.0"), as GitHub gives it.
 pub fn latest_release() -> Result<String, String> {
+    // (a distribution's package never asks: see looks_for_updates)
+    if !looks_for_updates() {
+        return Err("updates come with the system's".into());
+    }
     // (test aid, debug builds only: another address to ask)
     let address = if cfg!(debug_assertions) { std::env::var("SANAGA_UPDATE_URL").unwrap_or_else(|_| RELEASES_API.to_string()) } else { RELEASES_API.to_string() };
     let body = agent_for(&address).get(&address).set("Accept", "application/vnd.github+json").call().map_err(|e| e.to_string())?.into_string().map_err(|e| e.to_string())?;
@@ -891,6 +908,14 @@ pub fn human_bytes(b: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_distributions_package_does_not_look_for_new_versions() {
+        assert!(own_updates(None), "Sanaga's own builds look (when the person asks)");
+        for distribution in ["grassfield", "arch", "fedora"] {
+            assert!(!own_updates(Some(distribution)), "{distribution}: its updates bring them");
+        }
+    }
 
     #[test]
     fn this_computer_is_asked_without_a_proxy() {

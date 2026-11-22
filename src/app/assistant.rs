@@ -115,6 +115,58 @@ pub(super) struct Confirm {
     /// A tool that only reads, wanted by a model outside this computer:
     /// asked once per conversation. Otherwise a tool that acts: every time.
     pub once: bool,
+    /// What is sent, whole (an outside tool's call): shown in a box of its
+    /// own, scrolled through.
+    pub detail: Option<String>,
+    /// All of `detail` has been on the screen: until then it can't be
+    /// accepted (what is below the box's edge is not read).
+    pub seen_all: bool,
+    /// Its own number (the box scrolled through is its own: it starts at
+    /// the top, not where the last question's was left).
+    serial: u64,
+    /// When it was first on the screen, and when a pointer button was last
+    /// pressed since (see `accept_armed`).
+    pub shown: Option<f64>,
+    pub press: Option<f64>,
+}
+
+impl Confirm {
+    pub(super) fn new(ask: ToolAsk, what: String, once: bool) -> Confirm {
+        static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let serial = SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Confirm { ask, what, once, detail: None, seen_all: true, serial, shown: None, press: None }
+    }
+
+    pub(super) fn with_detail(mut self, detail: String) -> Confirm {
+        self.detail = Some(detail);
+        self.seen_all = false;
+        self
+    }
+}
+
+/// How long "Accept" stays inert once a question about a tool appears: the
+/// next one comes in the same place the moment the last is answered, and
+/// the second click of a double click would accept it unread.
+const ARM_DELAY: f64 = 0.5;
+
+/// May "Accept" be taken now? Not before `ARM_DELAY` after the question
+/// appeared (`shown`), and a click must come from a press begun after that
+/// (`press`), not one begun before; Space or Enter (`by_pointer` false)
+/// only after the delay.
+fn accept_armed(shown: f64, now: f64, press: Option<f64>, by_pointer: bool) -> bool {
+    now - shown >= ARM_DELAY && (!by_pointer || press.is_some_and(|p| p - shown >= ARM_DELAY))
+}
+
+/// The least height of the box scrolled through that counts as reading
+/// it (about four lines): in a sliver of a box, scrolling to the end
+/// shows nothing readable on the way.
+const MIN_SHOWN: f32 = 60.0;
+
+/// Has the end of a box scrolled through been on the screen, in a box
+/// tall enough to be read? (`offset`: how far it is scrolled; `shown`: the
+/// height seen; `content`: the whole height.)
+fn seen_to_the_end(offset: f32, shown: f32, content: f32) -> bool {
+    offset + shown >= content - 1.0 && shown >= MIN_SHOWN.min(content) - 0.5
 }
 
 /// One thing shown in the conversation.
@@ -161,6 +213,58 @@ struct Pending {
     pages: Vec<PageWait>,
     extra: Vec<Attach>,
     since: f64,
+    /// The tab shown when it was asked: the model is chosen for it, never
+    /// for the tab shown when the pages have come (the person may have
+    /// gone to another one meanwhile).
+    tab: u64,
+    /// A page read for it is one the administrator keeps from every model
+    /// (the summary of such a site): only Sanaga's own extract, made on
+    /// this computer, answers it. Decided when it is asked, and kept.
+    local_only: bool,
+}
+
+/// What the administrator's policy makes of a page read for a question.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Admit {
+    /// It goes to the model.
+    Read,
+    /// It is read for Sanaga's own extract only: no model answers.
+    LocalOnly,
+    /// It is not read.
+    KeptOut,
+}
+
+/// May the page at `address` go with a question? A site the administrator
+/// keeps from every model is not read — except the page of the tab asked
+/// about for its summary (`summary`, `asked_tab`), which then gets Sanaga's
+/// own extract only.
+fn admit_page(policy: &crate::policy::Policy, address: &str, summary: bool, asked_tab: bool) -> Admit {
+    match policy.ai_allowed_on(address) {
+        true => Admit::Read,
+        false if summary && asked_tab => Admit::LocalOnly,
+        false => Admit::KeptOut,
+    }
+}
+
+/// May the page a tool reads go to the model? Its address when it was
+/// asked (`asked`) and what the tab shows now (`now`: None, the tab has
+/// gone) must both be allowed: a tab asleep may land, once loaded, on a
+/// site the administrator keeps from models, or go there while it is read.
+fn tool_read_allowed(policy: &crate::policy::Policy, asked: &str, now: Option<&str>) -> bool {
+    policy.ai_allowed_on(asked) && now.is_none_or(|now| policy.ai_allowed_on(now))
+}
+
+/// The model that answers a question: the one of the tab asked about —
+/// none when a page of it is kept from every model, or when the
+/// conversation already holds such a page (`kept`).
+fn question_model(local_only: bool, kept: bool, for_asked_tab: impl FnOnce() -> Result<Provider, String>) -> Result<Provider, String> {
+    if kept {
+        return Err(tr("Cette conversation contient un site que l'administrateur garde de tout modèle : commencez une nouvelle conversation.").to_string());
+    }
+    if local_only {
+        return Err(tr("L'administrateur de cet ordinateur ne laisse pas l'assistant lire ce site.").to_string());
+    }
+    for_asked_tab()
 }
 
 /// A tab whose page is read for a question.
@@ -232,6 +336,11 @@ pub(super) struct Assistant {
     /// Something of a private tab is in it: only a model on this computer
     /// may answer from then on, and nothing is kept.
     pub(super) private: bool,
+    /// Sanaga's own extract of a site the administrator keeps from every
+    /// model is in it: no model answers it from then on (a follow-up would
+    /// hand the extract over with the conversation), and it is never given
+    /// to one (`Chats::list_for_models`).
+    pub(super) kept_from_models: bool,
     /// The list of tabs and files to attach is open.
     picker: bool,
     /// The question being typed, and what is attached to it.
@@ -279,6 +388,7 @@ impl Assistant {
             system: String::new(),
             tools: Vec::new(),
             private,
+            kept_from_models: false,
             picker: false,
             input: String::new(),
             attach: Vec::new(),
@@ -630,16 +740,20 @@ impl Sanaga {
             _ => true,
         });
         let mut pages = Vec::new();
-        let mut private = false;
+        let (mut private, mut local_only) = (false, false);
         let mut kept_out: Vec<String> = Vec::new();
         for id in tabs {
             let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) else { continue };
             // (a site the administrator keeps from every model is not read —
             // except for its summary, which is then Sanaga's own extract,
             // made on this computer: see assistant_step)
-            if !crate::policy::get().ai_allowed_on(t.url()) && !(summary && id == active) {
-                kept_out.push(host_of(t.url()));
-                continue;
+            match admit_page(crate::policy::get(), t.url(), summary, id == active) {
+                Admit::Read => {}
+                Admit::LocalOnly => local_only = true,
+                Admit::KeptOut => {
+                    kept_out.push(host_of(t.url()));
+                    continue;
+                }
             }
             private |= t.private;
             let address = t.url().to_string();
@@ -670,7 +784,7 @@ impl Sanaga {
             if !kept_out.is_empty() {
                 a.note = tf("Non lu, par réglage de l'administrateur : {}", &[&kept_out.join(", ")]);
             }
-            a.pending = Some(Pending { text, label, summary, pages, extra, since: now });
+            a.pending = Some(Pending { text, label, summary, pages, extra, since: now, tab: active, local_only });
         }
     }
 
@@ -708,10 +822,18 @@ impl Sanaga {
         self.keep_conversation();
         // the pages that can answer now are asked (a tab whose page had to
         // start answers once it has loaded)
-        let waiting: Vec<u64> =
-            self.assistant.as_ref().and_then(|a| a.pending.as_ref()).map(|p| p.pages.iter().filter(|x| x.got.is_none() && x.ticket.is_none()).map(|x| x.tab).collect()).unwrap_or_default();
+        let (waiting, asked): (Vec<u64>, Option<(u64, bool)>) = self
+            .assistant
+            .as_ref()
+            .and_then(|a| a.pending.as_ref())
+            .map(|p| (p.pages.iter().filter(|x| x.got.is_none() && x.ticket.is_none()).map(|x| x.tab).collect(), Some((p.tab, p.summary))))
+            .unwrap_or_default();
         for tab in waiting {
-            let state = self.tabs.iter().find(|t| t.id == tab).map(|t| t.web.is_some() && !t.loading);
+            // (a tab that has gone, since it was asked, to a site kept from
+            // every model is not read: the policy is that of what is read)
+            let (asked_tab, summary) = asked.unwrap_or_default();
+            let state =
+                self.tabs.iter().find(|t| t.id == tab).and_then(|t| (admit_page(crate::policy::get(), t.url(), summary, tab == asked_tab) != Admit::KeptOut).then_some(t.web.is_some() && !t.loading));
             let ticket = match state {
                 Some(true) => self.request_page_text(tab),
                 Some(false) => continue,
@@ -736,8 +858,8 @@ impl Sanaga {
             }
             return;
         }
-        let active = self.tabs[self.active].id;
         let Some(p) = self.assistant.as_mut().and_then(|a| a.pending.take()) else { return };
+        let mut local_only = p.local_only;
         let mut sources: Vec<Source> = Vec::new();
         let mut files: Vec<Attachment> = Vec::new();
         let mut given: Vec<(u64, String)> = Vec::new();
@@ -752,6 +874,17 @@ impl Sanaga {
         // text — is said, not passed over in silence)
         let mut unread: Vec<String> = Vec::new();
         for w in p.pages {
+            // the policy again, for what the tab shows now (it may have
+            // gone to another site since the question was asked)
+            let now_at = self.tabs.iter().find(|t| t.id == w.tab).map(|t| t.url().to_string()).unwrap_or_else(|| w.address.clone());
+            match (admit_page(crate::policy::get(), &w.address, p.summary, w.tab == p.tab), admit_page(crate::policy::get(), &now_at, p.summary, w.tab == p.tab)) {
+                (Admit::KeptOut, _) | (_, Admit::KeptOut) => {
+                    unread.push(host_of(&now_at));
+                    continue;
+                }
+                (Admit::LocalOnly, _) | (_, Admit::LocalOnly) => local_only = true,
+                _ => {}
+            }
             if let Some(file) = w.file {
                 given.push((w.tab, w.address));
                 files.push(file);
@@ -768,9 +901,14 @@ impl Sanaga {
         let page_words: usize = sources.iter().filter(|s| s.kind == SourceKind::Page).map(|s| s.text.split_whitespace().count()).sum();
         let own_summary = sources.iter().find(|s| s.kind == SourceKind::Page).map(|s| ai::local_summary(&s.text, 6)).unwrap_or_default();
         let private = self.assistant.as_ref().is_some_and(|a| a.private);
-        let provider = self.chat_provider(active, private).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
+        let kept = self.assistant.as_ref().is_some_and(|a| a.kept_from_models);
+        // (the model of the tab asked about, as decided then: never that of
+        // the tab shown now)
+        let provider = question_model(local_only, kept, || self.chat_provider(p.tab, private)).and_then(|p| chat::files_ok(&p, &files).map(|()| p));
         let outside_tools = self.mcp_tools();
         let Some(a) = self.assistant.as_mut() else { return };
+        // (from now on the whole conversation is kept from models)
+        a.kept_from_models |= local_only;
         if !unread.is_empty() && !p.summary {
             a.note = tf("Non lu (page vide ou trop lente à charger) : {}", &[&unread.join(", ")]);
         }
@@ -911,9 +1049,12 @@ impl Sanaga {
     /// The tabs tools are reading: asked when their page can answer,
     /// answered when it has (or after a while).
     fn tool_reads_step(&mut self, now: f64) {
-        let waiting: Vec<u64> = self.assistant.as_ref().map(|a| a.reads.iter().filter(|r| r.0.got.is_none() && r.0.ticket.is_none()).map(|r| r.0.tab).collect()).unwrap_or_default();
-        for tab in waiting {
-            let state = self.tabs.iter().find(|t| t.id == tab).map(|t| t.web.is_some() && !t.loading);
+        let waiting: Vec<(u64, String)> =
+            self.assistant.as_ref().map(|a| a.reads.iter().filter(|r| r.0.got.is_none() && r.0.ticket.is_none()).map(|r| (r.0.tab, r.0.address.clone())).collect()).unwrap_or_default();
+        let policy = crate::policy::get();
+        for (tab, asked) in waiting {
+            // (a tab now at a site kept from models is not read)
+            let state = self.tabs.iter().find(|t| t.id == tab).filter(|t| tool_read_allowed(policy, &asked, Some(t.url()))).map(|t| t.web.is_some() && !t.loading);
             let ticket = match state {
                 Some(true) => self.request_page_text(tab),
                 Some(false) => continue,
@@ -927,6 +1068,9 @@ impl Sanaga {
             }
         }
         let budget = self.assistant.as_ref().map(|a| if a.outside { 120_000 } else { 12_000 }).unwrap_or(12_000);
+        // what each tab shows now, for the policy's second look when the
+        // text is used
+        let shown_now: HashMap<u64, String> = self.tabs.iter().map(|t| (t.id, t.url().to_string())).collect();
         let Some(a) = self.assistant.as_mut() else { return };
         let mut k = 0;
         while k < a.reads.len() {
@@ -935,6 +1079,15 @@ impl Sanaga {
                 continue;
             }
             let (wait, ask, _) = a.reads.remove(k);
+            if !tool_read_allowed(policy, &wait.address, shown_now.get(&wait.tab).map(String::as_str)) {
+                let _ = ask.reply.send(chat::ToolResult {
+                    id: ask.call.id.clone(),
+                    name: ask.call.name.clone(),
+                    text: "The administrator of this computer does not let this site's pages be given.".into(),
+                    error: true,
+                });
+                continue;
+            }
             let result = match wait.got {
                 Some(s) if !s.text.trim().is_empty() => {
                     let mut one = [s];
@@ -975,6 +1128,7 @@ impl Sanaga {
             tools: a.tools.clone(),
             labels: a.labels.clone(),
             entries: a.entries.clone(),
+            kept_from_models: a.kept_from_models,
         };
         let (id, run) = (a.id, a.run);
         self.off_thread(
@@ -1021,6 +1175,7 @@ impl Sanaga {
                 a.tools = conv.tools;
                 a.labels = conv.labels;
                 a.entries = conv.entries;
+                a.kept_from_models = conv.kept_from_models;
                 // (its pages were given long ago: the page shown is not
                 // sent again unless the person asks)
                 a.with_page = false;
@@ -1087,7 +1242,8 @@ impl Sanaga {
         let page_can = active.web.is_some() && matches!(active.view, View::Web);
         let no_model = self.ai_provider() == Provider::Local;
         let private = self.assistant.as_ref().is_some_and(|a| a.private) || active.private;
-        let available = self.chat_provider(active_id, private);
+        let kept = self.assistant.as_ref().is_some_and(|a| a.kept_from_models);
+        let available = question_model(false, kept, || self.chat_provider(active_id, private));
         // the other tabs whose page can go with a question (a private
         // tab's only into a conversation that is already private)
         let others: Vec<(u64, String, String)> = self
@@ -1159,7 +1315,15 @@ impl Sanaga {
 
         egui::Panel::bottom("assistant-foot").show_separator_line(false).frame(Frame::NONE.inner_margin(Margin { left: 14, right: 14, top: 6, bottom: 12 })).show(ui, |ui| {
             // a tool the model wants, which the person decides
+            let mut seen_now = false;
+            let now = ui.input(|i| i.time);
+            let pressed_now = ui.input(|i| i.pointer.any_pressed());
+            let mut timing = None::<(f64, Option<f64>)>;
             if let Some(c) = &a.confirm {
+                // (when it appeared, and the latest press since)
+                let shown = c.shown.unwrap_or(now);
+                let press = if pressed_now { Some(now) } else { c.press };
+                timing = Some((shown, press));
                 Frame::new()
                     .fill(th.accent.gamma_multiply(0.12))
                     .stroke(Stroke::new(1.0, th.accent.gamma_multiply(0.5)))
@@ -1172,13 +1336,35 @@ impl Sanaga {
                         for line in c.what.lines() {
                             ui.add(egui::Label::new(RichText::new(line).size(13.0).color(th.text)).wrap());
                         }
+                        // (what an outside tool is sent: all of it, scrolled
+                        // through to its end before it can be accepted)
+                        let mut reached_end = false;
+                        if let Some(detail) = &c.detail {
+                            Frame::new().fill(th.card).corner_radius(CornerRadius::same(6)).inner_margin(Margin::same(6)).show(ui, |ui| {
+                                let out = egui::ScrollArea::vertical().id_salt(("confirm-detail", c.serial)).max_height(220.0).auto_shrink([false, true]).show(ui, |ui| {
+                                    // (wrapped: nothing goes past the right edge either)
+                                    ui.add(egui::Label::new(RichText::new(detail).monospace().size(12.0).color(th.text)).wrap());
+                                });
+                                reached_end = seen_to_the_end(out.state.clamped_offset().y, out.inner_rect.height(), out.content_size.y);
+                            });
+                            if !c.seen_all && !reached_end {
+                                ui.add(egui::Label::new(RichText::new(tr("Faites défiler jusqu'au bout pour pouvoir accepter.")).size(11.5).color(th.sub)).wrap());
+                            }
+                        }
                         if c.once {
                             ui.add(egui::Label::new(RichText::new(tr("Ce qu'il y trouve est envoyé au modèle, hors de cet ordinateur.")).size(11.5).color(th.sub)).wrap());
                         }
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
                             let yes = if c.once { tr("Autoriser pour cette conversation") } else { tr("Accepter") };
-                            if ui.add(egui::Button::new(RichText::new(yes).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(9))).clicked() {
+                            let readable = c.seen_all || reached_end;
+                            seen_now = reached_end;
+                            let waited = now - shown >= ARM_DELAY;
+                            if !waited {
+                                ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64((shown + ARM_DELAY - now).max(0.01)));
+                            }
+                            let accept = ui.add_enabled(readable && waited, egui::Button::new(RichText::new(yes).color(Color32::WHITE)).fill(th.accent).corner_radius(CornerRadius::same(9)));
+                            if accept.clicked() && accept_armed(shown, now, press, accept.clicked_by(egui::PointerButton::Primary)) {
                                 allow = Some(true);
                             }
                             if ui.add(egui::Button::new(tr("Refuser")).corner_radius(CornerRadius::same(9))).clicked() {
@@ -1187,6 +1373,12 @@ impl Sanaga {
                         });
                     });
                 ui.add_space(6.0);
+            }
+            if let Some(c) = a.confirm.as_mut() {
+                c.seen_all |= seen_now;
+                if let Some((shown, press)) = timing {
+                    (c.shown, c.press) = (Some(shown), press);
+                }
             }
             if !a.note.is_empty() {
                 ui.add(egui::Label::new(RichText::new(&a.note).size(12.0).color(Color32::from_rgb(0xD0, 0x60, 0x30))).wrap());
@@ -1596,6 +1788,86 @@ mod tests {
         crate::mutate::run(&[br#"{"title":"t","text":"x","whole":1,"selection":""}"#], 5_000, |d| {
             let _ = read_page_text(&String::from_utf8_lossy(d));
         });
+    }
+
+    #[test]
+    fn a_box_scrolled_through_is_read_once_its_end_was_shown() {
+        // fits: seen at once
+        assert!(seen_to_the_end(0.0, 120.0, 120.0));
+        // longer than the box: not until scrolled to its end
+        assert!(!seen_to_the_end(0.0, 220.0, 900.0));
+        assert!(!seen_to_the_end(600.0, 220.0, 900.0));
+        assert!(seen_to_the_end(680.0, 220.0, 900.0));
+        // a sliver of a box (a very short window): its end shown is not read
+        assert!(!seen_to_the_end(880.0, 20.0, 900.0));
+        // what is shorter than that, and shown whole, is read
+        assert!(seen_to_the_end(0.0, 20.0, 20.0));
+        // what has to be scrolled through starts unread; the rest is read
+        let (reply, _rx) = channel();
+        let ask = || ToolAsk { call: chat::Call { id: "1".into(), name: "mcp__s__t".into(), input: serde_json::json!({}) }, reply: reply.clone() };
+        assert!(Confirm::new(ask(), "x".into(), false).seen_all);
+        assert!(!Confirm::new(ask(), "x".into(), false).with_detail("{}".into()).seen_all);
+        assert_ne!(Confirm::new(ask(), "x".into(), false).serial, Confirm::new(ask(), "x".into(), false).serial, "each its own box");
+    }
+
+    #[test]
+    fn a_site_kept_from_models_stays_kept_when_the_person_changes_tabs() {
+        let policy = crate::policy::parse("ai_no_sites=bank.example");
+        let (blocked, open) = ("https://www.bank.example/account", "https://example.org/");
+        // asked when it is asked: only the tab asked about may be read for
+        // its summary, and then by Sanaga alone
+        assert_eq!(admit_page(&policy, blocked, true, true), Admit::LocalOnly);
+        assert_eq!(admit_page(&policy, blocked, true, false), Admit::KeptOut);
+        assert_eq!(admit_page(&policy, blocked, false, true), Admit::KeptOut);
+        assert_eq!(admit_page(&policy, open, true, true), Admit::Read);
+        // the summary of the bank's page was asked; the person then shows
+        // an open site while the page is read: the model is still none —
+        // the decision kept with the question, not the tab shown now
+        let model = || Ok(Provider::Ollama { model: "llama3.2".into() });
+        let local_only = admit_page(&policy, blocked, true, true) == Admit::LocalOnly;
+        let shown_now_is_open = admit_page(&policy, open, true, true) == Admit::Read;
+        assert!(shown_now_is_open);
+        assert!(question_model(local_only, false, model).is_err());
+        // a question asked of an open site goes to the model of its tab
+        assert_eq!(question_model(false, false, model), model());
+        // a follow-up, asked from an open site, in a conversation that holds
+        // the bank's extract: still no model (it would get the extract
+        // with the conversation)
+        assert!(question_model(false, true, model).is_err());
+    }
+
+    #[test]
+    fn a_tab_read_by_a_tool_is_checked_again_when_its_text_is_used() {
+        let policy = crate::policy::parse("ai_no_sites=bank.example");
+        // asked at an open site, still there
+        assert!(tool_read_allowed(&policy, "https://example.org/a", Some("https://example.org/a")));
+        // a tab asleep that, once loaded, landed at the bank (a redirect),
+        // or went there while it was read: not given
+        assert!(!tool_read_allowed(&policy, "https://example.org/a", Some("https://www.bank.example/login")));
+        // asked at the bank: never
+        assert!(!tool_read_allowed(&policy, "https://bank.example/", Some("https://example.org/")));
+        // the tab has gone: what was asked decides
+        assert!(tool_read_allowed(&policy, "https://example.org/a", None));
+        assert!(!tool_read_allowed(&policy, "https://bank.example/", None));
+    }
+
+    #[test]
+    fn a_double_click_does_not_accept_the_next_action() {
+        // the next action appears at 10.0, where the last one was accepted
+        let shown = 10.0;
+        // the second click of a double click: pressed at 10.1, released at 10.15
+        assert!(!accept_armed(shown, 10.15, Some(10.1), true));
+        // a press begun early and held past the delay: still not a fresh press
+        assert!(!accept_armed(shown, 10.8, Some(10.2), true));
+        // a press begun before the action appeared
+        assert!(!accept_armed(shown, 10.9, Some(9.95), true));
+        assert!(!accept_armed(shown, 10.9, None, true));
+        // a fresh press after the delay
+        assert!(accept_armed(shown, 10.7, Some(10.6), true));
+        assert!(accept_armed(shown, shown + ARM_DELAY, Some(shown + ARM_DELAY), true));
+        // Space or Enter: after the delay only
+        assert!(!accept_armed(shown, 10.3, None, false));
+        assert!(accept_armed(shown, 10.5, None, false));
     }
 
     #[test]

@@ -1437,3 +1437,14 @@ L'administrateur de cet ordinateur a désactivé l'intelligence artificielle : l
 L'administrateur de cet ordinateur ne laisse aucun modèle lire ces sites : {}	This computer's administrator lets no model read these sites: {}
 Copier le lien en Markdown	Copy the link as Markdown
 Lien copié en Markdown.	Link copied as Markdown.
+(coupé ici : {} caractères de plus)	(cut here: {} more characters)
+{} › {} — envoyé :	{} › {} — sent:
+Faites défiler jusqu'au bout pour pouvoir accepter.	Scroll to the end to be able to accept.
+Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'il lui faut devant la commande : NOM=valeur commande…	It does not get Sanaga's environment variables; write the ones it needs before the command: NAME=value command…
+Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est chiffré par une phrase secrète : sans elle, quiconque peut écrire dans le dossier pourrait y glisser une demande.	Your saved requests for the assistant travel only when the folder is encrypted with a secret phrase: without one, anyone who can write in the folder could slip a request in.
+{} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} is not a regular file (a link, for example): it is not read.
+{} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} is not a regular folder (a link, for example): sync stops.
+Les nouvelles versions de Sanaga arrivent avec les mises à jour de votre système.	New versions of Sanaga come with your system's updates.
+Le serveur a envoyé un message trop long : l'appel est arrêté.	The server sent a message that is too long: the call is stopped.
+Cette conversation contient un site que l'administrateur garde de tout modèle : commencez une nouvelle conversation.	This conversation holds a site the administrator keeps from every model: start a new conversation.
+Attention : des lettres de plusieurs alphabets se mêlent dans un même mot (des lettres qui se ressemblent peuvent tromper).	Warning: letters of several alphabets are mixed in one word (letters that look alike can mislead).

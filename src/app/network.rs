@@ -96,7 +96,7 @@ impl Sanaga {
         }
         // (asked again every hour while Sanaga stays open: the file says
         // whether a day has passed)
-        if self.store.settings.update_check && !self.guest && self.screenshot.is_none() && now - self.update_looked_at > 3600.0 {
+        if self.store.settings.update_check && crate::net::looks_for_updates() && !self.guest && self.screenshot.is_none() && now - self.update_looked_at > 3600.0 {
             self.update_looked_at = now;
             let file = crate::store::Store::root_dir().join("update-check");
             self.off_thread(

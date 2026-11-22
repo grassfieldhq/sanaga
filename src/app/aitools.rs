@@ -61,7 +61,7 @@ pub(super) fn all() -> Vec<Tool> {
         ),
         tool(
             "read_form",
-            "List the fields of the form on the page shown that can be filled: each one's number, label, kind, choices and present value. Password, payment and hidden fields are never listed. Use it before fill_form.",
+            "List the fields of the form on the page shown that can be filled: each one's number, label, kind, choices and present value. Fields that look like passwords, codes or payment cards, fields not visible on the page and fields inside frames are never listed. Use it before fill_form.",
             json!({"type": "object", "properties": {}}),
             false,
         ),
@@ -168,11 +168,76 @@ pub(super) fn line(call: &Call, tab_titles: &HashMap<u64, String>) -> String {
     }
 }
 
-/// How a call of an outside tool is said: its server, its name, and
-/// exactly what is sent to it.
+/// The most of an outside call's input said in the conversation's steps
+/// (the question put to the person shows all of it: `outside_input`).
+const OUTSIDE_SAID: usize = 600;
+/// The longest input of an outside call that can be shown to the person.
+/// A longer one is refused, not shown in part: what is not read can't be
+/// accepted.
+pub(super) const OUTSIDE_MAX: usize = 32_000;
+
+/// How a call of an outside tool is said in the conversation's steps: its
+/// server, its name, and what is sent to it — cut when long, and then said
+/// to be.
 pub(super) fn outside_line(server: &str, tool: &str, input: &Value) -> String {
-    let sent: String = input.to_string().chars().take(600).collect();
+    let whole = input.to_string();
+    let n = whole.chars().count();
+    let sent = if n <= OUTSIDE_SAID {
+        whole
+    } else {
+        let start: String = whole.chars().take(OUTSIDE_SAID).collect();
+        format!("{start}… {}", tf("(coupé ici : {} caractères de plus)", &[&(n - OUTSIDE_SAID)]))
+    };
     tf("{} › {} — envoyé : {}", &[&server, &tool, &sent])
+}
+
+/// What an outside call sends, whole, as the person reads it before they
+/// accept: indented JSON, the characters that draw nothing (zero-width,
+/// direction marks) written out so that nothing in it is hidden. None:
+/// too long to be read (`OUTSIDE_MAX`).
+pub(super) fn outside_input(input: &Value) -> Option<String> {
+    let pretty = serde_json::to_string_pretty(input).unwrap_or_default();
+    let mut out = String::with_capacity(pretty.len());
+    for c in pretty.chars() {
+        if invisible(c) {
+            out.push_str(&format!("\\u{{{:04X}}}", c as u32));
+        } else {
+            out.push(c);
+        }
+    }
+    (out.chars().count() <= OUTSIDE_MAX).then_some(out)
+}
+
+/// A character that draws nothing, or changes the order of what follows
+/// (C1 controls, soft hyphen, joiners and marks, variation selectors,
+/// shorthand format controls, musical formatting, tags…).
+fn invisible(c: char) -> bool {
+    matches!(c as u32, 0x80..=0x9F | 0xAD | 0x1BCA0..=0x1BCA3 | 0x1D173..=0x1D17A | 0x34F | 0x61C | 0x115F | 0x1160 | 0x17B4 | 0x17B5 | 0x180B..=0x180F | 0x200B..=0x200F | 0x2028..=0x202E | 0x2060..=0x206F | 0x3164 | 0xFE00..=0xFE0F | 0xFEFF | 0xFFA0 | 0xFFF0..=0xFFFB | 0xE0000..=0xE0FFF)
+}
+
+/// Does a word of `text` mix letters of alphabets that have look-alikes
+/// (Latin, Greek, Cyrillic, Armenian, Cherokee)? "pаypal" with a Cyrillic
+/// "а" reads as "paypal". A warning, not a proof: some words mix
+/// alphabets on purpose.
+pub(super) fn mixed_scripts(text: &str) -> bool {
+    let script = |c: char| match c as u32 {
+        0x41..=0x5A | 0x61..=0x7A | 0xC0..=0x24F => 1,
+        0x370..=0x3FF => 2,
+        0x400..=0x52F => 3,
+        0x530..=0x58F => 4,
+        0x13A0..=0x13FF => 5,
+        _ => 0,
+    };
+    text.split(|c: char| !c.is_alphanumeric()).any(|word| {
+        let mut seen = 0u8;
+        for c in word.chars() {
+            let s = script(c);
+            if s != 0 {
+                seen |= 1 << s;
+            }
+        }
+        seen.count_ones() > 1
+    })
 }
 
 fn answer(ask: ToolAsk, text: impl Into<String>, error: bool) {
@@ -201,8 +266,16 @@ impl Sanaga {
             if free {
                 return self.call_mcp_tool(ask);
             }
-            let what = outside_line(&server, &name, &ask.call.input);
-            a.confirm = Some(Confirm { ask, what, once: false });
+            // (the person is shown all that is sent, or the call is refused)
+            let Some(input) = outside_input(&ask.call.input) else {
+                return answer(ask, "What this call would send is too long to be shown to the person: it was not made. Send less.", true);
+            };
+            let mut what = tf("{} › {} — envoyé :", &[&server, &name]);
+            if mixed_scripts(&input) {
+                what.push('\n');
+                what.push_str(tr("Attention : des lettres de plusieurs alphabets se mêlent dans un même mot (des lettres qui se ressemblent peuvent tromper)."));
+            }
+            a.confirm = Some(Confirm::new(ask, what, false).with_detail(input));
             return;
         }
         let mut what = line(&ask.call, &titles);
@@ -219,12 +292,12 @@ impl Sanaga {
                 }
             }
             if let Some(a) = self.assistant.as_mut() {
-                a.confirm = Some(Confirm { ask, what, once: false });
+                a.confirm = Some(Confirm::new(ask, what, false));
             }
             return;
         }
         if a.outside && !a.allowed.contains(&tool.name) {
-            a.confirm = Some(Confirm { ask, what, once: true });
+            a.confirm = Some(Confirm::new(ask, what, true));
             return;
         }
         self.do_tool(ask);
@@ -314,7 +387,7 @@ impl Sanaga {
                 let Some(chats) = self.chats.clone() else { return answer(ask, "No conversation is kept.", false) };
                 let current = self.assistant.as_ref().and_then(|a| a.id);
                 self.off_thread(
-                    move || chats.list(&words, 6).into_iter().filter(|k| Some(k.id) != current).map(|k| (k.updated, k.title.clone(), chats.said_in(k.id, 1_200))).collect::<Vec<_>>(),
+                    move || chats.list_for_models(&words, 6).into_iter().filter(|k| Some(k.id) != current).map(|k| (k.updated, k.title.clone(), chats.said_in(k.id, 1_200))).collect::<Vec<_>>(),
                     move |_, found| {
                         let mut out = String::new();
                         for (updated, title, said) in &found {
@@ -433,6 +506,36 @@ mod tests {
         assert!(end > start && end - start >= 23 * 3600 - 1 && end - start <= 25 * 3600);
         assert!(when(start).starts_with("2026-11-17 00:00"));
         assert!(today().len() > 10);
+    }
+
+    #[test]
+    fn an_outside_call_is_shown_whole_before_it_is_accepted() {
+        // a page made the model pad the first argument: the part that
+        // matters comes after 600 characters
+        let input = json!({"a_note": "x".repeat(900), "z_command": "rm -rf ~"});
+        let whole = outside_input(&input).unwrap();
+        assert!(whole.contains("rm -rf ~") && whole.contains(&"x".repeat(900)), "the person reads all of it");
+        // in the steps of the conversation it is cut, and said to be
+        let said = outside_line("srv", "run", &input);
+        assert!(!said.contains("rm -rf ~") && said.contains('…') && said.contains("336"), "{said}");
+        let short = outside_line("srv", "run", &json!({"a": 1}));
+        assert!(short.ends_with(r#"{"a":1}"#) && !short.contains('…'), "{short}");
+        // what draws nothing, or turns the text around, is written out
+        let hidden = outside_input(&json!({"a": "ok\u{202E}\u{200B}evil"})).unwrap();
+        assert!(hidden.contains("\\u{202E}") && hidden.contains("\\u{200B}") && !hidden.contains('\u{202E}'), "{hidden}");
+        // C1 controls, shorthand format controls, musical formatting
+        let more = outside_input(&json!({"a": "x\u{85}\u{9B}\u{1BCA1}\u{1D175}y"})).unwrap();
+        for hidden in ["\\u{0085}", "\\u{009B}", "\\u{1BCA1}", "\\u{1D175}"] {
+            assert!(more.contains(hidden), "{hidden} in {more}");
+        }
+        // look-alike letters of another alphabet in a word are pointed out
+        assert!(mixed_scripts("send to p\u{430}ypal.com"), "a Cyrillic а in a Latin word");
+        assert!(mixed_scripts("\u{3BF}k"));
+        assert!(!mixed_scripts("paypal.com — Москва — Ελλάδα — café"), "each word in one alphabet");
+        assert!(!mixed_scripts("rm -rf ~ 123"));
+        // too long to be read: refused, never shown in part
+        assert_eq!(outside_input(&json!({"a": "y".repeat(OUTSIDE_MAX)})), None);
+        assert!(outside_input(&json!({"a": "y".repeat(OUTSIDE_MAX - 20)})).is_some());
     }
 
     #[test]

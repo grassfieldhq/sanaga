@@ -9,6 +9,16 @@
   <p><label for="pass">Mot de passe</label> <input id="pass" name="pass" type="password"></p>
   <p><label for="carte">Numéro de carte</label> <input id="carte" name="carte" type="text" autocomplete="cc-number"></p>
   <input id="cache" type="hidden" name="jeton" value="abc">
+  <!-- secret by its words only (no autocomplete), and fields not visibly on the page: never listed -->
+  <p><input id="numero" name="cardNumber" type="text" placeholder="1234 1234 1234 1234"></p>
+  <p><label for="crypto">Cryptogramme (CVC)</label> <input id="crypto" name="c2" type="text"></p>
+  <p><input id="expire" name="e" type="text" placeholder="MM / AA"></p>
+  <input id="invisible" name="i1" type="text" style="visibility:hidden">
+  <input id="transparent" name="i2" type="text" style="opacity:0">
+  <input id="dehors" name="i3" type="text" style="position:absolute; left:-9999px">
+  <input id="minuscule" name="i4" type="text" style="width:0; height:0; border:0; padding:0">
+  <!-- a payment service's frame: its fields are never read -->
+  <iframe title="paiement" srcdoc="<input id='cadre' name='x' type='text'>" style="height:40px"></iframe>
   <p><label for="pays">Pays</label>
     <select id="pays" name="pays"><option value="">Choisir…</option><option value="cm">Cameroun</option><option value="ga">Gabon</option></select></p>
   <p><label><input id="lettre" type="checkbox" name="lettre"> Recevoir la lettre d'information</label></p>

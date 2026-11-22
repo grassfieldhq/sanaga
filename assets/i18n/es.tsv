@@ -1437,3 +1437,14 @@ L'administrateur de cet ordinateur a désactivé l'intelligence artificielle : l
 L'administrateur de cet ordinateur ne laisse aucun modèle lire ces sites : {}	El administrador de este ordenador no deja que ningún modelo lea estos sitios: {}
 Copier le lien en Markdown	Copiar el enlace en Markdown
 Lien copié en Markdown.	Enlace copiado en Markdown.
+(coupé ici : {} caractères de plus)	(cortado aquí: {} caracteres más)
+{} › {} — envoyé :	{} › {} — enviado:
+Faites défiler jusqu'au bout pour pouvoir accepter.	Desplácese hasta el final para poder aceptar.
+Il ne reçoit pas les variables d'environnement de Sanaga ; écrivez celles qu'il lui faut devant la commande : NOM=valeur commande…	No recibe las variables de entorno de Sanaga; escriba las que necesite delante del comando: NOMBRE=valor comando…
+Vos demandes enregistrées pour l'assistant ne voyagent que si le dossier est chiffré par une phrase secrète : sans elle, quiconque peut écrire dans le dossier pourrait y glisser une demande.	Sus solicitudes guardadas para el asistente solo viajan si la carpeta está cifrada con una frase secreta: sin ella, cualquiera que pueda escribir en la carpeta podría colar una solicitud.
+{} n'est pas un fichier ordinaire (un lien, par exemple) : il n'est pas lu.	{} no es un archivo normal (un enlace, por ejemplo): no se lee.
+{} n'est pas un dossier ordinaire (un lien, par exemple) : la synchronisation s'arrête.	{} no es una carpeta normal (un enlace, por ejemplo): la sincronización se detiene.
+Les nouvelles versions de Sanaga arrivent avec les mises à jour de votre système.	Las nuevas versiones de Sanaga llegan con las actualizaciones de su sistema.
+Le serveur a envoyé un message trop long : l'appel est arrêté.	El servidor envió un mensaje demasiado largo: la llamada se detiene.
+Cette conversation contient un site que l'administrateur garde de tout modèle : commencez une nouvelle conversation.	Esta conversación contiene un sitio que el administrador mantiene fuera de todo modelo: empiece una nueva conversación.
+Attention : des lettres de plusieurs alphabets se mêlent dans un même mot (des lettres qui se ressemblent peuvent tromper).	Atención: se mezclan letras de varios alfabetos en una misma palabra (letras parecidas pueden engañar).

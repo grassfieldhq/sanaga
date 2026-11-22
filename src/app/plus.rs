@@ -468,10 +468,11 @@ impl Sanaga {
     pub(super) fn clear_browsing_data(&mut self, period: u64, history: bool, cookies: bool, cache: bool) {
         let since = if period == 0 { 0 } else { crate::store::now().saturating_sub(period) };
         if history {
-            // (the assistant's conversations of the period go with the history)
-            if let Some(chats) = self.chats.clone().or_else(|| self.store.data_dir().and_then(|d| crate::chats::Chats::open(d))) {
-                self.off_thread(move || chats.clear_since(since), |_, ()| {});
-            }
+            // (the assistant's conversations of the period go with the
+            // history — their file opened on the thread when the window
+            // has not opened it yet: it waits for the disk)
+            let (chats, dir) = (self.chats.clone(), self.store.data_dir().cloned());
+            self.off_thread(move || crate::chats::clear_period(chats, dir.as_deref(), since), |_, ()| {});
             if let Some(a) = self.assistant.as_mut() {
                 a.id = None;
             }
