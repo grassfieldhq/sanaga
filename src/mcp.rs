@@ -548,7 +548,7 @@ mod tests {
         let mut r = std::io::Cursor::new(vec![b'z'; 1_000]);
         assert_eq!(read_line(&mut r, 16).unwrap(), Some(Err(())));
         assert_eq!(r.position(), 17);
-        assert!(MAX_LINE >= MAX_ANSWER * 4, "an answer that is cut afterwards still arrives");
+        const { assert!(MAX_LINE >= MAX_ANSWER * 4, "an answer that is cut afterwards still arrives") };
     }
 
     #[test]
