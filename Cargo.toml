@@ -86,7 +86,7 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", 
 epaint = { version = "0.37", default-features = false, features = ["color_fonts", "monochrome_emoji_fonts"] }
 # the system's big fonts (Chinese, Japanese, Korean, emoji) are mapped, not copied
 memmap2 = "0.9"
-url = "2.5"
+url = "2.5.9"
 # right-to-left sentences in the interface: the order words are seen in
 # (the Unicode bidirectional algorithm; no other crate comes with it)
 unicode-bidi = { version = "0.3", default-features = false, features = ["hardcoded-data", "std"] }

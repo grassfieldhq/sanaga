@@ -45,6 +45,10 @@ The security review and the functional review of 0.6.0.
   encrypted with a secret phrase — in a plain folder anyone who can write
   in it could slip one in.
 
+- **`url` 2.5.9** (RUSTSEC-2026-0592): a page address made of thousands of
+  nested `blob:` prefixes overflowed the stack when its origin was read
+  (saving a password reads it), stopping the whole browser.
+
 ### Fixed
 - Clearing the history no longer opens the conversations' database on the
   window's thread when the assistant had not opened it yet.

@@ -559,3 +559,22 @@ impl Sanaga {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_page_origin_is_read_without_overflowing_on_nested_blob_addresses() {
+        assert_eq!(origin_of("https://example.org:8443/a?b"), "https://example.org:8443");
+        assert_eq!(origin_of("blob:https://example.org/1234"), "https://example.org");
+        assert_eq!(origin_of("file:///home/me/a.html"), "file://");
+        // RUSTSEC-2026-0592: `url` up to 2.5.8 called itself once per
+        // "blob:" and a page's address with thousands of them overflowed
+        // the stack (the whole browser stops). With 2.5.9 a blob inside a
+        // blob is an opaque origin, read in a small stack.
+        let nested = format!("{}https://example.org/", "blob:".repeat(10_000));
+        let origin = std::thread::Builder::new().stack_size(256 * 1024).spawn(move || origin_of(&nested)).unwrap().join().unwrap();
+        assert_eq!(origin, "null");
+    }
+}
