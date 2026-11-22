@@ -233,6 +233,50 @@ impl ureq::Resolver for Own {
 
 // ------------------------------------------------------------------- relay
 
+/// The most connections the relay serves at once (one small thread each).
+/// More wait in line for a moment, then are refused: whatever opens them,
+/// the relay never grows without bound.
+const MAX_CONNECTIONS: usize = 256;
+/// How long a connection waits in line for a place.
+const LINE_WAIT: Duration = Duration::from_secs(10);
+
+/// Places for connections: taken by each one served, given back when it ends.
+struct Places {
+    used: Mutex<usize>,
+    freed: std::sync::Condvar,
+    most: usize,
+}
+
+/// A place taken (given back when dropped).
+struct Place(Arc<Places>);
+
+impl Drop for Place {
+    fn drop(&mut self) {
+        if let Ok(mut used) = self.0.used.lock() {
+            *used = used.saturating_sub(1);
+        }
+        self.0.freed.notify_one();
+    }
+}
+
+impl Places {
+    fn new(most: usize) -> Arc<Places> {
+        Arc::new(Places { used: Mutex::new(0), freed: std::sync::Condvar::new(), most })
+    }
+
+    /// A place, waiting at most `wait` for one to be given back.
+    fn take(places: &Arc<Places>, wait: Duration) -> Option<Place> {
+        let until = Instant::now() + wait;
+        let mut used = places.used.lock().ok()?;
+        while *used >= places.most {
+            let left = until.checked_duration_since(Instant::now()).filter(|d| !d.is_zero())?;
+            used = places.freed.wait_timeout(used, left).ok()?.0;
+        }
+        *used += 1;
+        Some(Place(places.clone()))
+    }
+}
+
 /// The relay's address as a proxy for the web engine (with its secret),
 /// started at the first call. `None`: it could not be started.
 pub fn relay() -> Option<String> {
@@ -250,10 +294,18 @@ pub fn relay() -> Option<String> {
             std::thread::Builder::new()
                 .name("sanaga-dns-relay".into())
                 .spawn(move || {
+                    let places = Places::new(MAX_CONNECTIONS);
                     for client in listener.incoming().flatten() {
+                        // (all places taken: this one waits a moment — the
+                        // next ones wait in the system's queue — then goes)
+                        let Some(place) = Places::take(&places, LINE_WAIT) else {
+                            drop(client);
+                            continue;
+                        };
                         let secret = known.clone();
                         // (one small thread per connection: it sleeps until bytes come)
                         let _ = std::thread::Builder::new().name("sanaga-dns-conn".into()).stack_size(128 * 1024).spawn(move || {
+                            let _place = place;
                             let _ = serve(client, &secret);
                         });
                     }
@@ -380,6 +432,30 @@ fn pass_along(a: TcpStream, b: TcpStream) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_relay_serves_a_bounded_number_of_connections() {
+        let places = Places::new(2);
+        let (a, b) = (Places::take(&places, Duration::ZERO).unwrap(), Places::take(&places, Duration::ZERO).unwrap());
+        // full: refused once the wait is over
+        let started = Instant::now();
+        assert!(Places::take(&places, Duration::from_millis(50)).is_none());
+        assert!(started.elapsed() >= Duration::from_millis(50));
+        // a connection that ends gives its place back
+        drop(a);
+        let c = Places::take(&places, Duration::ZERO).unwrap();
+        // one waiting in line gets the place given back meanwhile
+        let waiting = {
+            let places = places.clone();
+            std::thread::spawn(move || Places::take(&places, Duration::from_secs(5)).is_some())
+        };
+        std::thread::sleep(Duration::from_millis(30));
+        drop(b);
+        assert!(waiting.join().unwrap());
+        drop(c);
+        assert_eq!(*places.used.lock().unwrap(), 0, "every place given back");
+        assert!(MAX_CONNECTIONS >= 64 && MAX_CONNECTIONS <= 1024);
+    }
 
     /// An answer to `question(name, kind)` with these records (kind, ttl, data).
     fn answer(name: &str, kind: u16, records: &[(u16, u32, &[u8])]) -> Vec<u8> {
